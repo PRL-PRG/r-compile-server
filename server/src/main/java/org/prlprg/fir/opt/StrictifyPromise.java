@@ -19,6 +19,8 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.ReflectiveLoad;
+import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -38,7 +40,7 @@ import org.prlprg.util.Streams;
 /// Specifically, inlines every promise that is:
 /// - Non-effectful
 /// - Singly-used
-/// - Passed to a strict parameter
+/// - Passed to a strict parameter, or pure
 ///
 /// Furthermore, only inlines if there's a compatible version with the new signature, or one can
 /// be created from the old version (in which case creates it)
@@ -88,15 +90,23 @@ public record StrictifyPromise() implements AbstractionOptimization {
             continue;
           }
 
-          // The callee's corresponding parameter must be strict
-          if (j >= parameterStrictnesses.length() || !parameterStrictnesses.get(j)) {
-            continue;
-          }
-
           // Must be a non-effectful Promise
           if (!(promiseDefStmt.expression()
                   instanceof Promise(var valueType, var effects, var code, _))
               || effects.impure()) {
+            continue;
+          }
+
+          // The callee must definitely force the parameter, or the promise must be one whose
+          // value doesn't depend on when it's computed (i.e. pure).
+          if (j >= parameterStrictnesses.length()
+              || (!parameterStrictnesses.get(j) && effects.impure())) {
+            continue;
+          }
+
+          // A reflected-on parameter must stay the promise it was: the version that takes it by
+          // value rewraps it, and the wrapper's environment isn't the original's.
+          if (isReflectedOn(callee.exactVersion(), j)) {
             continue;
           }
 
@@ -219,5 +229,19 @@ public record StrictifyPromise() implements AbstractionOptimization {
     }
 
     return changed;
+  }
+
+  /// Whether `version`'s `argIndex`-th parameter is the target of a reflective load or store, so
+  /// its identity as a promise (specifically, its environment) is observable.
+  private static boolean isReflectedOn(@Nullable Abstraction version, int argIndex) {
+    if (version == null || argIndex >= version.parameters().size()) {
+      return false;
+    }
+    return version.parameters().get(argIndex).uses().stream()
+        .anyMatch(
+            use ->
+                use.instruction() instanceof Statement s
+                    && (s.expression() instanceof ReflectiveLoad
+                        || s.expression() instanceof ReflectiveStore));
   }
 }

@@ -133,6 +133,115 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void nonStrictCallee_purePromise_isInlined() {
+    // `f` may never force `r`, but the promise only builds a vector out of constants, so
+    // evaluating it at the call site computes the same value and can't be observed.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I {
+                rx: p(v(I) -) = prom<v(I) ->{
+                  ry: v(I) = v(I)[1];
+                  return ry;
+                };
+                rz: v(I) = f< p(v(I) -) --> v(I) >(rx);
+                return rz;
+              }
+            }
+
+            fun f(r) {
+              (reg r:*) -+> V { ... }
+              (reg r:p(v(I) -)) --> v(I) { ... }
+              (reg r:v(I)) --> v(I) {
+                return r;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    assertFalse(printed.contains("prom<"), "promise should be inlined");
+    assertMatches(
+        printed,
+        "< v\\(I\\) --> v\\(I\\) >\\(rx\\d*\\)",
+        "call should use the vector-taking version");
+    assertMatches(
+        printed, "ry\\d*: v\\(I\\) = v\\(I\\)\\[1]", "promise body should appear in outer scope");
+  }
+
+  @Test
+  void nonStrictCallee_promiseReadsVariable_notInlined() {
+    // `ld x` can see a store that happens between the call site and the force `f` may or may not
+    // do, so the promise isn't time-invariant and only strictness could justify inlining it.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () -~> V {
+                mkenv;
+                rv: v(I) = v(I)[1];
+                st x = rv;
+                rx: p(V -) = prom<V ->{
+                  ry: V = ld x;
+                  return ry;
+                };
+                rz: V = f< p(V -) -~> V >(rx);
+                return rz;
+              }
+            }
+
+            fun f(r) {
+              (reg r:*) -+> V { ... }
+              (reg r:p(V -)) -~> V { ... }
+              (reg r:V) -~> V {
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "environment-reading promise: optimization should report no change");
+  }
+
+  @Test
+  void nonStrictCallee_promiseWithDeoptBranch_notInlined() {
+    // The `deopt`'s bytecode position is relative to the promise's own code object, so its block
+    // can't be moved into the enclosing version.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I {
+                rx: p(v(I) -) = prom<v(I) ->{
+                  ry: v(I) = v(I)[1];
+                  check L1() else L2();
+                L1():
+                  return ry;
+                L2():
+                  deopt 0 [ry];
+                };
+                rz: v(I) = f< p(v(I) -) --> v(I) >(rx);
+                return rz;
+              }
+            }
+
+            fun f(r) {
+              (reg r:*) -+> V { ... }
+              (reg r:p(v(I) -)) --> v(I) { ... }
+              (reg r:v(I)) --> v(I) {
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "promise with a deopt branch: optimization should report no change");
+  }
+
+  @Test
   void promiseUsedMultipleTimes_notInlined() {
     // The promise register rx is used twice: once in the call and once in force.
     // We skip it to avoid code duplication.
