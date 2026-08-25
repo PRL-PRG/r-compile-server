@@ -413,7 +413,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
           // We're forcing an unknown thing. It may be one of the leaked promises (which we then
           // maybe-force), and (even if not, it may be reflective, so) taint named-variable origins.
-          maybeForceLeaked();
+          maybeForceLeaked(statement);
           state().taintViaReflection();
           yield null;
         }
@@ -455,8 +455,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             state().taintViaReflection();
           }
 
-          // Any call may force any leaked promise, at an unknown point (hence after the taint).
-          maybeForceLeaked();
+          // The call may force any leaked promise it has the effects to force, at an unknown point
+          // (hence after the taint).
+          maybeForceLeaked(statement);
           yield null;
         }
         case MkEnv(var type) -> {
@@ -501,10 +502,20 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return arg.variable() != null ? state().registerPromises.get(arg.variable()) : null;
     }
 
-    /// Maybe-forces every leaked promise (they may be forced at an unknown point).
-    private void maybeForceLeaked() {
+    /// Maybe-forces every leaked promise that `statement` could actually force (they may be forced
+    /// at an unknown point).
+    ///
+    /// Forcing a promise runs its body, so the force is at least as effectful as the body: an
+    /// effect-free statement can't run a body that stores or reflects, and an impure one can't run
+    /// a reflective body. Filtering by this keeps a pure instruction in the middle of a loop (an
+    /// unboxing, an arithmetic builtin, ...) from clobbering the origins of every variable an
+    /// escaped promise could have written.
+    private void maybeForceLeaked(Statement statement) {
+      var effects = inferEffects.of(statement);
       for (var po : new ArrayList<>(state().leakedPromises)) {
-        maybeForce(po);
+        if (po.promise.effects().isSubsetOf(effects)) {
+          maybeForce(po);
+        }
       }
     }
 

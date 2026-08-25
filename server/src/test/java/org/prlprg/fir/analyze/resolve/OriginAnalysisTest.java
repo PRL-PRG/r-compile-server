@@ -637,8 +637,8 @@ class OriginAnalysisTest {
   }
 
   /// A promise that stores to `a` is super-stored into the (untracked) global env, so it leaks: it
-  /// may now be forced from anywhere. After reassigning `a` and calling a function (which may force
-  /// the leaked promise), `a` is ambiguous — either the value stored before the call, or the one
+  /// may now be forced from anywhere. After reassigning `a` and calling a function that has the
+  /// effects to force it, `a` is ambiguous — either the value stored before the call, or the one
   /// the promise stores.
   @Test
   void testLeakedPromiseMaybeForcedAtCall() {
@@ -647,7 +647,48 @@ class OriginAnalysisTest {
         fun main() {
           () -+> V {
             mkenv;
-            pr:p(V +) = prom<V +>{ st a = <int 99>; return <int 0>; };
+            pr:p(V ~) = prom<V ~>{ st a = <int 99>; return <int 0>; };
+            st-super gp = pr;
+            st a = <int 1>;
+            c:V = g< -~> V >();
+            popenv;
+            return c;
+          }
+        }
+
+        fun g() {
+          () -~> V { return <int 0>; }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var entry = Objects.requireNonNull(main.cfg()).entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    // Before the call, `a` is just the value stored after the promise was created.
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 3, Variable.named("a")));
+    // The call may force the leaked promise, so `a` is either its prior value or what the promise
+    // stores.
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1)), new Constant(SEXPs.integer(99))),
+        analysis.getPossible(entry, 4, Variable.named("a")));
+  }
+
+  /// Same as [#testLeakedPromiseMaybeForcedAtCall], except the call is effect-free. Forcing the
+  /// promise would run its store, which the call would have to declare, so it can't be the thing
+  /// that forces it, and `a` keeps the value stored before the call.
+  @Test
+  void testEffectFreeCallDoesntForceLeakedPromise() {
+    var firText =
+        """
+        fun main() {
+          () -+> V {
+            mkenv;
+            pr:p(V ~) = prom<V ~>{ st a = <int 99>; return <int 0>; };
             st-super gp = pr;
             st a = <int 1>;
             c:V = g< --> V >();
@@ -667,14 +708,92 @@ class OriginAnalysisTest {
 
     var analysis = new OriginAnalysis(main);
 
-    // Before the call, `a` is just the value stored after the promise was created.
     assertEquals(
         Set.of(new Constant(SEXPs.integer(1))),
-        analysis.getPossible(entry, 3, Variable.named("a")));
-    // The call may force the leaked promise, so `a` is either its prior value or what the promise
-    // stores.
-    assertEquals(
-        Set.of(new Constant(SEXPs.integer(1)), new Constant(SEXPs.integer(99))),
         analysis.getPossible(entry, 4, Variable.named("a")));
+  }
+
+  /// The shape `bench_ai_awf_permute`'s `permute` compiles to: `list` is seeded before the loop
+  /// with the promise `_p` (its default argument), and each iteration reassigns it twice, so the
+  /// last store (`list22`) is the only one that reaches the back edge. Inside the body, before the
+  /// first `swap` call, `list` is therefore the phi of `_p` and `list22` — `list16` never survives
+  /// an iteration.
+  ///
+  /// `_p` escapes (the loop merge sees a promise on one edge and a plain value on the other), and
+  /// so do the wrapper promises the body builds, so the reflective calls in the loop may force one
+  /// of them and pick up whatever bindings it leaves behind. The loop header can't: an increment
+  /// and a comparison have no effects to run a reflective promise body with, so the phi reaches
+  /// the query point intact.
+  @Test
+  void testLoopVariableResolvesToPhiOfSeedAndBackEdge() {
+    var firText =
+        """
+        fun permute(n) {
+          (reg n:I) -+> I {
+            mkenv~;
+            _p: p(v(I) +) = prom<v(I) +>{ r: v(I) = seq< I -+> v(I) >(n); return r; };
+            st list = _p;
+            goto L1(0);
+          L1(k: I):
+            k1: I = `+`< I,I --> I >(k, 1);
+            _cond: L = `<`< I,I --> L >(k1, n);
+            _cond1: B = naToFalse< L --> B >(_cond);
+            if _cond1 then L2() else L3();
+          L2():
+            _p1: p(v(I) +) = prom<v(I) +>{
+              l1: * = ld list;
+              l2: V = force? l1;
+              l3: v(I) = l2 ?: v(I);
+              return l3;
+            };
+            list16: v(I) = swap< p(v(I) +)@!,I -+> v(I) >(_p1, k1);
+            st list = list16;
+            _p6: p(v(I) +) = prom<v(I) +>{
+              l4: * = ld list;
+              l5: V = force? l4;
+              l6: v(I) = l5 ?: v(I);
+              return l6;
+            };
+            list22: v(I) = swap< p(v(I) +)@!,I -+> v(I) >(_p6, k1);
+            st list = list22;
+            goto L1(k1);
+          L3():
+            popenv;
+            return k1;
+          }
+        }
+
+        fun swap(l, i) {
+          (reg l:p(v(I) +)@!, reg i:I) -+> v(I) { ... }
+        }
+
+        fun seq(i) {
+          (reg i:I) -+> v(I) { ... }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var permute =
+        Objects.requireNonNull(module.localFunction(Variable.named("permute"))).baseline();
+    var cfg = Objects.requireNonNull(permute.cfg());
+    var l1 = Objects.requireNonNull(cfg.bb("L1"));
+    var l2 = Objects.requireNonNull(cfg.bb("L2"));
+
+    var analysis = new OriginAnalysis(permute);
+
+    var phi = Set.of(new Read(reg(permute, "_p")), new Read(reg(permute, "list22")));
+    assertEquals(phi, analysis.getPossible(l1, -1, Variable.named("list")));
+    // The loop header's pure statements leave it alone, so it still holds where `_p1` is built and
+    // passed to `swap`.
+    assertEquals(phi, analysis.getPossible(l2, 0, Variable.named("list")));
+    // Two origins, so there's no unique one.
+    assertNull(analysis.get(l2, 0, Variable.named("list")));
+    // `list16` is excluded because the second store overwrites it before the back edge.
+    assertEquals(
+        Set.of(new Read(reg(permute, "list16"))),
+        analysis.getPossible(l2, 2, Variable.named("list")));
+    assertEquals(
+        Set.of(new Read(reg(permute, "list22"))),
+        analysis.getPossible(l2, 5, Variable.named("list")));
   }
 }
