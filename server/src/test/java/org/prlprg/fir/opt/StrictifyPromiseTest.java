@@ -242,6 +242,136 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void strictCallee_promiseReadsVariable_forcedFirst_isInlined() {
+    // `f` forces `r` before it runs anything that could rebind `x`, so reading `x` at the call
+    // site instead reads the same value.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () -~> V {
+                mkenv;
+                rv: v(I) = v(I)[1];
+                st x = rv;
+                rx: p(V -) = prom<V ->{
+                  ry: V = ld x;
+                  return ry;
+                };
+                rz: V = f< p(V -)@! -~> V >(rx);
+                return rz;
+              }
+            }
+
+            fun f(r) {
+              (reg r:*@!) -+> V { ... }
+              (reg r:p(V -)@!) -~> V {
+                mkenv;
+                st y = <int 1>;
+                v: V = force r;
+                return v;
+              }
+              (reg r:V) -~> V {
+                return r;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    assertFalse(printed.contains("prom<"), "promise should be inlined");
+    assertMatches(printed, "< V -~> V >\\(rx\\d*\\)", "call should use the value-taking version");
+  }
+
+  @Test
+  void strictCallee_promiseReadsVariable_superStoreFirst_notInlined() {
+    // `f` is strict, so it definitely forces `r` -- but only after a `st-super`, which can rebind
+    // the very `x` the promise reads. Strictness only orders the force before *reflection*.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () -~> V {
+                mkenv;
+                rv: v(I) = v(I)[1];
+                st x = rv;
+                rx: p(V -) = prom<V ->{
+                  ry: V = ld x;
+                  return ry;
+                };
+                rz: V = f< p(V -)@! -~> V >(rx);
+                return rz;
+              }
+            }
+
+            fun f(r) {
+              (reg r:*@!) -+> V { ... }
+              (reg r:p(V -)@!) -~> V {
+                mkenv;
+                st-super x = <int 1>;
+                v: V = force r;
+                return v;
+              }
+              (reg r:V) -~> V {
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(module),
+        "a callee that writes an enclosing frame before forcing: optimization should report no"
+            + " change");
+  }
+
+  @Test
+  void strictCallee_promiseReadsVariable_callsFirst_notInlined() {
+    // Same, for a callee that calls something else first: whatever it runs could rebind `x`.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () -~> V {
+                mkenv;
+                rv: v(I) = v(I)[1];
+                st x = rv;
+                rx: p(V -) = prom<V ->{
+                  ry: V = ld x;
+                  return ry;
+                };
+                rz: V = f< p(V -)@! -~> V >(rx);
+                return rz;
+              }
+            }
+
+            fun f(r) {
+              (reg r:*@!) -+> V { ... }
+              (reg r:p(V -)@!) -~> V {
+                g: V = h< -~> V >();
+                v: V = force r;
+                return v;
+              }
+              (reg r:V) -~> V {
+                return r;
+              }
+            }
+
+            fun h() {
+              () -~> V {
+                st-super x = <int 1>;
+                return <int 1>;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(module), "a callee that calls before forcing: optimization should report no change");
+  }
+
+  @Test
   void promiseUsedMultipleTimes_notInlined() {
     // The promise register rx is used twice: once in the call and once in force.
     // We skip it to avoid code duplication.
