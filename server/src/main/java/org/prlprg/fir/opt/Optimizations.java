@@ -86,7 +86,8 @@ public class Optimizations {
                     new ElideConsumedDup(),
                     new Cleanup(false)),
                 new CreateBestVersion(9),
-                new CreateOwnedParameterVersion(9)),
+                new CreateOwnedParameterVersion(9),
+                new CreateBorrowedParameterVersion(9)),
             modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
             modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP));
   }
