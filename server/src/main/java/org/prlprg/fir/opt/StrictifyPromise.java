@@ -5,22 +5,41 @@ import static org.prlprg.fir.ir.cfg.cursor.CFGInliner.inline;
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfsNoDeopts;
 
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Cast;
+import org.prlprg.fir.ir.expression.Closure;
+import org.prlprg.fir.ir.expression.Dup;
+import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Force;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
+import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -39,8 +58,11 @@ import org.prlprg.util.Streams;
 ///
 /// Specifically, inlines every promise that is:
 /// - Non-effectful
+/// - Free of `deopt` branches, whose positions only mean something inside the promise's own code
+///   object
 /// - Singly-used
-/// - Passed to a strict parameter, or pure
+/// - Time-invariant ([#isTimeInvariant]), or passed to a strict parameter that the callee forces
+///   before it can disturb what the promise reads ([#forcesUndisturbed])
 ///
 /// Furthermore, only inlines if there's a compatible version with the new signature, or one can
 /// be created from the old version (in which case creates it)
@@ -97,10 +119,18 @@ public record StrictifyPromise() implements AbstractionOptimization {
             continue;
           }
 
-          // The callee must definitely force the parameter, or the promise must be one whose
-          // value doesn't depend on when it's computed (i.e. pure).
+          // A `deopt`'s position is relative to the promise's own bytecode object, so its block
+          // can't be moved into the enclosing version (`Inline` refuses for the same reason).
+          if (hasDeopt(code)) {
+            continue;
+          }
+
+          // The promise's value must not depend on when it's computed, or the callee must force
+          // it -- so the work isn't wasted -- before it can change what the body reads.
           if (j >= parameterStrictnesses.length()
-              || (!parameterStrictnesses.get(j) && effects.impure())) {
+              || !(isTimeInvariant(code)
+                  || (parameterStrictnesses.get(j)
+                      && forcesUndisturbed(callee.exactVersion(), j)))) {
             continue;
           }
 
@@ -229,6 +259,128 @@ public record StrictifyPromise() implements AbstractionOptimization {
     }
 
     return changed;
+  }
+
+  /// Whether some block of `code` deopts.
+  ///
+  /// `deopt <pc>` names a position in the bytecode object of the abstraction it's in, so a block
+  /// that deopts means whatever the *enclosing* version's bytecode has at that position once it's
+  /// been moved there. Nested promises are fine: inlining `code` leaves them as promises, so their
+  /// deopts stay in their own code objects.
+  private static boolean hasDeopt(CFG code) {
+    return code.bbs().stream().anyMatch(bb -> bb.jump().expression() instanceof Deopt);
+  }
+
+  /// Whether `code` computes the same value no matter when it runs, so evaluating it at the call
+  /// site instead of wherever the callee would have forced it can't change the result.
+  ///
+  /// Effects don't answer this: `ld x` has none ([org.prlprg.fir.analyze.type.InferEffects]), and
+  /// yet a `st x` anywhere in between changes what it reads. Only reaching a value through a
+  /// binding makes a body time-variant; building one out of registers, which are SSA, doesn't.
+  ///
+  /// A body that fails this can still be inlined into a callee that forces it early enough; that's
+  /// [#forcesUndisturbed].
+  ///
+  /// This is only the body's own statements. A nested `prom` doesn't run until it's forced, and
+  /// inlining doesn't move that force.
+  private static boolean isTimeInvariant(CFG code) {
+    var inferEffects = new InferEffects(code.scope());
+    return code.bbs().stream()
+        .flatMap(bb -> bb.statements().stream())
+        .allMatch(statement -> isTimeInvariant(statement, inferEffects));
+  }
+
+  private static boolean isTimeInvariant(Statement statement, InferEffects inferEffects) {
+    return switch (statement.expression()) {
+      // Read registers and constants, or build a value out of them.
+      case Assume _, Closure _, Dup _, MkVector _, Noop _, SubscriptRead _ -> true;
+      // Doesn't run its own body here.
+      case Promise _ -> true;
+      // Read a binding, which anything that stores in between rebinds. This is the case declared
+      // effects miss, and the reason this isn't just an effects check.
+      case Load _, ReflectiveLoad _ -> false;
+      // Run code we can't see into, so all we know about it is its effects, and one that has none
+      // wrote nothing for the rest of the body to read differently. It could still read a binding
+      // itself -- `ld` alone keeps a callee effect-free -- which is as precise as effects get.
+      case Call _, Force _ -> !inferEffects.of(statement).impure();
+      // Write something. All effectful, so a promise that got past the effects gate has none of
+      // them; spelled out to keep this exhaustive as expressions are added.
+      case Cast _, MkEnv _, PopEnv _, ReflectiveStore _, Store _, SubscriptWrite _ -> false;
+    };
+  }
+
+  /// Whether `version` forces its `argIndex`-th parameter before it can change what the promise
+  /// that parameter holds reads.
+  ///
+  /// Strictness alone doesn't give this. A strict parameter is only guaranteed to be forced before
+  /// the version's first *reflective* operation
+  /// ([org.prlprg.fir.check.StrictnessChecker]), and a merely impure statement -- a `st-super`, a
+  /// subscript write, a call to anything -- can still write somewhere the promise reads. Hoisting
+  /// the body past one of those makes it read the old value.
+  ///
+  /// Only paths that reach a force constrain this. On one that doesn't, nothing ever looks at the
+  /// promise's value, so having computed it for nothing is invisible: it has no effects.
+  private static boolean forcesUndisturbed(@Nullable Abstraction version, int argIndex) {
+    if (version == null || version.cfg() == null || argIndex >= version.parameters().size()) {
+      // A dispatch call, or a stub: no body to look at.
+      return false;
+    }
+    var parameter = version.parameters().get(argIndex);
+
+    // The blocks reachable from entry without passing a `force` of `parameter`, i.e. exactly the
+    // code that can run before the promise is forced.
+    var worklist = new ArrayDeque<BB>();
+    var seen = new HashSet<BB>();
+    worklist.add(version.cfg().entry());
+    seen.add(version.cfg().entry());
+
+    while (!worklist.isEmpty()) {
+      var bb = worklist.poll();
+
+      var isForced = false;
+      for (var statement : bb.statements()) {
+        if (statement.expression() instanceof Force _ && statement.arg(0).variable() == parameter) {
+          isForced = true;
+          break;
+        }
+        if (!cannotDisturb(statement.expression())) {
+          return false;
+        }
+      }
+      // Everything past the force runs after the promise's value is fixed.
+      if (isForced) {
+        continue;
+      }
+
+      for (var successor : bb.successors()) {
+        if (seen.add(successor)) {
+          worklist.add(successor);
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /// Whether `expression` leaves every binding and every vector that some other promise could read
+  /// as it was.
+  private static boolean cannotDisturb(Expression expression) {
+    return switch (expression) {
+      // Read registers, constants, or bindings, or build a value out of them.
+      case Assume _, Closure _, Dup _, Load _, MkVector _, Noop _, SubscriptRead _ -> true;
+      // Can error, but an error doesn't rebind anything, and a promise computed for nothing is
+      // invisible.
+      case Cast _ -> true;
+      // Doesn't run its own body here.
+      case Promise _ -> true;
+      // Only ever touch an environment this version made itself: `EnvironmentChecker` requires one
+      // to be live at every `st`, one is only live after this version's own `mkenv`, and `popenv`
+      // destroys that same one. `st-super` writes past it, into a frame the promise can see.
+      case MkEnv _, PopEnv _ -> true;
+      case Store(var storeType, _) -> storeType == StoreType.LOCAL_VAR;
+      // Write a vector in place, or -- through a callee or another promise -- anything at all.
+      case Call _, Force _, ReflectiveLoad _, ReflectiveStore _, SubscriptWrite _ -> false;
+    };
   }
 
   /// Whether `version`'s `argIndex`-th parameter is the target of a reflective load or store, so
