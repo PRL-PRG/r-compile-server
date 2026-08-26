@@ -139,6 +139,158 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
   }
 
   @Test
+  void readInLocalPromise_createsBorrowedVersion() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec) {
+              (reg vec:*) -+> V { ... }
+              (reg vec:v(I)o) -~> v1(I) {
+                p: p(v1(I) ~) = prom-<v1(I) ~>{
+                  e: I = vec[0];
+                  b: v1(I) = box< I --> v1(I) >(e);
+                  return b;
+                };
+                r: v1(I) = force p;
+                return r;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "a local promise doesn't outlive the frame, so it can read a loan");
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("(reg vec:v(I)b) -~> v1(I)"),
+        "a borrowed-parameter version should exist:\n" + printed);
+  }
+
+  @Test
+  void readInNonLocalPromise_unchanged() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec) {
+              (reg vec:*) -+> V { ... }
+              (reg vec:v(I)o) -~> v1(I) {
+                p: p(v1(I) ~) = prom<v1(I) ~>{
+                  e: I = vec[0];
+                  b: v1(I) = box< I --> v1(I) >(e);
+                  return b;
+                };
+                r: v1(I) = force p;
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(module),
+        "a non-local promise may be forced after the frame returns, so it can't read a loan");
+  }
+
+  @Test
+  void readInLocalPromiseInsideNonLocalPromise_unchanged() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec) {
+              (reg vec:*) -+> V { ... }
+              (reg vec:v(I)o) -~> v1(I) {
+                outer: p(v1(I) ~) = prom<v1(I) ~>{
+                  inner: p(v1(I) ~) = prom-<v1(I) ~>{
+                    e: I = vec[0];
+                    b: v1(I) = box< I --> v1(I) >(e);
+                    return b;
+                  };
+                  r: v1(I) = force inner;
+                  return r;
+                };
+                q: v1(I) = force outer;
+                return q;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(module),
+        "the inner promise is local, but it only runs inside a non-local one, which escapes");
+  }
+
+  @Test
+  void passedToBorrowedParameter_createsBorrowedVersion() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec) {
+              (reg vec:*) -+> V { ... }
+              (reg vec:v(I)o) -~> I {
+                r: I = other< v(I)b -~> I >(vec);
+                return r;
+              }
+            }
+
+            fun other(x) {
+              (reg x:v(I)b) -~> I {
+                e: I = x[0];
+                return e;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "a callee that only borrows can be handed a loan");
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("(reg vec:v(I)b) -~> I"),
+        "a borrowed-parameter version should exist:\n" + printed);
+    assertTrue(Checker.checkAll(module), "the borrowed copy should type-check:\n" + printed);
+  }
+
+  @Test
+  void passedToSharedParameter_unchanged() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec) {
+              (reg vec:*) -+> V { ... }
+              (reg vec:v(I)o) -+> I {
+                r: I = other< v(I) -+> I >(vec);
+                return r;
+              }
+            }
+
+            fun other(x) {
+              (reg x:v(I)) -+> I {
+                e: I = x[0];
+                return e;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(module),
+        "a shared parameter is exactly the one the callee may retain, so it can't be a loan");
+  }
+
+  @Test
+  void passedToDynamicCall_unchanged() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec, callee) {
+              (reg vec:*, reg callee:*) -+> V { ... }
+              (reg vec:v(I)o, reg callee:cls) -+> V {
+                r: V = dyn callee(vec);
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "nothing bounds what an unknown callee does with its arguments");
+  }
+
+  @Test
   void dupsParameter_unchanged() {
     var module =
         ParseUtil.parseModule(
