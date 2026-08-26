@@ -39,9 +39,9 @@ import org.prlprg.fir.ir.variable.Register;
 /// Then, in the earliest checkpoint after the register's definition\[1\], insert the
 /// corresponding [AssumeFunction], [AssumeConstant], or [AssumeType] respectively.
 ///
-/// \[1\] Specifically, every checkpoint that dominates the register's definition which isn't
-/// dominated by another such checkpoint. There's usually only one, although we handle the case
-/// where there's multiple.
+/// \[1\] Specifically, every checkpoint in the register's own CFG that its definition dominates
+/// and that isn't dominated by another such checkpoint. There's usually only one, although we
+/// handle the case where there's multiple.
 ///
 /// By default, this optimization doesn't run on baseline versions, since if we deoptimize from
 /// baseline we don't have anywhere to go that isn't FIŘ.
@@ -115,10 +115,19 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
         }
       }
 
+      // Whether the register's declared type is already at least as precise as the feedback, so
+      // an `AssumeType` would tell us nothing -- or actively lose ground.
+      //
+      // `InferType` reads an `AssumeType`'s result straight off the assumption, so `i3: V = i2 ?:
+      // V`
+      // on an `i2: v1(I)` makes `i3` the *wider* `V`. Where that feeds a promise's return value,
+      // `ImproveSignatures` widens the promise's declared type to match, and `Specialize` -- which
+      // re-derives the assignee's type from the expression and requires it to subtype what's
+      // already declared -- fails outright the next time the abstraction is optimized.
+      var alreadyKnown = register.type().isSubtypeOf(typeFeedback);
+
       // Skip if assumptions won't increase knowledge.
-      if (calleeFeedback == null
-          && constantFeedback == null
-          && typeFeedback.equals(register.type())) {
+      if (calleeFeedback == null && constantFeedback == null && alreadyKnown) {
         continue;
       }
 
@@ -128,9 +137,21 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
         continue;
       }
 
-      // Get possible checkpoints where after we can insert assumptions for the register
+      // Get possible checkpoints where after we can insert assumptions for the register.
+      //
+      // Only ones in the register's own CFG. `DominatorTree`'s block-level check walks a block in
+      // a promise up to the statement that defines that promise and then compares blocks,
+      // forgetting the statement index -- so `p = prom{ ... }` "dominates" every checkpoint inside
+      // its own body, and we'd insert an assume reading `p` before `p` is assigned. Even where the
+      // index does work out, an assume inside a promise makes that promise capture the register,
+      // which only a local one may do ([org.prlprg.fir.check.CaptureChecker]), and nothing has
+      // marked promises local this early. A checkpoint in a promise can't be reached from a
+      // register defined outside it in the other direction anyway: `DominatorTree` never lets
+      // anything in a promise dominate anything outside.
       var availableCheckpointBbs =
-          checkpointBbs.stream().filter(bb -> domTree.dominates(defBb, bb)).toList();
+          checkpointBbs.stream()
+              .filter(bb -> bb.owner() == defBb.owner() && domTree.dominates(defBb, bb))
+              .toList();
       if (availableCheckpointBbs.isEmpty()) {
         continue;
       }
@@ -159,7 +180,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
           assumptionsToInsert
               .computeIfAbsent(successBb, _ -> new ArrayList<>())
               .add(new Spec(new AssumeConstant(constantFeedback), register));
-        } else if (!typeFeedback.equals(register.type())) {
+        } else if (!alreadyKnown) {
           assumptionsToInsert
               .computeIfAbsent(successBb, _ -> new ArrayList<>())
               .add(new Spec(new AssumeType(typeFeedback), register));

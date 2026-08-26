@@ -1352,6 +1352,22 @@ public final class InternalInterpreter implements Interpreter {
           "deopt stack size mismatch: expected " + argStack.size() + ", got " + deoptStack.size());
     }
 
+    // The frame still holds the registers of the version we deoptimized *from*. The restore CFG
+    // belongs to a different abstraction, so its registers are different objects even where they
+    // came from the same bytecode and kept the same name -- each abstraction names its registers in
+    // its own namespace. Carry every value across by name, so a baseline register that's live
+    // across the checkpoint but isn't part of the bytecode stack the `deopt` carries -- a `[<-`
+    // closure looked up before the loop, a `for`'s sequence -- is still there when execution
+    // resumes. The bytecode stack is assigned below and wins, being the authoritative restore.
+    var valuesByName = new HashMap<String, Value>();
+    topFrame().registers().forEach((register, value) -> valuesByName.put(register.name(), value));
+    for (var register : deoptRestoreCfg.scope().streamRegisters().toList()) {
+      var value = valuesByName.get(register.name());
+      if (value != null) {
+        topFrame().put(register, value);
+      }
+    }
+
     // Replace arguments
     for (var i = 0; i < argStack.size(); i++) {
       var arg = argStack.get(i);
