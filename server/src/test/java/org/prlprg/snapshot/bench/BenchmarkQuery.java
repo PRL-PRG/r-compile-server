@@ -13,7 +13,6 @@ import org.prlprg.snapshot.bc2c.BC2CQuery;
 import org.prlprg.snapshot.fir2c.Fir2CQuery;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
-import org.prlprg.util.Strings;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
@@ -33,14 +32,7 @@ public class BenchmarkQuery implements Query<BenchmarkOutput> {
     var firPath = store.tryLoadPath(example, Fir2CQuery.DIRECT.optimized());
     var optFirPath = store.tryLoadPath(example, Fir2CQuery.FULLY_OPTIMIZED);
 
-    var benchmarkLine =
-        example
-            .text()
-            .lines()
-            .filter(line -> line.startsWith("#? benchmark:"))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("`#? benchmark:` must be on its own line"));
-    var benchmarkCall = benchmarkLine.substring("#? benchmark:".length()).trim();
+    var benchmarkCall = benchmarkCall(example);
 
     try {
       var rawOutput =
@@ -71,13 +63,25 @@ public class BenchmarkQuery implements Query<BenchmarkOutput> {
         throw new IllegalArgumentException(
             "Value must be a string vector, got: " + rawOutput.first());
       }
-      var csv = Strings.join("\n", csvSxp);
+      var csv = String.join("\n", csvSxp);
 
       var outputLog = rawOutput.second();
       return new BenchmarkOutput(csv, outputLog);
     } catch (EvalException e) {
       throw new AssertionError("Benchmark crashed", e);
     }
+  }
+
+  /// The R call the example wants benchmarked, from its `#? benchmark:` line.
+  static String benchmarkCall(Example example) {
+    var benchmarkLine =
+        example
+            .text()
+            .lines()
+            .filter(line -> line.startsWith("#? benchmark:"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("`#? benchmark:` must be on its own line"));
+    return benchmarkLine.substring("#? benchmark:".length()).trim();
   }
 
   @Override

@@ -23,4 +23,17 @@ public class TestConfig extends Config {
   /// A regex. If set, filters tested examples according to the regular expression (on path).
   public static final Pattern EXAMPLE_FILTER =
       Pattern.compile(INSTANCE.get("EXAMPLE_FILTER", ".*"));
+
+  /// A regex, matched against
+  /// [org.prlprg.fir.opt.Optimizations#individualOptimizationNames()]. Selects the optimizations
+  /// that `org.prlprg.snapshot.bench.OptimizationBenchmark` removes, one per benchmarked variant.
+  ///
+  /// This is **all of them** by default (`true` also means all). That benchmark re-optimizes,
+  /// recompiles and reruns each example once per selected optimization, which takes minutes per
+  /// example, so narrow this when only some optimizations are of interest.
+  public static final Pattern BENCHMARK_OPTIMIZATIONS =
+      Pattern.compile(
+          Objects.equals(INSTANCE.get("BENCHMARK_OPTIMIZATIONS"), "true")
+              ? ".*"
+              : INSTANCE.get("BENCHMARK_OPTIMIZATIONS", ".*"));
 }
