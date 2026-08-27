@@ -15,6 +15,7 @@ import java.util.Stack;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
+import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.interpret.InterpretException;
@@ -73,6 +74,7 @@ import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -1361,7 +1363,23 @@ public final class InternalInterpreter implements Interpreter {
     // resumes. The bytecode stack is assigned below and wins, being the authoritative restore.
     var valuesByName = new HashMap<String, Value>();
     topFrame().registers().forEach((register, value) -> valuesByName.put(register.name(), value));
+
+    // Only registers that are actually live where we resume. One defined further down the restore
+    // CFG, or inside one of its promises, isn't -- and handing it a same-named value from the
+    // optimized frame doesn't restore it, it invents a value from an unrelated program point, which
+    // an `assume` downstream then reads and fails on.
+    var restoreDom = new CfgDominatorTree(deoptRestoreCfg);
+    var checkpointIndex = checkBc.statements().size();
     for (var register : deoptRestoreCfg.scope().streamRegisters().toList()) {
+      var definingBb = register.definingBB();
+      if (definingBb == null || definingBb.owner() != deoptRestoreCfg) {
+        continue;
+      }
+      var definingIndex = register instanceof AssigneeOf a ? a.statement().indexInBB() : -1;
+      if (!restoreDom.dominates(definingBb, definingIndex, checkBc, checkpointIndex)) {
+        continue;
+      }
+
       var value = valuesByName.get(register.name());
       if (value != null) {
         topFrame().put(register, value);
