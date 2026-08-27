@@ -101,15 +101,30 @@ public record SpecializeRealIndex() implements SpecializeOptimization {
     }
 
     var newArgs = new ArrayList<>(statement.args());
-    newArgs.set(
-        2, coerce(statement.arg(2), realType, integerType, bb, statementIndex, scope, defer));
+    var folded = coerceConstant(statement.arg(2), integerType);
+    if (folded != null) {
+      newArgs.set(2, folded);
+    } else {
+      stageCoercion(statement.arg(2), realType, integerType, bb, statementIndex, scope, defer);
+    }
     return new Result.Replace(
         new Call(new StaticFnCallee(function, false, integerSignature)), newArgs);
   }
 
-  /// `subscript` as an integer: the coerced constant if it is one, otherwise the result of an
-  /// `as.integer` staged before the statement at `(bb, statementIndex)`.
-  private static Argument coerce(
+  /// Stage an `as.integer` of `subscript` before the statement at `(bb, statementIndex)`, and the
+  /// rewrite of that statement's subscript argument to its result.
+  ///
+  /// Both wait until the end of the pass, because inserting a statement invalidates the analyses
+  /// the specializations share. That's also why the *argument* rewrite waits: `Specialize` commits
+  /// staged insertions only once every specialization has run, so putting `as.integer`'s result
+  /// into the call now would leave the rest of the pass reading a register whose defining statement
+  /// isn't in any block -- and every walk of a register's definition runs in that window, with
+  /// [org.prlprg.fir.analyze.resolve.OriginAnalysis] rejecting it outright.
+  ///
+  /// The call's *signature* is switched to the integer one right away, by the caller. That's what
+  /// stops this from staging a second coercion if the statement is specialized again before the
+  /// insertions commit -- an integer subscript is no longer a real one.
+  private static void stageCoercion(
       Argument subscript,
       Type realType,
       Type integerType,
@@ -117,14 +132,6 @@ public record SpecializeRealIndex() implements SpecializeOptimization {
       int statementIndex,
       Abstraction scope,
       DeferredInsertions defer) {
-    var folded = coerceConstant(subscript, integerType);
-    if (folded != null) {
-      return folded;
-    }
-
-    // The subscript is only put in place by the staged insertion: until then this statement isn't
-    // in a CFG, and a use pointing at an instruction that isn't confuses every walk of a
-    // register's uses.
     var asInteger =
         new Statement(
             new Call(
@@ -135,14 +142,13 @@ public record SpecializeRealIndex() implements SpecializeOptimization {
                         ImmutableList.of(realType, Type.MISSING), integerType, Effects.NONE))),
             List.of(Constant.ELIDED_CLOSURE, Constant.ELIDED_CLOSURE, MISSING));
     var integerSubscript = asInteger.setAssignee(scope.freshName("idx"), integerType);
-    // Prepend before the (rewritten) call, but only after the other specializations, because
-    // inserting invalidates the analyses they share.
     defer.stage(
         () -> {
+          var call = bb.statements().get(statementIndex);
           asInteger.setArg(1, subscript);
-          asInteger.insertBefore(bb.statements().get(statementIndex));
+          asInteger.insertBefore(call);
+          call.setArg(2, new Read(integerSubscript));
         });
-    return new Read(integerSubscript);
   }
 
   private static final Constant MISSING = new Constant(SEXPs.MISSING_ARG);

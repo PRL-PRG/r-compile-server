@@ -107,7 +107,13 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       // because strict promises are replaced by SEXP values and semantics are equivalent,
       // and we don't really get optimization since optimized code has minimal promises
       // (although we do get better correctness, since a value can't be passed to a promise)
-      if (typeFeedback.isPromise()) {
+      //
+      // Not when the register is already declared a definite promise, though. Nothing can hand it a
+      // value -- `Type#matches` won't let a caller pass one -- so there's no inlining to survive,
+      // and widening anyway makes the assumption incomparable with what's declared: a maybe-promise
+      // neither subtypes a promise nor is subtyped by one, which is exactly the shape
+      // [org.prlprg.fir.check.TypeAndEffectChecker#assumeCanSucceed] rejects.
+      if (typeFeedback.isPromise() && !register.type().isPromise()) {
         typeFeedback =
             typeFeedback.withPromisity(Promisity.maybe(typeFeedback.promisity().effects()));
         if (typeFeedback.equals(Type.ANY_SEXP.withConcreteness(Concreteness.DEFINITE))) {
@@ -126,8 +132,15 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       // already declared -- fails outright the next time the abstraction is optimized.
       var alreadyKnown = register.type().isSubtypeOf(typeFeedback);
 
+      // An assumption whose type is disjoint from what's declared can never hold, so speculating on
+      // it only buys a guaranteed deopt -- and it doesn't type-check. This is
+      // [org.prlprg.fir.check.TypeAndEffectChecker#assumeCanSucceed], spelled out rather than
+      // called, because that takes a built `AssumeType` and building one rejects the non-SEXP types
+      // (`B`, `I`, ...) plenty of registers have.
+      var canSucceed = alreadyKnown || typeFeedback.isSubtypeOf(register.type());
+
       // Skip if assumptions won't increase knowledge.
-      if (calleeFeedback == null && constantFeedback == null && alreadyKnown) {
+      if (calleeFeedback == null && constantFeedback == null && (alreadyKnown || !canSucceed)) {
         continue;
       }
 
@@ -180,7 +193,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
           assumptionsToInsert
               .computeIfAbsent(successBb, _ -> new ArrayList<>())
               .add(new Spec(new AssumeConstant(constantFeedback), register));
-        } else if (!alreadyKnown) {
+        } else if (!alreadyKnown && canSucceed) {
           assumptionsToInsert
               .computeIfAbsent(successBb, _ -> new ArrayList<>())
               .add(new Spec(new AssumeType(typeFeedback), register));
