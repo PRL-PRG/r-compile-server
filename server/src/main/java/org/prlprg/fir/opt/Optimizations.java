@@ -75,6 +75,7 @@ public class Optimizations {
                         new ElideEnv()), // must be in a pass after `ElideDeadStore`
                     new PromoteStaticallyKnownVariables(),
                     new Unbox(),
+                    new StrictifyPhi(),
                     new UnboxPhi(),
                     new ElideRedundantBoxUnbox(),
                     new SchedulePure(),
@@ -96,11 +97,10 @@ public class Optimizations {
   /// `"default"` for the [#defaultOptimizations()] ones.
   ///
   /// Every configuration needs its own name, because an [Optimization]'s name is the identity of
-  // the
-  /// snapshot it produces (see `org.prlprg.snapshot.fir.opt.OptimizedFirQuery`), and these
-  // arguments
-  /// select pipelines whose output differs a lot: without `modifyCheckpoints`, the checkpoints that
-  /// stay put block promise strictification, so far fewer versions get specialized.
+  /// the snapshot it produces (see `org.prlprg.snapshot.fir.opt.OptimizedFirQuery`), and these
+  /// arguments select pipelines whose output differs a lot: without `modifyCheckpoints`, the
+  /// checkpoints that stay put block promise strictification, so far fewer versions get
+  /// specialized.
   private static String defaultName(int threshold, boolean modifyCheckpoints) {
     var name = new StringBuilder("default");
     if (threshold != DEFAULT_THRESHOLD) {
