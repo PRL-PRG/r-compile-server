@@ -650,14 +650,14 @@ public final class InternalInterpreter implements Interpreter {
             case AssumeFunction(var functionRef) -> {
               var value = run(statement.arg(0));
               if (!(value instanceof Value.Sexp(CloSXP sexp)
-                  && Objects.equals(extractClosure(sexp), functionRef.get()))) {
+                  && isStubFor(sexp, functionRef.get()))) {
                 throw fail("assume-function actually interpreted and failed");
               }
               yield value;
             }
             case AssumeLoadFun(var variable, var functionRef) -> {
               var sexp = loadFun(variable);
-              if (sexp == null || !Objects.equals(extractClosure(sexp), functionRef.get())) {
+              if (sexp == null || !isStubFor(sexp, functionRef.get())) {
                 throw fail("assume-load-fun actually interpreted and failed");
               }
               yield new Value.Sexp(sexp);
@@ -943,6 +943,20 @@ public final class InternalInterpreter implements Interpreter {
     checkEvaluation();
     var value = topFrame().get(register);
     if (value == null) {
+      var defBb0 = register.definingBB();
+      System.err.println(
+          "UNINIT reg="
+              + register
+              + " kind="
+              + register.getClass().getSimpleName()
+              + " defBb="
+              + (defBb0 == null ? "null" : defBb0.label())
+              + " defCfgIsPromise="
+              + (defBb0 == null ? "-" : defBb0.owner().isPromise())
+              + " defScopeIsFrameScope="
+              + (defBb0 == null ? "-" : (defBb0.owner().scope() == topFrame().scope()))
+              + " frameScopeParams="
+              + topFrame().scope().parameters());
       throw fail("Uninitialized register: " + register);
     }
     return value;
@@ -1298,14 +1312,13 @@ public final class InternalInterpreter implements Interpreter {
         if (!(value instanceof Value.Sexp(var valueSexp) && valueSexp instanceof CloSXP valueCls)) {
           return false;
         }
-        var valueFun = extractClosure(valueCls);
-        return valueFun == function;
+        return isStubFor(valueCls, function);
       }
       case AssumeLoadFun(var variable, var functionRef) -> {
         var function = functionRef.get();
 
         var found = loadFunctionForAssume(variable.name(), topFrame().environment());
-        return found != null && extractClosure(found.closure()) == function;
+        return found != null && isStubFor(found.closure(), function);
       }
       case AssumeLoadVar(var variable, var constant) -> {
         var found = loadVariableForAssume(variable.name(), topFrame().environment());
@@ -1363,6 +1376,21 @@ public final class InternalInterpreter implements Interpreter {
     // resumes. The bytecode stack is assigned below and wins, being the authoritative restore.
     var valuesByName = new HashMap<String, Value>();
     topFrame().registers().forEach((register, value) -> valuesByName.put(register.name(), value));
+
+    // Parameters go across by position, not name. Every version of a function has the same
+    // parameters in the same order, but not necessarily the same register names -- a copy renames
+    // one that would clash in its new scope -- and a parameter is live everywhere, so getting it
+    // wrong means resuming with an argument missing.
+    var fromParameters = topFrame().scope().parameters();
+    var toParameters = deoptRestoreCfg.scope().parameters();
+    if (fromParameters.size() == toParameters.size()) {
+      for (var i = 0; i < toParameters.size(); i++) {
+        var value = topFrame().get(fromParameters.get(i));
+        if (value != null) {
+          topFrame().put(toParameters.get(i), value);
+        }
+      }
+    }
 
     // Only registers that are actually live where we resume. One defined further down the restore
     // CFG, or inside one of its promises, isn't -- and handing it a same-named value from the
@@ -1734,6 +1762,31 @@ public final class InternalInterpreter implements Interpreter {
     return null;
   }
 
+  /// Whether `closure` is this interpreter's stub for `function`.
+  ///
+  /// Not plain identity, because [GlobalModules#BASE] and [GlobalModules#BUILTINS] are two separate
+  /// parses of the same `builtins.fir`, so every function it defines exists as two distinct
+  /// [Function] objects. `GlobalModules`' own initializer treats them as one -- it skips a base
+  /// binding whose name is "already defined (shared by `BUILTINS`)" -- and so does the optimizer,
+  /// which can speculate on `BUILTINS`' copy of a name the interpreter binds to `BASE`'s. Comparing
+  /// by identity there rejects a speculation that is in fact about the same function, every time.
+  private boolean isStubFor(CloSXP closure, Function function) {
+    var extracted = extractClosure(closure);
+    if (extracted == function) {
+      return true;
+    }
+    return extracted != null
+        && extracted.name().equals(function.name())
+        && isGlobalBuiltin(extracted)
+        && isGlobalBuiltin(function);
+  }
+
+  /// Whether `function` is one of the two copies of a `builtins.fir` definition.
+  private static boolean isGlobalBuiltin(Function function) {
+    var owner = function.owner();
+    return owner == GlobalModules.BASE || owner == GlobalModules.BUILTINS;
+  }
+
   /// If the closure was produced by [#closureStub(Function, EnvSXP)], returns the [Function].
   public @Nullable Function extractClosure(CloSXP cloSxp) {
     var function = closures.get(cloSxp);
@@ -1743,7 +1796,8 @@ public final class InternalInterpreter implements Interpreter {
     }
     // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
     if (module.localFunction(function.name()) != function
-        && GlobalModules.BASE.localFunction(function.name()) != function) {
+        && GlobalModules.BASE.localFunction(function.name()) != function
+        && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
       // Closure was removed or is from another interpreter.
       return null;
     }
