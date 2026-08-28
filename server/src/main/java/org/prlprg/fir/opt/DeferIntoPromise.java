@@ -8,8 +8,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
+import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -57,6 +60,30 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     return changed;
   }
 
+  /// Whether every register `stmt` reads is still readable once it's moved into the promise body.
+  ///
+  /// Either another kept instruction defines it -- and travels with this one -- or its definition
+  /// already reaches the promise. Being kept doesn't imply the instruction dominates the promise:
+  /// one whose only uses are *other* kept instructions is kept wherever it sits, so its own
+  /// arguments can come from a block on a different path entirely.
+  private static boolean argumentsReachPromise(
+      Statement stmt,
+      Set<Statement> kept,
+      Map<Register, Statement> defOf,
+      DominatorTree domTree,
+      Statement promiseStmt) {
+    for (var argument : stmt.args()) {
+      var register = argument.variable();
+      if (register == null || kept.contains(defOf.get(register))) {
+        continue;
+      }
+      if (register.definingBB() == null || !domTree.dominates(register, promiseStmt)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private boolean deferInto(Abstraction scope, Statement promiseStmt, CFG promiseBody) {
     var promiseBb = promiseStmt.parentBB();
     if (promiseBb == null) {
@@ -71,6 +98,7 @@ public record DeferIntoPromise() implements AbstractionOptimization {
 
     var inferEffects = new InferEffects(scope);
     var hierarchy = new CfgHierarchy(scope);
+    var domTree = new DominatorTree(scope);
 
     // Candidate deferrable instructions: pure, non-hoisted, with an assignee.
     var candidates = new LinkedHashSet<Statement>();
@@ -100,6 +128,13 @@ public record DeferIntoPromise() implements AbstractionOptimization {
       while (it.hasNext()) {
         var stmt = it.next();
         assert stmt.assignee() != null;
+
+        if (!argumentsReachPromise(stmt, candidates, defOf, domTree, promiseStmt)) {
+          it.remove();
+          changedSet = true;
+          continue;
+        }
+
         for (var use : stmt.assignee().uses()) {
           // Project the use into the promise's enclosing CFG: it lands on `promiseStmt` itself if
           // the use is (transitively) inside the promise, or on the using statement if it's a
