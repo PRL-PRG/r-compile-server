@@ -943,20 +943,6 @@ public final class InternalInterpreter implements Interpreter {
     checkEvaluation();
     var value = topFrame().get(register);
     if (value == null) {
-      var defBb0 = register.definingBB();
-      System.err.println(
-          "UNINIT reg="
-              + register
-              + " kind="
-              + register.getClass().getSimpleName()
-              + " defBb="
-              + (defBb0 == null ? "null" : defBb0.label())
-              + " defCfgIsPromise="
-              + (defBb0 == null ? "-" : defBb0.owner().isPromise())
-              + " defScopeIsFrameScope="
-              + (defBb0 == null ? "-" : (defBb0.owner().scope() == topFrame().scope()))
-              + " frameScopeParams="
-              + topFrame().scope().parameters());
       throw fail("Uninitialized register: " + register);
     }
     return value;
@@ -1376,21 +1362,6 @@ public final class InternalInterpreter implements Interpreter {
     // resumes. The bytecode stack is assigned below and wins, being the authoritative restore.
     var valuesByName = new HashMap<String, Value>();
     topFrame().registers().forEach((register, value) -> valuesByName.put(register.name(), value));
-
-    // Parameters go across by position, not name. Every version of a function has the same
-    // parameters in the same order, but not necessarily the same register names -- a copy renames
-    // one that would clash in its new scope -- and a parameter is live everywhere, so getting it
-    // wrong means resuming with an argument missing.
-    var fromParameters = topFrame().scope().parameters();
-    var toParameters = deoptRestoreCfg.scope().parameters();
-    if (fromParameters.size() == toParameters.size()) {
-      for (var i = 0; i < toParameters.size(); i++) {
-        var value = topFrame().get(fromParameters.get(i));
-        if (value != null) {
-          topFrame().put(toParameters.get(i), value);
-        }
-      }
-    }
 
     // Only registers that are actually live where we resume. One defined further down the restore
     // CFG, or inside one of its promises, isn't -- and handing it a same-named value from the

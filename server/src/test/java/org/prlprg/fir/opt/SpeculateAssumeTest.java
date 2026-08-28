@@ -116,6 +116,44 @@ class SpeculateAssumeTest {
             + Printer.toString(module));
   }
 
+  @Test
+  void successBlockNotDominatedByTheDefinition_notAssumed() {
+    // The definition and the checkpoint are both in `L0`, but the checkpoint's success block `L2`
+    // is also reachable from `L1`. An assume placed at the top of `L2` would read `x` on a path
+    // that never assigned it, so dominance has to be judged where the assume lands, not where the
+    // checkpoint is.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(c) {
+              (reg c:*) -+> V { ... }
+              (reg c:B) -+> V {
+                if c then L0() else L1();
+              L0():
+                x: V = f< -+> V >();
+                check L2() else D0();
+              L1():
+                goto L2();
+              L2():
+                return <int 1>;
+              D0():
+                deopt 0 [];
+              }
+            }
+
+            fun f() {
+              () -+> V {
+                return <int 1>;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(module, "x", "v1(I)"),
+        "the assume would land where `x` isn't assigned on every path:\n"
+            + Printer.toString(module));
+  }
+
   /// Record `type` for the register named `registerName`, often enough to pass the threshold, then
   /// run [SpeculateAssume] on `module`'s non-baseline `main` version.
   private static boolean run(Module module, String registerName, String type) {

@@ -3,6 +3,7 @@ package org.prlprg.fir.opt;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -25,6 +26,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Insert assumptions that feedback suggests will always pass.
@@ -49,6 +51,14 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
     implements AbstractionOptimization {
   public SpeculateAssume(int threshold) {
     this(threshold, false);
+  }
+
+  /// The block a [Checkpoint]-terminated `bb` continues into when its assumptions hold, or `null`
+  /// if `bb` doesn't end in one.
+  private static @Nullable BB successOf(BB bb) {
+    return bb.jump().expression() instanceof Checkpoint checkpoint
+        ? checkpoint.success().get()
+        : null;
   }
 
   @Override
@@ -149,6 +159,12 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       if (defBb == null) {
         continue;
       }
+      // Where in that block: a statement's own index, or before all of them for a phi, which is
+      // assigned on entry. Compared against the *start* of the success block below, so a register
+      // defined by a statement in that very block doesn't count as reaching an assume placed ahead
+      // of it -- `DomineeSubstituter` would then be asked to rewrite the definition itself.
+      var defIndex =
+          register instanceof AssigneeOf assignee ? assignee.statement().indexInBB() : -1;
 
       // Get possible checkpoints where after we can insert assumptions for the register.
       //
@@ -163,7 +179,18 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       // anything in a promise dominate anything outside.
       var availableCheckpointBbs =
           checkpointBbs.stream()
-              .filter(bb -> bb.owner() == defBb.owner() && domTree.dominates(defBb, bb))
+              .filter(
+                  bb -> {
+                    // Against the block the assume actually lands in, not the one holding the
+                    // checkpoint. A checkpoint's success block can have other predecessors, and
+                    // then a definition that reaches the checkpoint still doesn't reach every way
+                    // into the success block -- so the assume would read a register that isn't
+                    // assigned yet on some path.
+                    var successBb = successOf(bb);
+                    return successBb != null
+                        && successBb.owner() == defBb.owner()
+                        && domTree.dominates(defBb, defIndex, successBb, -1);
+                  })
               .toList();
       if (availableCheckpointBbs.isEmpty()) {
         continue;
@@ -181,7 +208,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       assert !immediateCheckpointBbs.isEmpty();
 
       for (var cpBb : immediateCheckpointBbs) {
-        var successBb = ((Checkpoint) cpBb.jump().expression()).success().get();
+        var successBb = Objects.requireNonNull(successOf(cpBb));
 
         // Use `else if` because each assumption is strictly better,
         // and we can't substitute multiple times.
