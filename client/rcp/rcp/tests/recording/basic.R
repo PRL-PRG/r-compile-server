@@ -6,6 +6,9 @@ library(rcp)
 #   branch   (brifnot) : bcids, taken, not_taken
 #   var_call (getvar/call): bcids, counters, types
 #   fun      (getfun)  : bcids, counters, consts
+#   run_count : scalar integer, number of times the function was entered
+#   reflection: scalar logical, TRUE if the call frame was reflectively accessed,
+#               FALSE if not, NA if the compiled object was not a closure
 
 # ---------------------------------------------------------------------------
 # Test 1: exported structure -- three named groups, each a named list.
@@ -16,7 +19,7 @@ invisible(noop(1))
 
 rec <- rcp::rcp_export_recording(noop)
 stopifnot(is.list(rec))
-stopifnot(identical(names(rec), c("branch", "var_call", "fun")))
+stopifnot(identical(names(rec), c("branch", "var_call", "fun", "run_count", "reflection")))
 stopifnot(identical(names(rec$branch), c("bcids", "taken", "not_taken")))
 stopifnot(identical(names(rec$var_call), c("bcids", "counters", "types")))
 stopifnot(identical(names(rec$fun), c("bcids", "counters", "consts")))
@@ -27,6 +30,9 @@ stopifnot(length(rec$var_call$bcids) == length(rec$var_call$counters))
 stopifnot(length(rec$var_call$bcids) == length(rec$var_call$types))
 stopifnot(length(rec$fun$bcids) == length(rec$fun$counters))
 stopifnot(length(rec$fun$bcids) == length(rec$fun$consts))
+# run_count is a scalar integer; noop ran once. reflection is FALSE (no reflection).
+stopifnot(identical(rec$run_count, 1L))
+stopifnot(identical(rec$reflection, FALSE))
 cat("Test 1 (structure): OK\n")
 
 # ---------------------------------------------------------------------------
@@ -73,6 +79,9 @@ stopifnot(all(rec$var_call$counters == N))
 stopifnot(all(rec$var_call$types != 0L))
 # No branch in this function.
 stopifnot(length(rec$branch$bcids) == 0L)
+# run_count matches the number of invocations.
+stopifnot(rec$run_count == N)
+stopifnot(identical(rec$reflection, FALSE))
 cat("Test 3 (getvar/call): OK\n")
 
 # ---------------------------------------------------------------------------
@@ -126,7 +135,7 @@ konst <- rcp::rcp_cmpfun(konst, list(name = "konst"))
 invisible(konst())
 
 rec <- rcp::rcp_export_recording(konst)
-stopifnot(identical(names(rec), c("branch", "var_call", "fun")))
+stopifnot(identical(names(rec), c("branch", "var_call", "fun", "run_count", "reflection")))
 stopifnot(length(rec$branch$bcids) == 0L)
 stopifnot(length(rec$branch$taken) == 0L)
 stopifnot(length(rec$branch$not_taken) == 0L)
@@ -136,6 +145,9 @@ stopifnot(length(rec$var_call$types) == 0L)
 stopifnot(length(rec$fun$bcids) == 0L)
 stopifnot(length(rec$fun$counters) == 0L)
 stopifnot(length(rec$fun$consts) == 0L)
+# The scalar summaries are still present even with no recorded instructions.
+stopifnot(identical(rec$run_count, 1L))
+stopifnot(identical(rec$reflection, FALSE))
 cat("Test 6 (no recorded instructions): OK\n")
 
 # ---------------------------------------------------------------------------
@@ -159,6 +171,9 @@ stopifnot(all(rec$var_call$counters == 0L))
 stopifnot(all(rec$var_call$types == 0L))
 # no branch
 stopifnot(length(rec$branch$bcids) == 0L)
+# never entered, and the return-time reflection check never ran either.
+stopifnot(rec$run_count == 0L)
+stopifnot(identical(rec$reflection, FALSE))
 cat("Test 7 (never-executed instructions): OK\n")
 
 # ---------------------------------------------------------------------------
@@ -213,12 +228,14 @@ invisible(mono(2.5))
 rec1 <- rcp::rcp_export_recording(mono)
 stopifnot(rec1$var_call$counters == 2L)
 stopifnot(popcount(rec1$var_call$types[1]) == 1L)   # all double -> one bit
+stopifnot(rec1$run_count == 2L)
 
 invisible(mono(3.5))
 invisible(mono(4.5))
 rec2 <- rcp::rcp_export_recording(mono)
 stopifnot(rec2$var_call$counters == 4L)             # live buffer keeps counting
 stopifnot(popcount(rec2$var_call$types[1]) == 1L)
+stopifnot(rec2$run_count == 4L)                     # run_count is live too
 cat("Test 10 (monomorphic type / live re-export): OK\n")
 
 # ---------------------------------------------------------------------------
@@ -258,5 +275,31 @@ erred <- tryCatch({
 }, error = function(e) TRUE)
 stopifnot(isTRUE(erred))
 cat("Test 12 (missing recording errors): OK\n")
+
+# ---------------------------------------------------------------------------
+# Test 13: reflection flag.
+# A callee that grabs its parent frame reflectively accesses the compiled
+# function's own call frame; envir.c's recordReflection then binds
+# Rsh_ReflectivelyAccessed in it, which the return-time check stencil observes
+# and reports as reflection = TRUE. A function that never exposes its frame
+# reports FALSE.
+# ---------------------------------------------------------------------------
+grab_parent <- function() parent.frame()
+reflected_fn <- function(x) { grab_parent(); x }
+reflected_fn <- rcp::rcp_cmpfun(reflected_fn, list(name = "reflected_fn"))
+invisible(reflected_fn(1))
+
+rec <- rcp::rcp_export_recording(reflected_fn)
+stopifnot(isTRUE(rec$reflection))
+stopifnot(rec$run_count == 1L)
+
+plain <- function(x) x + 1
+plain <- rcp::rcp_cmpfun(plain, list(name = "plain_noref"))
+invisible(plain(1))
+invisible(plain(2))
+rec <- rcp::rcp_export_recording(plain)
+stopifnot(identical(rec$reflection, FALSE))
+stopifnot(rec$run_count == 2L)
+cat("Test 13 (reflection flag): OK\n")
 
 cat("All recording tests passed\n")
