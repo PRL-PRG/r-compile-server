@@ -1855,6 +1855,7 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
 
   SEXP info_sxp = Rf_allocVector(RAWSXP, sizeof(RshLoopInfo));
   RshLoopInfo *info = (RshLoopInfo *)RAW0(info_sxp);
+  info->u.incr.idx = -1;
   SET_SXP_VAL_N(-2, info_sxp);
 
   int type;
@@ -1864,7 +1865,7 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
     SEXP seq_sxp = VAL_SXP(*seq);
 
     /* if we are iterating over a factor, coerce to character first */
-    if (UNLIKELY(Rf_inherits(seq_sxp, "factor"))) {
+    if (UNLIKELY(Rsh_isFactor(seq_sxp))) {
       seq_sxp = Rf_asCharacterFactor(seq_sxp);
       SET_SXP_VAL(seq, seq_sxp);
     }
@@ -1875,13 +1876,24 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
     // bump up links count of seq to avoid modification by loop code
     INCREMENT_LINKS(seq_sxp);
 
-    if (Rf_isVector(seq_sxp)) {
-      info->len = XLENGTH(seq_sxp);
-    } else if (Rf_isList(seq_sxp) || isNull(seq_sxp)) {
-      info->len = Rf_length(seq_sxp);
-      info->cursor = seq_sxp;
-    } else {
+    switch (TYPEOF(seq_sxp)) {
+    case LGLSXP:
+    case INTSXP:
+    case REALSXP:
+    case CPLXSXP:
+    case STRSXP:
+    case RAWSXP:
+    case VECSXP:
+    case EXPRSXP:
+      info->u.incr.len = XLENGTH(seq_sxp);
+      break;
+    case NILSXP:
+    case LISTSXP:
+      info->u.cursor = seq_sxp;
+      break;
+    default:
       Rf_errorcall(call, "invalid for() loop sequence");
+      break;
     }
     break;
   }
@@ -1890,7 +1902,7 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
     Rsh_isqinfo_t isq_info = VAL_ISQ(*seq);
     int n1 = isq_info.n1;
     int n2 = isq_info.n2;
-    info->len = n1 <= n2 ? n2 - n1 + 1 : n1 - n2 + 1;
+    info->u.incr.len = n1 <= n2 ? n2 - n1 + 1 : n1 - n2 + 1;
     type = INTSXP;
     break;
   }
@@ -1899,9 +1911,10 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
     info->type = VAL_TAG(*seq);
     type = VAL_TAG(*seq);
     SEXP seq_sxp = box_inplace(seq);
+    ASSUME(REFCNT(seq_sxp) == 1);
     INCREMENT_LINKS(seq_sxp);
     assert(XLENGTH(seq_sxp) == 1);
-    info->len = 1;
+    info->u.incr.len = 1;
     break;
   }
   }
@@ -1932,7 +1945,6 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
     break;
   }
 
-  info->idx = -1;
   info->symbol = symbol;
 
   // Have to define NULL: the semantics say that if loop body never
@@ -2012,17 +2024,20 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
                                                Value *initial, BCell *cell,
                                                SEXP rho, int type, int spec) {
   assert(VAL_TAG(*seq_val) == 0 || VAL_TAG(*seq_val) == ISQSXP);
-  assert(type == ISQSXP || loopinfo->len == Rf_xlength(seq_val->u.sxpval));
-
+  assert(type == ISQSXP || type == LISTSXP || type == NILSXP ||
+         loopinfo->u.incr.len == Rf_xlength(VAL_SXP(*seq_val)));
   // The value slot is rewritten below and its SEXP mutated in place, so it must
   // carry no committed link count -- that is what its NLNKSXP tag buys.
   RSH_CHECK_BCPROT();
   RSH_CHECK_NLNK(initial);
 
-  R_xlen_t i = ++(loopinfo->idx);
+  R_xlen_t i;
+  if (type != LISTSXP && type != NILSXP) {
+    i = ++(loopinfo->u.incr.idx);
 
-  if (UNLIKELY(i >= loopinfo->len)) {
-    return FALSE;
+    if (UNLIKELY(i >= loopinfo->u.incr.len)) {
+      return FALSE;
+    }
   }
 
   RSH_CHECK_SIGINT();
@@ -2117,15 +2132,23 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     ENSURE_NAMEDMAX(value);
     break;
   }
+  case NILSXP:
   case LISTSXP: {
-    assert(!BNDCELL_TAG(loopinfo->cursor));
-    value = CAR0(loopinfo->cursor);
-    loopinfo->cursor = CDR(loopinfo->cursor);
+    assert(loopinfo->u.cursor != NULL);
+    assert(!BNDCELL_TAG(loopinfo->u.cursor));
+    if (UNLIKELY(loopinfo->u.cursor == R_NilValue)) {
+      return FALSE;
+    }
+    value = CAR0(loopinfo->u.cursor);
+    loopinfo->u.cursor = CDR(loopinfo->u.cursor);
     ENSURE_NAMEDMAX(value);
     break;
   }
   default:
-    Rf_error("invalid sequence argument in for loop");
+    // Rsh_StartFor already rejected any sequence that is not a vector, list or
+    // NULL (Rf_errorcall "invalid for() loop sequence"), and every type it
+    // accepts has a case above -- so no other type can reach here.
+    UNREACHABLE();
   }
 
   SET_FOR_LOOP_VAR(value, *cell, loopinfo->symbol, rho);
@@ -2284,7 +2307,7 @@ static INLINE void Rsh_IsNumeric(Value *stack) {
   int res = VAL_TAG(*v) == REALSXP || VAL_TAG(*v) == INTSXP ||
             (VAL_TAG(*v) == 0 && (TYPEOF(VAL_SXP(*v)) == REALSXP ||
                                   (TYPEOF(VAL_SXP(*v)) == INTSXP &&
-                                   !Rf_inherits(VAL_SXP(*v), "factor"))));
+                                   !Rsh_isFactor(VAL_SXP(*v)))));
 
   SET_LGL_VAL(v, res);
   R_Visible = TRUE;
@@ -2330,7 +2353,7 @@ static INLINE void Rsh_IsInteger(Value *stack) {
   case 0: // some SEXP
   {
     SEXP s = VAL_SXP(*v);
-    SET_LGL_VAL(v, (TYPEOF(s) == INTSXP) && !Rf_inherits(s, "factor"));
+    SET_LGL_VAL(v, (TYPEOF(s) == INTSXP) && !Rsh_isFactor(s));
     break;
   }
   case LGLSXP:

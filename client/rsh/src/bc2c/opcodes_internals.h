@@ -434,22 +434,26 @@ static INLINE void Rsh_bcprot_restore(RshBCProt saved) {
 typedef R_bcstack_t Value;
 
 typedef struct {
-  R_xlen_t idx;
-  R_xlen_t len;
+  union {
+    struct {
+      R_xlen_t idx;
+      R_xlen_t len;
+    } incr;
+    // Cursor for LISTSXP sequences. Kept here rather than in the sequence stack
+    // slot so that slot stays immutable for the whole loop: it is below
+    // R_BCProtTop and thus link counted, and it holds the head that
+    // Rsh_StartFor's INCREMENT_LINKS and Rsh_EndFor's DECREMENT_LINKS pair up
+    // on. Not GC-traced, but every cdr is reachable from that head.
+    SEXP cursor;
+  } u;
   SEXPTYPE type;
-  SEXP symbol;
 #ifdef STEPFOR_SPECIALIZE
   // Installed STEPFOR variant index (set by STARTFOR). A recursive re-entry can
   // leave a variant for a different loop in the live slot; each specialized
   // STEPFOR checks this to detect the mismatch and fall back.
   int variant;
 #endif
-  // Cursor for LISTSXP sequences. Kept here rather than in the sequence stack
-  // slot so that slot stays immutable for the whole loop: it is below
-  // R_BCProtTop and thus link counted, and it holds the head that
-  // Rsh_StartFor's INCREMENT_LINKS and Rsh_EndFor's DECREMENT_LINKS pair up on.
-  // Not GC-traced, but every cdr is reachable from that head.
-  SEXP cursor;
+  SEXP symbol;
 } RshLoopInfo;
 
 // For copy-and-patch. Possibly for Rsh as well.

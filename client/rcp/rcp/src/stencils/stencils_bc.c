@@ -131,29 +131,30 @@ extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
 // (element types: direct data pointer; ISQ: increasing) and i1 = i0 + 1 the
 // sub-variant (ALTREP element method / decreasing). STARTFOR picks between them
 // with the runtime 0/1 sub-axis; Rsh_DoStepFor takes the same 0/1 as `spec`.
-// Indices are contiguous; index 0 (generic catch-all) and 17 (axis-less
-// LISTSXP) have no sub-variant and are handled outside the table.
+// Indices are contiguous from 0; the axis-less LISTSXP variant (16) has no
+// sub-variant and is handled outside the table. There is no generic catch-all
+// variant: Rsh_StartFor rejects any type not covered here before STEPFOR runs.
 //
 // EXPRSXP and VECSXP share the VECSXP row: Rsh_DoStepFor's case for the two is
 // identical and ignores the type, so the emitted stencils are byte-for-byte the
 // same. The base table below just points EXPRSXP at the same index.
 #define X_STEPFOR_TYPES \
-	X(INTSXP, 1, 2)     \
-	X(ISQSXP, 3, 4)     \
-	X(REALSXP, 5, 6)    \
-	X(LGLSXP, 7, 8)     \
-	X(CPLXSXP, 9, 10)   \
-	X(STRSXP, 11, 12)   \
-	X(RAWSXP, 13, 14)   \
-	X(VECSXP, 15, 16)
+	X(ISQSXP, 0, 1)     \
+	X(INTSXP, 2, 3)     \
+	X(REALSXP, 4, 5)    \
+	X(LGLSXP, 6, 7)     \
+	X(CPLXSXP, 8, 9)    \
+	X(STRSXP, 10, 11)   \
+	X(RAWSXP, 12, 13)   \
+	X(VECSXP, 14, 15)
 
 // stepfor_variant_count is emitted by the extractor, but this file is compiled
 // before that header exists, so derive the bound here: two per table row plus
-// the generic (0) and LISTSXP (17) variants.
+// the LISTSXP (16) variant.
 #define X(T, i0, i1) +2
 enum
 {
-	STEPFOR_VARIANT_COUNT = 2 X_STEPFOR_TYPES
+	STEPFOR_VARIANT_COUNT = 1 X_STEPFOR_TYPES
 };
 #undef X
 
@@ -173,18 +174,22 @@ typedef struct
 } StepFor_specialized;
 #endif
 
-// type -> base variant index. Element/ISQ types come from the table; LISTSXP is
-// axis-less; every other type (incl. NILSXP for `for (x in NULL)`) stays 0, the
-// generic variant -- so STARTFOR needs no LISTSXP/default cases. The runtime
-// sub-offset (ALTREP-ness / ISQ direction, both 0/1) is added on top. Sized to
-// span the 5-bit SEXPTYPE range so any type indexes in bounds.
+// type -> base variant index. Element/ISQ types come from the table; LISTSXP
+// and NILSXP (an empty `for (x in NULL)`) share the axis-less list variant.
+// Unhandled types default to the 0xFF sentinel: Rsh_StartFor rejects every such
+// type before STEPFOR runs, so this is only a debug backstop (STARTFOR asserts
+// the resolved index is in range). The runtime sub-offset (ALTREP-ness / ISQ
+// direction, both 0/1) is added on top. Sized to span the 5-bit SEXPTYPE range
+// so any type indexes in bounds.
 #ifdef STEPFOR_SPECIALIZE
 static const uint8_t stepfor_variant_base[32] = {
+	[0 ... 31] = 0xFF,
 #define X(T, i0, i1) [T] = (i0),
 	X_STEPFOR_TYPES
 #undef X
-	[EXPRSXP] = 15, // shares the VECSXP variant (identical stepper)
-	[LISTSXP] = 17,
+	[EXPRSXP] = 14, // shares the VECSXP variant (identical stepper)
+	[LISTSXP] = 16,
+	[NILSXP] = 16,
 };
 #endif
 
@@ -201,6 +206,7 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
 	   int i = stepfor_variant_base[info->type] +
 			   (info->type == ISQSXP ? (VAL_ISQ(*seq).n1 > VAL_ISQ(*seq).n2)
 									  : ALTREP(VAL_SXP(*seq)));
+	   assert(i < STEPFOR_VARIANT_COUNT); // else an unsupported type (0xFF base)
 	   info->variant = i;
 
 	   // Copy the specialized StepFor code if it is not already cached
@@ -232,8 +238,7 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
 	STEPFOR_SPECIALIZED_FN(i1, T, 1)
 X_STEPFOR_TYPES
 #undef X
-STEPFOR_SPECIALIZED_FN(0, 0, -1)
-STEPFOR_SPECIALIZED_FN(17, LISTSXP, -1)
+STEPFOR_SPECIALIZED_FN(16, LISTSXP, -1)
 
 #define STEPFOR_SPECIALIZED_OP(a)                                                     \
 	RCP_OP_EX(STEPFOR, a)                                                             \
@@ -249,8 +254,7 @@ STEPFOR_SPECIALIZED_FN(17, LISTSXP, -1)
 	STEPFOR_SPECIALIZED_OP(i1)
 X_STEPFOR_TYPES
 #undef X
-STEPFOR_SPECIALIZED_OP(0)
-STEPFOR_SPECIALIZED_OP(17)
+STEPFOR_SPECIALIZED_OP(16)
 
 #else
 

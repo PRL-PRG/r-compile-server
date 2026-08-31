@@ -39,10 +39,11 @@
 #define isObject(s) (OBJECT(s) != 0)
 #define Rf_isLogical(s) (TYPEOF(s) == LGLSXP)
 #define isNumericOnly(x) (Rf_isNumeric(x) && !Rf_isLogical(x))
-#define PRIMOFFSET(x)	((x)->u.primsxp.offset)
-#define PRIMNAME(x)	(R_FunTab[PRIMOFFSET(x)].name)
+#define PRIMOFFSET(x) ((x)->u.primsxp.offset)
+#define PRIMNAME(x) (R_FunTab[PRIMOFFSET(x)].name)
 
-// This one is defined somewhere unknown, but the value is mentioned in a comment
+// This one is defined somewhere unknown, but the value is mentioned in a
+// comment
 #ifndef FLT_EPSILON
 #define FLT_EPSILON 1.192e-07
 #endif
@@ -305,6 +306,30 @@ static INLINE SEXP try_assign_unwrap(SEXP value, SEXP sym, SEXP rho,
 
   return value;
 }
+static INLINE Rboolean Rsh_inherits(SEXP s, const char *name) {
+  SEXP klass;
+  R_xlen_t i, nclass;
+  if (OBJECT(s)) {
+    klass = getAttrib(s, R_ClassSymbol);
+    assert(TYPEOF(klass) == STRSXP);
+    nclass = XLENGTH(klass);
+    /* Scan from the last class: conventionally-built factors carry "factor"
+       as the final element (c("ordered", "factor")), so the common case hits
+       on the first iteration. Still scans all positions to match inherits().
+       OBJECT(s) implies a class attribute is present, which classgets() never
+       stores with length 0, so nclass >= 1 and the first iteration is always
+       valid -- hence do/while, testing i >= 0 only after each pass. */
+    i = nclass - 1;
+    do {
+      if (!strcmp(CHAR(STRING_ELT(klass, i)), name))
+        return TRUE;
+    } while (--i >= 0);
+  }
+  return FALSE;
+}
+static ALWAYS_INLINE Rboolean Rsh_isFactor(SEXP s) {
+    return (TYPEOF(s) == INTSXP && Rsh_inherits(s, "factor"));
+}
 static ALWAYS_INLINE SEXP Rsh_ScalarLogical(int x) {
   switch (x) {
   case NA_LOGICAL:
@@ -315,41 +340,36 @@ static ALWAYS_INLINE SEXP Rsh_ScalarLogical(int x) {
     return R_TrueValue;
   }
 }
-static ALWAYS_INLINE SEXP Rsh_ScalarInteger(int x)
-{
-    SEXP ans = Rf_allocVector(INTSXP, 1);
-    INTEGER0(ans)[0] = x;
-    return ans;
+static ALWAYS_INLINE SEXP Rsh_ScalarInteger(int x) {
+  SEXP ans = Rf_allocVector(INTSXP, 1);
+  INTEGER0(ans)[0] = x;
+  return ans;
 }
 
-static ALWAYS_INLINE SEXP Rsh_ScalarReal(double x)
-{
-    SEXP ans = Rf_allocVector(REALSXP, 1);
-    REAL0(ans)[0] = x;
-    return ans;
+static ALWAYS_INLINE SEXP Rsh_ScalarReal(double x) {
+  SEXP ans = Rf_allocVector(REALSXP, 1);
+  REAL0(ans)[0] = x;
+  return ans;
 }
 
-static ALWAYS_INLINE SEXP Rsh_ScalarComplex(Rcomplex x)
-{
-    SEXP ans = Rf_allocVector(CPLXSXP, 1);
-    COMPLEX0(ans)[0] = x;
-    return ans;
+static ALWAYS_INLINE SEXP Rsh_ScalarComplex(Rcomplex x) {
+  SEXP ans = Rf_allocVector(CPLXSXP, 1);
+  COMPLEX0(ans)[0] = x;
+  return ans;
 }
 
-static ALWAYS_INLINE SEXP Rsh_ScalarString(SEXP x)
-{
-    SEXP ans;
-    //PROTECT(x);
-    ans = Rf_allocVector(STRSXP, (R_xlen_t)1);
-    //UNPROTECT(1);
-    SET_STRING_ELT_0(ans, (R_xlen_t)0, x);
-    return ans;
+static ALWAYS_INLINE SEXP Rsh_ScalarString(SEXP x) {
+  SEXP ans;
+  // PROTECT(x);
+  ans = Rf_allocVector(STRSXP, (R_xlen_t)1);
+  // UNPROTECT(1);
+  SET_STRING_ELT_0(ans, (R_xlen_t)0, x);
+  return ans;
 }
-static ALWAYS_INLINE SEXP Rsh_ScalarRaw(Rbyte x)
-{
-    SEXP ans = allocVector(RAWSXP, 1);
-    SET_SCALAR_BVAL0(ans, x);
-    return ans;
+static ALWAYS_INLINE SEXP Rsh_ScalarRaw(Rbyte x) {
+  SEXP ans = allocVector(RAWSXP, 1);
+  SET_SCALAR_BVAL0(ans, x);
+  return ans;
 }
 void old_to_new(SEXP x, SEXP y);
 #define NODE_IS_MARKED(s) (MARK(s) == 1)
