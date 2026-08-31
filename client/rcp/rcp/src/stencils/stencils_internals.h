@@ -56,6 +56,9 @@ extern const void *const _RCP_CRUNTIME0_R_BaseEnv[];
 extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
 
+extern const void *const _RCP_CRUNTIME0_R_ClassSymbol[];
+#define R_ClassSymbol CONST_RUNTIME_VAR(R_ClassSymbol, SEXP)
+
 #if __GNUC__ >= 14
 #define STENCIL_ATTRIBUTES __attribute__((no_callee_saved_registers))
 #else
