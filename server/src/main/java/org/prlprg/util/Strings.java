@@ -110,6 +110,13 @@ public class Strings {
     return Character.toLowerCase(s.charAt(0)) + s.substring(1);
   }
 
+  public static String camelCaseToPascalCase(String s) {
+    if (s.isEmpty()) {
+      return s;
+    }
+    return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+  }
+
   public static String camelCaseToSnakeCase(String s) {
     return camelCaseToGeneralizedSnakeCase(s, '_');
   }

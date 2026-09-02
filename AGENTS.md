@@ -145,6 +145,8 @@ Before committing, re-read the comments in the changes and delete any long one (
 - describes behavior that's trivial to infer from the code and its context, or
 - explains a specific use of a general function. Comment what the function does, not what one caller wants from it.
 
+Don't append the Claude session URL to the commit message.
+
 ---
 
 ## MCP Servers
