@@ -142,6 +142,30 @@ class StrictifyPhiTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void phi_nonForcingUse_notChanged() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg c:B, reg x:v(I)) -+> V {
+              p: p(v(I) -) = prom<v(I) ->{
+                return x;
+              };
+              goto L0(p);
+            L0(y: *):
+              if c then L1() else L2();
+            L1():
+              z: v(I) = v(I)[1];
+              goto L0(z);
+            L2():
+              st result = y;
+              return <int 0>;
+            }
+            """);
+
+    assertFalse(run(abstraction), "non-forcing use: optimization should report no change");
+  }
+
+  @Test
   void idempotent_afterStrictify_noFurtherChange() {
     var abstraction =
         ParseUtil.parseAbstraction(
