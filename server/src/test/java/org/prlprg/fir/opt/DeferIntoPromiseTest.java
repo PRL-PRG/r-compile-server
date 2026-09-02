@@ -420,4 +420,34 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
 
     assertFalse(run(abstraction), "nothing to defer should report no change");
   }
+
+  @Test
+  void keptInstructionReadingARegisterThatDoesNotReachThePromise_notDeferred() {
+    // `dead`'s assignee has no uses at all, so the prune keeps it -- being kept says nothing about
+    // where it sits. It reads `other`, which is an `unbox` (never a candidate, so it stays put) in
+    // a block the promise doesn't follow. Moving `dead` into the body would read a register that
+    // isn't assigned there.
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg n:R, reg c:B) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              p: p(v1(R) -) = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              if c then L0() else L1();
+            L0():
+              other: R = unbox< v1(R) --> R >(nb);
+              dead: v1(R) = box< R --> v1(R) >(other);
+              goto L1();
+            L1():
+              return n;
+            }
+            """);
+
+    assertFalse(
+        run(abstraction),
+        "nothing should move into the promise:\n" + Printer.toString(abstraction));
+  }
 }
