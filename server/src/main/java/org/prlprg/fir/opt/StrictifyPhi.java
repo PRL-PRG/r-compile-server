@@ -13,8 +13,10 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Return;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Type;
@@ -40,11 +42,9 @@ import org.prlprg.fir.ir.variable.AssigneeOf;
 /// edge with that register computes the same value; its declared effects are an upper bound that
 /// an empty body can't reach.
 ///
-/// Only applies when some incoming argument is *already* a value. That's what makes retyping the
-/// phi invisible to its consumers: they demonstrably handle a value there, because on that edge
-/// they already get one. It matters for the consumers that don't force -- a deopt block's
-/// `st x = phi` binds whatever the phi holds, so a phi that was only ever a promise would start
-/// binding values to the environment the interpreter resumes with.
+/// Only applies when some incoming argument is *already* a value and every use forces the phi.
+/// Retyping it is then invisible to its consumers. A non-forcing use, such as `st x = phi`, would
+/// observe the difference between storing a promise and storing its value.
 public record StrictifyPhi() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
@@ -126,6 +126,14 @@ public record StrictifyPhi() implements AbstractionOptimization {
       }
 
       if (!anyValue || !anyUnwrapped || valueType == null) {
+        return false;
+      }
+
+      if (!phi.uses().stream()
+          .allMatch(
+              use ->
+                  use.instruction() instanceof Statement statement
+                      && statement.expression() instanceof Force)) {
         return false;
       }
 
