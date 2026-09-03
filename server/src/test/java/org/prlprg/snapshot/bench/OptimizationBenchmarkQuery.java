@@ -12,17 +12,21 @@ import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.Optimizations;
+import org.prlprg.parseprint.Parser;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SnapshotStore;
+import org.prlprg.snapshot.bc.BCQuery;
 import org.prlprg.snapshot.fir.opt.OptimizedFirQuery;
 import org.prlprg.snapshot.fir2c.Fir2CQuery;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 import org.prlprg.util.Strings;
+import org.prlprg.util.ThrowingSupplier;
 
 /// Benchmark the example compiled by the default optimizations, then once per optimization
 /// selected by [TestConfig#BENCHMARK_OPTIMIZATIONS] with that one removed, to measure what each
@@ -30,6 +34,12 @@ import org.prlprg.util.Strings;
 ///
 /// Each variant's optimized FIŘ, optimization log, generated C, and shared object are snapshotted
 /// like the default pipeline's, under a directory named after the optimization it removed.
+///
+/// The table also gets four extra rows -- `ast`, `bc.default`, `bc.opt`, and `fir2c.default` --
+/// benchmarking the plain interpreter, default and fully-optimized bytecode, and (again) the
+/// baseline, the same representations [BenchmarkQuery] reports. They're a reference point: the
+/// ablation rows only compare `fir2c` variants to each other, so without these there's no sense
+/// of how much any of that matters next to the interpreter or bytecode.
 public class OptimizationBenchmarkQuery implements Query<BenchmarkOutput> {
   public static final OptimizationBenchmarkQuery INSTANCE = new OptimizationBenchmarkQuery();
 
@@ -66,6 +76,10 @@ public class OptimizationBenchmarkQuery implements Query<BenchmarkOutput> {
   public BenchmarkOutput compute(Example example, SnapshotStore store) {
     var benchmarkCall = BenchmarkQuery.benchmarkCall(example);
 
+    var astPath = example.absolutePath();
+    var bcPath = store.tryLoadPath(example, BCQuery.REGULAR);
+    var optBcPath = store.tryLoadPath(example, BCQuery.OPT);
+
     var baseline = variant(example, store, null);
 
     var variants = new ArrayList<Variant>();
@@ -76,7 +90,14 @@ public class OptimizationBenchmarkQuery implements Query<BenchmarkOutput> {
     // the difference between the two rows is this benchmark's noise floor: two runs of identical
     // code were observed to differ by up to 20%, apparently depending on how the shared object
     // happened to be loaded, so a smaller difference than that doesn't mean anything.
-    variants.add(new Variant(BASELINE_RERUN, baseline.modulePath(), baseline.loc()));
+    variants.add(new Variant(BASELINE_RERUN, Kind.CC, baseline.modulePath(), baseline.loc()));
+
+    // The reference rows described in the class doc: interpreter, default/optimized bytecode, and
+    // the baseline again (this time under a name that makes what it's being compared to obvious).
+    variants.add(new Variant("ast", Kind.AST, astPath, NO_LOC));
+    variants.add(new Variant("bc.default", Kind.BC, bcPath, NO_LOC));
+    variants.add(new Variant("bc.opt", Kind.BC, optBcPath, NO_LOC));
+    variants.add(new Variant("fir2c.default", Kind.CC, baseline.modulePath(), baseline.loc()));
 
     // One R call per variant, so a variant that crashes R only loses its own result
     var log = new StringBuilder();
@@ -115,24 +136,46 @@ public class OptimizationBenchmarkQuery implements Query<BenchmarkOutput> {
             : new Fir2CQuery("opt.fir2c." + optimization.name(), optimization).optimized();
     var modulePath = store.tryLoadPath(example, fir2c);
 
-    return new Variant(removed == null ? BASELINE : removed, modulePath, loc(firPath));
+    return new Variant(removed == null ? BASELINE : removed, Kind.CC, modulePath, loc(firPath));
   }
 
-  /// The number of lines in the optimized FIŘ at `path`, or [#NO_LOC] if it wasn't generated.
+  /// The number of lines across the best version of every function in the optimized FIŘ at
+  /// `path`, or [#NO_LOC] if it wasn't generated.
+  ///
+  /// "Best" means most specialized: a function usually has several versions, one per signature
+  /// the optimizer dispatches on ([org.prlprg.fir.ir.module.Function#versions]), and the most
+  /// specialized one is the one printed last (see
+  /// [org.prlprg.fir.parseprint.IrPrintContext#printFunction]). Only that version runs on the hot
+  /// path, so summing every version's lines -- i.e. the file's total line count -- would overstate
+  /// how much code the optimizations actually produced.
   private static int loc(@Nullable Path path) {
-    return path == null ? NO_LOC : (int) Files.readString(path).lines().count();
+    if (path == null) {
+      return NO_LOC;
+    }
+    var module = ThrowingSupplier.get(() -> Parser.fromFile(path.toFile(), Module.class));
+    return module.localFunctions().stream()
+        .mapToInt(f -> (int) f.versions().first().toString().lines().count())
+        .sum();
   }
 
-  /// Run `benchmarkCall` in `variant`'s compiled module, and return how long it took in seconds.
+  /// Run `benchmarkCall` in `variant`'s module (or source/bytecode file, for the `ast`/`bc`
+  /// reference rows), and return how long it took in seconds.
   ///
   /// Returns `NaN` (`NA` in the table) if the variant didn't compile, didn't run, or crashed R.
   /// Appends the reason to `log` in those cases, because that's what the `NA` in the table means.
   private static double time(Variant variant, String benchmarkCall, StringBuilder log) {
     var modulePath = variant.modulePath();
     if (modulePath == null) {
-      log.append("Failed to compile without ").append(variant.removed()).append('\n');
+      log.append("Nothing to benchmark for ").append(variant.removed()).append('\n');
       return Double.NaN;
     }
+
+    var rFunction =
+        switch (variant.kind()) {
+          case AST -> "benchOneAst";
+          case BC -> "benchOneBc";
+          case CC -> "benchOne";
+        };
 
     try {
       var rawOutput =
@@ -140,7 +183,8 @@ public class OptimizationBenchmarkQuery implements Query<BenchmarkOutput> {
               .capturingEval(
                   "%s\n".formatted(BENCHMARK_DRIVER)
                       + "\n"
-                      + "benchOne(\n"
+                      + rFunction
+                      + "(\n"
                       + "  call = %s,\n".formatted(benchmarkCall)
                       + "  path = '%s'\n".formatted(modulePath.toAbsolutePath())
                       + ")\n");
@@ -149,7 +193,7 @@ public class OptimizationBenchmarkQuery implements Query<BenchmarkOutput> {
         return time.get(0);
       }
 
-      log.append("Didn't return a time without ")
+      log.append("Didn't return a time for ")
           .append(variant.removed())
           .append(": ")
           .append(rawOutput.first())
@@ -157,7 +201,11 @@ public class OptimizationBenchmarkQuery implements Query<BenchmarkOutput> {
       return Double.NaN;
     } catch (RuntimeException | Error e) {
       // Includes R dying, in which case `GNUR.instance()` starts a new one for the next variant
-      log.append("Crashed without ").append(variant.removed()).append(": ").append(e).append('\n');
+      log.append("Crashed benchmarking ")
+          .append(variant.removed())
+          .append(": ")
+          .append(e)
+          .append('\n');
       return Double.NaN;
     }
   }
@@ -224,10 +272,19 @@ public class OptimizationBenchmarkQuery implements Query<BenchmarkOutput> {
     data.writeCsv(path.toFile());
   }
 
-  /// One benchmarked configuration: the default optimizations without the one named `removed`
-  /// ([#BASELINE] if none), the shared object they compiled to (`null` if they failed to), and the
-  /// number of lines in the FIŘ they produced.
-  private record Variant(String removed, @Nullable Path modulePath, int loc) {}
+  /// One benchmarked row: either the default optimizations without the one named `removed`
+  /// ([#BASELINE] if none) and the shared object they compiled to, or (for the reference rows
+  /// described in the class doc) the plain interpreter or bytecode and the source/RDS file to run
+  /// it from. `modulePath` is `null` if the row's input failed to compile, and `loc` is [#NO_LOC]
+  /// for the reference rows, which aren't part of the FIŘ ablation table.
+  private record Variant(String removed, Kind kind, @Nullable Path modulePath, int loc) {}
+
+  /// What [#time(Variant, String, StringBuilder)] should run `modulePath` as.
+  private enum Kind {
+    AST,
+    BC,
+    CC
+  }
 
   private OptimizationBenchmarkQuery() {}
 }

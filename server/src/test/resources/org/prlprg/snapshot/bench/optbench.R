@@ -60,23 +60,50 @@ benchOne <- function(call, path) {
   fastest
 }
 
-# Log and return the table of results, one row per removed optimization.
+# Like `benchOne`, but for the `ast`/`bc` reference rows: the plain interpreter or bytecode
+# instead of a compiled module. `ast`/`bc` (from `bench.R`) use whatever `timeCall` is currently
+# bound, which by now is the repeated-call version above, so these are still comparable to
+# `benchOne`'s results. Unlike `benchOne`, there's no `LOADS` loop: that exists because loading a
+# shared object is flaky, and sourcing a script or `eval`ing bytecode isn't.
+benchOneAst <- function(call, path) {
+  call <<- substitute(call)
+  as.numeric(unname(ast(path)))
+}
+
+benchOneBc <- function(call, path) {
+  call <<- substitute(call)
+  as.numeric(unname(bc(path)))
+}
+
+# Log and return the table of results: one row per removed optimization, then (after the baseline
+# rerun) the `ast`/`bc.default`/`bc.opt`/`fir2c.default` reference rows.
 #
 # `removed`, `loc` and `time` are parallel vectors, whose first element is the baseline with
-# nothing removed; `loc.diff` and `slowdown` are relative to it. The last element is the baseline
-# again, so how far its `slowdown` is from 1 is how far off any other row can be.
+# nothing removed; `loc.diff` and `slowdown` are relative to it. The last element (`fir2c.default`)
+# is the baseline yet again, so how far its `slowdown` is from 1 is how far off any other row can
+# be. The reference rows' `loc` is `NA`, since they're not FIŘ.
 #
-# `loc` is the number of lines in the optimized FIŘ, so it measures how much code the removed
-# optimization was responsible for, the way `time` measures how much speed.
+# `loc` is the number of lines across the best version of every function in the optimized FIŘ, so
+# it measures how much code the removed optimization was responsible for, the way `time` measures
+# how much speed.
+#
+# `pct.none` and `pct.bc.opt` are each row's time as a percentage of the `<none>` baseline's and
+# of the `bc.opt` reference row's, so e.g. `pct.bc.opt` near 100 means an optimization (or its
+# absence) is worth about as much as `bc`'s own optimizer.
 report <- function(removed, loc, time) {
   baseline <- time[1]
+  bcOptTime <- time[match("bc.opt", removed)]
   res <- data.frame(
     removed = removed,
     loc = loc,
     loc.diff = loc - loc[1],
     time = signif(time, 4),
     slowdown =
-      if (is.na(baseline) || baseline == 0) NA else round(time / baseline, 3)
+      if (is.na(baseline) || baseline == 0) NA else round(time / baseline, 3),
+    pct.none =
+      if (is.na(baseline) || baseline == 0) NA else round(100 * time / baseline, 1),
+    pct.bc.opt =
+      if (is.na(bcOptTime) || bcOptTime == 0) NA else round(100 * time / bcOptTime, 1)
   )
 
   # Log to console, biggest slowdown first, so the optimizations that matter most are on top
