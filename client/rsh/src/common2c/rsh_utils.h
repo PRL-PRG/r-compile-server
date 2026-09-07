@@ -78,6 +78,7 @@ static INLINE double R_logbase(double x, double base) {
   return R_log(x) / R_log(base);
 }
 
+#define LOGICAL_TO_INTEGER(x) (x) /* Uses the same NA representation */
 #define INTEGER_TO_LOGICAL(x)                                                  \
   ((x) == NA_INTEGER ? NA_LOGICAL : (x) ? TRUE : FALSE)
 #define INTEGER_TO_REAL(x) ((x) == NA_INTEGER ? NA_REAL : (x))
@@ -187,7 +188,7 @@ static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
 
 static INLINE SEXP Rsh_get_mat_dim_attr(SEXP v) {
   SEXP dim = Rsh_get_dim_attr(v);
-  if (LENGTH(dim) == 2) {
+  if (dim != R_NilValue && XLENGTH(dim) == 2) {
     return dim;
   } else {
     return R_NilValue;
@@ -196,7 +197,7 @@ static INLINE SEXP Rsh_get_mat_dim_attr(SEXP v) {
 
 static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
   SEXP dim = Rsh_get_dim_attr(v);
-  if (LENGTH(dim) > 0) {
+  if (dim != R_NilValue && XLENGTH(dim) > 0) {
     return dim;
   } else {
     return R_NilValue;
@@ -290,6 +291,28 @@ static INLINE SEXP getActiveValue(SEXP fun) {
   return expr;
 }
 
+static ALWAYS_INLINE int Rsh_IntegerFromReal(double x) {
+  static_assert(0x80000000 == NA_INTEGER);
+#if defined(__x86_64__) || (defined(__i386__) && defined(__SSE2__))
+  /* cvttsd2si returns the "integer indefinite" value 0x80000000 == NA_INTEGER
+     for NaN, +-Inf and everything outside [-2^31, 2^31), so the conversion
+     doubles as the range check.  Done in asm because the equivalent C cast
+     would be UB (C11 6.3.1.4) for exactly the inputs we care about. */
+  int i;
+  __asm__("{cvttsd2si %1, %0|cvttsd2si %0, %1}" : "=r"(i) : "xm"(x));
+  const int bad = (i == NA_INTEGER);
+#else
+  /* NaN fails the comparison too, and the accepted interval (-2^31, 2^31)
+     is symmetric, so one compare on the magnitude covers every case. */
+  const int bad = !(__builtin_fabs(x) < 2147483648.0);
+  const int i = bad ? NA_INTEGER : (int)x;
+#endif
+  if (UNLIKELY(bad && !ISNAN(x))) {
+    Rf_warning("NAs introduced by coercion to integer range");
+  }
+  return i;
+}
+
 static INLINE SEXP try_assign_unwrap(SEXP value, SEXP sym, SEXP rho,
                                      SEXP cell) {
   /* If EnsureLocal() has introduced a wrapper for the LHS object in
@@ -328,7 +351,20 @@ static INLINE Rboolean Rsh_inherits(SEXP s, const char *name) {
   return FALSE;
 }
 static ALWAYS_INLINE Rboolean Rsh_isFactor(SEXP s) {
-    return (TYPEOF(s) == INTSXP && Rsh_inherits(s, "factor"));
+  return (TYPEOF(s) == INTSXP && Rsh_inherits(s, "factor"));
+}
+static ALWAYS_INLINE Rboolean Rsh_isNumber(SEXP s) {
+  switch (TYPEOF(s)) {
+  case INTSXP:
+    if (Rsh_isFactor(s))
+      return FALSE;
+  case LGLSXP:
+  case REALSXP:
+  case CPLXSXP:
+    return TRUE;
+  default:
+    return FALSE;
+  }
 }
 static ALWAYS_INLINE SEXP Rsh_ScalarLogical(int x) {
   switch (x) {

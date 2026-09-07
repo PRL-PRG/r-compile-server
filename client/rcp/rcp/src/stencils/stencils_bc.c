@@ -648,9 +648,7 @@ RCP_OP_EX(SWITCH, 000)
 	ASSUME(ioffsets_length != 1);
 
 	int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
-							 is_names_null, TYPEOF(names) == STRSXP, names_length,
-							 TYPEOF(ioffsets) == INTSXP, ioffsets_length,
-							 TYPEOF(coffsets) == INTSXP, XLENGTH_0(coffsets) == XLENGTH_0(names));
+							 is_names_null, names_length, ioffsets_length);
 
 	POP_VAL(-RCP_BC_STACK_EFFECT_SWITCH);
 	GOTO_VAL(dest);
@@ -676,9 +674,7 @@ RCP_OP_EX(SWITCH, 010)
 	assert(ioffsets_length <= R_SHORT_LEN_MAX);
 
 	int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
-							 is_names_null, TYPEOF(names) == STRSXP, names_length,
-							 TYPEOF(ioffsets) == INTSXP, ioffsets_length,
-							 TYPEOF(coffsets) == INTSXP, XLENGTH_0(coffsets) == XLENGTH_0(names));
+							 is_names_null, names_length, ioffsets_length);
 
 	POP_VAL(-RCP_BC_STACK_EFFECT_SWITCH);
 	TRACE_PRINT(__FUNCTION__);
@@ -695,8 +691,8 @@ RCP_OP_EX(SWITCH, 100)
 	SEXP names = GETCONST_IMM(1);
 	SEXP coffsets = GETCONST_IMM(2);
 	SEXP ioffsets = GETCONST_IMM(3);
-	assert(names != R_NilValue);
-	assert(coffsets != R_NilValue);
+	assert(names != R_NilValue && LENGTH_0(names) == 0);
+	assert(coffsets != R_NilValue && LENGTH_0(coffsets) == 0);
 	assert(ioffsets != R_NilValue);
 
 	Rboolean is_names_null = TRUE;
@@ -706,9 +702,7 @@ RCP_OP_EX(SWITCH, 100)
 	assert(ioffsets_length <= R_SHORT_LEN_MAX);
 
 	int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
-							 is_names_null, TYPEOF(names) == STRSXP, names_length,
-							 TYPEOF(ioffsets) == INTSXP, ioffsets_length,
-							 TYPEOF(coffsets) == INTSXP, XLENGTH_0(coffsets) == XLENGTH_0(names));
+							 is_names_null, names_length, ioffsets_length);
 
 	POP_VAL(-RCP_BC_STACK_EFFECT_SWITCH);
 	TRACE_PRINT(__FUNCTION__);
@@ -725,8 +719,8 @@ RCP_OP_EX(SWITCH, 101)
 	SEXP names = GETCONST_IMM(1);
 	SEXP coffsets = GETCONST_IMM(2);
 	SEXP ioffsets = GETCONST_IMM(3);
-	assert(names != R_NilValue);
-	assert(coffsets != R_NilValue);
+	assert(names != R_NilValue && LENGTH_0(names) == 0);
+	assert(coffsets != R_NilValue && LENGTH_0(coffsets) == 0);
 	assert(ioffsets != R_NilValue);
 
 	Rboolean is_names_null = TRUE;
@@ -734,9 +728,7 @@ RCP_OP_EX(SWITCH, 101)
 	R_xlen_t ioffsets_length = 1;
 
 	int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
-							 is_names_null, TYPEOF(names) == STRSXP, names_length,
-							 TYPEOF(ioffsets) == INTSXP, ioffsets_length,
-							 TYPEOF(coffsets) == INTSXP, XLENGTH_0(coffsets) == XLENGTH_0(names));
+							 is_names_null, names_length, ioffsets_length);
 
 	POP_VAL(-RCP_BC_STACK_EFFECT_SWITCH);
 	TRACE_PRINT(__FUNCTION__);
