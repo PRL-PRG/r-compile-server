@@ -911,12 +911,15 @@ static ALWAYS_INLINE SEXP box_inplace(R_bcstack_t *s) {
   switch (s->tag) {
   case REALSXP:
     value = Rsh_ScalarReal(s->u.dval);
+    ASSUME(REFCNT(value) == 0);
     break;
   case INTSXP:
     value = Rsh_ScalarInteger(s->u.ival);
+    ASSUME(REFCNT(value) == 0);
     break;
   case LGLSXP:
     value = Rsh_ScalarLogical(s->u.ival);
+    ASSUME(REFCNT(value) == REFCNTMAX);
     break;
   case RSH_ISQSXP: {
     Rsh_isqinfo_t isqinfo = s->u.isqval;
@@ -1612,7 +1615,7 @@ static INLINE int fixup_scalar_logical(Value *v, SEXP call, const char *arg,
                                        const char *op) {
   if (UNLIKELY(VAL_IS_SXP(*v))) {
     // FIXME: does it make sense to optimize LGL / DBL?
-    if (!Rf_isNumber(VAL_SXP(*v))) {
+    if (!Rsh_isNumber(VAL_SXP(*v))) {
       Rf_errorcall(call, "invalid %s type in 'x %s y'", arg, op);
     }
     return Rf_asLogical2(VAL_SXP(*v), 1, call);

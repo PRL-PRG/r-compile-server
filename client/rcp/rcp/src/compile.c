@@ -856,16 +856,43 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		}
 		break;
 #endif
-#ifdef SWITCH_SPECIALIZE
 		case SWITCH_BCOP:
 		{
 			SEXP names = r_constpool[imms[1]];
 			SEXP coffsets = r_constpool[imms[2]];
 			SEXP ioffsets = r_constpool[imms[3]];
 
+			// A numeric switch has no names and no character offsets, but the
+			// emit pass below substitutes the empty INTSXP for both R_NilValue
+			// operands before it asks for the stencil a second time (see
+			// SWITCH_BCOP in copy_patch_internal). Both spellings have to be
+			// recognised here, or the two passes pick different variants.
 			Rboolean is_names_null = names == R_NilValue || LENGTH_0(names) == 0;
-			assert(!ALTREP(names));
-			assert(!ALTREP(ioffsets));
+
+			// Validate the shape of the SWITCH operands once, here, instead of
+			// on every execution of the stencil. GNU R re-checks all of this in
+			// the interpreter loop (eval.c: "bad numeric 'switch' offsets",
+			// "bad character 'switch' offsets", "bad 'switch' names"), but the
+			// checks can never fire for bytecode produced by R's compiler:
+			// patchlabels() in cmp.R turns every label list into an
+			// as.integer(...) vector, and the names vector of a character
+			// switch is built alongside coffsets, so the two always have the
+			// same length. Having checked it here, the stencils can index
+			// INTEGER0()/STRING_ELT_0() directly, which also requires the
+			// vectors not to be ALTREP.
+			if (TYPEOF(ioffsets) != INTSXP || ALTREP(ioffsets))
+				BC_ERROR("bad numeric 'switch' offsets\n");
+
+			if (!is_names_null)
+			{
+				if (TYPEOF(coffsets) != INTSXP || ALTREP(coffsets))
+					BC_ERROR("bad character 'switch' offsets\n");
+				if (TYPEOF(names) != STRSXP || ALTREP(names) ||
+					LENGTH_0(names) != LENGTH_0(coffsets))
+					BC_ERROR("bad 'switch' names\n");
+			}
+
+#ifdef SWITCH_SPECIALIZE
 			int names_length = LENGTH_0(names);
 			int ioffsets_length = LENGTH_0(ioffsets);
 			DEBUG_PRINT("SWITCH_OP specialization: is_names_null=%d names_length=%d, "
@@ -882,9 +909,11 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 				return &stencil_set[3]; //&_RCP_SWITCH_101_OP;
 			else
 				BC_ERROR("Invalid SWITCH_OP immediate values\n");
+#else
+			return &stencil_set[0];
+#endif
 		}
 		break;
-#endif
 #ifdef MAKEPROM_SPECIALIZE
 		case MAKEPROM_BCOP:
 		{

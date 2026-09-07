@@ -1911,7 +1911,6 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
     info->type = VAL_TAG(*seq);
     type = VAL_TAG(*seq);
     SEXP seq_sxp = box_inplace(seq);
-    ASSUME(REFCNT(seq_sxp) == 1);
     INCREMENT_LINKS(seq_sxp);
     assert(XLENGTH(seq_sxp) == 1);
     info->u.incr.len = 1;
@@ -2305,9 +2304,9 @@ static INLINE void Rsh_IsNumeric(Value *stack) {
   Value *v = GET_VAL(-1);
 
   int res = VAL_TAG(*v) == REALSXP || VAL_TAG(*v) == INTSXP ||
-            (VAL_TAG(*v) == 0 && (TYPEOF(VAL_SXP(*v)) == REALSXP ||
-                                  (TYPEOF(VAL_SXP(*v)) == INTSXP &&
-                                   !Rsh_isFactor(VAL_SXP(*v)))));
+            (VAL_TAG(*v) == 0 &&
+             (TYPEOF(VAL_SXP(*v)) == REALSXP ||
+              (TYPEOF(VAL_SXP(*v)) == INTSXP && !Rsh_isFactor(VAL_SXP(*v)))));
 
   SET_LGL_VAL(v, res);
   R_Visible = TRUE;
@@ -2754,30 +2753,22 @@ static INLINE void Rsh_DecLnkStk(Value *stack) {
   *v2 = v1;
 }
 
-static INLINE int
-Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
-              Rboolean is_names_null, Rboolean names_is_strsxp,
-              int names_length, Rboolean ioffsets_is_intsxp,
-              int ioffsets_length, Rboolean coffsets_is_intsxp,
-              Rboolean names_and_coffsets_same_length) {
+static INLINE int Rsh_do_switch(Value *stack, SEXP call, SEXP names,
+                                SEXP coffsets, SEXP ioffsets,
+                                Rboolean is_names_null, int names_length,
+                                int ioffsets_length) {
   ASSUME(names_length >= 0);
   ASSUME(ioffsets_length >= 0);
-  SEXP value = box(*GET_VAL(-1));
-  if (!Rf_isVector(value) || Rf_length(value) != 1) {
-    Rf_errorcall(call, "EXPR must be a length 1 vector");
-  }
-  if (Rf_isFactor(value)) {
-    Rf_warningcall(call,
-                   "EXPR is a \"factor\", treated as integer.\n"
-                   " Consider using '%s' instead.",
-                   "switch(as.character( * ), ...)");
-  }
-  if (TYPEOF(value) == STRSXP) {
+  Value *val = GET_VAL(-1);
+  if (VAL_IS_SXP(*val) && TYPEOF(VAL_SXP(*val)) == STRSXP) {
+    SEXP value = VAL_SXP(*val);
+    if (XLENGTH(value) != 1) {
+      Rf_errorcall(call, "EXPR must be a length 1 vector");
+    }
     int i, n, which;
     if (is_names_null) {
-      if (!ioffsets_is_intsxp) {
-        Rf_errorcall(call, "bad numeric 'switch' offsets");
-      }
+      // eval.c: "bad numeric 'switch' offsets"
+      assert(TYPEOF(ioffsets) == INTSXP && !ALTREP(ioffsets));
       if (ioffsets_length == 1) {
         Rf_warningcall(call, "'switch' with no alternatives");
         return INTEGER0(ioffsets)[0];
@@ -2786,12 +2777,10 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
                            "without named alternatives");
       }
     } else {
-      if (!coffsets_is_intsxp) {
-        Rf_errorcall(call, "bad character 'switch' offsets");
-      }
-      if (!names_is_strsxp || !names_and_coffsets_same_length) {
-        Rf_errorcall(call, "bad 'switch' names");
-      }
+      // eval.c: "bad character 'switch' offsets" and "bad 'switch' names"
+      assert(TYPEOF(coffsets) == INTSXP && !ALTREP(coffsets));
+      assert(TYPEOF(names) == STRSXP && !ALTREP(names) && (names_length) > 0 &&
+             (names_length) == LENGTH_0(coffsets));
       n = names_length;
       which = n - 1;
       for (i = 0; i < n - 1; i++) {
@@ -2804,21 +2793,52 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
       return INTEGER0(coffsets)[which];
     }
   } else {
-    if (!ioffsets_is_intsxp) {
-      Rf_errorcall(call, "bad numeric 'switch' offsets");
+    int which;
+    switch (VAL_TAG(*val)) {
+    case 0: {
+      SEXP value = VAL_SXP(*val);
+      if (UNLIKELY((!Rf_isVector(value) || XLENGTH(value) != 1))) {
+        Rf_errorcall(call, "EXPR must be a length 1 vector");
+      }
+      if (Rsh_isFactor(value)) {
+        Rf_warningcall(call,
+                       "EXPR is a \"factor\", treated as integer.\n"
+                       " Consider using '%s' instead.",
+                       "switch(as.character( * ), ...)");
+      }
+      which = Rf_asInteger(value);
+      break;
     }
-    int which = Rf_asInteger(value);
-    if (which != NA_INTEGER) {
-      which--;
+    case ISQSXP: {
+      Rsh_isqinfo_t value = VAL_ISQ(*val);
+      if (LIKELY(value.n1 == value.n2)) {
+        which = value.n1;
+      } else {
+        Rf_errorcall(call, "EXPR must be a length 1 vector");
+      }
+      break;
     }
-    if (which < 0 || which >= ioffsets_length) {
-      which = ioffsets_length - 1;
+    case INTSXP:
+      which = VAL_INT(*val);
+      break;
+    case LGLSXP:
+      which = LOGICAL_TO_INTEGER(VAL_INT(*val));
+      break;
+    case REALSXP:
+      which = Rsh_IntegerFromReal(VAL_DBL(*val));
+      break;
+    default:
+      UNREACHABLE();
+    }
+    assert(TYPEOF(ioffsets) == INTSXP && !ALTREP(ioffsets));
+    if (which <= 0 || which > ioffsets_length) {
+      which = ioffsets_length;
     }
     if (ioffsets_length == 1) {
       Rf_warningcall(call, "'switch' with no alternatives");
     }
-    ASSUME(which >= 0);
-    return INTEGER0(ioffsets)[which];
+    ASSUME(which >= 1);
+    return INTEGER0(ioffsets)[which - 1];
   }
 }
 
@@ -2826,15 +2846,11 @@ static INLINE int Rsh_Switch(Value *stack, SEXP call, SEXP names, SEXP coffsets,
                              SEXP ioffsets) {
   R_xlen_t names_length = names == R_NilValue ? 0 : XLENGTH_0(names);
   R_xlen_t ioffsets_length = XLENGTH_0(ioffsets); // Can never be NULL
-  R_xlen_t coffsets_length = coffsets == R_NilValue ? 0 : XLENGTH_0(coffsets);
 
   assert(names_length <= R_SHORT_LEN_MAX);
   assert(ioffsets_length <= R_SHORT_LEN_MAX);
 
   return Rsh_do_switch(stack, call, names, coffsets, ioffsets,
-                       (Rboolean)(names == R_NilValue),
-                       (Rboolean)(TYPEOF(names) == STRSXP), names_length,
-                       (Rboolean)(TYPEOF(ioffsets) == INTSXP), ioffsets_length,
-                       (Rboolean)(TYPEOF(coffsets) == INTSXP),
-                       (Rboolean)(coffsets_length == names_length));
+                       (Rboolean)(names_length == 0), names_length,
+                       ioffsets_length);
 }
