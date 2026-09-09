@@ -9,6 +9,7 @@
 #include "runtime_internals.h"
 #include "rcp_hooks.h"
 #include <assert.h>
+#include <inttypes.h>
 #include <omp.h>
 #include <R.h>
 #include <Rinternals.h>
@@ -70,32 +71,29 @@ struct StencilProfileInfo stencil_profile_info[NUM_OPCODES];
 // Per-opcode execution counts gathered by the runtime-toggled plugin counting
 // (rcp_count_enable). Independent of PROFILE_STENCILS.
 //
-// The counters live directly in an R integer vector (named by opcode, in opcode
-// order) so C_rcp_get_counts can hand it back with zero copying or post-
-// processing: the _RCP_CUSTOM_COUNTER_ABS64 plugin that count_instructions()
-// inserts before each instruction increments INTEGER(stencil_exec_counts)[op]
-// in place. Allocated lazily on the first rcp_count_enable() and kept alive with
-// R_PreserveObject -- it must never be reallocated, since pointers into its data
-// are baked into already-compiled functions. NULL if counting is not enabled.
-static SEXP stencil_exec_counts = NULL;
+// The counters are `uint64_t`, one per opcode, in a buffer rcp maps itself with
+// mmap_near -- like the type-recording buffers -- so the plugin can reach them
+// with the rel32 _RCP_CUSTOM_COUNTER64_REL32 stencil that count_instructions()
+// inserts before each instruction. 64 bits means a hot opcode no longer wraps
+// after 2^31 executions; living outside the R heap means C_rcp_get_counts has
+// to build a fresh R vector for the values on every call.
+//
+// Unlike the recording buffers -- which belong to one compiled function and are
+// unmapped by its finalizer -- this one is global and is never unmapped or
+// moved: rel32 references to its slots are baked into every function compiled
+// while counting was on, and those keep writing to it for as long as they
+// exist. So nothing owns it: no external pointer, no finalizer, no entry in any
+// protection list. NULL when counting is off; mapped by the first
+// rcp_count_enable() and dropped (not freed) by rcp_count_disable().
+static uint64_t *stencil_exec_counts = NULL;
 
-// Allocate the per-opcode counter vector on first use (named, opcode order,
-// zeroed) and pin it. Idempotent; the data pointer is stable for the process
-// lifetime so plugin relocations into it stay valid.
-static void rcp_ensure_counts(void)
-{
-	if (stencil_exec_counts != NULL)
-		return;
-	SEXP v = PROTECT(Rf_allocVector(INTSXP, NUM_OPCODES));
-	memset(INTEGER0(v), 0, NUM_OPCODES * sizeof(int));
-	SEXP nms = PROTECT(Rf_allocVector(STRSXP, NUM_OPCODES));
-	for (int i = 0; i < NUM_OPCODES; i++)
-		SET_STRING_ELT(nms, i, Rf_mkChar(OPCODES_NAMES[i]));
-	Rf_setAttrib(v, R_NamesSymbol, nms);
-	R_PreserveObject(v);
-	stencil_exec_counts = v;
-	UNPROTECT(2); // v, nms
-}
+// The `names` attribute of every snapshot C_rcp_get_counts returns: the opcode
+// table as a STRSXP, in opcode order. The opcode names never change, so this is
+// built once alongside the counter buffer and pinned, rather than re-interning
+// NUM_OPCODES CHARSXPs on every retrieval. Attaching one preserved vector to
+// many snapshots is safe: installAttrib marks a referenced attribute
+// NAMEDMAX, so a caller renaming its own snapshot copies first.
+static SEXP stencil_exec_counts_names = NULL;
 
 // #define BC_DEFAULT_OPTIMIZE_LEVEL 2
 
@@ -2095,17 +2093,17 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 
 // Runtime per-instruction counting (enabled via rcp_count_enable). Insert the
 // generic incrementer plugin before each instruction body, with its custom
-// argument pointing straight at this opcode's slot in the R counter vector
-// (INTEGER(stencil_exec_counts)[op]). Unlike the hard-coded PROFILE_STENCILS
+// argument pointing straight at this opcode's uint64_t slot in the counter
+// buffer (stencil_exec_counts[op]). Unlike the hard-coded PROFILE_STENCILS
 // timing, this is opt-in at runtime and adds no overhead to functions compiled
 // while counting is disabled.
 static void count_instructions(int bytecode[], int bytecode_size, PluginStencils *plugins)
 {
-	int *counts = INTEGER0(stencil_exec_counts);
+	uint64_t *counts = stencil_exec_counts;
 	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		int op = bytecode[i];
-		add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_COUNTER_ABS64, &counts[op]);
+		add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_COUNTER64_REL32, &counts[op]);
 	}
 }
 
@@ -3085,15 +3083,9 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
 	*res_ptr = res;
 
-	int prot_count = 2;
-	prot_count += stencil_exec_counts != NULL ? 1 : 0;
-	SEXP prot = PROTECT(Rf_allocVector(VECSXP, prot_count));
+	SEXP prot = PROTECT(Rf_allocVector(VECSXP, 2));
 	SET_VECTOR_ELT(prot, 0, bcode_consts);
 	SET_VECTOR_ELT(prot, 1, mem_shared_sexp);
-	if (stencil_exec_counts != NULL)
-	{
-		SET_VECTOR_ELT(prot, 2, stencil_exec_counts);
-	}
 
 	SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
 	UNPROTECT_SAFE(prot); // prot
@@ -3830,8 +3822,37 @@ SEXP C_rcp_get_profiling(void)
 #endif
 }
 
+// Map the zeroed per-opcode counter buffer on first use, and build the shared
+// opcode-name vector that every snapshot of it will carry. Idempotent, and the
+// buffer address never changes afterwards, so the rel32 references baked into
+// compiled code stay valid. No size header: nothing ever unmaps this buffer, so
+// there is no finalizer to tell how big it was.
+static void rcp_ensure_counts(void)
+{
+	if (stencil_exec_counts != NULL)
+		return;
+
+	// Built before the mapping, so a failure here cannot strand one. Survives
+	// rcp_count_disable(), which is why it is guarded separately.
+	if (stencil_exec_counts_names == NULL)
+	{
+		SEXP names = PROTECT(Rf_allocVector(STRSXP, NUM_OPCODES));
+		for (int i = 0; i < NUM_OPCODES; i++)
+			SET_STRING_ELT(names, i, Rf_mkChar(OPCODES_NAMES[i]));
+		R_PreserveObject(names);
+		UNPROTECT(1); // names
+		stencil_exec_counts_names = names;
+	}
+
+	uint64_t *raw = mmap_near(sizeof(uint64_t) * NUM_OPCODES);
+	if (raw == NULL)
+		Rf_error("no near memory left for the instruction counters");
+	memset(raw, 0, sizeof(uint64_t) * NUM_OPCODES);
+	stencil_exec_counts = raw;
+}
+
 // Runtime per-instruction counting (independent of PROFILE_STENCILS). Enabling
-// allocates the counter vector on first use, then makes subsequent rcp_cmpfun
+// maps the counter buffer on first use, then makes subsequent rcp_cmpfun
 // compilations instrument each instruction with the per-opcode counter plugin;
 // already-compiled functions are unaffected.
 SEXP C_rcp_count_enable(void)
@@ -3840,30 +3861,66 @@ SEXP C_rcp_count_enable(void)
 	return R_NilValue;
 }
 
+// Stop instrumenting, and forget the current buffer -- a later enable maps a
+// fresh one, so counts from the closed window disappear from the API. The old
+// buffer is deliberately not unmapped: functions compiled while it was live
+// still hold rel32 references to it and keep incrementing it. That strands one
+// page per enable/disable cycle, out of a ~2 GB arena.
 SEXP C_rcp_count_disable(void)
 {
-    if (stencil_exec_counts != NULL)
-    {
-        R_ReleaseObject(stencil_exec_counts);
-        stencil_exec_counts = NULL;
-    }
+	stencil_exec_counts = NULL;
 	return R_NilValue;
 }
 
 SEXP C_rcp_count_reset(void)
 {
 	if (stencil_exec_counts != NULL)
-		memset(INTEGER0(stencil_exec_counts), 0, NUM_OPCODES * sizeof(int));
+		memset(stencil_exec_counts, 0, NUM_OPCODES * sizeof(uint64_t));
 	return R_NilValue;
 }
 
-// Return the live counter vector as-is: a named integer vector, opcode name ->
-// execution count, in opcode order. No copy or sorting -- callers that want a
-// stable snapshot or a different order do that in R. NULL if counting was never
-// enabled.
+// Convert one counter to the double that will be reported, and say whether that
+// conversion was exact. Everything below 2^53 is; above it the conversion may
+// round, so round-trip and compare -- which is only defined while the rounded
+// value is still in uint64_t range, since (double)v can round up to exactly
+// 2^64, a value that is inexact by definition. Returning the converted value
+// keeps the checked double and the reported one the same one.
+static int rcp_count_to_double(uint64_t v, double *out)
+{
+	double d = (double)v;
+	*out = d;
+	if (d >= 18446744073709551616.0) // 2^64
+		return 0;
+	return (uint64_t)d == v;
+}
+
+// Snapshot the counters into a fresh numeric vector, opcode name -> execution
+// count, in opcode order, sharing the names built by rcp_ensure_counts. The
+// live slots are uint64_t and R has no 64-bit integer type, so each is
+// converted to a double; a count past 2^53 no longer converts exactly, and
+// every such slot is reported with a warning before its rounded value is
+// returned anyway. Unsorted -- callers that want a different order do that in
+// R. NULL if counting was never enabled.
 SEXP C_rcp_get_counts(void)
 {
-	return stencil_exec_counts != NULL ? stencil_exec_counts : R_NilValue;
+	if (stencil_exec_counts == NULL)
+		return R_NilValue;
+
+	const uint64_t *counts = stencil_exec_counts;
+	SEXP out = PROTECT(Rf_allocVector(REALSXP, NUM_OPCODES));
+	double *exported = REAL0(out);
+	for (int i = 0; i < NUM_OPCODES; i++)
+	{
+		if (!rcp_count_to_double(counts[i], &exported[i]))
+			Rf_warning("count for %s (%" PRIu64 ") is not exactly representable "
+					   "as a double; reported as %.0f",
+					   OPCODES_NAMES[i], counts[i], exported[i]);
+	}
+
+	Rf_setAttrib(out, R_NamesSymbol, stencil_exec_counts_names);
+
+	UNPROTECT(1); // out
+	return out;
 }
 
 SEXP C_rcp_s3_generics_deactivated(void)

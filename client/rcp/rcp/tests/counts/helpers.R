@@ -2,9 +2,10 @@
 # file; excluded from the Makefile's test list.
 #
 # What is under test. `rcp_count_enable()` makes every *subsequent*
-# `rcp_cmpfun()` insert the _RCP_CUSTOM_COUNTER_ABS64 plugin stencil in front of
-# each instruction's stencil body, pointing at that opcode's slot in the R
-# integer vector `rcp_get_counts()` hands back (compile.c: count_instructions).
+# `rcp_cmpfun()` insert the _RCP_CUSTOM_COUNTER64_REL32 plugin stencil in front
+# of each instruction's stencil body, pointing at that opcode's uint64_t slot in
+# the counter buffer that `rcp_get_counts()` exports as doubles (compile.c:
+# count_instructions).
 # So a count is only right if
 #
 #   * the plugin is emitted at *every* bytecode position, including positions
@@ -112,9 +113,10 @@ options(rcp.cmpfun.compile_promises = FALSE)
 .OPNAMES <- sub("\\.OP$", "_OP", .R_OPNAMES)
 .ARGC <- setNames(.R_ARGC, .OPNAMES)
 
-# An all-zero count vector shaped exactly like rcp_get_counts().
+# An all-zero count vector shaped exactly like rcp_get_counts() -- which is
+# numeric, not integer: the counters are 64-bit and come out as doubles.
 .zeros <- function() {
-  v <- integer(length(.OPNAMES))
+  v <- numeric(length(.OPNAMES))
   names(v) <- .OPNAMES
   v
 }
@@ -377,7 +379,7 @@ options(rcp.cmpfun.compile_promises = FALSE)
   x <- c(...)
   unknown <- setdiff(names(x), names(v))
   if (length(unknown)) stop("no such opcode: ", paste(unknown, collapse = ", "))
-  v[names(x)] <- as.integer(x)
+  v[names(x)] <- as.numeric(x)
   v
 }
 
@@ -385,11 +387,13 @@ options(rcp.cmpfun.compile_promises = FALSE)
 # Running a case
 # ---------------------------------------------------------------------------
 
-# The live counter vector, copied so later execution cannot move it under us.
+# The counters as of now. rcp_get_counts() converts the live 64-bit counters
+# into a fresh numeric vector on every call, so this is already a snapshot --
+# nothing here has to copy it to keep it stable.
 .snapshot <- function() {
   v <- rcp::rcp_get_counts()
   if (is.null(v)) stop("counting is not enabled")
-  c(v)
+  v
 }
 
 # Compile `fexpr` (a *quoted* `function(...)`, re-evaluated here so no engine
@@ -414,14 +418,14 @@ options(rcp.cmpfun.compile_promises = FALSE)
 # vectors.
 .diff_report <- function(got, want) {
   bad <- which(got != want)
-  lines <- sprintf("  %-20s expected %10d   actual %10d",
+  lines <- sprintf("  %-20s expected %10.0f   actual %10.0f",
                    names(want)[bad], want[bad], got[bad])
   paste(c(sprintf("  %d of %d opcodes differ:", length(bad), length(want)),
           lines), collapse = "\n")
 }
 
 .expect_counts <- function(label, got, want) {
-  if (identical(unname(got), unname(as.integer(want))) &&
+  if (identical(unname(got), unname(as.numeric(want))) &&
       identical(names(got), names(want))) {
     .ok(label)
   } else if (!identical(names(got), names(want))) {
