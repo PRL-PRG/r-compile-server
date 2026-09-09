@@ -95,12 +95,15 @@ rcp_count_reset <- function() {
 
 #' Get runtime per-instruction execution counts
 #'
-#' @return The live named integer vector mapping opcode name to execution count,
-#'   in opcode order (unsorted). Counts accumulate across all functions compiled
-#'   while counting was enabled; use [rcp_count_reset()] to clear them. Returns
-#'   `NULL` if counting was never enabled. The result aliases RCP's internal
-#'   buffer, so copy it (e.g. `c(rcp_get_counts())`) if you need a stable
-#'   snapshot across further execution.
+#' @return A named numeric vector mapping opcode name to execution count, in
+#'   opcode order (unsorted), or `NULL` if counting was never enabled. Counts
+#'   accumulate across all functions compiled while counting was enabled; use
+#'   [rcp_count_reset()] to clear them. Each call returns a fresh snapshot, so
+#'   it is unaffected by further execution.
+#'
+#'   The counters themselves are unsigned 64-bit; R has no such type, so they
+#'   are converted to double here. Counts up to 2^53 survive that exactly, and
+#'   any slot beyond it warns before returning its rounded value.
 #' @export
 rcp_get_counts <- function() {
   .Call(C_rcp_get_counts)

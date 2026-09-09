@@ -5,15 +5,19 @@ source("helpers.R")
 #
 # Counting is decided at *compile* time -- rcp_count_enable() only makes
 # subsequent rcp_cmpfun() calls insert the counter plugin -- and the counters
-# live in an R vector whose address is baked into the compiled code, so the
-# lifecycle has consequences that are not obvious from the API:
+# live in a buffer rcp maps itself, referenced from the compiled code by a
+# baked-in offset, so the lifecycle has consequences that are not obvious from
+# the API:
 #
 #   * a function compiled before the first enable is never counted, no matter
 #     what happens afterwards;
-#   * the vector rcp_get_counts() returns *is* the live buffer, not a copy;
-#   * disabling releases rcp's own reference to that vector, and re-enabling
-#     allocates a fresh one -- so functions compiled during an earlier enabled
-#     window keep incrementing the old vector, which nothing reads any more.
+#   * rcp_get_counts() returns a fresh snapshot each call -- the live counters
+#     are 64-bit and have to be converted to double on the way out -- so a
+#     vector fetched earlier does not move when counted code runs;
+#   * disabling only makes rcp forget the counter buffer -- it is never
+#     unmapped, because instrumented code still writes to it -- and re-enabling
+#     maps a fresh one, so functions compiled during an earlier enabled window
+#     keep incrementing a buffer nothing reads any more.
 #
 # The last one is a footgun worth pinning down: it is the difference between
 # "disable stops counting" (what the name suggests) and "disable stops
@@ -40,10 +44,10 @@ invisible(before(1))
 rcp_count_enable()
 
 .expect_true("enable.allocates.the.vector", !is.null(rcp_get_counts()))
-.expect("enable.starts.at.zero", sum(.snapshot()), 0L)
+.expect("enable.starts.at.zero", sum(.snapshot()), 0)
 
 for (i in 1:10) before(1)
-.expect("compiled.before.enable.not.counted", sum(.snapshot()), 0L)
+.expect("compiled.before.enable.not.counted", sum(.snapshot()), 0)
 
 # --- the vector itself ------------------------------------------------------
 
@@ -56,31 +60,34 @@ invisible(after(1))
 .expect_counts("compiled.after.enable.is.counted", .snapshot(),
                .model_straight(d_after, 1L))
 
-# rcp_get_counts() hands back the live buffer: it keeps changing as compiled
-# code runs, and c() is what makes a stable snapshot. Both halves matter --
-# aliasing is documented behaviour that callers rely on, and the suite's own
-# .snapshot() depends on the copy really being a copy.
+# rcp_get_counts() converts the live 64-bit counters into a new numeric vector
+# on every call, so what it returns is already a snapshot: it does not move when
+# counted code runs afterwards, and only a later call sees the new counts. Both
+# halves matter -- callers rely on the value they hold staying put, and the
+# suite's own .snapshot() relies on fetching afresh.
 local({
-  live <- rcp_get_counts()
-  copy <- c(rcp_get_counts())
-  n0 <- live[["ADD_OP"]]
+  taken <- rcp_get_counts()
+  n0 <- taken[["ADD_OP"]]
   for (i in 1:5) after(1)
-  .expect("get.counts.aliases.the.live.buffer", live[["ADD_OP"]], n0 + 5L)
-  .expect("copy.is.a.snapshot", copy[["ADD_OP"]], n0)
+  .expect("get.counts.is.a.snapshot", taken[["ADD_OP"]], n0)
+  .expect("get.counts.refetches.the.live.counters",
+          rcp_get_counts()[["ADD_OP"]], n0 + 5)
 })
 
-# Enabling again is idempotent: it must not reallocate the vector (compiled
-# code holds pointers into it) and must not clear the counts.
+# Enabling again is idempotent: it must not reallocate the counter buffer
+# (compiled code holds pointers into it) and must not clear the counts. The
+# buffer is internal, so both are checked through what it does -- the counts
+# survive, and an already-compiled function still increments the counters that
+# rcp_get_counts() reports (a reallocation would leave it writing to the old
+# buffer, exactly as the re-enable case further down shows).
 local({
-  live <- rcp_get_counts()
-  n0 <- live[["ADD_OP"]]
+  n0 <- rcp_get_counts()[["ADD_OP"]]
   rcp_count_enable()
-  .expect_true("enable.is.idempotent.same.vector",
-               identical(live, rcp_get_counts()))
   .expect("enable.is.idempotent.keeps.counts",
           rcp_get_counts()[["ADD_OP"]], n0)
   after(1)
-  .expect("enable.is.idempotent.same.buffer", live[["ADD_OP"]], n0 + 1L)
+  .expect("enable.is.idempotent.same.buffer",
+          rcp_get_counts()[["ADD_OP"]], n0 + 1)
 })
 
 # Reset zeroes the counters without disturbing the instrumentation.
@@ -88,16 +95,15 @@ local({
   after(1)
   .expect_true("reset.needs.something.to.clear", sum(.snapshot()) > 0L)
   rcp_count_reset()
-  .expect("reset.zeroes", sum(.snapshot()), 0L)
+  .expect("reset.zeroes", sum(.snapshot()), 0)
   after(1)
   .expect_counts("reset.keeps.counting", .snapshot(),
                  .model_straight(d_after, 1L))
 })
 
-# The counter vector survives a gc(): rcp preserves it, and every function
-# compiled against it also holds a reference through its body's protection
-# list. This is the check that the pointers baked into compiled code cannot go
-# stale under the collector.
+# The counters survive a gc(): the buffer is rcp's own mapping, outside the R
+# heap entirely, so the collector has nothing to move or free. This is the check
+# that the references baked into compiled code cannot go stale under it.
 local({
   rcp_count_reset()
   after(1)
@@ -117,9 +123,9 @@ local({
   .expect_true("disable.drops.the.vector", is.null(rcp_get_counts()))
 
   # Functions compiled while counting was on are still instrumented -- the
-  # plugin is part of their machine code -- and still increment the vector rcp
-  # just released. Nothing may crash: the vector is kept alive by the compiled
-  # body that references it, released or not.
+  # plugin is part of their machine code -- and still increment the buffer rcp
+  # just forgot. Nothing may crash: that buffer stays mapped for the life of the
+  # process precisely so those writes stay legal.
   for (i in 1:3) after(1)
   gc()
   for (i in 1:3) after(1)
@@ -134,11 +140,11 @@ local({
   # already-compiled `after` no longer shows up in it -- its counter pointers
   # still address the old buffer.
   rcp_count_enable()
-  .expect("re-enable.starts.at.zero", sum(.snapshot()), 0L)
+  .expect("re-enable.starts.at.zero", sum(.snapshot()), 0)
   for (i in 1:7) after(1)
-  .expect("re-enabled.vector.misses.old.functions", sum(.snapshot()), 0L)
+  .expect("re-enabled.vector.misses.old.functions", sum(.snapshot()), 0)
   for (i in 1:4) quiet(1)
-  .expect("re-enabled.vector.misses.disabled.functions", sum(.snapshot()), 0L)
+  .expect("re-enabled.vector.misses.disabled.functions", sum(.snapshot()), 0)
 
   # Only functions compiled in the *current* enabled window are counted.
   fresh <- rcp_cmpfun(function(x) x + 1,

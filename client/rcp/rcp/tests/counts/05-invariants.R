@@ -7,14 +7,15 @@ rcp_count_enable()
 
 # --- the vector -------------------------------------------------------------
 #
-# The counters live directly in this R vector and the compiled code writes into
-# its data through pointers baked in at compile time (compile.c,
-# rcp_ensure_counts), so its shape is part of the contract: one integer slot per
-# opcode, in opcode order, named.
+# The compiled code writes into rcp's own counter buffer through rel32
+# references baked in at compile time (compile.c, rcp_ensure_counts) and
+# rcp_get_counts() converts each 64-bit slot to a double on the way out, so the
+# exported shape is part of the contract: one numeric slot per opcode, in opcode
+# order, named.
 
 counts <- rcp_get_counts()
 
-.expect("vector.is.integer", typeof(counts), "integer")
+.expect("vector.is.numeric", typeof(counts), "double")
 .expect("vector.has.one.slot.per.opcode", length(counts), length(.OPNAMES))
 .expect_true("vector.is.named", !is.null(names(counts)))
 
@@ -55,7 +56,7 @@ for (nm in names(attribution)) {
 }
 
 # Opcodes that cannot occur in valid bytecode never move.
-.expect("bcmismatch.never.counted", rcp_get_counts()[["BCMISMATCH_OP"]], 0L)
+.expect("bcmismatch.never.counted", rcp_get_counts()[["BCMISMATCH_OP"]], 0)
 
 # --- recursion --------------------------------------------------------------
 #
@@ -141,26 +142,39 @@ local({
 
 # --- limits -----------------------------------------------------------------
 #
-# The counters are C `int`s (compile.c: an INTSXP, incremented in place by the
-# _RCP_CUSTOM_COUNTER_ABS64 stencil), so an opcode executed more than 2^31 times
-# wraps rather than saturating or widening. That is a real limit for long
-# benchmark runs -- a hot GETVAR reaches it in a couple of minutes -- and it is
-# not visible in the API, so it is documented here and checked on demand:
+# The counters are `uint64_t` (compile.c: an mmap_near'd buffer, incremented in
+# place by the _RCP_CUSTOM_COUNTER64_REL32 stencil), so an opcode executed past
+# 2^31 keeps counting where the old 32-bit counters wrapped. Going
+# past 2^31 is the case a long benchmark run actually hits -- a hot GETVAR gets
+# there in a couple of minutes -- so it is checked on demand:
 #
 #     RCP_COUNTS_SLOW=1 make -C tests/counts test
 #
-# If the counters are ever widened, this check fails and should be replaced by
-# the exact count.
+# The remaining limit is the export, not the counter: rcp_get_counts() converts
+# each slot to a double, which is exact only up to 2^53. Nothing here can reach
+# that -- it is 9e15 instructions -- so it is documented, not tested; past it,
+# the C side warns per affected opcode and returns the rounded value.
 
 if (nzchar(Sys.getenv("RCP_COUNTS_SLOW"))) {
   local({
     spin <- rcp_cmpfun(function(n) { i <- 0; while (i < n) i <- i + 1; i },
                        options = list(name = "spin", optimize = 2L))
-    rcp_count_reset()
-    spin(8e8) # 3 GETVARs per iteration: 2.4e9 > 2^31
-    got <- .snapshot()[["GETVAR_OP"]]
-    .expect_true("counter.wraps.at.2^31", got < 0L)
-    .note(sprintf("GETVAR_OP counter wrapped to %d after 2.4e9 executions", got))
+    getvars <- function(n) {
+      rcp_count_reset()
+      spin(n)
+      .snapshot()[["GETVAR_OP"]]
+    }
+    # Calibrate on two short runs, so the long run is checked against a measured
+    # model instead of a hard-coded constant that a bytecode change would
+    # invalidate. GETVAR is linear in the trip count (3 per iteration today).
+    base <- getvars(1e3)
+    per_iter <- (getvars(2e3) - base) / 1e3
+
+    n <- 8e8
+    want <- base + per_iter * (n - 1e3)
+    .expect_true("spin.exceeds.2^31.getvars", want > 2^31)
+    .expect("counter.does.not.wrap.at.2^31", getvars(n), want)
+    .note(sprintf("GETVAR_OP reached %.0f executions without wrapping", want))
   })
 } else {
   .note("counter overflow check skipped (set RCP_COUNTS_SLOW=1 to run it)")
