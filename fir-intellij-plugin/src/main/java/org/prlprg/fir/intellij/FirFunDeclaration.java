@@ -38,7 +38,7 @@ public final class FirFunDeclaration extends ASTWrapperPsiElement
         continue;
       }
       var type = child.getElementType();
-      if (type == FirTokenTypes.IDENTIFIER) {
+      if (type == FirTokenTypes.IDENTIFIER || type == FirTokenTypes.BACKTICK_IDENTIFIER) {
         return child.getPsi();
       }
       if (type != TokenType.WHITE_SPACE && type != FirTokenTypes.COMMENT) {
