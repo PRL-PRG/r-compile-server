@@ -13,7 +13,7 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:p(v1(I) -)) -+> v(I) {
+  (r:p(v1(I) -)) -+> v(I) {
     mkenv;
     r0: p(v1(I) -) = prom<v1(I) ->{
       return <int 2>;
@@ -25,7 +25,7 @@ fun f(r) {
 }
 
 fun g(r) {
-  (reg r:p(v1(I) -)) -+> v(I) {
+  (r:p(v1(I) -)) -+> v(I) {
     mkenv;
     r0: v(I) = v(I)[3, 4, 5];
     r$x = r0;

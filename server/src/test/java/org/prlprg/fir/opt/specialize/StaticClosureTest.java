@@ -51,8 +51,8 @@ class StaticClosureTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(cond) {
-              (reg cond:B) --> cls { ... }
-              (reg cond:B) --> cls {
+              (cond:B) --> cls { ... }
+              (cond:B) --> cls {
                 mkenv;
                 if cond then Defines() else Empty();
               Join():

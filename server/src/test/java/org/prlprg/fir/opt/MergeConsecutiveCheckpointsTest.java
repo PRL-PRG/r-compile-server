@@ -35,7 +35,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 
@@ -74,7 +74,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 
@@ -105,7 +105,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 
@@ -136,7 +136,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 
@@ -175,7 +175,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 
@@ -209,7 +209,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 
@@ -244,7 +244,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 
@@ -270,7 +270,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 
@@ -301,7 +301,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:I) --> V { ... }
+              (x:I) --> V { ... }
             }
             """);
 

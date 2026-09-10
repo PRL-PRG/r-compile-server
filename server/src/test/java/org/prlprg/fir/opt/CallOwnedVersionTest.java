@@ -17,7 +17,7 @@ class CallOwnedVersionTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)b, reg ri:I, reg rval:I) -~> v(I)f {
+            (rv:v(I)b, ri:I, rval:I) -~> v(I)f {
               r: v(I)o = `[<-`< v(I)b,I,I,miss -~> v(I)f >(rv, ri, rval, <missing>);
               return consume r;
             }
@@ -38,7 +38,7 @@ class CallOwnedVersionTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o, reg ri:I, reg rval:I) -~> v(I)f {
+            (rv:v(I)o, ri:I, rval:I) -~> v(I)f {
               r: v(I)o = `[<-`< v(I)b,I,I,miss -~> v(I)f >(consume rv, ri, rval, <missing>);
               return consume r;
             }
@@ -59,7 +59,7 @@ class CallOwnedVersionTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)b, reg ri:I) -~> I {
+            (rv:v(I)b, ri:I) -~> I {
               r: I = `[[`< v(I)b,I,miss,miss -~> I >(rv, ri, <missing>, <missing>);
               return r;
             }
@@ -76,7 +76,7 @@ class CallOwnedVersionTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o, reg ri:I, reg rval:I) -~> v(I)f {
+            (rv:v(I)o, ri:I, rval:I) -~> v(I)f {
               r: v(I)o = `[<-`< v(I)o,I,I,miss -~> v(I)f >(consume rv, ri, rval, <missing>);
               return consume r;
             }

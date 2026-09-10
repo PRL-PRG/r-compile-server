@@ -17,7 +17,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg cond:B) --> I {
+            (cond:B) --> I {
               mkenv;
               if cond then L1() else L2();
             L1():
@@ -46,7 +46,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg cond1:B, reg cond2:B) --> I {
+            (cond1:B, cond2:B) --> I {
               mkenv;
               st x = 0;
               if cond1 then L1() else L2();
@@ -88,7 +88,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg cond1:B, reg cond2:B) --> I {
+            (cond1:B, cond2:B) --> I {
               mkenv;
               st x = 0;
               goto Loop();
@@ -152,7 +152,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg cond:B) -+> I {
+            (cond:B) -+> I {
               mkenv~;
               if cond then L1() else L2();
             L1():
@@ -183,7 +183,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg cond:B) --> V {
+            (cond:B) --> V {
               mkenv;
               if cond then L1() else L2();
             L1():
@@ -215,8 +215,8 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
         ParseUtil.parseModule(
             """
             fun main(cond) {
-              (reg cond:B) -+> V { ... }
-              (reg cond:B) -+> V {
+              (cond:B) -+> V { ... }
+              (cond:B) -+> V {
                 mkenv~;
                 st x = <int 1>;
                 if cond then L1() else L2();
@@ -234,8 +234,8 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
             }
 
             fun f(r) {
-              (reg r:*@!) -+> V { ... }
-              (reg r:p(V -)@!) -+> V { ... }
+              (r:*@!) -+> V { ... }
+              (r:p(V -)@!) -+> V { ... }
             }
             """);
 
@@ -254,8 +254,8 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
         ParseUtil.parseModule(
             """
             fun main(cond) {
-              (reg cond:B) -+> V { ... }
-              (reg cond:B) -+> V {
+              (cond:B) -+> V { ... }
+              (cond:B) -+> V {
                 mkenv~;
                 st x = <int 1>;
                 if cond then L1() else L2();
@@ -273,8 +273,8 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
             }
 
             fun f(r) {
-              (reg r:*@!) -+> V { ... }
-              (reg r:p(V -)) -+> V { ... }
+              (r:*@!) -+> V { ... }
+              (r:p(V -)) -+> V { ... }
             }
             """);
 

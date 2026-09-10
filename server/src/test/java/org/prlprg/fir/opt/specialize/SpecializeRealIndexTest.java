@@ -20,7 +20,7 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)b, reg ri:R) --> I {
+            (rv:v(I)b, ri:R) --> I {
               r: I = `[`< v(I)b,R,miss,miss --> I >(rv, ri, <missing>, <missing>);
               return r;
             }
@@ -42,7 +42,7 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)b) --> I {
+            (rv:v(I)b) --> I {
               r: I = `[`< v(I)b,R,miss,miss --> I >(rv, <real 2.0>, <missing>, <missing>);
               return r;
             }
@@ -62,7 +62,7 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)b) --> I {
+            (rv:v(I)b) --> I {
               r: I = `[`< v(I)b,R,miss,miss --> I >(rv, <real 2.7>, <missing>, <missing>);
               return r;
             }
@@ -81,7 +81,7 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)b, reg ri:v1(R)) --> v1(I) {
+            (rv:v(I)b, ri:v1(R)) --> v1(I) {
               r: v1(I) = `[`< v(I)b,v1(R),miss,miss --> v1(I) >(rv, ri, <missing>, <missing>);
               return r;
             }
@@ -103,7 +103,7 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)b, reg ri:I) --> I {
+            (rv:v(I)b, ri:I) --> I {
               r: I = `[`< v(I)b,I,miss,miss --> I >(rv, ri, <missing>, <missing>);
               return r;
             }

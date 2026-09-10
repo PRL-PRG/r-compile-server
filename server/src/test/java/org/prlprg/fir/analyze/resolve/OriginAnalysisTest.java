@@ -62,7 +62,7 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        (reg r0:I) --> V {
+        (r0:I) --> V {
           mkenv;
           if r0 then BB1() else BB2();
         BB3(r4: I, r5: I):
@@ -91,7 +91,7 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main(cond) {
-        (reg cond:B) --> v1(I) {
+        (cond:B) --> v1(I) {
           mkenv;
           if cond then BB1() else BB2();
         BB3():
@@ -177,7 +177,7 @@ class OriginAnalysisTest {
     var firText =
         """
            fun main() {
-             (reg r:B) -~> I {
+             (r:B) -~> I {
                mkenv;
                st x = <int 1>;
                mkenv;
@@ -729,7 +729,7 @@ class OriginAnalysisTest {
     var firText =
         """
         fun permute(n) {
-          (reg n:I) -+> I {
+          (n:I) -+> I {
             mkenv~;
             _p: p(v(I) +) = prom<v(I) +>{ r: v(I) = seq< I -+> v(I) >(n); return r; };
             st list = _p;
@@ -764,11 +764,11 @@ class OriginAnalysisTest {
         }
 
         fun swap(l, i) {
-          (reg l:p(v(I) +)@!, reg i:I) -+> v(I) { ... }
+          (l:p(v(I) +)@!, i:I) -+> v(I) { ... }
         }
 
         fun seq(i) {
-          (reg i:I) -+> v(I) { ... }
+          (i:I) -+> v(I) { ... }
         }
         """;
 

@@ -23,7 +23,7 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:p(v1(I) +)) -+> v1(I) {
+  (r:p(v1(I) +)) -+> v1(I) {
     r1: v1(I) = force r;
     return r1;
   }

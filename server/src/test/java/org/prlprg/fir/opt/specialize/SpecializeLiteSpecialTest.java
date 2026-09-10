@@ -25,7 +25,7 @@ class SpecializeLiteSpecialTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I), reg ri:v1(I)) -+> V {
+            (rv:v(I), ri:v1(I)) -+> V {
               mkenv;
               st x = rv;
               st i = ri;
@@ -52,7 +52,7 @@ class SpecializeLiteSpecialTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:p(v(I) -), reg ri:p(v1(I) -)) -+> V {
+            (rv:p(v(I) -), ri:p(v1(I) -)) -+> V {
               mkenv;
               st x = rv;
               st i = ri;
@@ -80,7 +80,7 @@ class SpecializeLiteSpecialTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:V) -+> V {
+            (rv:V) -+> V {
               mkenv;
               st x = rv;
               st i = rv;
@@ -124,7 +124,7 @@ class SpecializeLiteSpecialTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v1(I)) -+> V {
+            (rv:v1(I)) -+> V {
               mkenv;
               st x = rv;
               st y = rv;
@@ -147,7 +147,7 @@ class SpecializeLiteSpecialTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I), reg ri:v1(I)) --> v1(I) {
+            (rv:v(I), ri:v1(I)) --> v1(I) {
               r: v1(I) = `[`< v(I),v1(I),miss,miss --> v1(I) >(rv, ri, <missing>, <missing>);
               return r;
             }
@@ -178,7 +178,7 @@ class SpecializeLiteSpecialTest implements AbstractionOptimizationUnitTest {
             @strict
             @liteSpecial
             fun f(x) {
-              (reg x:*@!) -+> V { ... }
+              (x:*@!) -+> V { ... }
             }
             """);
 

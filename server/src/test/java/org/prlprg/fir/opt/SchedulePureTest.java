@@ -17,7 +17,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I, reg c:B) --> v1(I) {
+            (x:I, c:B) --> v1(I) {
               boxed: v1(I) = box< I --> v1(I) >(x);
               if c then L0() else L1();
             L0():
@@ -43,7 +43,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> p(v1(I) -) {
+            (x:I) -~> p(v1(I) -) {
               boxed: v1(I) = box< I --> v1(I) >(x);
               p: p(v1(I) -) = prom<v1(I) ->{
                 return boxed;
@@ -64,7 +64,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> v1(I) {
+            (x:I) -~> v1(I) {
               boxed: v1(I) = box< I --> v1(I) >(x);
               q: p(I -) = prom<I ->{
                 return x;
@@ -93,7 +93,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v(I), reg c:B) --> I {
+            (x:v(I), c:B) --> I {
               boxed: v1(I) = x as v1(I);
               if c then L0() else L1();
             L0():
@@ -116,7 +116,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I, reg c:B) --> I {
+            (x:I, c:B) --> I {
               boxed: v1(I) = box< I --> v1(I) >(x);
               if c then L0() else L1();
             L0():
@@ -141,7 +141,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v(I)) -~> p(I -) {
+            (x:v(I)) -~> p(I -) {
               boxed: v1(I) = x as v1(I);
               p: p(I -) = prom<I ->{
                 unboxed: I = unbox< v1(I) --> I >(boxed);
@@ -163,7 +163,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> p(I -) {
+            (x:I) -~> p(I -) {
               boxed: v1(I) = box< I --> v1(I) >(x);
               p: p(I -) = prom<I ->{
                 unboxed: I = unbox< v1(I) --> I >(boxed);
@@ -187,7 +187,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> p(I -) {
+            (x:I) -~> p(I -) {
               p: p(I -) = prom<I ->{
                 boxed: v1(I) = box< I --> v1(I) >(x);
                 unboxed: I = unbox< v1(I) --> I >(boxed);
@@ -205,7 +205,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I {
+            (x:I) --> I {
               boxed: v1(I) = box< I --> v1(I) >(x);
               y: I = `+`< I,I --> I >(x, <int 1>);
               b: I = unbox< v1(I) --> I >(boxed);
@@ -230,7 +230,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I, reg c:B) --> I {
+            (x:I, c:B) --> I {
               boxed: v1(I) = box< I --> v1(I) >(x);
               if c then L0() else L1();
             L0():
@@ -253,7 +253,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I {
+            (x:I) --> I {
               boxed: v1(I) = box< I --> v1(I) >(x);
               check L0() else D0();
             L0():

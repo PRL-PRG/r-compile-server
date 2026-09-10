@@ -9,7 +9,7 @@ fun main() {
 }
 
 fun f(cond) {
-  (reg cond:B) -+> I {
+  (cond:B) -+> I {
     if cond then BB1() else BB2();
   BB3(phi: I):
     return phi;

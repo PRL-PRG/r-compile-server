@@ -7,10 +7,10 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:*) --> I {
+  (r:*) --> I {
     return 24;
   }
-  (reg r:v1(I)) --> I {
+  (r:v1(I)) --> I {
     r1: I = unbox< v1(I) --> I >(r);
     return r1;
   }

@@ -17,7 +17,7 @@ class ConsumeDeadDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o) --> v(I)f {
+            (rv:v(I)o) --> v(I)f {
               d: v(I)o = dup rv;
               d[0] = 1;
               return consume d;
@@ -35,7 +35,7 @@ class ConsumeDeadDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o) --> I {
+            (rv:v(I)o) --> I {
               d: v(I)o = dup rv;
               d[0] = 1;
               r: I = rv[0];
@@ -54,7 +54,7 @@ class ConsumeDeadDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)b) --> v(I)f {
+            (rv:v(I)b) --> v(I)f {
               d: v(I)o = dup rv;
               d[0] = 1;
               return consume d;
@@ -72,7 +72,7 @@ class ConsumeDeadDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o) -~> v(I)f {
+            (rv:v(I)o) -~> v(I)f {
               p: p(I -) = prom<I ->{
                 r1: I = rv[0];
                 return r1;
@@ -95,7 +95,7 @@ class ConsumeDeadDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o, reg cond:B) --> v(I)f {
+            (rv:v(I)o, cond:B) --> v(I)f {
               goto Loop();
             Loop():
               d: v(I)o = dup rv;

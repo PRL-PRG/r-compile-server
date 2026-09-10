@@ -10,7 +10,7 @@ fun main() {
 }
 
 fun force_no_effect(x) {
-  (reg x:p?(V -)) --> V {
+  (x:p?(V -)) --> V {
     r: V = force? x;
     return r;
   }

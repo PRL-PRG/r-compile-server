@@ -122,7 +122,7 @@ class OptimizationBehaviorTest {
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { v: V = force r; return v; }
+          (r:p(V +)) -+> V { v: V = force r; return v; }
         }
         """,
         printed -> {
@@ -161,7 +161,7 @@ class OptimizationBehaviorTest {
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { v: * = r$x; return v; }
+          (r:p(V +)) -+> V { v: * = r$x; return v; }
         }
         """,
         printed -> {
@@ -210,7 +210,7 @@ class OptimizationBehaviorTest {
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { v: V = force r; return v; }
+          (r:p(V +)) -+> V { v: V = force r; return v; }
         }
         """,
         printed -> {
@@ -255,7 +255,7 @@ class OptimizationBehaviorTest {
         }
 
         fun f(r) {
-          (reg r:p(V +)@!) -+> V { v: V = force r; return v; }
+          (r:p(V +)@!) -+> V { v: V = force r; return v; }
         }
         """,
         printed -> {
@@ -294,7 +294,7 @@ class OptimizationBehaviorTest {
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { v: V = force r; return v; }
+          (r:p(V +)) -+> V { v: V = force r; return v; }
         }
         """,
         printed ->
@@ -321,7 +321,7 @@ class OptimizationBehaviorTest {
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { r$x = <int 9>; v: V = r$x; return v; }
+          (r:p(V +)) -+> V { r$x = <int 9>; v: V = r$x; return v; }
         }
         """,
         printed -> {

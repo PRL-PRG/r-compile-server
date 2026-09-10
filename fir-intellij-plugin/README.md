@@ -6,9 +6,9 @@ Simple IntelliJ plugin that provides:
 - Basic linting annotations:
   - Unbalanced delimiters
   - Likely missing semicolons on statement lines
-  - Invalid `reg`/`var` names
+  - Invalid parameter/register and `var` names
   - Named `var` types that are not maybe-types (`t?`) or `*`
-  - Potentially missing `reg`/`var` before parameter/local declarations
+  - Legacy `reg` before parameter declarations (parameters are written `name:type`), and potentially missing `var` before local declarations
   - Missing top-level `fun` declarations
 
 See [`doc/FIR.md`](../server/doc/FIR.md) for FIŘ syntax, and `../server/src/test/**/*.fir` for examples of FIŘ code.

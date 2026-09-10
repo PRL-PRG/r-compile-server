@@ -20,7 +20,7 @@ class SpecializeEmptyDotsTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I), reg ri:v1(I), reg rval:v1(I)) -+> V {
+            (rv:v(I), ri:v1(I), rval:v1(I)) -+> V {
               ddd: dots = dots[];
               r: V = `[<-`< v(I),v1(I),v1(I),dots -+> V >(rv, ri, rval, ddd);
               return r;
@@ -40,7 +40,7 @@ class SpecializeEmptyDotsTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I), reg ri:v1(I), reg rval:v1(I)) -+> V {
+            (rv:v(I), ri:v1(I), rval:v1(I)) -+> V {
               ddd: dots = dots[ri];
               r: V = `[<-`< v(I),v1(I),v1(I),dots -+> V >(rv, ri, rval, ddd);
               return r;
@@ -88,8 +88,8 @@ class SpecializeEmptyDotsTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(`...`) {
-              (reg ddd:dots) -+> V { ... }
-              (reg ddd:dots) -+> V {
+              (ddd:dots) -+> V { ... }
+              (ddd:dots) -+> V {
                 return <int 1>;
               }
             }

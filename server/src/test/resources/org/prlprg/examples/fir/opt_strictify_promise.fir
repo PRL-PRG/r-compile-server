@@ -11,19 +11,19 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:*) -+> V {
+  (r:*) -+> V {
     r0: V = force? r;
     return r0;
   }
-  (reg r:p(V +)) -+> V {
+  (r:p(V +)) -+> V {
     r0: V = force r;
     return r0;
   }
-  (reg r:p(V -)) --> V {
+  (r:p(V -)) --> V {
     r0: V = force r;
     return r0;
   }
-  (reg r:V) --> V {
+  (r:V) --> V {
     return r;
   }
 }

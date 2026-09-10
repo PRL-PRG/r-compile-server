@@ -7,15 +7,15 @@ fun main() {
 }
 
 fun g(x) {
-  (reg x:*) -+> v(I) {
+  (x:*) -+> v(I) {
     r: v(I) = v(I)[1, 2];
     return r;
   }
-  (reg x:V) --> v(I) {
+  (x:V) --> v(I) {
     r: v(I) = v(I)[1, 2];
     return r;
   }
-  (reg x:v1(I)) --> v(I)f {
+  (x:v1(I)) --> v(I)f {
     r: v(I)o = v(I)[1, 2];
     return consume r;
   }

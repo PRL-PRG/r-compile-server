@@ -17,7 +17,7 @@ class ElideConsumedDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o) --> v(I)f {
+            (rv:v(I)o) --> v(I)f {
               d: v(I)o = dup consume rv;
               d[0] = 1;
               return consume d;
@@ -37,7 +37,7 @@ class ElideConsumedDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o) --> I {
+            (rv:v(I)o) --> I {
               d: v(I)o = dup consume rv;
               d[0] = 1;
               r: I = d[0];
@@ -58,7 +58,7 @@ class ElideConsumedDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o) --> I {
+            (rv:v(I)o) --> I {
               d: v(I)o = dup rv;
               d[0] = 1;
               r: I = rv[0];
@@ -77,7 +77,7 @@ class ElideConsumedDupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg rv:v(I)o) --> v(I) {
+            (rv:v(I)o) --> v(I) {
               d: v(I) = dup consume rv;
               return d;
             }

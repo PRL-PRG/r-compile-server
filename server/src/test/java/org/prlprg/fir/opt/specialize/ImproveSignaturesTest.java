@@ -20,7 +20,7 @@ class ImproveSignaturesTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v(I)b) --> V {
+            (x:v(I)b) --> V {
               r: v(I)o = dup x;
               return r;
             }
@@ -39,7 +39,7 @@ class ImproveSignaturesTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v(I)b) --> V {
+            (x:v(I)b) --> V {
               r: v(I)o = dup x;
               return consume r;
             }

@@ -19,7 +19,7 @@ class StrictifyPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x:v(I)) -+> V {
+            (c:B, x:v(I)) -+> V {
               p: p(v(I) -) = prom<v(I) ->{
                 return x;
               };
@@ -48,7 +48,7 @@ class StrictifyPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x1:v(I), reg x2:v(I)) -+> V {
+            (c:B, x1:v(I), x2:v(I)) -+> V {
               p1: p(v(I) -) = prom<v(I) ->{
                 return x1;
               };
@@ -76,7 +76,7 @@ class StrictifyPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x:v(I)) --> v(I) {
+            (c:B, x:v(I)) --> v(I) {
               goto L0(x);
             L0(y: v(I)):
               if c then L1() else L2();
@@ -98,7 +98,7 @@ class StrictifyPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B) -+> V {
+            (c:B) -+> V {
               p: p(v(I) -) = prom<v(I) ->{
                 w: v(I) = v(I)[1];
                 return w;
@@ -124,7 +124,7 @@ class StrictifyPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x1:v(I), reg x2:v(I)) -+> V {
+            (c:B, x1:v(I), x2:v(I)) -+> V {
               p1: p(v(I) -) = prom<v(I) ->{
                 return x1;
               };
@@ -146,7 +146,7 @@ class StrictifyPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x:v(I)) -+> V {
+            (c:B, x:v(I)) -+> V {
               p: p(v(I) -) = prom<v(I) ->{
                 return x;
               };
@@ -170,7 +170,7 @@ class StrictifyPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x:v(I)) -+> V {
+            (c:B, x:v(I)) -+> V {
               p: p(v(I) -) = prom<v(I) ->{
                 return x;
               };

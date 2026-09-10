@@ -21,7 +21,7 @@ fun main() {
 }
 
 fun upcast(`...`) {
-  (reg r:*) -~> v1(I) {
+  (r:*) -~> v1(I) {
     r0: p(v1(I) -) = r as p(v1(I) -);
     r1: v1(I) = force r0;
     return r1;
@@ -29,7 +29,7 @@ fun upcast(`...`) {
 }
 
 fun downcast(`...`) {
-  (reg r:v1(I)) -~> V {
+  (r:v1(I)) -~> V {
     r0: V = r as V;
     return r0;
   }

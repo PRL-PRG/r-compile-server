@@ -31,9 +31,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*@!) -+> V { ... }
-              (reg r:p(v(I) -)@!) --> v(I) { ... }
-              (reg r:v(I)) --> v(I) {
+              (r:*@!) -+> V { ... }
+              (r:p(v(I) -)@!) --> v(I) { ... }
+              (r:v(I)) --> v(I) {
                 return r;
               }
             }
@@ -75,9 +75,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*@!) -+> V { ... }
-              (reg r:p(v(I) +)@!) --> v(I) { ... }
-              (reg r:v(I)) --> v(I) {
+              (r:*@!) -+> V { ... }
+              (r:p(v(I) +)@!) --> v(I) { ... }
+              (r:v(I)) --> v(I) {
                 return r;
               }
             }
@@ -110,9 +110,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r1, r2) {
-              (reg r1:*@!, reg r2:*@!) -+> V { ... }
-              (reg r1:p(v(I) -)@!, reg r2:p(v(I) +)@!) --> v(I) { ... }
-              (reg r1:v(I), reg r2:p(v(I) +)@!) --> v(I) { ... }
+              (r1:*@!, r2:*@!) -+> V { ... }
+              (r1:p(v(I) -)@!, r2:p(v(I) +)@!) --> v(I) { ... }
+              (r1:v(I), r2:p(v(I) +)@!) --> v(I) { ... }
             }
             """);
 
@@ -152,9 +152,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*) -+> V { ... }
-              (reg r:p(v(I) -)) --> v(I) { ... }
-              (reg r:v(I)) --> v(I) {
+              (r:*) -+> V { ... }
+              (r:p(v(I) -)) --> v(I) { ... }
+              (r:v(I)) --> v(I) {
                 return r;
               }
             }
@@ -195,9 +195,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*) -+> V { ... }
-              (reg r:p(V -)) -~> V { ... }
-              (reg r:V) -~> V {
+              (r:*) -+> V { ... }
+              (r:p(V -)) -~> V { ... }
+              (r:V) -~> V {
                 return r;
               }
             }
@@ -230,9 +230,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*) -+> V { ... }
-              (reg r:p(v(I) -)) --> v(I) { ... }
-              (reg r:v(I)) --> v(I) {
+              (r:*) -+> V { ... }
+              (r:p(v(I) -)) --> v(I) { ... }
+              (r:v(I)) --> v(I) {
                 return r;
               }
             }
@@ -264,14 +264,14 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*@!) -+> V { ... }
-              (reg r:p(V -)@!) -~> V {
+              (r:*@!) -+> V { ... }
+              (r:p(V -)@!) -~> V {
                 mkenv;
                 st y = <int 1>;
                 v: V = force r;
                 return v;
               }
-              (reg r:V) -~> V {
+              (r:V) -~> V {
                 return r;
               }
             }
@@ -307,14 +307,14 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*@!) -+> V { ... }
-              (reg r:p(V -)@!) -~> V {
+              (r:*@!) -+> V { ... }
+              (r:p(V -)@!) -~> V {
                 mkenv;
                 st-super x = <int 1>;
                 v: V = force r;
                 return v;
               }
-              (reg r:V) -~> V {
+              (r:V) -~> V {
                 return r;
               }
             }
@@ -348,13 +348,13 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*@!) -+> V { ... }
-              (reg r:p(V -)@!) -~> V {
+              (r:*@!) -+> V { ... }
+              (r:p(V -)@!) -~> V {
                 g: V = h< -~> V >();
                 v: V = force r;
                 return v;
               }
-              (reg r:V) -~> V {
+              (r:V) -~> V {
                 return r;
               }
             }
@@ -392,9 +392,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             }
 
             fun f(r) {
-              (reg r:*@!) -+> V { ... }
-              (reg r:p(v(I) -)@!) --> v(I) { ... }
-              (reg r:v(I)) --> v(I) {
+              (r:*@!) -+> V { ... }
+              (r:p(v(I) -)@!) --> v(I) { ... }
+              (r:v(I)) --> v(I) {
                 return r;
               }
             }

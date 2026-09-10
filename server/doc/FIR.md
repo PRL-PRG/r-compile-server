@@ -20,8 +20,8 @@ A FIŘ module consists of one or more functions:
 
 ```fir
 fun functionName(x, y) {
-  (reg x:*, reg y:*) -+> V { body }  # The baseline
-  (reg x:I, reg y:I) --> I { body }  # A specialized version
+  (x:*, y:*) -+> V { body }  # The baseline
+  (x:I, y:I) --> I { body }  # A specialized version
 }
 ```
 
@@ -38,13 +38,13 @@ A function may be preceded by user properties:
 A version's header specifies its parameters, effects, and return type:
 
 ```fir
-(reg param1:t, reg param2:t@!) -fx> t
+(param1:t, param2:t@!) -fx> t
 ```
 
 Examples:
 - `() --> I` - No parameters, no effects, returns an unboxed integer
-- `(reg r:v1(I)) -+> V` - One boxed-integer parameter, reflection, returns any R value
-- `(reg p:p(V +)@!) -~> V` - One strict promise parameter, impure but non-reflective
+- `(r:v1(I)) -+> V` - One boxed-integer parameter, reflection, returns any R value
+- `(p:p(V +)@!) -~> V` - One strict promise parameter, impure but non-reflective
 
 Only registers can be parameters. `@!` marks a parameter as **strict**: it must have a promise type, and the version must force it on every path from entry to each `return` or reflective operation.
 
@@ -115,7 +115,7 @@ There are two kinds of variables: registers and named variables. Neither is decl
 Registers are SSA values: each is defined exactly once, at one of three sites, and its type is written there:
 
 ```fir
-(reg r:t) -fx> t { ... }   # a version parameter
+(r:t) -fx> t { ... }       # a version parameter
 BB(r: t):                  # a block parameter (phi)
   r: t = e;                # a statement assignee
 ```
@@ -309,7 +309,7 @@ The success target of a `check` can't have arguments.
 ## Version Structure (recap)
 
 ```fir
-(reg p1:t, reg p2:t, ...) -fx> t {
+(p1:t, p2:t, ...) -fx> t {
   s1;
   s2;
   ...
@@ -440,7 +440,7 @@ fun main() {
 }
 
 fun f(r1, r2) {
-  (reg r1:v(I)o, reg r2:v(I)b) -~> v(I)f {
+  (r1:v(I)o, r2:v(I)b) -~> v(I)f {
     ry: v(I)o = dup r2;
     r1[0] = 1;
     ry[2] = 3;
@@ -454,7 +454,7 @@ fun f(r1, r2) {
 ```fir
 fun reflect(p) {
   # Notice the arrow is `-+>` because the function contains reflection
-  (reg p:p(V +)) -+> V {
+  (p:p(V +)) -+> V {
     r: * = p$x;         # reflective load
     r1: V = force? r;   # maybe-force
     p$y = r1;           # reflective store
@@ -467,11 +467,11 @@ fun reflect(p) {
 
 ```fir
 fun add(x, y) {
-  (reg x:*, reg y:*) -+> V {
+  (x:*, y:*) -+> V {
     r: V = `+`%< *@!,*@! -+> V >(x, y);
     return r;
   }
-  (reg x:I, reg y:I) --> I {
+  (x:I, y:I) --> I {
     r: I = `+`< I,I --> I >(x, y);
     return r;
   }
@@ -496,7 +496,7 @@ fun main() {
 
 # Returns the argument as is, but marks the call as an optimization barrier
 fun blackBox(x) {
-  (reg x:B) --> B { ... }
+  (x:B) --> B { ... }
 }
 ```
 

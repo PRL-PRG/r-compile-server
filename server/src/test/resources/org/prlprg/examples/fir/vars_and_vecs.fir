@@ -10,7 +10,7 @@ fun main() {
 }
 
 fun f(rx, ry, rz) {
-  (reg rx:I, reg ry:p(v1(I) -), reg rz:v(I)) -~> v(I)f {
+  (rx:I, ry:p(v1(I) -), rz:v(I)) -~> v(I)f {
     mkenv;
     rxb: v1(I) = box< I --> v1(I) >(rx);
     st x = rxb;

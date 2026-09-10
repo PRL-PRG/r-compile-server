@@ -102,7 +102,7 @@ public final class IrPrintContext {
 
     p.print(abstraction.comments());
 
-    // Parameters, e.g. `(reg n:*, reg m:I@!)`.
+    // Parameters, e.g. `(n:*, m:I@!)`.
     w.write('(');
     var firstParam = true;
     for (var parameter : abstraction.parameters()) {
@@ -110,7 +110,6 @@ public final class IrPrintContext {
         w.write(", ");
       }
       firstParam = false;
-      w.write("reg ");
       p.print(parameter);
       w.write(':');
       p.print(parameter.type());
