@@ -9,11 +9,15 @@ RCP_BASE_IMAGE ?= $(DOCKER_IMAGE_ORG)/rcp-base
 RCP_RSH_IMAGE ?= $(DOCKER_IMAGE_ORG)/rcp-rsh
 RCP_IMAGE ?= $(DOCKER_IMAGE_ORG)/rcp
 
+include toolchain.mk
+
+# Fall back to the plain driver when no new enough GCC was found, so that
+# check-toolchain is what reports the problem.
 ifeq ($(origin CC), default)
-CC := gcc-14
+CC := $(or $(call find_gcc,gcc),gcc)
 endif
 ifeq ($(origin CXX), default)
-CXX := g++-14
+CXX := $(or $(call find_gcc,g++),g++)
 endif
 CFLAGS ?= -std=gnu17
 CXXFLAGS ?= -std=gnu++20
@@ -82,8 +86,8 @@ docker-rcp: docker-rcp-rsh
 .PHONY: setup test benchmark profile clean install
 .PHONY: check-toolchain
 check-toolchain:
-	@command -v $(CC) >/dev/null 2>&1 || { echo "Error: C compiler '$(CC)' not found. Set CC= (RCP needs GCC >= 14, e.g. 'make ... CC=gcc-14' or CC=gcc)."; exit 1; }
-	@command -v $(CXX) >/dev/null 2>&1 || { echo "Error: C++ compiler '$(CXX)' not found. Set CXX= (e.g. CXX=g++-14 or CXX=g++)."; exit 1; }
+	$(call check_gcc,$(CC),CC,gcc)
+	$(call check_gcc,$(CXX),CXX,g++)
 
 # `setup` builds the bundled GNU-R with the copy-and-patch (RCP) variant enabled
 # and then installs the rcp package against it. RCP=1 tells build-gnur.sh to add
