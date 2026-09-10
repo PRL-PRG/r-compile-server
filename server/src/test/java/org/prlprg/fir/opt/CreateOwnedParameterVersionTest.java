@@ -19,8 +19,8 @@ class CreateOwnedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(v) {
-              (reg v:v(I)b) --> v(I)f { ... }
-              (reg v:v(I)b) --> v(I)f {
+              (v:v(I)b) --> v(I)f { ... }
+              (v:v(I)b) --> v(I)f {
                 d: v(I)o = dup v;
                 d[0] = 1;
                 return consume d;
@@ -32,11 +32,10 @@ class CreateOwnedParameterVersionTest implements OptimizationUnitTest {
 
     var printed = Printer.toString(module);
     assertTrue(
-        printed.contains("(reg v:v(I)o) --> v(I)f"),
+        printed.contains("(v:v(I)o) --> v(I)f"),
         "an owned-parameter version should exist:\n" + printed);
     assertTrue(
-        printed.contains("(reg v:v(I)b) --> v(I)f"),
-        "the borrowed version should remain:\n" + printed);
+        printed.contains("(v:v(I)b) --> v(I)f"), "the borrowed version should remain:\n" + printed);
   }
 
   @Test
@@ -45,8 +44,8 @@ class CreateOwnedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(v) {
-              (reg v:v(I)b) --> v(I)f { ... }
-              (reg v:v(I)b) --> v(I)f {
+              (v:v(I)b) --> v(I)f { ... }
+              (v:v(I)b) --> v(I)f {
                 d: v(I)o = dup v;
                 d[0] = 1;
                 return consume d;
@@ -68,8 +67,8 @@ class CreateOwnedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(v) {
-              (reg v:v(I)b) --> v(I)f { ... }
-              (reg v:v(I)b) --> v(I)f {
+              (v:v(I)b) --> v(I)f { ... }
+              (v:v(I)b) --> v(I)f {
                 l: v(I)o = v(I)[1, 2, 3];
                 d: v(I)o = dup l;
                 d[0] = 1;
@@ -87,8 +86,8 @@ class CreateOwnedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(v) {
-              (reg v:v(I)o) --> v(I)f { ... }
-              (reg v:v(I)o) --> v(I)f {
+              (v:v(I)o) --> v(I)f { ... }
+              (v:v(I)o) --> v(I)f {
                 d: v(I)o = dup v;
                 d[0] = 1;
                 return consume d;

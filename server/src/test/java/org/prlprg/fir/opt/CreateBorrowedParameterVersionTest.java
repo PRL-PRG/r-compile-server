@@ -23,8 +23,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> I {
                 r: I = vec[0];
                 return r;
               }
@@ -35,10 +35,10 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     var printed = Printer.toString(module);
     assertTrue(
-        printed.contains("(reg vec:v(I)b) -~> I"),
+        printed.contains("(vec:v(I)b) -~> I"),
         "a borrowed-parameter version should exist:\n" + printed);
     assertTrue(
-        printed.contains("(reg vec:v(I)o) -~> I"), "the owned version should remain:\n" + printed);
+        printed.contains("(vec:v(I)o) -~> I"), "the owned version should remain:\n" + printed);
     assertTrue(Checker.checkAll(module), "the borrowed copy should type-check:\n" + printed);
   }
 
@@ -48,8 +48,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> I {
                 r: I = vec[0];
                 return r;
               }
@@ -70,8 +70,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec, i, val) {
-              (reg vec:*, reg i:*, reg val:*) -+> V { ... }
-              (reg vec:v(I)o, reg i:I, reg val:I) -~> v(I)f {
+              (vec:*, i:*, val:*) -+> V { ... }
+              (vec:v(I)o, i:I, val:I) -~> v(I)f {
                 r: v(I)o = `[<-`< v(I)o,I,I,miss -~> v(I)f >(consume vec, i, val, <missing>);
                 return consume r;
               }
@@ -87,8 +87,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) --> v(I)f {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) --> v(I)f {
                 return consume vec;
               }
             }
@@ -106,8 +106,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> I {
                 vec[0] = 1;
                 r: I = vec[0];
                 return r;
@@ -124,8 +124,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> v(I) {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> v(I) {
                 p: p(v(I) ~) = prom-<v(I) ~>{
                   return consume vec;
                 };
@@ -144,8 +144,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> v1(I) {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> v1(I) {
                 p: p(v1(I) ~) = prom-<v1(I) ~>{
                   e: I = vec[0];
                   b: v1(I) = box< I --> v1(I) >(e);
@@ -161,7 +161,7 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     var printed = Printer.toString(module);
     assertTrue(
-        printed.contains("(reg vec:v(I)b) -~> v1(I)"),
+        printed.contains("(vec:v(I)b) -~> v1(I)"),
         "a borrowed-parameter version should exist:\n" + printed);
   }
 
@@ -171,8 +171,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> v1(I) {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> v1(I) {
                 p: p(v1(I) ~) = prom<v1(I) ~>{
                   e: I = vec[0];
                   b: v1(I) = box< I --> v1(I) >(e);
@@ -195,8 +195,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> v1(I) {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> v1(I) {
                 outer: p(v1(I) ~) = prom<v1(I) ~>{
                   inner: p(v1(I) ~) = prom-<v1(I) ~>{
                     e: I = vec[0];
@@ -223,15 +223,15 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> I {
                 r: I = other< v(I)b -~> I >(vec);
                 return r;
               }
             }
 
             fun other(x) {
-              (reg x:v(I)b) -~> I {
+              (x:v(I)b) -~> I {
                 e: I = x[0];
                 return e;
               }
@@ -242,7 +242,7 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     var printed = Printer.toString(module);
     assertTrue(
-        printed.contains("(reg vec:v(I)b) -~> I"),
+        printed.contains("(vec:v(I)b) -~> I"),
         "a borrowed-parameter version should exist:\n" + printed);
     assertTrue(Checker.checkAll(module), "the borrowed copy should type-check:\n" + printed);
   }
@@ -253,15 +253,15 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -+> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -+> I {
                 r: I = other< v(I) -+> I >(vec);
                 return r;
               }
             }
 
             fun other(x) {
-              (reg x:v(I)) -+> I {
+              (x:v(I)) -+> I {
                 e: I = x[0];
                 return e;
               }
@@ -279,8 +279,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec, callee) {
-              (reg vec:*, reg callee:*) -+> V { ... }
-              (reg vec:v(I)o, reg callee:cls) -+> V {
+              (vec:*, callee:*) -+> V { ... }
+              (vec:v(I)o, callee:cls) -+> V {
                 r: V = dyn callee(vec);
                 return r;
               }
@@ -296,8 +296,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> I {
                 d: v(I)o = dup vec;
                 d[0] = 1;
                 r: I = vec[0];
@@ -318,8 +318,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)b) -~> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)b) -~> I {
                 r: I = vec[0];
                 return r;
               }
@@ -335,12 +335,12 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)b) -~> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)b) -~> I {
                 r: I = vec[0];
                 return r;
               }
-              (reg vec:v(I)o) -~> I {
+              (vec:v(I)o) -~> I {
                 r: I = vec[0];
                 return r;
               }
@@ -356,8 +356,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(vec) {
-              (reg vec:*) -+> V { ... }
-              (reg vec:v(I)o) -~> I {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -~> I {
                 r: I = vec[0];
                 return r;
               }

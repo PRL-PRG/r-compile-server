@@ -139,7 +139,7 @@ class CfgDominatorTreeTest {
         "straight line",
         """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             r0: I = dup n;
             return r0;
           }
@@ -153,7 +153,7 @@ class CfgDominatorTreeTest {
         "diamond",
         """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             if n then A() else B();
           A():
             goto J();
@@ -172,7 +172,7 @@ class CfgDominatorTreeTest {
         "simple loop",
         """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head();
           Head():
             if n then Body() else Exit();
@@ -187,7 +187,7 @@ class CfgDominatorTreeTest {
         "nested loops",
         """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Outer();
           Outer():
             goto Inner();
@@ -208,7 +208,7 @@ class CfgDominatorTreeTest {
         "irreducible",
         """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             if n then A() else B();
           A():
             if n then B() else Exit();
@@ -227,7 +227,7 @@ class CfgDominatorTreeTest {
         "no exit path",
         """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             if n then Spin() else Exit();
           Spin():
             goto Spin();
@@ -244,7 +244,7 @@ class CfgDominatorTreeTest {
         "deep nest",
         """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             if n then A() else B();
           A():
             if n then C() else D();
@@ -273,7 +273,7 @@ class CfgDominatorTreeTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             if n then A() else B();
           A():
             goto J();
@@ -308,7 +308,7 @@ class CfgDominatorTreeTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto A();
           A():
             goto B();
@@ -334,7 +334,7 @@ class CfgDominatorTreeTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             return n;
           }
         }
@@ -343,7 +343,7 @@ class CfgDominatorTreeTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             return n;
           }
         }
@@ -366,7 +366,7 @@ class CfgDominatorTreeTest {
   @Test
   void longChainIsFast() {
     var blockCount = 2000;
-    var firText = new StringBuilder("fun main() {\n  (reg n:I) --> I {\n    goto B0();\n");
+    var firText = new StringBuilder("fun main() {\n  (n:I) --> I {\n    goto B0();\n");
     for (var i = 0; i < blockCount; i++) {
       firText.append("  B").append(i).append("():\n    goto B").append(i + 1).append("();\n");
     }

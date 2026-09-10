@@ -288,12 +288,11 @@ public final class ModuleParseContext {
 
         var comments = p.parse(Comments.class);
 
-        // Parameters, e.g. `(reg n:*, reg m:I@!)`.
+        // Parameters, e.g. `(n:*, m:I@!)`.
         var parameters = new ArrayList<FunctionParameter>();
         s.assertAndSkip('(');
         if (!s.nextCharIs(')')) {
           do {
-            s.assertAndSkip("reg");
             var name = s.readIdentifierOrKeyword();
             s.assertAndSkip(':');
             var type = p.parse(Type.class);

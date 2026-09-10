@@ -39,7 +39,7 @@ class EnvironmentLivenessTest {
     var firText =
         """
       fun main() {
-        (reg cond:I) --> I {
+        (cond:I) --> I {
           mkenv;
           r0 = 0;
           if cond then BB1() else BB2();

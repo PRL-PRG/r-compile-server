@@ -15,7 +15,7 @@ public final class FirVersion extends ASTWrapperPsiElement {
     super(node);
   }
 
-  /** Returns the version signature text (e.g. {@code (reg x:I, reg y:I) --> I}). */
+  /** Returns the version signature text (e.g. {@code (x:I, y:I) --> I}). */
   public @NotNull String getSignatureText() {
     var text = getText();
     var braceIdx = text.indexOf('{');

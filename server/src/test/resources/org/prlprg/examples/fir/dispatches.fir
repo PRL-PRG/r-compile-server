@@ -6,7 +6,7 @@ fun main() {
 }
 
 fun f(rx) {
-  (reg rx:v1(I)) -~> v(I)f {
+  (rx:v1(I)) -~> v(I)f {
     r0: p(v1(I) -) = prom<v1(I) ->{
       return rx;
     };
@@ -35,7 +35,7 @@ fun f(rx) {
 }
 
 fun g(ra, rb) {
-  (reg ra:*, reg rb:*) -~> v(I) {
+  (ra:*, rb:*) -~> v(I) {
     r0: p(v1(I) -) = ra as p(v1(I) -);
     r1: p(v1(I) -) = rb as p(v1(I) -);
     r2: v1(I) = force r0;
@@ -45,7 +45,7 @@ fun g(ra, rb) {
     r6: v(I)o = v(I)[r4, r5];
     return consume r6;
   }
-  (reg ra:p(v1(I) -), reg rb:p(v1(I) -)) --> v(I)f {
+  (ra:p(v1(I) -), rb:p(v1(I) -)) --> v(I)f {
     r0: v1(I) = force ra;
     r1: v1(I) = force rb;
     r2: I = unbox< v1(I) --> I >(r0);
@@ -53,21 +53,21 @@ fun g(ra, rb) {
     r4: v(I)o = v(I)[r2, r3];
     return consume r4;
   }
-  (reg ra:v1(I), reg rb:p(v1(I) -)) --> v(I)f {
+  (ra:v1(I), rb:p(v1(I) -)) --> v(I)f {
     r0: I = unbox< v1(I) --> I >(ra);
     r1: v1(I) = force rb;
     r2: I = unbox< v1(I) --> I >(r1);
     r3: v(I)o = v(I)[r0, r2];
     return consume r3;
   }
-  (reg ra:p(v1(I) -), reg rb:v1(I)) --> v(I)f {
+  (ra:p(v1(I) -), rb:v1(I)) --> v(I)f {
     r0: v1(I) = force ra;
     r1: I = unbox< v1(I) --> I >(r0);
     r2: I = unbox< v1(I) --> I >(rb);
     r3: v(I)o = v(I)[r1, r2];
     return consume r3;
   }
-  (reg ra:v1(I), reg rb:v1(I)) --> v(I)f {
+  (ra:v1(I), rb:v1(I)) --> v(I)f {
     r0: I = unbox< v1(I) --> I >(ra);
     r1: I = unbox< v1(I) --> I >(rb);
     r2: v(I)o = v(I)[r0, r1];

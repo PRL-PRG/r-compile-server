@@ -126,8 +126,8 @@ class SpeculateAssumeTest {
         ParseUtil.parseModule(
             """
             fun main(c) {
-              (reg c:*) -+> V { ... }
-              (reg c:B) -+> V {
+              (c:*) -+> V { ... }
+              (c:B) -+> V {
                 if c then L0() else L1();
               L0():
                 x: V = f< -+> V >();

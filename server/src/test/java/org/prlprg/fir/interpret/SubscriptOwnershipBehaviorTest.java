@@ -49,8 +49,8 @@ class SubscriptOwnershipBehaviorTest {
       }
 
       fun set(v) {
-        (reg v:*) -+> V { ... }
-        (reg v:v(I)b) -~> v(I)f {
+        (v:*) -+> V { ... }
+        (v:v(I)b) -~> v(I)f {
           d: v(I)o = dup v;
           r: v(I)o = `[<-`< v(I)b,I,I,miss -~> v(I)f >(d, 1, 42, <missing>);
           return consume r;
@@ -74,7 +74,7 @@ class SubscriptOwnershipBehaviorTest {
 
     assertEquals(before, after, "optimization changed the output; printed:\n" + printed);
     assertTrue(
-        printed.contains("(reg v:v(I)o) -~> v(I)f"),
+        printed.contains("(v:v(I)o) -~> v(I)f"),
         "`set` should get a version that owns its vector; printed:\n" + printed);
     assertTrue(
         printed.contains("set< v(I)o -~> v(I)f >(consume v)"),

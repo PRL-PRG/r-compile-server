@@ -31,7 +31,7 @@ import org.prlprg.sexp.SEXPs;
 /// dispatch-from-R). But only `miss` is *statically* empty: it's a subtype of `dots` and not the
 /// reverse, so a call passing `dots[]` can only ever reach the version taking `dots`, which for a
 /// builtin is the generic reflective one. Passing `<missing>` is what lets [OptimizeCallee] reach
-/// the versions declared with `reg ddd:miss`, e.g. `[<-`'s.
+/// the versions declared with `ddd:miss`, e.g. `[<-`'s.
 ///
 /// Only rewritten where some version of the callee declares that parameter `miss`, which is the
 /// builtin's own statement that the argument may be absent -- `c()`'s empty `...` is an empty

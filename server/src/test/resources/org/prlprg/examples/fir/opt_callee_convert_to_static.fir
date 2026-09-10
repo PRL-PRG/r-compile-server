@@ -8,10 +8,10 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:*) --> v1(I) {
+  (r:*) --> v1(I) {
     return <int 24>;
   }
-  (reg r:v1(I)) --> v1(I) {
+  (r:v1(I)) --> v1(I) {
     return r;
   }
 }

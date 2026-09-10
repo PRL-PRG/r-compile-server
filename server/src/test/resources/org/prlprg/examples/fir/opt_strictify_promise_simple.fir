@@ -9,15 +9,15 @@ fun main() {
 }
 
 fun force_(r) {
-  (reg r:*) -+> V {
+  (r:*) -+> V {
     r1: V = force? r;
     return r1;
   }
-  (reg r:p(v1(I) -)) --> v1(I) {
+  (r:p(v1(I) -)) --> v1(I) {
     r1: v1(I) = force r;
     return r1;
   }
-  (reg r:v1(I)) --> v1(I) {
+  (r:v1(I)) --> v1(I) {
     return r;
   }
 }

@@ -16,8 +16,9 @@ public final class FirAnnotator implements Annotator {
   private static final Pattern FUN_DECLARATION = Pattern.compile("(?m)^\\s*fun\\b");
   private static final Pattern DECLARATION =
       Pattern.compile(
-          "\\b(reg|var)\\s+(`(?:\\\\.|[^`])*`|[^\\s:,|)]+)\\s*:\\s*((?:p\\((?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+\\))?(?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+)");
-  private static final Pattern DECLARATION_KIND_PREFIX = Pattern.compile("^(reg|var)\\b");
+          "\\b(var)\\s+(`(?:\\\\.|[^`])*`|[^\\s:,|)]+)\\s*:\\s*((?:p\\((?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+\\))?(?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+)");
+  private static final Pattern DECLARATION_KIND_PREFIX = Pattern.compile("^(var)\\b");
+  private static final Pattern LEGACY_PARAMETER_KIND_PREFIX = Pattern.compile("^reg\\b");
   private static final Pattern TYPED_DECLARATION_WITHOUT_KIND =
       Pattern.compile("^(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:");
   private static final Pattern SIMPLE_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
@@ -39,7 +40,8 @@ public final class FirAnnotator implements Annotator {
     lintDelimiters(stripped, issues);
     lintSemicolons(text, issues);
     lintDeclarations(text, issues);
-    lintMissingDeclarationKinds(text, stripped, issues);
+    lintParameters(text, stripped, issues);
+    lintMissingLocalVariableKinds(text, stripped, issues);
 
     var textLength = text.length();
     for (var issue : issues) {
@@ -157,13 +159,6 @@ public final class FirAnnotator implements Annotator {
         continue;
       }
 
-      if ("reg".equals(kind) && !isValidRegisterName(name)) {
-        issues.add(
-            new Issue(
-                new TextRange(matcher.start(2), matcher.end(2)),
-                HighlightSeverity.ERROR,
-                "Invalid register name `" + name + "`"));
-      }
       if ("var".equals(kind) && !isValidVariableName(name)) {
         issues.add(
             new Issue(
@@ -185,27 +180,51 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  private static void lintMissingDeclarationKinds(
-      String text, String stripped, ArrayList<Issue> issues) {
-    lintMissingParameterKinds(text, stripped, issues);
-    lintMissingLocalVariableKinds(text, stripped, issues);
-  }
-
-  private static void lintMissingParameterKinds(
-      String text, String stripped, ArrayList<Issue> issues) {
+  /// Version parameters are written `name:type` (no `reg` prefix): check each name is a valid
+  /// register name, and flag the legacy `reg` prefix.
+  private static void lintParameters(String text, String stripped, ArrayList<Issue> issues) {
     for (var i = 0; i < stripped.length(); i++) {
       if (stripped.charAt(i) != '(') continue;
 
       var close = findMatchingParenDelimiter(stripped, i);
       if (close < 0 || !isVersionArrowAfterParen(stripped, close + 1)) continue;
 
-      lintMissingDeclarationKindsInList(
-          text,
-          stripped,
-          i + 1,
-          close,
-          issues,
-          "Potentially missing `reg` or `var` before parameter declaration");
+      for (var segment : splitTopLevelCommaSegments(stripped, i + 1, close)) {
+        var start = segment.startOffset();
+        var end = segment.endOffset();
+        while (start < end && Character.isWhitespace(text.charAt(start))) {
+          start++;
+        }
+        while (end > start && Character.isWhitespace(text.charAt(end - 1))) {
+          end--;
+        }
+        if (start >= end) {
+          continue;
+        }
+
+        var declaration = text.substring(start, end);
+        if (LEGACY_PARAMETER_KIND_PREFIX.matcher(declaration).find()) {
+          issues.add(
+              new Issue(
+                  new TextRange(start, start + 3),
+                  HighlightSeverity.ERROR,
+                  "Unexpected `reg`: parameters are written `name:type`"));
+          continue;
+        }
+
+        var matcher = TYPED_DECLARATION_WITHOUT_KIND.matcher(declaration);
+        if (!matcher.find()) {
+          continue;
+        }
+        var name = matcher.group(1);
+        if (!isValidRegisterName(name)) {
+          issues.add(
+              new Issue(
+                  new TextRange(start + matcher.start(1), start + matcher.end(1)),
+                  HighlightSeverity.ERROR,
+                  "Invalid register name `" + name + "`"));
+        }
+      }
     }
   }
 
@@ -223,7 +242,7 @@ public final class FirAnnotator implements Annotator {
           i + 1,
           separator,
           issues,
-          "Potentially missing `reg` or `var` before local declaration");
+          "Potentially missing `var` before local declaration");
     }
   }
 

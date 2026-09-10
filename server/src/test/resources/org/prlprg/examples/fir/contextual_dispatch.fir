@@ -13,16 +13,16 @@ fun main() {
 }
 
 fun contextual(r, r1) {
-  (reg r:*, reg r1:*) --> I {
+  (r:*, r1:*) --> I {
     return 42;
   }
-  (reg r:*, reg r1:v(I)) --> I {
+  (r:*, r1:v(I)) --> I {
     return 42;
   }
-  (reg r:v(I)o, reg r1:*) --> I {
+  (r:v(I)o, r1:*) --> I {
     return 42;
   }
-  (reg r:v(I)o, reg r1:v(I)) --> I {
+  (r:v(I)o, r1:v(I)) --> I {
     return 42;
   }
 }

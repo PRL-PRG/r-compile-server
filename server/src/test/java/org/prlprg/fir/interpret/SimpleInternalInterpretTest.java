@@ -76,7 +76,7 @@ class SimpleInternalInterpretTest {
   @Test
   void testParameterAccess() {
     // Create a function that returns its parameter
-    // fun test(r) { (reg r:I) --> I { | return r; } }
+    // fun test(r) { (r:I) --> I { | return r; } }
     var param = new FunctionParameter("r", Type.INTEGER);
     var function =
         module.addFunction(

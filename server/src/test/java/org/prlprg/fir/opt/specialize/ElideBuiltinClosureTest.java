@@ -21,7 +21,7 @@ class ElideBuiltinClosureTest implements AbstractionOptimizationUnitTest, Optimi
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg clo:cls, reg x:V) -~> V {
+            (clo:cls, x:V) -~> V {
               checkMissing@clo< V -~> V >(x);
               return x;
             }
@@ -42,7 +42,7 @@ class ElideBuiltinClosureTest implements AbstractionOptimizationUnitTest, Optimi
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg clo:cls, reg x:B, reg y:B) -~> B {
+            (clo:cls, x:B, y:B) -~> B {
               r: B = xor@clo< B,B --> B >(x, y);
               return r;
             }
@@ -62,7 +62,7 @@ class ElideBuiltinClosureTest implements AbstractionOptimizationUnitTest, Optimi
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:B, reg y:B) -~> B {
+            (x:B, y:B) -~> B {
               r: B = xor< B,B --> B >(x, y);
               return r;
             }
@@ -77,11 +77,11 @@ class ElideBuiltinClosureTest implements AbstractionOptimizationUnitTest, Optimi
         ParseUtil.parseModule(
             """
             fun target(x) {
-              (reg x:B) --> B { ... }
+              (x:B) --> B { ... }
             }
 
             fun main(clo, x) {
-              (reg clo:cls, reg x:B) --> B {
+              (clo:cls, x:B) --> B {
                 r: B = target@clo< B --> B >(x);
                 return r;
               }

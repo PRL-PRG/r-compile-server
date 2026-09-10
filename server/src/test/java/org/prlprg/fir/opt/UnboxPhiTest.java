@@ -17,7 +17,7 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v1(I)) --> v1(I) {
+            (x:v1(I)) --> v1(I) {
               goto L0(x);
             L0(y: v1(I)):
               return y;
@@ -37,7 +37,7 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I {
+            (x:I) --> I {
               goto L0(x);
             L0(y: I):
               return y;
@@ -53,7 +53,7 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v(I)) --> v(I) {
+            (x:v(I)) --> v(I) {
               goto L0(x);
             L0(y: v(I)):
               return y;
@@ -68,7 +68,7 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x:v1(I), reg z:v1(I)) --> v1(I) {
+            (c:B, x:v1(I), z:v1(I)) --> v1(I) {
               if c then L0(x) else L0(z);
             L0(y: v1(I)):
               return y;
@@ -90,7 +90,7 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v1(I)) --> v1(I) {
+            (x:v1(I)) --> v1(I) {
               goto L0(x);
             L0(y: v1(I)):
               return y;
@@ -109,7 +109,7 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x:v1(I)) --> v1(I) {
+            (c:B, x:v1(I)) --> v1(I) {
               if c then L0(x) else L0(x);
             L0(y: v1(I)):
               return y;

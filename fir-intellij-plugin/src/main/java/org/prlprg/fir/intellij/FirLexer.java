@@ -11,7 +11,6 @@ public final class FirLexer extends LexerBase {
   private static final Set<String> KEYWORDS =
       Set.of(
           "fun",
-          "reg",
           "var",
           "return",
           "if",

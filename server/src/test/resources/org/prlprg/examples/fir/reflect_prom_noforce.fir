@@ -21,7 +21,7 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:p(v1(I) +)) -+> I {
+  (r:p(v1(I) +)) -+> I {
     mkenv;
     popenv;
     return 42;

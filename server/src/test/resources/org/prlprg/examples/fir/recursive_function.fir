@@ -7,7 +7,7 @@ fun main() {
 }
 
 fun recursive(rm, rn) {
-  (reg rm:I, reg rn:I) --> I {
+  (rm:I, rn:I) --> I {
     rnb: v1(I) = box< I --> v1(I) >(rn);
     r1: p(v1(I) -) = prom<v1(I) ->{
       return rnb;
@@ -25,7 +25,7 @@ fun recursive(rm, rn) {
 }
 
 fun if0(rcond, rtrue, rfalse) {
-  (reg rcond:I, reg rtruep:p(v1(I) -), reg rfalsep:p(v1(I) -)) --> I {
+  (rcond:I, rtruep:p(v1(I) -), rfalsep:p(v1(I) -)) --> I {
     rcondb: B = `==`< I,I --> B >(rcond, 0);
     if rcondb then BBEnd(rtruep) else BBEnd(rfalsep);
   BBEnd(rboxp: p(v1(I) -)):

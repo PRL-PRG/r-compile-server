@@ -144,7 +144,7 @@ separates tokens.
       ($prop$, $tt("@strict") alt tt("@liteSpecial")$),
       ($ver$, $tt("(")seq(prm)tt(")") arrow t tt("{") body tt("}")$,
               $tt("(")seq(prm)tt(")") arrow t tt("{") tt("...") tt("}")$),
-      ($prm$, $kw("reg") r tt(":") t alt kw("reg") r tt(":") t tt("@!")$),
+      ($prm$, $r tt(":") t alt r tt(":") t tt("@!")$),
       ($body$, $blk space wseq(bb)$),
       ($bb$, $L tt("(")tseq(r, tt(":") t)tt(")")tt(":") blk$),
       ($blk$, $attach(s, br: 1)tt(";") dots attach(s, br: n)tt(";") space j tt(";")$),

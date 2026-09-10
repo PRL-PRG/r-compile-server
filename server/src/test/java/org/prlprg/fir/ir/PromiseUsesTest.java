@@ -26,7 +26,7 @@ class PromiseUsesTest {
   private static final @Language("FIR") String CAPTURING_PROMISE =
       """
       fun main() {
-        (reg x:R) -~> R {
+        (x:R) -~> R {
           outer: R = dup x;
           p: p(R ~) = prom<R ~>{
             inner: R = dup outer;
@@ -146,7 +146,7 @@ class PromiseUsesTest {
         mainOf(
             """
             fun main() {
-              (reg x:R) -~> R {
+              (x:R) -~> R {
                 outer: R = dup x;
                 goto BB1();
               BB1():

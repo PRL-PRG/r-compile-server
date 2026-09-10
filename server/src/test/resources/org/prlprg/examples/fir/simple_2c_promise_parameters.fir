@@ -14,7 +14,7 @@ fun main() {
 }
 
 fun sum_promises(lhs, rhs) {
-  (reg lhs:p(v1(I) -), reg rhs:p(v1(I) -)) --> I {
+  (lhs:p(v1(I) -), rhs:p(v1(I) -)) --> I {
     left: v1(I) = force lhs;
     right: v1(I) = force rhs;
     left0: I = unbox< v1(I) --> I >(left);

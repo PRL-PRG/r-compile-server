@@ -10,7 +10,7 @@ fun main() {
 }
 
 fun f(cond1, cond2) {
-  (reg cond1:B, reg cond2:B) -+> I {
+  (cond1:B, cond2:B) -+> I {
     if cond1 then BB1() else BB2();
   BB5():
     return 100;
