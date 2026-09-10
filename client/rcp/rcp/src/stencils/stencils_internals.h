@@ -202,13 +202,13 @@ extern const void *const _RCP_CONSTCELL_AT_IMM0;
 extern const void *const _RCP_CONSTCELL_AT_IMM1;
 extern const void *const _RCP_CONSTCELL_AT_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_IMM3;
-#define GETCONSTCELL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_IMM##i]), __alignof__(SEXP *)))
+#define GETCONSTCELL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(uint64_t)&_RCP_CONSTCELL_AT_IMM##i]), __alignof__(SEXP *)))
 
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM0;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM1;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
-#define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
+#define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
 
 // Custom data for stencils. The two versions point to identical data,
 // but the REL version using more efficient encoding of the pointer,

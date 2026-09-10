@@ -1614,9 +1614,13 @@ static void process_section(bfd &abfd, asection &section, Stencils &stencils)
 						if (ptr_size <= 0)
 							ptr_size = 8;
 
+						// Use data()+n, not &body[n]: n can be one past the
+						// last byte (an FDE ending exactly at the section end),
+						// and forming that pointer through operator[] is UB and
+						// trips the libstdc++ bounds assertion.
 						const uint8_t *fde_start =
-							&body[offset + len_field_size + 4];
-						const uint8_t *fde_end = &body[entry_end];
+							body.data() + offset + len_field_size + 4;
+						const uint8_t *fde_end = body.data() + entry_end;
 						const uint8_t *cfi_start =
 							fde_start + ptr_size + ptr_size;
 
