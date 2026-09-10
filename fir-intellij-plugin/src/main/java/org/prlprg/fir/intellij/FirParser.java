@@ -117,14 +117,15 @@ public final class FirParser implements PsiParser {
 
   /**
    * Consumes a brace-enclosed body (version or promise), starting after the opening "{".
-   * Detects and marks {@code prom<...>{ body }} promise bodies within.
+   * Detects and marks {@code prom<...>{ body }} and {@code prom-<...>{ body }} promise bodies within.
    */
   private static void consumeBody(PsiBuilder builder) {
     var braceDepth = 1;
     while (!builder.eof() && braceDepth > 0) {
-      // Detect "prom" keyword -> the next "{" starts a promise body
-      if (isToken(builder, FirTokenTypes.KEYWORD, "prom")) {
-        builder.advanceLexer(); // consume "prom"
+      // Detect "prom"/"prom-" keyword -> the next "{" starts a promise body
+      if (isToken(builder, FirTokenTypes.KEYWORD, "prom")
+          || isToken(builder, FirTokenTypes.KEYWORD, "prom-")) {
+        builder.advanceLexer(); // consume "prom" / "prom-"
         // Skip to the promise body's opening "{"
         while (!builder.eof()
             && !isToken(builder, FirTokenTypes.BRACE, "{")

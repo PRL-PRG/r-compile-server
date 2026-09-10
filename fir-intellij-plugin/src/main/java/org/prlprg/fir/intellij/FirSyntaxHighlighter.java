@@ -20,6 +20,9 @@ public final class FirSyntaxHighlighter extends SyntaxHighlighterBase {
           "FIR_IDENTIFIER", DefaultLanguageHighlighterColors.IDENTIFIER);
   private static final TextAttributesKey NUMBER =
       TextAttributesKey.createTextAttributesKey("FIR_NUMBER", DefaultLanguageHighlighterColors.NUMBER);
+  private static final TextAttributesKey CONSTANT =
+      TextAttributesKey.createTextAttributesKey(
+          "FIR_CONSTANT", DefaultLanguageHighlighterColors.CONSTANT);
   private static final TextAttributesKey STRING =
       TextAttributesKey.createTextAttributesKey("FIR_STRING", DefaultLanguageHighlighterColors.STRING);
   private static final TextAttributesKey COMMENT =
@@ -59,6 +62,9 @@ public final class FirSyntaxHighlighter extends SyntaxHighlighterBase {
     }
     if (tokenType == FirTokenTypes.NUMBER) {
       return pack(NUMBER);
+    }
+    if (tokenType == FirTokenTypes.CONSTANT || tokenType == FirTokenTypes.SEXP) {
+      return pack(CONSTANT);
     }
     if (tokenType == FirTokenTypes.STRING) {
       return pack(STRING);
