@@ -29,24 +29,34 @@
 #let alt = $quad | quad$
 // Marks a line that continues the previous alternative instead of starting a new one.
 #let cont(c) = (cont: c)
+// Semantic and syntax-only changes from the calculus in `typed_ir.tex`.
+#let sem-color = rgb("#1a5fb4")
+#let syn-color = rgb("#6cb4f0")
+#let sem(x) = text(fill: sem-color, x)
+#let syn(x) = text(fill: syn-color, x)
+// A rule colored as a whole, including `::=` and `|`.
+#let semrule(..rule) = (paint: sem, rule: rule.pos())
+#let synrule(..rule) = (paint: syn, rule: rule.pos())
 
-// A grammar table. Each rule is `(lhs, line, line, ...)`: the first line follows `::=`, the rest
-// follow `|` (or nothing, if wrapped in `cont`). A line may itself hold several alternatives
-// separated by `alt`.
+// A grammar table. Each rule is `(lhs, line, line, ...)`, or `semrule`/`synrule` of the same: the
+// first line follows `::=`, the rest follow `|` (or nothing, if wrapped in `cont`). A line may
+// itself hold several alternatives separated by `alt`.
 #let grammar(..rules) = {
   let cells = ()
   for rule in rules.pos() {
+    let paint = if type(rule) == dictionary { rule.paint } else { x => x }
+    let rule = if type(rule) == dictionary { rule.rule } else { rule }
     let lhs = rule.at(0)
     let first = true
     for line in rule.slice(1) {
       if type(line) == dictionary {
         cells.push([])
         cells.push([])
-        cells.push(h(1.5em) + line.cont)
+        cells.push(paint(h(1.5em) + line.cont))
       } else {
-        cells.push(if first { lhs } else { [] })
-        cells.push(if first { $::=$ } else { $|$ })
-        cells.push(line)
+        cells.push(paint(if first { lhs } else { [] }))
+        cells.push(paint(if first { $::=$ } else { $|$ }))
+        cells.push(paint(line))
       }
       first = false
     }
@@ -99,6 +109,11 @@ italics; the single-letter ones are the metavariables below. $eps$ is the empty 
 $attach(x, br: 1), dots, attach(x, br: n)$ is a comma-separated sequence of zero or more $x$, and
 $attach(x, br: 1) dots attach(x, br: n)$ a whitespace-separated one.
 
+In the grammar figures, #sem[blue] marks semantic changes from the calculus in `typed_ir.tex`, and
+#syn[light blue] marks syntax-only changes. For example, #sem($a tt("[")a#h(0pt)tt("]")$) is blue
+because it now returns `NA` out of range, and #syn($a tt("[[")a#h(0pt)tt("]]")$) is light blue
+because it fails like the old $e tt("[")e tt("]")$.
+
 #table(
   columns: (auto, 1fr),
   stroke: none,
@@ -139,26 +154,26 @@ separates tokens.
     align: top,
     grammar(
       ($F$, $wseq(fn)$),
-      ($fn$, $wseq(prop, n: k) space kw("fun") f tt("(")seq(x)tt(")") tt("{")$,
+      ($fn$, $#sem($wseq(prop, n: k)$) space kw("fun") f #sem($tt("(")seq(x)tt(")")$) tt("{")$,
              cont($wseq(ver, n: m) tt("}")$)),
-      ($prop$, $tt("@strict") alt tt("@liteSpecial")$),
+      semrule($prop$, $tt("@strict") alt tt("@liteSpecial")$),
       ($ver$, $tt("(")seq(prm)tt(")") arrow t tt("{") body tt("}")$,
-              $tt("(")seq(prm)tt(")") arrow t tt("{") tt("...") tt("}")$),
-      ($prm$, $r tt(":") t alt r tt(":") t tt("@!")$),
-      ($body$, $blk space wseq(bb)$),
-      ($bb$, $L tt("(")tseq(r, tt(":") t)tt(")")tt(":") blk$),
-      ($blk$, $attach(s, br: 1)tt(";") dots attach(s, br: n)tt(";") space j tt(";")$),
+              sem($tt("(")seq(prm)tt(")") arrow t tt("{") tt("...") tt("}")$)),
+      ($prm$, $r tt(":") t alt r tt(":") t #sem($tt("@!")$)$),
+      semrule($body$, $blk space wseq(bb)$),
+      semrule($bb$, $L tt("(")tseq(r, tt(":") t)tt(")")tt(":") blk$),
+      semrule($blk$, $attach(s, br: 1)tt(";") dots attach(s, br: n)tt(";") space j tt(";")$),
     ),
     grammar(
       ($sig$, $seq(ptp) space arrow t$),
-      ($ptp$, $t alt t tt("@!")$),
+      ($ptp$, $t alt t #sem($tt("@!")$)$),
       ($t$, $tt("*") alt q alt q tt("?")$),
-      ($q$, $k alt tt("p(")k space fx#h(0pt)tt(")") alt tt("p?(")k space fx#h(0pt)tt(")")$),
-      ($k$, $tt("V") alt tt("B") alt tt("cls") alt tt("dots") alt tt("miss") alt pk$,
-            $tt("v(")pk#h(0pt)tt(")")ox alt tt("v1(")pk#h(0pt)tt(")")ox$),
-      ($pk$, $tt("I") alt tt("L") alt tt("R") alt tt("S")$),
+      ($q$, $k alt #syn($tt("p(")k space fx#h(0pt)tt(")")$) alt #sem($tt("p?(")k space fx#h(0pt)tt(")")$)$),
+      ($k$, $tt("V") alt #sem($tt("B")$) alt #sem($tt("cls")$) alt #sem($tt("dots")$) alt #sem($tt("miss")$) alt pk$,
+            $tt("v(")pk#h(0pt)tt(")")ox alt #sem($tt("v1(")pk#h(0pt)tt(")")ox$)$),
+      ($pk$, $tt("I") alt #sem($tt("L")$) alt #sem($tt("R")$) alt #sem($tt("S")$)$),
       ($ox$, $eps alt tt("s") alt tt("o") alt tt("b") alt tt("f")$),
-      ($fx$, $tt("-") alt tt("~") alt tt("+")$),
+      ($fx$, $tt("-") alt #sem($tt("~")$) alt tt("+")$),
     ),
   ),
   caption: [Module structure and types],
@@ -192,43 +207,43 @@ as _strict_: the version forces it on every path.
     column-gutter: 2em,
     align: top,
     grammar(
-      ($s$, $e alt r tt(":") t tt("=") e$),
-      ($j$, $kw("goto") tg$,
-            $kw("if") a kw("then") tg kw("else") tg$,
-            $kw("check") tg kw("else") tg$,
-            $kw("deopt") i tt("[")seq(a)tt("]")$,
-            $kw("return") a alt kw("raise") a alt kw("unreachable")$),
-      ($tg$, $L tt("(")seq(a)tt(")")$),
+      ($s$, $e alt #syn($r tt(":") t tt("=") e$)$),
+      semrule($j$, $kw("goto") tg$,
+                   $kw("if") a kw("then") tg kw("else") tg$,
+                   $kw("check") tg kw("else") tg$,
+                   $kw("deopt") i tt("[")seq(a)tt("]")$,
+                   $kw("return") a alt kw("raise") a alt kw("unreachable")$),
+      semrule($tg$, $L tt("(")seq(a)tt(")")$),
       ($a$, $c alt r alt kw("consume") r$),
-      ($na$, $a alt x tt("=") a$),
-      ($on$, $eps alt x$),
-      ($dm$, $eps alt tt("%")$),
-      ($env$, $eps alt tt("@")a$),
-      ($c$, $i alt d alt tt("\"")strb#h(0pt)tt("\"") alt tt("<")sexp#h(0pt)tt(">")$,
-            $tt("TRUE") alt tt("FALSE")$,
-            $tt("TRUE_LGL") alt tt("FALSE_LGL") alt tt("NA_LGL")$,
-            $tt("NA_INT") alt tt("NA_REAL") alt tt("NA_STR")$),
+      semrule($na$, $a alt x tt("=") a$),
+      semrule($on$, $eps alt x$),
+      synrule($dm$, $eps alt tt("%")$),
+      semrule($env$, $eps alt tt("@")a$),
+      ($c$, $i alt #sem($d$) alt #sem($tt("\"")strb#h(0pt)tt("\"")$) alt #sem($tt("<")sexp#h(0pt)tt(">")$)$,
+            $#sem($tt("TRUE")$) alt #sem($tt("FALSE")$)$,
+            $#sem($tt("TRUE_LGL")$) alt #sem($tt("FALSE_LGL")$) alt #sem($tt("NA_LGL")$)$,
+            $#sem($tt("NA_INT")$) alt #sem($tt("NA_REAL")$) alt #sem($tt("NA_STR")$)$),
     ),
     grammar(
       ($e$, $kw("noop")$,
-            $kw("mkenv") alt kw("mkenv~") alt kw("mkenv-") alt kw("popenv")$,
-            $kw("ld") x alt kw("ld-super") x$,
-            $kw("ldf") x alt kw("ldf-glob") x alt kw("ldf-base") x$,
-            $kw("st") x tt("=") a alt kw("st-super") x tt("=") a$,
+            $#sem($kw("mkenv")$) alt #sem($kw("mkenv~")$) alt #sem($kw("mkenv-")$) alt #sem($kw("popenv")$)$,
+            $#syn($kw("ld") x$) alt #sem($kw("ld-super") x$)$,
+            $#sem($kw("ldf") x$) alt #sem($kw("ldf-glob") x$) alt #sem($kw("ldf-base") x$)$,
+            $#syn($kw("st") x tt("=") a$) alt #sem($kw("st-super") x tt("=") a$)$,
             $a tt("$")x alt a tt("$")x tt("=") a$,
-            $kw("v(")pk#h(0pt)kw(")")tt("[")seq(a)tt("]") alt kw("dots")tt("[")seq(na)tt("]")$,
-            $a tt("[")a#h(0pt)tt("]") alt a tt("[[")a#h(0pt)tt("]]") alt a tt("[")a#h(0pt)tt("]") tt("=") a$,
-            $f dm env tt("<") sig#h(0pt)tt(">")tt("(")seq(a)tt(")")$,
-            $kw("dyn") a tt("(")seq(a)tt(")")$,
-            $kw("dyn") a tt("[")seq(on)tt("]")tt("(")seq(a)tt(")")$,
-            $kw("clos") f alt kw("clos-static") f$,
-            $kw("prom")tt("<")t space fx#h(0pt)tt(">")tt("{") body tt("}")$,
-            $kw("prom-")tt("<")t space fx#h(0pt)tt(">")tt("{") body tt("}")$,
-            $kw("force") a alt kw("force?") a$,
+            $#syn($kw("v(")pk#h(0pt)kw(")")tt("[")seq(a)tt("]")$) alt #sem($kw("dots")tt("[")seq(na)tt("]")$)$,
+            $#sem($a tt("[")a#h(0pt)tt("]")$) alt #syn($a tt("[[")a#h(0pt)tt("]]")$) alt a tt("[")a#h(0pt)tt("]") tt("=") a$,
+            syn($f dm #sem($env$) tt("<") sig#h(0pt)tt(">")tt("(")seq(a)tt(")")$),
+            sem($kw("dyn") a tt("(")seq(a)tt(")")$),
+            sem($kw("dyn") a tt("[")seq(on)tt("]")tt("(")seq(a)tt(")")$),
+            $#sem($kw("clos") f$) alt #sem($kw("clos-static") f$)$,
+            syn($kw("prom")tt("<")t space fx#h(0pt)tt(">")tt("{") body tt("}")$),
+            sem($kw("prom-")tt("<")t space fx#h(0pt)tt(">")tt("{") body tt("}")$),
+            $kw("force") a alt #sem($kw("force?") a$)$,
             $kw("dup") a$,
             $a kw("as") t$,
-            $a tt("?:") t alt a tt("?=") c alt a tt("?-") f$,
-            $kw("ld") x tt("?=") c alt kw("ldf") x tt("?-") f$),
+            $#sem($a tt("?:") t$) alt #sem($a tt("?=") c$) alt #sem($a tt("?-") f$)$,
+            $#sem($kw("ld") x tt("?=") c$) alt #sem($kw("ldf") x tt("?-") f$)$),
     ),
   ),
   caption: [Instructions, expressions, and arguments],
