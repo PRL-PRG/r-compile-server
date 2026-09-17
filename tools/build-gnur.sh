@@ -72,6 +72,12 @@ if [[ $USING_OSX -eq 1 ]]; then
   export F77FLAGS="-Wall $OPT"
   export LDFLAGS="-L$HOMEBREW_DIR/lib"
   export CPPFLAGS="-I$HOMEBREW_DIR/include"
+  # Skip configure's probe for how to generate Make dependencies. It expects `-MM` to print
+  # `conftest.o: conftest.c`, but LLVM 23's clang prints the SDK's `SDKSettings.json` first, so
+  # the probe falls back to `/usr/bin/cpp -M`. That runs `-traditional-cpp`, which can't parse the
+  # macOS 26+ SDKs' `<Availability.h>`, and every `.d` fails to build.
+  export r_cv_prog_cc_m='$(CC) -MM'
+  export r_cv_prog_objc_m='$(OBJC) -MM'
   CONFIGURE_ARGS="
     --enable-R-shlib
     --with-internal-tzcode
