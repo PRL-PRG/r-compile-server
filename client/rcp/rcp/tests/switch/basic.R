@@ -204,4 +204,21 @@ assert_eq(f_single("any"), "ONLY", "single: string EXPR -> default alt")
 assert_eq(f_single("ONLY"),"ONLY", "single: string EXPR (any) -> default alt")
 cat("Test 8 (variant 010, single unnamed alt): OK\n")
 
+# ---------------------------------------------------------------------------
+# 9. String EXPR against a numeric switch (names == R_NilValue).
+#    With more than one offset this is an error; with a single offset (no
+#    alternatives) it warns and falls through to the default, matching the
+#    interpreter. These are the only reachable error/warning paths on the
+#    is_names_null side of the stencil -- the "bad numeric/character 'switch'
+#    offsets" and "bad 'switch' names" checks cannot be reached from bytecode
+#    produced by R's compiler (the offsets are always INTSXP and names/coffsets
+#    always have the same length), which is why they are validated once in
+#    get_stencil() instead of on every execution.
+# ---------------------------------------------------------------------------
+assert_err(f_num("a"), "numeric EXPR required for 'switch' without named alternatives",
+           "string EXPR against numeric switch errors")
+assert_warn(f_noalt("a"), "'switch' with no alternatives",
+            "string EXPR, no alternatives -> warning")
+cat("Test 9 (string EXPR, numeric switch): OK\n")
+
 cat("All switch opcode tests passed.\n")

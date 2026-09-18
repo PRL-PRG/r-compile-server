@@ -2,14 +2,16 @@
 
 #include "../common2c/rsh_utils.h"
 
-// `RCP` means "built against the copy-and-patch variant of GNU-R". It comes from that R's
-// `etc/Makeconf`, so *every* package built against it gets it, and it only says which `Rinternals.h`
+// `RCP` means "built against the copy-and-patch variant of GNU-R". It comes
+// from that R's `etc/Makeconf`, so *every* package built against it gets it,
+// and it only says which `Rinternals.h`
 // (`rshEvalUnboxed`, `Rsh_closure`, ...) we agree with.
 //
-// `RCP_STENCILS` means this translation unit *is* a copy-and-patch stencil: its ops and R symbols
-// are holes the extractor patches, its data is patched in place, and it follows the RCP calling
-// convention. Only `client/rcp`'s stencils are (they define `COMPILING_STENCILS`); the rsh package
-// is ordinary code that happens to be compiled against the same R. Same test as
+// `RCP_STENCILS` means this translation unit *is* a copy-and-patch stencil: its
+// ops and R symbols are holes the extractor patches, its data is patched in
+// place, and it follows the RCP calling convention. Only `client/rcp`'s
+// stencils are (they define `COMPILING_STENCILS`); the rsh package is ordinary
+// code that happens to be compiled against the same R. Same test as
 // `../common2c/gnur_symbols.h`.
 #if defined(RCP) && defined(COMPILING_STENCILS)
 #define RCP_STENCILS
@@ -26,34 +28,35 @@ extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 // flags. This is a destructive operation as we lose the original SEXP. Use only
 // at places where the original SEXP is not observable later. Ported from
 // bcStackScalar.
-static ALWAYS_INLINE void val_unbox_inplace(R_bcstack_t *s, int require_simple,
-                                            int allow_real, int allow_int,
-                                            int allow_lgl) {
+static ALWAYS_INLINE void unbox_inplace(R_bcstack_t *s, int require_simple,
+                                        int allow_real, int allow_int,
+                                        int allow_lgl) {
   if (s->tag != 0)
     return;
 
   SEXP x = s->u.sxpval;
   if (x->sxpinfo.scalar && (!require_simple || ATTRIB(x) == R_NilValue)) {
     assert(XLENGTH(x) == 1);
+    assert(!ALTREP(x));
     switch (TYPEOF(x)) {
     case REALSXP: {
       if (!allow_real) // Should constant-propagate and eliminate dead code
         break;
-      s->u.dval = SCALAR_DVAL(x);
+      s->u.dval = SCALAR_DVAL0(x);
       s->tag = TYPEOF(x);
       break;
     }
     case INTSXP: {
       if (!allow_int) // Should constant-propagate and eliminate dead code
         break;
-      s->u.ival = SCALAR_IVAL(x);
+      s->u.ival = SCALAR_IVAL0(x);
       s->tag = TYPEOF(x);
       break;
     }
     case LGLSXP: {
       if (!allow_lgl) // Should constant-propagate and eliminate dead code
         break;
-      s->u.ival = SCALAR_LVAL(x);
+      s->u.ival = SCALAR_LVAL0(x);
       s->tag = TYPEOF(x);
       break;
     }
@@ -64,7 +67,7 @@ static ALWAYS_INLINE void val_unbox_inplace(R_bcstack_t *s, int require_simple,
 // Converts an unboxed integer value to double in-place.
 // This is a destructive operation as we lose the original SEXP. Use only
 // at places where the original SEXP is not observable later.
-// Use after val_unbox_inplace to achieve bcStackScalarReal.
+// Use after unbox_inplace to achieve bcStackScalarReal.
 static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
   if (s->tag == INTSXP) {
     s->tag = REALSXP;
@@ -110,17 +113,11 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
         SET_LGL_VAL(res, LOGICAL_ELT(vec, i));                                 \
         return;                                                                \
       case CPLXSXP:                                                            \
-        SET_SXP_VAL(res, Rf_ScalarComplex(COMPLEX_ELT(vec, i)));               \
+        SET_SXP_VAL(res, Rsh_ScalarComplex(COMPLEX_ELT(vec, i)));              \
         return;                                                                \
       case RAWSXP:                                                             \
-        SET_SXP_VAL(res, Rf_ScalarRaw(RAW(vec)[i]));                           \
+        SET_SXP_VAL(res, Rsh_ScalarRaw(RAW(vec)[i]));                          \
         return;                                                                \
-      /* Braced because a label must be followed by a statement and a          \
-         declaration is not one; without them the `SEXP` below is a syntax     \
-         error. Named `__elt__`/`__v__` rather than `elt`/`v` because          \
-         `rsh_utils.h` includes <Rinternals.h> with the remapping on, so       \
-         plain `elt` expands to `Rf_elt` and the local turns into a            \
-         redeclaration of that function. */                                    \
       case VECSXP: {                                                           \
         SEXP __elt__ = VECTOR_ELT(vec, i);                                     \
         RAISE_NAMED(__elt__, NAMED(vec));                                      \
@@ -138,12 +135,12 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
   } while (0)
 
 #define DO_FAST_SETVECELT(/* Value* */ target, /* SEXP */ vec,                 \
-                          /* R_xlen_t */ i, /* Value */ rhs,                   \
+                          /* R_xlen_t */ i, /* Value* */ rhs,                  \
                           /* Rboolean */ subassign2)                           \
   do {                                                                         \
     if (i >= 0 && vec != R_NilValue && XLENGTH(vec) > i) {                     \
-      Value __rhs__ = (rhs);                                                   \
-      val_unbox_inplace(&__rhs__, 1, 1, 1, 1);                                 \
+      Value __rhs__ = *(rhs);                                                  \
+      unbox_inplace(&__rhs__, 1, 1, 1, 1);                                     \
       ASSUME(TYPEOF(vec) != 0); /* Cannot be NULL after check */               \
       if (TYPEOF(vec) == REALSXP) {                                            \
         switch (VAL_TAG(__rhs__)) {                                            \
@@ -162,10 +159,8 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
           SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
-        case 0:                                                                \
-          break;                                                               \
         default:                                                               \
-          UNREACHABLE();                                                       \
+          break;                                                               \
         }                                                                      \
       } else if (VAL_TAG(__rhs__) == TYPEOF(vec)) {                            \
         switch (VAL_TAG(__rhs__)) {                                            \
@@ -183,16 +178,22 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
           UNREACHABLE();                                                       \
         }                                                                      \
       } else if (subassign2 && TYPEOF(vec) == VECSXP) {                        \
-        SEXP rhs_sxp = val_as_sexp(rhs);                                       \
-        if (rhs_sxp != R_NilValue) {                                           \
-          if (MAYBE_REFERENCED(rhs_sxp) && VECTOR_ELT(vec, i) != rhs_sxp) {    \
-            R_FixupRHS(vec, rhs_sxp);                                          \
+        SEXP rhs_sxp;                                                          \
+        if (VAL_IS_SXP(*rhs)) {                                                \
+          rhs_sxp = VAL_SXP(*rhs);                                             \
+          if (rhs_sxp == R_NilValue) {                                         \
+            break;                                                             \
           }                                                                    \
-          SET_VECTOR_ELT(vec, i, rhs_sxp);                                     \
-          SET_SXP_VAL(target, vec);                                            \
-          SETTER_CLEAR_NAMED(vec);                                             \
-          return;                                                              \
+          if (MAYBE_REFERENCED(rhs_sxp) && VECTOR_ELT(vec, i) != rhs_sxp) {    \
+            rhs_sxp = R_FixupRHS(vec, rhs_sxp);                                \
+          }                                                                    \
+        } else {                                                               \
+          rhs_sxp = box(*rhs);                                                 \
         }                                                                      \
+        SET_VECTOR_ELT(vec, i, rhs_sxp);                                       \
+        SET_SXP_VAL(target, vec);                                              \
+        SETTER_CLEAR_NAMED(vec);                                               \
+        return;                                                                \
       }                                                                        \
     }                                                                          \
   } while (0)
@@ -229,6 +230,14 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
 #define RSH_PUSH_ARG(/* Value* */ head, /* Value* */ tail, /* SEXP */ value)   \
   RSH_LIST_APPEND_EX(head, tail, value, FALSE, TRUE, FALSE)
 
+#ifdef NO_CALL_FRAME_ARGS_NR
+#define RSH_PUSH_ARG_RC(/* Value* */ head, /* Value* */ tail,                  \
+                        /* SEXP */ value)                                      \
+  RSH_LIST_APPEND_EX(head, tail, value, TRUE, TRUE, FALSE)
+#else
+#define RSH_PUSH_ARG_RC RSH_PUSH_ARG
+#endif
+
 #define RSH_INIT_PUSH_ARG(/* Value* */ head, /* Value* */ tail,                \
                           /* SEXP */ value)                                    \
   RSH_LIST_APPEND_EX(head, tail, value, FALSE, TRUE, TRUE)
@@ -253,13 +262,27 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
 
 #define RSH_CALL_ARGS_DECREMENT_LINKS(args)                                    \
   do {                                                                         \
-    SEXP __a__ = (args);                                                       \
-    while (__a__ != R_NilValue) {                                              \
+    for (SEXP __a__ = (args); __a__ != R_NilValue; __a__ = CDR(__a__)) {       \
       assert(!BNDCELL_TAG(__a__));                                             \
       DECREMENT_LINKS(CAR0(__a__));                                            \
-      __a__ = CDR(__a__);                                                      \
     }                                                                          \
   } while (0)
+
+static INLINE void RSH_CLOSURE_ARGS_DECREMENT_LINKS(SEXP args) {
+  /* it would be better not to build this arglist with CONS_NR in
+     the first place */
+#ifndef NO_CALL_FRAME_ARGS_NR
+  for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
+    assert(!BNDCELL_TAG(a));
+    DECREMENT_LINKS(CAR0(a));
+    if (!TRACKREFS(a)) {
+      ENABLE_REFCNT(a);
+      INCREMENT_REFCNT(CAR0(a));
+      INCREMENT_REFCNT(CDR(a));
+    }
+  }
+#endif
+}
 
 /* ------------------------------------------------------------------ *
  * Node stack link-count protection (see R/doc/notes/bcstkprot.md).
@@ -405,43 +428,32 @@ static INLINE void Rsh_bcprot_restore(RshBCProt saved) {
   RSH_CHECK_BCPROT();
 }
 
-static ALWAYS_INLINE SEXP STACKVAL_TO_SEXP(R_bcstack_t v) {
-  // Most likely we will have a SEXP already, so check for that first
-  if (v.tag == 0) {
-    return v.u.sxpval;
-  }
-  switch (v.tag) {
-  case REALSXP:
-    return Rf_ScalarReal(v.u.dval);
-  case INTSXP:
-    return Rf_ScalarInteger(v.u.ival);
-  case LGLSXP:
-    return Rsh_ScalarLogical(v.u.ival);
-  case RSH_ISQSXP: {
-    Rsh_isqinfo_t isqinfo = v.u.isqval;
-    return R_compact_intrange(isqinfo.n1, isqinfo.n2);
-  }
-  default:
-    UNREACHABLE();
-  }
-}
-
 // VALUE REPRESENTATION
 // --------------------
 
 typedef R_bcstack_t Value;
 
 typedef struct {
-  R_xlen_t idx;
-  R_xlen_t len;
+  union {
+    struct {
+      R_xlen_t idx;
+      R_xlen_t len;
+    } incr;
+    // Cursor for LISTSXP sequences. Kept here rather than in the sequence stack
+    // slot so that slot stays immutable for the whole loop: it is below
+    // R_BCProtTop and thus link counted, and it holds the head that
+    // Rsh_StartFor's INCREMENT_LINKS and Rsh_EndFor's DECREMENT_LINKS pair up
+    // on. Not GC-traced, but every cdr is reachable from that head.
+    SEXP cursor;
+  } u;
   SEXPTYPE type;
+#ifdef STEPFOR_SPECIALIZE
+  // Installed STEPFOR variant index (set by STARTFOR). A recursive re-entry can
+  // leave a variant for a different loop in the live slot; each specialized
+  // STEPFOR checks this to detect the mismatch and fall back.
+  int variant;
+#endif
   SEXP symbol;
-  // Cursor for LISTSXP sequences. Kept here rather than in the sequence stack
-  // slot so that slot stays immutable for the whole loop: it is below
-  // R_BCProtTop and thus link counted, and it holds the head that
-  // Rsh_StartFor's INCREMENT_LINKS and Rsh_EndFor's DECREMENT_LINKS pair up on.
-  // Not GC-traced, but every cdr is reachable from that head.
-  SEXP cursor;
 } RshLoopInfo;
 
 // For copy-and-patch. Possibly for Rsh as well.
@@ -887,9 +899,43 @@ static INLINE Rsh_isqinfo_t VAL_ISQ(Value v) {
 
 // Checked accessors
 
+// Boxes a STACKVAL in-place, replacing the integer/double/etc with an SEXP.
+// If the given pointer is directly from stack, it is protected from the GC.
 // TODO: can we share this bcell expand?
-// TODO: rename
-#define val_as_sexp STACKVAL_TO_SEXP
+static ALWAYS_INLINE SEXP box_inplace(R_bcstack_t *s) {
+  // Most likely we will have a SEXP already, so check for that first
+  if (s->tag == 0) {
+    return s->u.sxpval;
+  }
+  SEXP value;
+  switch (s->tag) {
+  case REALSXP:
+    value = Rsh_ScalarReal(s->u.dval);
+    ASSUME(REFCNT(value) == 0);
+    break;
+  case INTSXP:
+    value = Rsh_ScalarInteger(s->u.ival);
+    ASSUME(REFCNT(value) == 0);
+    break;
+  case LGLSXP:
+    value = Rsh_ScalarLogical(s->u.ival);
+    ASSUME(REFCNT(value) == REFCNTMAX);
+    break;
+  case RSH_ISQSXP: {
+    Rsh_isqinfo_t isqinfo = s->u.isqval;
+    value = R_compact_intrange(isqinfo.n1, isqinfo.n2);
+    break;
+  }
+  default:
+    UNREACHABLE();
+  }
+  SET_SXP_VAL(s, value);
+  return value;
+}
+
+// Returns SEXP from a STACKVAL (allocates if necessary).
+// Result has to be protected manually!
+static ALWAYS_INLINE SEXP box(R_bcstack_t x) { return box_inplace(&x); }
 
 #ifndef NO_STACK_OVERFLOW_CHECK
 #define CHECK_OVERFLOW(__n__)                                                  \
@@ -1025,10 +1071,10 @@ static INLINE void bcell_expand(BCell b) {
     PROTECT(b);
     switch (typetag) {
     case REALSXP:
-      val = Rf_ScalarReal(vv.dval);
+      val = Rsh_ScalarReal(vv.dval);
       break;
     case INTSXP:
-      val = Rf_ScalarInteger(vv.ival);
+      val = Rsh_ScalarInteger(vv.ival);
       break;
     case LGLSXP:
       val = Rsh_ScalarLogical(vv.ival);
@@ -1058,7 +1104,7 @@ static ALWAYS_INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
   assert(rho != R_BaseEnv && rho != R_BaseNamespace && !IS_USER_DATABASE(rho));
   SEXP cell = findVarLocInFrame(rho, symbol, NULL);
   assert(cell != NULL);
-  if (IS_ACTIVE_BINDING(cell)) {
+  if (UNLIKELY(IS_ACTIVE_BINDING(cell))) {
     return R_NilValue;
   }
   return cell;
@@ -1173,7 +1219,7 @@ JIT_DECL SEXP Rsh_pc_reset(void);
 
 // Converts the given value to an index, or returns non-positive value
 static INLINE R_xlen_t as_index(Value v) {
-  val_unbox_inplace(&v, 0, 1, 1, 0);
+  unbox_inplace(&v, 0, 1, 1, 0);
   switch (VAL_TAG(v)) {
   case INTSXP: {
     int i = VAL_INT(v);
@@ -1238,7 +1284,7 @@ static INLINE SEXP Rsh_append_values_to_args(Value *stack, Value const *vals,
 
   for (int i = 0; i < n; i++, p--) {
     PROTECT(args);
-    args = CONS_NR(val_as_sexp(*p), args);
+    args = CONS_NR(box(*p), args);
     UNPROTECT(1);
   }
 
@@ -1288,14 +1334,19 @@ static INLINE void Rsh_evaluated_promise_to_value(Value *res, SEXP value) {
 }
 
 // cell could be null
-static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
-                                  Rboolean keepmiss, SEXP rho) {
+static ALWAYS_INLINE void Rsh_do_get_var_internal(Value *res, SEXP symbol,
+                                                  SEXP value, Rboolean keepmiss,
+                                                  SEXP rho,
+                                                  Rboolean can_be_unbound) {
   RSH_PC_INC(slow_getvar);
-  if (keepmiss) { // This should be statically eliminated for non-keepmiss instructions
+  if (keepmiss) { // This should be statically eliminated for non-keepmiss
+                  // instructions
     SET_SXP_VAL(res, value); // Set now to protect during R_isMissing
   }
 
-  if (value == R_UnboundValue) {
+  assert(can_be_unbound || value != R_UnboundValue);
+
+  if (can_be_unbound && value == R_UnboundValue) {
     UNBOUND_VARIABLE_ERROR(symbol, rho);
   } else if (value == R_MissingArg) {
     if (!keepmiss) {
@@ -1331,6 +1382,21 @@ static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
     DECREMENT_LINKS(CAR0(a));
   }
   return args;
+}
+
+static INLINE void Rsh_do_get_var_NOUNBOUND_INLINED(Value *res, SEXP symbol,
+                                                    SEXP value,
+                                                    Rboolean keepmiss,
+                                                    SEXP rho) {
+  Rsh_do_get_var_internal(res, symbol, value, keepmiss, rho, FALSE);
+}
+static INLINE void Rsh_do_get_var_INLINED(Value *res, SEXP symbol, SEXP value,
+                                          Rboolean keepmiss, SEXP rho) {
+  Rsh_do_get_var_internal(res, symbol, value, keepmiss, rho, TRUE);
+}
+static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
+                                  Rboolean keepmiss, SEXP rho) {
+  Rsh_do_get_var_internal(res, symbol, value, keepmiss, rho, TRUE);
 }
 
 static INLINE SEXP Rsh_closure_call_args(SEXP args) {
@@ -1395,6 +1461,32 @@ static
     }                                                                          \
   } while (0)
 
+// Integer ADD/SUB/MUL with GNU-R overflow semantics. Computes (a) op (b) into
+// *(r) and evaluates to true when the result must fall through to the slow
+// path (arith2) instead of being stored: either the native op overflowed int
+// range, or it landed exactly on NA_INTEGER (== INT_MIN), which R reserves as
+// NA. Both cases make arith2 return NA_integer_ and raise "NAs produced by
+// integer overflow". `op` is a compile-time constant here, so the switch and
+// the unused builtins fold away to a single checked op + branch.
+#define DO_ARITH_INT_OFLOW(op, a, b, r)                                        \
+  __extension__({                                                              \
+    _Bool __of__;                                                              \
+    switch (op) {                                                              \
+    case ADD_OP:                                                               \
+      __of__ = __builtin_add_overflow((a), (b), (r));                          \
+      break;                                                                   \
+    case SUB_OP:                                                               \
+      __of__ = __builtin_sub_overflow((a), (b), (r));                          \
+      break;                                                                   \
+    case MUL_OP:                                                               \
+      __of__ = __builtin_mul_overflow((a), (b), (r));                          \
+      break;                                                                   \
+    default:                                                                   \
+      __builtin_unreachable();                                                 \
+    }                                                                          \
+    __of__ || *(r) == NA_INTEGER;                                              \
+  })
+
 // Sets r to LGL_TO_VAL(a op b)
 #define DO_RELOP(op, a, b, r)                                                  \
   do {                                                                         \
@@ -1424,10 +1516,20 @@ static
 
 // calls R internal function which takes two arguments
 // it is like a second level builtin - called itself from do_* functions
+// `lhs` and `rhs` are `Value*`. Only `lhs` is rooted: it is boxed first, so it
+// has to survive boxing `rhs`, whereas nothing allocates between `rhs`'s box
+// and the callee protecting both (R_binary PROTECT_WITH_INDEXes them as its
+// first two statements; do_relop_dflt PROTECTs before every allocating path;
+// the isObject arm in arith2/relop cannot fire for a fresh box, and would
+// protect it as a CONS_NR car regardless). The two boxes must therefore stay
+// separate statements in this order -- folding them into the call arguments
+// makes the evaluation order unspecified and the reasoning above void.
 #define DO_BINARY_BUILTIN(fun, call, op, op_sym, lhs, rhs, rho, res)           \
   do {                                                                         \
-    SEXP __res_sxp__ = fun((call), (op), (op_sym), val_as_sexp((lhs)),         \
-                           val_as_sexp((rhs)), (rho));                         \
+    SEXP __lhs_sxp__ = box_inplace(lhs);                                       \
+    SEXP __rhs_sxp__ = box(*(rhs));                                            \
+    SEXP __res_sxp__ =                                                         \
+        fun((call), (op), (op_sym), __lhs_sxp__, __rhs_sxp__, (rho));          \
     SET_VAL(res, __res_sxp__);                                                 \
   } while (0)
 
@@ -1443,12 +1545,18 @@ static
   } while (0)
 
 // calls R builtin function do_* with 2 arguments
+// `arg1` and `arg2` are `Value*`. CONS_NR protects its own car and cdr, so the
+// boxed operands need nothing extra -- but the inner cell has to survive
+// boxing `arg1`, so it is parked in `arg2`'s slot (which is dead: `res` is
+// `arg1`). Same ordering as GNU-R's `Builtin2`.
 #define DO_BUILTIN2(/* PRIMFUN */ fun, /* SEXP */ call, /* SEXP */ op,         \
-                    /* Value */ arg1, /* Value */ arg2, /* SEXP */ rho,        \
+                    /* Value* */ arg1, /* Value* */ arg2, /* SEXP */ rho,      \
                     /* Value* */ res)                                          \
   do {                                                                         \
-    SEXP __tmp__ = CONS_NR(val_as_sexp((arg1)),                                \
-                           CONS_NR(val_as_sexp((arg2)), R_NilValue));          \
+    Value *__a2__ = (arg2);                                                    \
+    SEXP __t2__ = CONS_NR(box(*__a2__), R_NilValue);                           \
+    SET_SXP_VAL(__a2__, __t2__);                                               \
+    SEXP __tmp__ = CONS_NR(box(*(arg1)), __t2__);                              \
     SET_SXP_VAL(res, __tmp__);                                                 \
     assert(TYPEOF((op)) == BUILTINSXP);                                        \
     SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
@@ -1507,7 +1615,7 @@ static INLINE int fixup_scalar_logical(Value *v, SEXP call, const char *arg,
                                        const char *op) {
   if (UNLIKELY(VAL_IS_SXP(*v))) {
     // FIXME: does it make sense to optimize LGL / DBL?
-    if (!Rf_isNumber(VAL_SXP(*v))) {
+    if (!Rsh_isNumber(VAL_SXP(*v))) {
       Rf_errorcall(call, "invalid %s type in 'x %s y'", arg, op);
     }
     return Rf_asLogical2(VAL_SXP(*v), 1, call);

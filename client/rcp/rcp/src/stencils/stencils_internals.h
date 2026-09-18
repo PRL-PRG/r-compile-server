@@ -41,6 +41,9 @@ extern const void *const _RCP_CRUNTIME0_R_FalseValue[];
 extern const void *const _RCP_CRUNTIME0_R_LogicalNAValue[];
 #define R_LogicalNAValue CONST_RUNTIME_VAR(R_LogicalNAValue, SEXP)
 
+extern const void *const _RCP_CRUNTIME0_Rsh_ReflectivelyAccessed[];
+#define Rsh_ReflectivelyAccessed CONST_RUNTIME_VAR(Rsh_ReflectivelyAccessed, SEXP)
+
 extern const void *const _RCP_CRUNTIME0_R_DotsSymbol[];
 #define R_DotsSymbol CONST_RUNTIME_VAR(R_DotsSymbol, SEXP)
 
@@ -52,6 +55,9 @@ extern const void *const _RCP_CRUNTIME0_R_BaseEnv[];
 
 extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
+
+extern const void *const _RCP_CRUNTIME0_R_ClassSymbol[];
+#define R_ClassSymbol CONST_RUNTIME_VAR(R_ClassSymbol, SEXP)
 
 #if __GNUC__ >= 14
 #define STENCIL_ATTRIBUTES __attribute__((no_callee_saved_registers))
@@ -196,13 +202,13 @@ extern const void *const _RCP_CONSTCELL_AT_IMM0;
 extern const void *const _RCP_CONSTCELL_AT_IMM1;
 extern const void *const _RCP_CONSTCELL_AT_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_IMM3;
-#define GETCONSTCELL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_IMM##i]), __alignof__(SEXP *)))
+#define GETCONSTCELL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(uint64_t)&_RCP_CONSTCELL_AT_IMM##i]), __alignof__(SEXP *)))
 
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM0;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM1;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
-#define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
+#define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
 
 // Custom data for stencils. The two versions point to identical data,
 // but the REL version using more efficient encoding of the pointer,

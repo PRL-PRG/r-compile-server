@@ -37,6 +37,69 @@ enum
 	RSH_RECORDING_STRSXP_SIMPLE_VECTOR = 31,
 };
 
+// Placed at RETURN/RETURNJMP of a compiled closure body. If the symbol
+// Rsh_ReflectivelyAccessed has been bound in the call frame (envir.c's
+// recordReflection does this when the environment is reflectively accessed),
+// clear the recording's reflection flag. The flag uses inverted logic (starts
+// at 1, cleared to 0 on access) so the runtime store is of an immediate 0; the
+// export layer flips it back so R still sees TRUE-when-accessed.
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_REFLECTION_CHECK)
+{
+	PROLOGUE;
+	int *flag = (int *)GETCUSTOM_REL(0);
+	for (SEXP b = FRAME(GET_RHO()); b != R_NilValue; b = CDR(b))
+	{
+		if (TAG(b) == Rsh_ReflectivelyAccessed)
+		{
+			*flag = 0;
+			break;
+		}
+	}
+	NEXT;
+}
+
+// Promise-escape tracking. A per-MAKEPROM-site flag, reset per invocation, shared
+// between the creating function's code and the promise's own JITted code. It records
+// whether the promise ever escaped (outlived the creating call unforced) at least
+// once; once escaped it stays escaped.
+//   1 = no pending promise this invocation (clean, or forced)
+//   0 = a promise was created this invocation and is not yet forced
+//   2 = escaped at least once (permanent)
+//  <0 = the promise site was not JIT-compiled, so it is not tracked
+// The "never executed" case is not encoded here -- the promise's own run counter
+// already carries it.
+
+// Just after MAKEPROM: a fresh promise is pending for this invocation.
+RCP_STENCIL_FUNCTION(_RCP_PROM_MAKE)
+{
+	PROLOGUE;
+	int *flag = (int *)GETCUSTOM(0);
+	if (*flag != 2)
+		*flag = 0;
+	NEXT;
+}
+
+// At the start of the promise's compiled code, i.e. when it is forced.
+RCP_STENCIL_FUNCTION(_RCP_PROM_FORCE)
+{
+	PROLOGUE;
+	int *flag = (int *)GETCUSTOM(0);
+	if (*flag == 0)
+		*flag = 1;
+	NEXT;
+}
+
+// At RETURN/RETURNJMP of the function that created the promise: a still-pending
+// promise outlived the call, so mark the site escaped permanently.
+RCP_STENCIL_FUNCTION(_RCP_PROM_EXIT)
+{
+	PROLOGUE;
+	int *flag = (int *)GETCUSTOM(0);
+	if (*flag == 0)
+		*flag = 2;
+	NEXT;
+}
+
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 {
 	PROLOGUE;
@@ -99,7 +162,6 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 				type = RSH_RECORDING_REALSXP_SIMPLE_SCALAR;
 				break;
 			case ISQSXP:
-				assert(TYPEOF(val_as_sexp(val)) == INTSXP);
 				type = RSH_RECORDING_INTSXP;
 				break;
 			default:

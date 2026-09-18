@@ -39,10 +39,11 @@
 #define isObject(s) (OBJECT(s) != 0)
 #define Rf_isLogical(s) (TYPEOF(s) == LGLSXP)
 #define isNumericOnly(x) (Rf_isNumeric(x) && !Rf_isLogical(x))
-#define PRIMOFFSET(x)	((x)->u.primsxp.offset)
-#define PRIMNAME(x)	(R_FunTab[PRIMOFFSET(x)].name)
+#define PRIMOFFSET(x) ((x)->u.primsxp.offset)
+#define PRIMNAME(x) (R_FunTab[PRIMOFFSET(x)].name)
 
-// This one is defined somewhere unknown, but the value is mentioned in a comment
+// This one is defined somewhere unknown, but the value is mentioned in a
+// comment
 #ifndef FLT_EPSILON
 #define FLT_EPSILON 1.192e-07
 #endif
@@ -77,6 +78,7 @@ static INLINE double R_logbase(double x, double base) {
   return R_log(x) / R_log(base);
 }
 
+#define LOGICAL_TO_INTEGER(x) (x) /* Uses the same NA representation */
 #define INTEGER_TO_LOGICAL(x)                                                  \
   ((x) == NA_INTEGER ? NA_LOGICAL : (x) ? TRUE : FALSE)
 #define INTEGER_TO_REAL(x) ((x) == NA_INTEGER ? NA_REAL : (x))
@@ -151,11 +153,23 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
 #define SET_SCALAR_CVAL(s, v) COMPLEX((s))[0] = (v)
 #define SET_SCALAR_BVAL(s, v) RAW((s))[0] = (v)
 
+/* For speed in cases when the argument is known to not be an ALTREP list. */
+#define VECTOR_ELT_0(x, i) ((SEXP *)STDVEC_DATAPTR(x))[i]
+#define SET_VECTOR_ELT_0(x, i, v) (((SEXP *)STDVEC_DATAPTR(x))[i] = (v))
+#define STRING_ELT_0(x, i) ((SEXP *)STDVEC_DATAPTR(x))[i]
+#define SET_STRING_ELT_0(x, i, v) (((SEXP *)STDVEC_DATAPTR(x))[i] = (v))
+
 #define SET_SCALAR_IVAL0(s, v) INTEGER0((s))[0] = (v)
 #define SET_SCALAR_LVAL0(s, v) INTEGER0((s))[0] = (v)
 #define SET_SCALAR_DVAL0(s, v) REAL0((s))[0] = (v)
 #define SET_SCALAR_CVAL0(s, v) COMPLEX0((s))[0] = (v)
 #define SET_SCALAR_BVAL0(s, v) RAW0((s))[0] = (v)
+
+#define SCALAR_IVAL0(x) INTEGER0(x)[0]
+#define SCALAR_LVAL0(x) INTEGER0(x)[0]
+#define SCALAR_DVAL0(x) REAL0(x)[0]
+#define SCALAR_CVAL0(x) COMPLEX0(x)[0]
+#define SCALAR_BVAL0(x) RAW0(x)[0
 
 // FIXME: implement signal checking
 #define RSH_CHECK_SIGINT()
@@ -174,7 +188,7 @@ static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
 
 static INLINE SEXP Rsh_get_mat_dim_attr(SEXP v) {
   SEXP dim = Rsh_get_dim_attr(v);
-  if (LENGTH(dim) == 2) {
+  if (dim != R_NilValue && XLENGTH(dim) == 2) {
     return dim;
   } else {
     return R_NilValue;
@@ -183,7 +197,7 @@ static INLINE SEXP Rsh_get_mat_dim_attr(SEXP v) {
 
 static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
   SEXP dim = Rsh_get_dim_attr(v);
-  if (LENGTH(dim) > 0) {
+  if (dim != R_NilValue && XLENGTH(dim) > 0) {
     return dim;
   } else {
     return R_NilValue;
@@ -277,6 +291,28 @@ static INLINE SEXP getActiveValue(SEXP fun) {
   return expr;
 }
 
+static ALWAYS_INLINE int Rsh_IntegerFromReal(double x) {
+  static_assert(0x80000000 == NA_INTEGER);
+#if defined(__x86_64__) || (defined(__i386__) && defined(__SSE2__))
+  /* cvttsd2si returns the "integer indefinite" value 0x80000000 == NA_INTEGER
+     for NaN, +-Inf and everything outside [-2^31, 2^31), so the conversion
+     doubles as the range check.  Done in asm because the equivalent C cast
+     would be UB (C11 6.3.1.4) for exactly the inputs we care about. */
+  int i;
+  __asm__("{cvttsd2si %1, %0|cvttsd2si %0, %1}" : "=r"(i) : "xm"(x));
+  const int bad = (i == NA_INTEGER);
+#else
+  /* NaN fails the comparison too, and the accepted interval (-2^31, 2^31)
+     is symmetric, so one compare on the magnitude covers every case. */
+  const int bad = !(__builtin_fabs(x) < 2147483648.0);
+  const int i = bad ? NA_INTEGER : (int)x;
+#endif
+  if (UNLIKELY(bad && !ISNAN(x))) {
+    Rf_warning("NAs introduced by coercion to integer range");
+  }
+  return i;
+}
+
 static INLINE SEXP try_assign_unwrap(SEXP value, SEXP sym, SEXP rho,
                                      SEXP cell) {
   /* If EnsureLocal() has introduced a wrapper for the LHS object in
@@ -293,6 +329,43 @@ static INLINE SEXP try_assign_unwrap(SEXP value, SEXP sym, SEXP rho,
 
   return value;
 }
+static INLINE Rboolean Rsh_inherits(SEXP s, const char *name) {
+  SEXP klass;
+  R_xlen_t i, nclass;
+  if (OBJECT(s)) {
+    klass = getAttrib(s, R_ClassSymbol);
+    assert(TYPEOF(klass) == STRSXP);
+    nclass = XLENGTH(klass);
+    /* Scan from the last class: conventionally-built factors carry "factor"
+       as the final element (c("ordered", "factor")), so the common case hits
+       on the first iteration. Still scans all positions to match inherits().
+       OBJECT(s) implies a class attribute is present, which classgets() never
+       stores with length 0, so nclass >= 1 and the first iteration is always
+       valid -- hence do/while, testing i >= 0 only after each pass. */
+    i = nclass - 1;
+    do {
+      if (!strcmp(CHAR(STRING_ELT(klass, i)), name))
+        return TRUE;
+    } while (--i >= 0);
+  }
+  return FALSE;
+}
+static ALWAYS_INLINE Rboolean Rsh_isFactor(SEXP s) {
+  return (TYPEOF(s) == INTSXP && Rsh_inherits(s, "factor"));
+}
+static ALWAYS_INLINE Rboolean Rsh_isNumber(SEXP s) {
+  switch (TYPEOF(s)) {
+  case INTSXP:
+    if (Rsh_isFactor(s))
+      return FALSE;
+  case LGLSXP:
+  case REALSXP:
+  case CPLXSXP:
+    return TRUE;
+  default:
+    return FALSE;
+  }
+}
 static ALWAYS_INLINE SEXP Rsh_ScalarLogical(int x) {
   switch (x) {
   case NA_LOGICAL:
@@ -302,6 +375,37 @@ static ALWAYS_INLINE SEXP Rsh_ScalarLogical(int x) {
   default:
     return R_TrueValue;
   }
+}
+static ALWAYS_INLINE SEXP Rsh_ScalarInteger(int x) {
+  SEXP ans = Rf_allocVector(INTSXP, 1);
+  INTEGER0(ans)[0] = x;
+  return ans;
+}
+
+static ALWAYS_INLINE SEXP Rsh_ScalarReal(double x) {
+  SEXP ans = Rf_allocVector(REALSXP, 1);
+  REAL0(ans)[0] = x;
+  return ans;
+}
+
+static ALWAYS_INLINE SEXP Rsh_ScalarComplex(Rcomplex x) {
+  SEXP ans = Rf_allocVector(CPLXSXP, 1);
+  COMPLEX0(ans)[0] = x;
+  return ans;
+}
+
+static ALWAYS_INLINE SEXP Rsh_ScalarString(SEXP x) {
+  SEXP ans;
+  // PROTECT(x);
+  ans = Rf_allocVector(STRSXP, (R_xlen_t)1);
+  // UNPROTECT(1);
+  SET_STRING_ELT_0(ans, (R_xlen_t)0, x);
+  return ans;
+}
+static ALWAYS_INLINE SEXP Rsh_ScalarRaw(Rbyte x) {
+  SEXP ans = allocVector(RAWSXP, 1);
+  SET_SCALAR_BVAL0(ans, x);
+  return ans;
 }
 void old_to_new(SEXP x, SEXP y);
 #define NODE_IS_MARKED(s) (MARK(s) == 1)
@@ -368,11 +472,6 @@ static ALWAYS_INLINE int LENGTH_EX_0(SEXP x, const char *file, int line) {
 
 #define LENGTH_0(x) LENGTH_EX_0(x, __FILE__, __LINE__)
 
-/* For speed in cases when the argument is known to not be an ALTREP list. */
-#define VECTOR_ELT_0(x, i) ((SEXP *)STDVEC_DATAPTR(x))[i]
-#define SET_VECTOR_ELT_0(x, i, v) (((SEXP *)STDVEC_DATAPTR(x))[i] = (v))
-#define STRING_ELT_0(x, i) ((SEXP *)STDVEC_DATAPTR(x))[i]
-#define SET_STRING_ELT_0(x, i, v) (((SEXP *)STDVEC_DATAPTR(x))[i] = (v))
 typedef int32_t i32;
 typedef uint64_t u64;
 typedef uint32_t u32;

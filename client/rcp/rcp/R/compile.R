@@ -95,12 +95,15 @@ rcp_count_reset <- function() {
 
 #' Get runtime per-instruction execution counts
 #'
-#' @return The live named integer vector mapping opcode name to execution count,
-#'   in opcode order (unsorted). Counts accumulate across all functions compiled
-#'   while counting was enabled; use [rcp_count_reset()] to clear them. Returns
-#'   `NULL` if counting was never enabled. The result aliases RCP's internal
-#'   buffer, so copy it (e.g. `c(rcp_get_counts())`) if you need a stable
-#'   snapshot across further execution.
+#' @return A named numeric vector mapping opcode name to execution count, in
+#'   opcode order (unsorted), or `NULL` if counting was never enabled. Counts
+#'   accumulate across all functions compiled while counting was enabled; use
+#'   [rcp_count_reset()] to clear them. Each call returns a fresh snapshot, so
+#'   it is unaffected by further execution.
+#'
+#'   The counters themselves are unsigned 64-bit; R has no such type, so they
+#'   are converted to double here. Counts up to 2^53 survive that exactly, and
+#'   any slot beyond it warns before returning its rounded value.
 #' @export
 rcp_get_counts <- function() {
   .Call(C_rcp_get_counts)
@@ -194,14 +197,41 @@ rcp_get_types_df <- function(func_name) {
 #' \code{options(rcp.cmpfun.type_recording = TRUE)} into a plain named list of
 #' three per-opcode groups: \code{branch} (\code{bcids}, \code{taken},
 #' \code{not_taken}), \code{var_call} (\code{bcids}, \code{counters},
-#' \code{types}) and \code{fun} (\code{bcids}, \code{counters}, \code{consts}).
+#' \code{types}) and \code{fun} (\code{bcids}, \code{counters}, \code{consts}),
+#' plus a scalar \code{run_count} of how many times the function was called; a
+#' scalar logical \code{reflection} that is \code{TRUE} when the closure's call
+#' frame was reflectively accessed, \code{FALSE} when it was not, and \code{NA}
+#' when the compiled object was not a closure; and a scalar logical \code{escaped}
+#' which, for a compiled promise, is \code{TRUE} if the promise ever outlived its
+#' creating call unforced (escaped) at least once and \code{FALSE} otherwise, and
+#' \code{NA} for any unit that is not a tracked promise (this flag lives on the
+#' promise's own recording).
 #' The result contains only ordinary R objects, so it can be passed to
 #' \code{\link{saveRDS}} or \code{\link{serialize}} directly.
 #'
 #' @param x A compiled function (or its body / recording object).
-#' @return A named list of three groups, each a named list of parallel vectors.
+#' @return A named list of the three groups plus \code{run_count},
+#'   \code{reflection} and \code{escaped}.
 #'
 #' @export
 rcp_export_recording <- function(x) {
   .Call(C_rcp_export_recording, x)
+}
+
+#' List the closures and promises compiled within a function
+#'
+#' Returns the compiled bodies of the closures and promises created \emph{directly}
+#' in the compilation of \code{x}. This is not recursive: to descend into a nested
+#' closure or promise, pass its body back to \code{rcp_list_compiled()} yourself.
+#' Each returned element is a compiled body external pointer that can be passed to
+#' \code{\link{rcp_export_recording}} to read its recording -- in particular a
+#' promise's \code{escaped} flag lives on its own recording, reachable this way.
+#'
+#' @param x A compiled function (or its compiled body).
+#' @return A named list with \code{closures} and \code{promises}, each a list of
+#'   compiled body external pointers.
+#'
+#' @export
+rcp_list_compiled <- function(x) {
+  .Call(C_rcp_list_compiled, x)
 }

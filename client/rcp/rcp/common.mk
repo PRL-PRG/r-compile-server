@@ -4,21 +4,27 @@
 
 # Should do a debug build
 DEBUG ?= 0
-# Need a compiler that has support for no_callee_saved_registers
+
+# Get the directory of common.mk itself. This has to come before any include,
+# which would make common.mk no longer the last entry of MAKEFILE_LIST.
+COMMON_MK_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+# The root of this project
+ROOT_DIR := $(patsubst %/,%,$(dir $(COMMON_MK_PATH)))
+
+include $(ROOT_DIR)/../toolchain.mk
+
+# Need a compiler that has support for no_callee_saved_registers, and one that
+# supports C++20. Keep the plain driver when nothing suitable was found so the
+# failure is a compile error naming it rather than an empty command.
 ifneq ($(origin CC), command line)
-  CC := gcc-14
+  CC := $(or $(call find_gcc,gcc),gcc)
 endif
-# Need a compiler that supports C++20
 ifneq ($(origin CXX), command line)
-  CXX := g++-14
+  CXX := $(or $(call find_gcc,g++),g++)
 endif
 C_STD_FLAG ?= -std=gnu17
 CXX_STD_FLAG ?= -std=gnu++20
 
-# Get the directory of common.mk itself
-COMMON_MK_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
-# The root of this project
-ROOT_DIR := $(patsubst %/,%,$(dir $(COMMON_MK_PATH)))
 # From where the runtime.h should be resolved
 RSH_HOME ?= $(ROOT_DIR)/../../../client/rsh
 # Which R to use
@@ -110,6 +116,7 @@ endif
 SPECIALIZE_STEPFOR ?= 1
 SPECIALIZE_SWITCH ?= 1
 SPECIALIZE_MAKEPROM ?= 1
+SPECIALIZE_MAKECLOSURE ?= 1
 
 # Hard-coded per-stencil cycle timing (off by default).
 PROFILE_STENCILS ?= 0
