@@ -2401,9 +2401,10 @@ static void munmap_finalizer(SEXP ptr)
 	}
 }
 
-static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins, int is_closure)
+static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins, int is_closure,
+						   SEXP escape_ext, int **child_prom_flags)
 {
-	int n_branch = 0, n_type = 0, n_fun = 0;
+	int n_branch = 0, n_type = 0, n_fun = 0, n_prom = 0;
 	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		switch (bytecode[i])
@@ -2418,10 +2419,13 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 			case GETFUN_BCOP:
 				n_fun++;
 				break;
+			case MAKEPROM_BCOP:
+				n_prom++;
+				break;
 		}
 	}
 
-	SEXP result = PROTECT(allocVector(VECSXP, 5));
+	SEXP result = PROTECT(allocVector(VECSXP, 6));
 
 	// Group 0 (brifnot): two counters per point, packed adjacently -- one before
 	// the instruction and one on the fall-through path just after it.
@@ -2497,6 +2501,9 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 		R_RegisterCFinalizerEx(fun_consts, &munmap_finalizer, FALSE);
 	}
 
+	// Buffers and result slots for the scalar groups. Their plugins are added below
+	// in the single position-ordered pass, not here.
+
 	// Group 3 (function run counter): a single counter at bytecode position 0,
 	// incremented once per call to the compiled function.
 	int *run_counter_raw = mmap_near(sizeof(int) * 2);
@@ -2505,7 +2512,6 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 	SEXP run_counter = R_MakeExternalPtr(run_counter_raw, R_NilValue, R_NilValue);
 	SET_VECTOR_ELT(result, 3, run_counter);
 	R_RegisterCFinalizerEx(run_counter, &munmap_finalizer, FALSE);
-	add_plugin_stencil_pos(plugins, 0, &_RCP_CUSTOM_COUNTER_REL32, &run_counter_raw[1]);
 
 	// Group 4 (reflection flag): for closures only, a flag raised at return if the
 	// call frame environment was reflectively accessed (envir.c recordReflection
@@ -2519,13 +2525,29 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 	SEXP reflection = R_MakeExternalPtr(reflection_raw, R_NilValue, R_NilValue);
 	SET_VECTOR_ELT(result, 4, reflection);
 	R_RegisterCFinalizerEx(reflection, &munmap_finalizer, FALSE);
-	if (is_closure)
+
+	// Group 5 (escape): if this compiled unit is itself a tracked promise, expose its
+	// own escape flag (owned here via escape_ext). The flag records whether the
+	// promise ever outlived its creating call unforced (2 = escaped). Non-promise
+	// units leave this NULL -> NA on export.
+	int *escape_flag = NULL;
+	if (escape_ext != R_NilValue)
 	{
-		add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_CUSTOM_REFLECTION_CHECK, &reflection_raw[1]);
-		add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURNJMP_BCOP, &_RCP_CUSTOM_REFLECTION_CHECK, &reflection_raw[1]);
+		SET_VECTOR_ELT(result, 5, escape_ext);
+		escape_flag = &((int *)R_ExternalPtrAddr(escape_ext))[1];
 	}
 
-	for (int i = 0, jb = 0, jt = 0, jf = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	// All plugins are inserted in non-decreasing bytecode position, so the caller
+	// never has to sort. Position 0 comes first: the run counter, then (for a
+	// promise) its force transition at entry.
+	add_plugin_stencil_pos(plugins, 0, &_RCP_CUSTOM_COUNTER_REL32, &run_counter_raw[1]);
+	if (escape_flag)
+		add_plugin_stencil_pos(plugins, 0, &_RCP_PROM_FORCE, escape_flag);
+
+	// Single ordered pass: each instruction adds its plugins at position i, then at
+	// `after` (= i + args + 1). The next instruction's i equals this `after`, so
+	// positions never decrease and same-position order is irrelevant to correctness.
+	for (int i = 0, jb = 0, jt = 0, jf = 0, jp = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		int after = i + RCP_BC_ARG_CNT[bytecode[i]] + 1;
 		switch (bytecode[i])
@@ -2552,6 +2574,23 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 				add_plugin_stencil_smc(plugins, after, SMC_GROUP_RECFUN, &fun_consts_raw[jf + 1], &VECTOR_ELT_0(fun_consts_prot, jf), fun_consts_prot, NULL);
 				jf++;
 				break;
+			case MAKEPROM_BCOP:
+				// reset transition for this child promise, just after its MAKEPROM
+				if (child_prom_flags && child_prom_flags[jp])
+					add_plugin_stencil_pos(plugins, after, &_RCP_PROM_MAKE, child_prom_flags[jp]);
+				jp++;
+				break;
+			case RETURN_BCOP:
+			case RETURNJMP_BCOP:
+				// reflection check, then the escape return-side transition for every
+				// compiled child promise -- all at this return's position.
+				if (is_closure)
+					add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_REFLECTION_CHECK, &reflection_raw[1]);
+				if (child_prom_flags)
+					for (int k = 0; k < n_prom; k++)
+						if (child_prom_flags[k])
+							add_plugin_stencil_pos(plugins, i, &_RCP_PROM_EXIT, child_prom_flags[k]);
+				break;
 			default:
 				break;
 		}
@@ -2577,6 +2616,11 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 //   run_count             scalar int, counter placed at bytecode position 0
 //   reflection            scalar logical, TRUE if the closure's call frame was
 //                         reflectively accessed, FALSE if not, NA if not a closure
+//   escaped               scalar logical -- for a compiled PROMISE, TRUE if it ever
+//                         outlived its creating call unforced, FALSE otherwise; NA
+//                         for any unit that is not a tracked promise (e.g. closures).
+//                         The flag lives on the promise's own recording; the creating
+//                         function only contributes the reset/return-side writes.
 //
 // `x` may be the recording list itself, a compiled closure, or its (external
 // pointer) body -- in the latter two cases the recording is read from the
@@ -2589,7 +2633,7 @@ SEXP C_rcp_export_recording(SEXP x)
 	if (TYPEOF(recording) == EXTPTRSXP)
 		recording = Rf_getAttrib(recording, Rf_install("recording"));
 
-	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 5)
+	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 6)
 		Rf_error("no type recording found; compile with "
 				 "options(rcp.cmpfun.type_recording = TRUE)");
 
@@ -2721,18 +2765,31 @@ SEXP C_rcp_export_recording(SEXP x)
 		reflected = (raw[1] == 0) ? TRUE : (raw[1] == 1) ? FALSE : NA_LOGICAL;
 	}
 
-	SEXP out = PROTECT(Rf_allocVector(VECSXP, 5));
+	// --- escaped: this unit's own promise-escape status (NA unless it is a tracked promise) ---
+	SEXP esc = VECTOR_ELT_0(recording, 5);
+	int escaped = NA_LOGICAL;
+	if (TYPEOF(esc) == EXTPTRSXP)
+	{
+		const int *raw = (const int *)EXTPTR_PTR(esc);
+		if (!raw)
+			Rf_error("recording buffers have already been released");
+		escaped = (raw[1] == 2); // 2 = escaped at least once
+	}
+
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
 	SET_VECTOR_ELT(out, 0, branch_out);
 	SET_VECTOR_ELT(out, 1, typed_out);
 	SET_VECTOR_ELT(out, 2, fun_out);
 	SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(run_count));
 	SET_VECTOR_ELT(out, 4, Rf_ScalarLogical(reflected));
-	SEXP names = PROTECT(Rf_allocVector(STRSXP, 5));
+	SET_VECTOR_ELT(out, 5, Rf_ScalarLogical(escaped));
+	SEXP names = PROTECT(Rf_allocVector(STRSXP, 6));
 	SET_STRING_ELT(names, 0, Rf_mkChar("branch"));
 	SET_STRING_ELT(names, 1, Rf_mkChar("var_call"));
 	SET_STRING_ELT(names, 2, Rf_mkChar("fun"));
 	SET_STRING_ELT(names, 3, Rf_mkChar("run_count"));
 	SET_STRING_ELT(names, 4, Rf_mkChar("reflection"));
+	SET_STRING_ELT(names, 5, Rf_mkChar("escaped"));
 	Rf_setAttrib(out, R_NamesSymbol, names);
 
 	UNPROTECT(14);
@@ -2751,6 +2808,13 @@ static Rboolean get_option_or_default(const char *option_name, Rboolean default_
 static Rboolean is_option_true(const char *option_name)
 {
 	return get_option_or_default(option_name, FALSE);
+}
+
+// TRUE when the option is (scalar) set to FALSE; unset or TRUE is not-false. A
+// degenerate NA / non-scalar value falls to the default and is reported as false.
+static Rboolean is_option_false(const char *option_name)
+{
+	return !get_option_or_default(option_name, TRUE);
 }
 
 // Read the tri-state `rcp.cmpfun.bc_recomp` option: TRUE / FALSE / NA (default).
@@ -2827,7 +2891,7 @@ static Rboolean set_option(const char *option_name, SEXP value)
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 						  const char *name, SEXP coverage_registry, SEXP hooks_registry,
-						  SEXP formals, int is_closure)
+						  SEXP formals, int is_closure, SEXP escape_ext)
 {
 	SEXP bcode_code = BCODE_CODE(bcode);
 	SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -2847,8 +2911,25 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	SEXP *consts = STDVEC_DATAPTR(bcode_consts);
 	int consts_size = LENGTH_0(bcode_consts);
 
+	// Promise-escape tracking (part of type recording). Each child promise owns its
+	// escape flag: the flag buffer is created here, handed to the promise's compile
+	// so the promise's own recording owns and exposes it, and its raw slot is kept
+	// so this (creating) function's code gets the reset/return-side instrumentation.
+	int attach_recording = is_option_true("rcp.cmpfun.type_recording");
+	int n_prom = 0;
+	int **child_prom_flags = NULL; // one slot per MAKEPROM site; NULL = untracked
+	if (attach_recording)
+	{
+		for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+			if (bytecode[i] == MAKEPROM_BCOP)
+				n_prom++;
+		if (n_prom > 0)
+			child_prom_flags = calloc(n_prom, sizeof(int *));
+	}
+
 	if (recursive)
 	{
+		int prom_index = 0;
 		// By default, only attach entry/exit hooks to top-level closures.
 		// Set option rcp.cmpfun.entry_exit_hooks_inner_closures = TRUE
 		// to also trace inner (dynamically created) closures.
@@ -2878,7 +2959,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					const char *base_name = name ? name : "closure";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals, 1);
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals, 1, R_NilValue);
 					SET_VECTOR_ELT(fb, 1, res);
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
@@ -2893,10 +2974,13 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			}
 			else if (opcode == MAKEPROM_BCOP)
 			{
+				int this_prom = prom_index++;
 				int is_trivial_promise = 0;
 				SEXP body = consts[opargs[0]];
 #ifdef DECOMPILE_TRIVIAL_PROMISES
-				if (TYPEOF(body) == BCODESXP)
+				// Under type recording, do not decompile trivial promises -- compile them
+				// too so even those promises are tracked and have a recording.
+				if (!attach_recording && TYPEOF(body) == BCODESXP)
 				{
 					SEXP prom_bcode = BCODE_CODE(body);
 					SEXP *prom_consts = STDVEC_DATAPTR(BCODE_CONSTS(body));
@@ -2928,10 +3012,25 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 							const char *base_name = name ? name : "promise";
 							snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
 									 base_name, closure_counter);
-							SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals, 0);
+							// Give this promise its own escape flag; the promise's recording
+							// will own it (finalizer travels with the external pointer).
+							SEXP fext = R_NilValue;
+							if (child_prom_flags)
+							{
+								int *buf = mmap_near(2 * sizeof(int));
+								buf[0] = 2 * sizeof(int);
+								buf[1] = 1; // tracked, not (yet) escaped (clean)
+								fext = PROTECT(R_MakeExternalPtr(buf, R_NilValue, R_NilValue));
+								R_RegisterCFinalizerEx(fext, &munmap_finalizer, FALSE);
+								child_prom_flags[this_prom] = &buf[1];
+							}
+							SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals, 0, fext);
 							// consts[opargs[0]] does not seem to work
 							// it seems that it does not propely handle GC
 							SET_VECTOR_ELT(bcode_consts, opargs[0], res);
+							if (fext != R_NilValue)
+								UNPROTECT(1); // fext now owned by res's recording
+
 							DEBUG_PRINT("**********\nPromise compiled\n");
 							break;
 						}
@@ -3016,7 +3115,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_cloconst_%d",
 					 base_name, closure_counter);
 			SEXP res = PROTECT(copy_patch_bc(body, recursive, stats, closure_name_buf,
-											 coverage_registry, inner_hooks, FORMALS(c), 1));
+											 coverage_registry, inner_hooks, FORMALS(c), 1, R_NilValue));
 			// Replace the constant with a patched copy rather than mutating in
 			// place, since the constant closure may be shared.
 			SEXP new_clo = PROTECT(Rf_duplicate(c));
@@ -3055,9 +3154,9 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
 
 	SEXP recording_results;
-	int attach_recording = is_option_true("rcp.cmpfun.type_recording");
 	if (attach_recording)
-		recording_results = PROTECT(type_recording(bytecode, bytecode_size, &plugins, is_closure));
+		recording_results = PROTECT(type_recording(bytecode, bytecode_size, &plugins, is_closure, escape_ext, child_prom_flags));
+	free(child_prom_flags);
 
 	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
@@ -3130,6 +3229,86 @@ SEXP C_rcp_is_compiled(SEXP closure)
 	return Rf_ScalarLogical(TRUE);
 }
 
+// Classify one bytecode constant: 0 = neither, 1 = a compiled closure body,
+// 2 = a compiled promise body. On a nonzero return, *out is set to the compiled
+// body external pointer.
+static int classify_compiled_const(SEXP c, SEXP *out)
+{
+	if (TYPEOF(c) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(c))
+	{
+		*out = c; // MAKEPROM stores the compiled promise body directly
+		return 2;
+	}
+	if (TYPEOF(c) == VECSXP && XLENGTH(c) == 2)
+	{
+		SEXP b = VECTOR_ELT(c, 1); // MAKECLOSURE stores list(formals, body)
+		if (TYPEOF(b) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(b))
+		{
+			*out = b;
+			return 1;
+		}
+	}
+	if (TYPEOF(c) == CLOSXP && TYPEOF(BODY(c)) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(BODY(c)))
+	{
+		*out = BODY(c); // a closure held as a plain constant, compiled in place
+		return 1;
+	}
+	return 0;
+}
+
+// List the compiled bodies of the closures and promises created directly in the
+// compilation of `x` (NOT recursively -- the caller can recurse by passing each
+// returned body back in). Each element can be passed to rcp_export_recording(), so
+// a promise's own recording (e.g. its `escaped` flag) is reachable from R.
+// Returns list(closures = <compiled bodies>, promises = <compiled bodies>).
+SEXP C_rcp_list_compiled(SEXP x)
+{
+	SEXP body = x;
+	if (TYPEOF(body) == CLOSXP)
+		body = BODY(body);
+	if (TYPEOF(body) != EXTPTRSXP || !RSH_IS_CLOSURE_BODY(body))
+		Rf_error("Expected a JIT-compiled function or its compiled body.");
+
+	SEXP prot = R_ExternalPtrProtected(body);
+	SEXP consts = (TYPEOF(prot) == VECSXP && XLENGTH(prot) >= 1) ? VECTOR_ELT(prot, 0) : R_NilValue;
+	R_xlen_t n = (TYPEOF(consts) == VECSXP) ? XLENGTH(consts) : 0;
+
+	int nc = 0, np = 0;
+	for (R_xlen_t k = 0; k < n; k++)
+	{
+		SEXP child = R_NilValue;
+		int kind = classify_compiled_const(VECTOR_ELT(consts, k), &child);
+		if (kind == 1)
+			nc++;
+		else if (kind == 2)
+			np++;
+	}
+
+	SEXP closures = PROTECT(Rf_allocVector(VECSXP, nc));
+	SEXP promises = PROTECT(Rf_allocVector(VECSXP, np));
+	int ci = 0, pi = 0;
+	for (R_xlen_t k = 0; k < n; k++)
+	{
+		SEXP child = R_NilValue;
+		int kind = classify_compiled_const(VECTOR_ELT(consts, k), &child);
+		if (kind == 1)
+			SET_VECTOR_ELT(closures, ci++, child);
+		else if (kind == 2)
+			SET_VECTOR_ELT(promises, pi++, child);
+	}
+
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
+	SET_VECTOR_ELT(out, 0, closures);
+	SET_VECTOR_ELT(out, 1, promises);
+	SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+	SET_STRING_ELT(names, 0, Rf_mkChar("closures"));
+	SET_STRING_ELT(names, 1, Rf_mkChar("promises"));
+	Rf_setAttrib(out, R_NamesSymbol, names);
+
+	UNPROTECT(4);
+	return out;
+}
+
 static const char *guess_closure_name(SEXP f)
 {
 	SEXP env = CLOENV(f);
@@ -3195,6 +3374,12 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	if (TYPEOF(f) != CLOSXP)
 		error("The first argument must be a closure.");
 
+	// Type recording tracks promises (including trivial ones) through their compiled
+	// bodies, so promise compilation must not be disabled. Unset or TRUE is fine.
+	if (is_option_true("rcp.cmpfun.type_recording") && is_option_false("rcp.cmpfun.compile_promises"))
+		error("options(rcp.cmpfun.type_recording = TRUE) requires promise compilation; "
+			  "unset options(rcp.cmpfun.compile_promises) or set it to TRUE.");
+
 	SEXP coverage_registry = R_NilValue;
 
 	if (is_option_true("rcp.cmpfun.coverage"))
@@ -3228,6 +3413,12 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	{
 		compile_promises = get_option_or_default("rcp.cmpfun.compile_promises", RCP_COMPILE_PROMISES);
 	}
+
+	// Type recording needs promises compiled to track them. The explicit-FALSE case
+	// already errored above, so for unset/TRUE force promise compilation on here,
+	// overriding the build default so tracking never silently no-ops.
+	if (is_option_true("rcp.cmpfun.type_recording"))
+		compile_promises = TRUE;
 
 	// R option "rcp.entry_exit_hooks"
 	SEXP hooks_registry = R_NilValue;
@@ -3356,7 +3547,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	PROTECT(compiled);
 	CompilationStats stats = {0, 0};
-	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled), 1);
+	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled), 1, R_NilValue);
 	SET_BODY(compiled, ptr);
 
 	clock_gettime(CLOCK_MONOTONIC, &end);

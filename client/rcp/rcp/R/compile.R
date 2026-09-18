@@ -198,17 +198,40 @@ rcp_get_types_df <- function(func_name) {
 #' three per-opcode groups: \code{branch} (\code{bcids}, \code{taken},
 #' \code{not_taken}), \code{var_call} (\code{bcids}, \code{counters},
 #' \code{types}) and \code{fun} (\code{bcids}, \code{counters}, \code{consts}),
-#' plus a scalar \code{run_count} of how many times the function was called and a
+#' plus a scalar \code{run_count} of how many times the function was called; a
 #' scalar logical \code{reflection} that is \code{TRUE} when the closure's call
 #' frame was reflectively accessed, \code{FALSE} when it was not, and \code{NA}
-#' when the compiled object was not a closure.
+#' when the compiled object was not a closure; and a scalar logical \code{escaped}
+#' which, for a compiled promise, is \code{TRUE} if the promise ever outlived its
+#' creating call unforced (escaped) at least once and \code{FALSE} otherwise, and
+#' \code{NA} for any unit that is not a tracked promise (this flag lives on the
+#' promise's own recording).
 #' The result contains only ordinary R objects, so it can be passed to
 #' \code{\link{saveRDS}} or \code{\link{serialize}} directly.
 #'
 #' @param x A compiled function (or its body / recording object).
-#' @return A named list of the three groups plus \code{run_count} and \code{reflection}.
+#' @return A named list of the three groups plus \code{run_count},
+#'   \code{reflection} and \code{escaped}.
 #'
 #' @export
 rcp_export_recording <- function(x) {
   .Call(C_rcp_export_recording, x)
+}
+
+#' List the closures and promises compiled within a function
+#'
+#' Returns the compiled bodies of the closures and promises created \emph{directly}
+#' in the compilation of \code{x}. This is not recursive: to descend into a nested
+#' closure or promise, pass its body back to \code{rcp_list_compiled()} yourself.
+#' Each returned element is a compiled body external pointer that can be passed to
+#' \code{\link{rcp_export_recording}} to read its recording -- in particular a
+#' promise's \code{escaped} flag lives on its own recording, reachable this way.
+#'
+#' @param x A compiled function (or its compiled body).
+#' @return A named list with \code{closures} and \code{promises}, each a list of
+#'   compiled body external pointers.
+#'
+#' @export
+rcp_list_compiled <- function(x) {
+  .Call(C_rcp_list_compiled, x)
 }

@@ -58,6 +58,48 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_REFLECTION_CHECK)
 	NEXT;
 }
 
+// Promise-escape tracking. A per-MAKEPROM-site flag, reset per invocation, shared
+// between the creating function's code and the promise's own JITted code. It records
+// whether the promise ever escaped (outlived the creating call unforced) at least
+// once; once escaped it stays escaped.
+//   1 = no pending promise this invocation (clean, or forced)
+//   0 = a promise was created this invocation and is not yet forced
+//   2 = escaped at least once (permanent)
+//  <0 = the promise site was not JIT-compiled, so it is not tracked
+// The "never executed" case is not encoded here -- the promise's own run counter
+// already carries it.
+
+// Just after MAKEPROM: a fresh promise is pending for this invocation.
+RCP_STENCIL_FUNCTION(_RCP_PROM_MAKE)
+{
+	PROLOGUE;
+	int *flag = (int *)GETCUSTOM(0);
+	if (*flag != 2)
+		*flag = 0;
+	NEXT;
+}
+
+// At the start of the promise's compiled code, i.e. when it is forced.
+RCP_STENCIL_FUNCTION(_RCP_PROM_FORCE)
+{
+	PROLOGUE;
+	int *flag = (int *)GETCUSTOM(0);
+	if (*flag == 0)
+		*flag = 1;
+	NEXT;
+}
+
+// At RETURN/RETURNJMP of the function that created the promise: a still-pending
+// promise outlived the call, so mark the site escaped permanently.
+RCP_STENCIL_FUNCTION(_RCP_PROM_EXIT)
+{
+	PROLOGUE;
+	int *flag = (int *)GETCUSTOM(0);
+	if (*flag == 0)
+		*flag = 2;
+	NEXT;
+}
+
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 {
 	PROLOGUE;
