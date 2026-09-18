@@ -18,6 +18,7 @@ extern SEXP C_rcp_reset_types(void);
 extern SEXP C_rcp_get_types(void);
 extern SEXP C_rcp_get_types_df(SEXP func_name);
 extern SEXP C_rcp_export_recording(SEXP recording);
+extern SEXP C_rcp_list_compiled(SEXP x);
 extern SEXP C_rcp_dwarf_support(void);
 extern SEXP C_rcp_gdb_jit_support(void);
 extern SEXP C_rcp_perf_jit_support(void);
@@ -44,6 +45,7 @@ static const R_CallMethodDef CallEntries[] = {
 	{"rcp_get_types", (DL_FUNC)&C_rcp_get_types, 0},
 	{"rcp_get_types_df", (DL_FUNC)&C_rcp_get_types_df, 1},
 	{"rcp_export_recording", (DL_FUNC)&C_rcp_export_recording, 1},
+	{"rcp_list_compiled", (DL_FUNC)&C_rcp_list_compiled, 1},
 	{"rcp_dwarf_support", (DL_FUNC)&C_rcp_dwarf_support, 0},
 	{"rcp_gdb_jit_support", (DL_FUNC)&C_rcp_gdb_jit_support, 0},
 	{"rcp_perf_jit_support", (DL_FUNC)&C_rcp_perf_jit_support, 0},
