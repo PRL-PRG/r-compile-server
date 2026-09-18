@@ -14,7 +14,7 @@ fun main() {
 }
 
 fun f(x) {
-  (reg x:p(v1(I) -)@!) --> I {
+  (x:p(v1(I) -)@!) --> I {
     r: v1(I) = force x;
     ru: I = unbox< v1(I) --> I >(r);
     return ru;
@@ -22,7 +22,7 @@ fun f(x) {
 }
 
 fun g(x, cond) {
-  (reg x:p(v1(I) -)@!, reg cond:B) --> I {
+  (x:p(v1(I) -)@!, cond:B) --> I {
     if cond then L1() else L2();
   L1():
     r: v1(I) = force x;

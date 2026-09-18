@@ -40,7 +40,7 @@ class InternalInterpretTest {
   private static final String ASSUME_LOAD_FUN_LOCAL_MODULE =
       """
       fun main(x) {
-        (reg x:*) -+> V {
+        (x:*) -+> V {
           mkenv;
           st target = x;
           check BBopt() else BBfail();
@@ -99,7 +99,7 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
-              (reg x:v1(I)) --> v1(I) {
+              (x:v1(I)) --> v1(I) {
                 xi: I = unbox< v1(I) --> I >(x);
                 result: v1(I) = f< I --> v1(I) >(xi);
                 return result;
@@ -107,7 +107,7 @@ class InternalInterpretTest {
             }
 
             fun f(x) {
-              (reg x:v1(I)) --> v1(I) {
+              (x:v1(I)) --> v1(I) {
                 check Ok() else Deopt();
               Ok():
                 checked: v1(I) = x ?: v1(I);
@@ -117,7 +117,7 @@ class InternalInterpretTest {
                 roundTrip: v1(I) = box< I --> v1(I) >(i);
                 deopt 0 [roundTrip];
               }
-              (reg x:I) --> v1(I) {
+              (x:I) --> v1(I) {
                 check Ok() else Deopt();
               Ok():
                 checked: v1(I) = x ?: v1(I);
@@ -142,7 +142,7 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
-              (reg x:I) --> v1(I) {
+              (x:I) --> v1(I) {
                 check Ok() else Deopt();
               Ok():
                 boxed: v1(I) = box< I --> v1(I) >(x);

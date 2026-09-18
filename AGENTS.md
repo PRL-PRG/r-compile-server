@@ -60,6 +60,7 @@ The code is Google style, use `spotless` to reformat. Use the Jetbrains MCP serv
 
 - The compiler must be non-deterministic. In particular, prefer `LinkedHashSet`/`LinkedHashMap` over `HashSet`/`HashMap`, only using the non-linked variants if they are never iterated on.
 - If the user asks to write tests and the implementation is buggy, fix the implementation and test that the bug is fixed.
+- When the user asks to write a FIŘ optimization, also add it to `Optimizations#defaultOptimizations` and add a unit test class for it (in `./server/src/test/java/org/prlprg/fir/opt/`, mirroring the optimization's package; see the existing `*Test`s there, which implement `AbstractionOptimizationUnitTest` or `OptimizationUnitTest`).
 
 ### Dependencies
 
@@ -136,6 +137,15 @@ At `./.github/workflows`. Both workflows are gated on `paths`, so most changes r
 - `rcp-benchmarks.yml` - builds the rcp Docker images, runs rcp's test suites, and runs the benchmarks on a self-hosted runner. Runs on `client/rcp/**`, `R`, `tools/build-gnur.sh` (which builds the R it links against), and `client/rsh/inst/benchmarks/**` (the harness it drives). `R` is the submodule pointer: only the gitlink is tracked, so it's a plain path and not a `R/**` glob, which would never match.
 
 When editing these, note that a `paths` list can't be shared between a workflow's `push` and `pull_request` triggers, because GitHub Actions does not support YAML anchors -- keep the two copies in sync.
+
+## Committing
+
+Before committing, re-read the comments in the changes and delete any long one (more than a paragraph) that:
+
+- describes behavior that's trivial to infer from the code and its context, or
+- explains a specific use of a general function. Comment what the function does, not what one caller wants from it.
+
+Don't append the Claude session URL to the commit message.
 
 ---
 

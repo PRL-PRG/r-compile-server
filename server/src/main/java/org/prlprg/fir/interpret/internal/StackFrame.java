@@ -14,6 +14,7 @@ import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.value.Value;
@@ -43,6 +44,8 @@ final class StackFrame {
   private final Map<EnvSXP, Statement> userEnvPositions;
   private EnvSXP environment;
   private int numEnvsPushed = 0;
+  /// Whether this frame has [deopt-restored][#markDeoptRestored()].
+  private boolean deoptRestored = false;
 
   StackFrame(Function function, EnvSXP parentEnv, Map<EnvSXP, Statement> userEnvPositions) {
     this.function = function;
@@ -131,11 +134,25 @@ final class StackFrame {
           "Can't store non-SEXP (" + value + ") under named variable (" + nv + ")");
     }
     var position = userEnvPositions.get(environment);
-    if (position != null && InternalInterpreter.mkEnvTypeOf(position) == MkEnvType.ELIDED) {
+    if (position != null
+        && InternalInterpreter.mkEnvTypeOf(position) == MkEnvType.ELIDED
+        && !deoptRestored
+        && !isInDeoptBranch()) {
       throw new IllegalStateException(
           "Local store to an elided environment: " + nv + " at:\n" + position);
     }
     environment.set(nv.name(), sexp);
+  }
+
+  /// Record that this frame deoptimized and is now running the restore CFG (the baseline).
+  public void markDeoptRestored() {
+    deoptRestored = true;
+  }
+
+  /// Whether the statement being interpreted is in a deopt branch.
+  private boolean isInDeoptBranch() {
+    var bb = currentStatement().parentBB();
+    return bb != null && bb.jump().expression() instanceof Deopt;
   }
 
   /// Records a promise created while this frame is live (see [#createdPromises]).

@@ -15,7 +15,7 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:p(V ~)) -+> v(I) {
+  (r:p(V ~)) -+> v(I) {
     mkenv;
     r1: v(I) = g%< p(V ~) -+> v(I) >(r);
     popenv;
@@ -25,7 +25,7 @@ fun f(r) {
 
 fun g(r) {
   # type-error: Function effects mismatch: + don't subset -
-  (reg r:p(V ~)) --> v(I) {
+  (r:p(V ~)) --> v(I) {
     mkenv;
     r0: v(I) = v(I)[3, 4, 5];
     r$x = r0;

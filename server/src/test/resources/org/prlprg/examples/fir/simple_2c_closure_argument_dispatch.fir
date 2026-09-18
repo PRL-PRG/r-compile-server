@@ -15,7 +15,7 @@ fun build_closure() {
 }
 
 fun apply_closure(closure) {
-  (reg closure:cls) -+> v1(I) {
+  (closure:cls) -+> v1(I) {
     base: V = dyn closure();
     base0: v1(I) = base as v1(I);
     sum: v1(I) = `+`< v1(I),v1(I) --> v1(I) >(base0, <int 2>);

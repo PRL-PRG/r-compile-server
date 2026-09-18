@@ -233,9 +233,9 @@ static INLINE void Rsh_SetVar2(Value *stack, SEXP symbol, SEXP rho) {
 // A stencil has no enclosing C function to hang the saved pointers on, so the
 // BCProt bracket would have to live in the RCP prologue/epilogue instead. Left
 // as it was -- RCP is not what this fixes.
-static INLINE NODISCARD Value Rsh_Return(Value *stack) { return *(stack - 1); }
+NODISCARD static INLINE Value Rsh_Return(Value *stack) { return *(stack - 1); }
 #else
-static INLINE NODISCARD Value Rsh_Return(Value *stack, RshBCProt bcprot) {
+NODISCARD static INLINE Value Rsh_Return(Value *stack, RshBCProt bcprot) {
   Value *s = stack - 1;
   // Read the result before restoring, as `bcEval` does at `done:`: the restore
   // decrements links on the slots this frame committed, `s` among them.
@@ -470,7 +470,7 @@ static INLINE void Rsh_CallBuiltin(Value *stack, SEXP call, SEXP rho) {
   SET_VAL_N(-3, value);
 }
 
-static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call) {
+NODISCARD static INLINE Rboolean Rsh_BrIfNot(Value *stack, SEXP call) {
   Value value = *GET_VAL(-1);
   if (VAL_IS_LGL_NOT_NA(value)) {
     return (Rboolean)!VAL_INT(value);
@@ -969,7 +969,7 @@ static INLINE void Rsh_DollarGets(Value *stack, SEXP call, SEXP symbol,
 #define Rsh_StartSubset2N(stack, call, rho)                                    \
   Rsh_start_subset_dispatch_n("[[", stack, call, rho)
 
-static INLINE NODISCARD Rboolean Rsh_start_subset_dispatch_n(
+NODISCARD static INLINE Rboolean Rsh_start_subset_dispatch_n(
     const char *generic, Value *stack, SEXP call, SEXP rho) {
   Value *value = GET_VAL(-1);
   if (UNLIKELY(VAL_IS_SXP(*value) && isObject(VAL_SXP(*value)) &&
@@ -988,7 +988,7 @@ static INLINE NODISCARD Rboolean Rsh_start_subset_dispatch_n(
 #define Rsh_StartSubset2(stack, call, rho)                                     \
   Rsh_start_subset_dispatch("[[", stack, call, rho)
 
-static INLINE NODISCARD Rboolean Rsh_start_subset_dispatch(const char *generic,
+NODISCARD static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
                                                            Value *stack,
                                                            SEXP call,
                                                            SEXP rho) {
@@ -1301,7 +1301,7 @@ static INLINE void Rsh_EndAssign2(Value *stack, SEXP symbol, SEXP rho) {
 #define Rsh_StartSubassign2N(stack, call, rho)                                 \
   Rsh_start_subassign_dispatch_n("[[<-", stack, call, rho)
 
-static INLINE NODISCARD Rboolean Rsh_start_subassign_dispatch_n(
+NODISCARD static INLINE Rboolean Rsh_start_subassign_dispatch_n(
     const char *generic, Value *stack, SEXP call, SEXP rho) {
   Value *lhs = GET_VAL(-2);
   Value *rhs = GET_VAL(-1);
@@ -1590,7 +1590,7 @@ static INLINE void Rsh_SetterCall(Value *stack, SEXP call, SEXP vexpr,
   Rsh_start_subassign_dispatch("[[<-", stack, call, rho)
 // clang-format on
 
-static INLINE NODISCARD Rboolean Rsh_start_subassign_dispatch(
+NODISCARD static INLINE Rboolean Rsh_start_subassign_dispatch(
     const char *generic, Value *stack, SEXP call, SEXP rho) {
   Value *lhs = GET_VAL(-5);
   Value *rhs = GET_VAL(-4);
@@ -2018,7 +2018,7 @@ static INLINE void GET_VEC_LOOP_VALUE(Value *val, BCell cell, int rtype) {
 // serves both: for element types it is the ALTREP-ness (see SF_ELT), for ISQ it
 // is the direction (0 = increasing, 1 = decreasing). The generic caller passes
 // -1 to keep the original runtime dispatch.
-static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
+NODISCARD static INLINE Rboolean Rsh_DoStepFor(Value *seq_val,
                                                RshLoopInfo *loopinfo,
                                                Value *initial, BCell *cell,
                                                SEXP rho, int type, int spec) {
@@ -2154,7 +2154,7 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
   return TRUE;
 }
 
-static INLINE NODISCARD Rboolean Rsh_StepFor(Value *stack, BCell *cell,
+NODISCARD static INLINE Rboolean Rsh_StepFor(Value *stack, BCell *cell,
                                              SEXP rho) {
   Value *seq = GET_VAL(-4);
   RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2)));
@@ -2365,7 +2365,7 @@ static INLINE void Rsh_IsInteger(Value *stack) {
   R_Visible = TRUE;
 }
 
-static INLINE NODISCARD Rboolean Rsh_And1st(Value *stack, SEXP call) {
+NODISCARD static INLINE Rboolean Rsh_And1st(Value *stack, SEXP call) {
   Value *r0 = GET_VAL(-1);
   int val = fixup_scalar_logical(r0, call, "'x'", "&&");
   SET_LGL_VAL(r0, val);
@@ -2395,7 +2395,7 @@ static INLINE void Rsh_And2nd(Value *stack, SEXP call) {
   R_Visible = TRUE;
 }
 
-static INLINE NODISCARD Rboolean Rsh_Or1st(Value *stack, SEXP call) {
+NODISCARD static INLINE Rboolean Rsh_Or1st(Value *stack, SEXP call) {
   Value *v = GET_VAL(-1);
   int val = fixup_scalar_logical(v, call, "'x'", "||");
   SET_LGL_VAL(v, val);
@@ -2693,7 +2693,7 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
 // src/stencils-runtime.c (Rsh_RunLoopCntxt / Rsh_EndLoopCntxtJmp), which keeps
 // the setjmp frame alive for as long as the context is live.
 #ifndef RCP
-static NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
+NODISCARD static Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
                                              SEXP rho) {
   // Rf_begincontext snapshots R_BCProtTop, and a break/next longjmp runs
   // R_BCProtReset on it, so an INCLNKSTK window left open by the jump is
@@ -2716,7 +2716,7 @@ static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
 
 // Check whether a call is to a base function; if not use AST interpreter
 // TODO: need a faster guard check
-static INLINE NODISCARD Rboolean Rsh_BaseGuard(Value *stack, SEXP expr,
+NODISCARD static INLINE Rboolean Rsh_BaseGuard(Value *stack, SEXP expr,
                                                SEXP rho) {
   assert(!BNDCELL_TAG(expr));
   SEXP sym = CAR0(expr);
@@ -2729,7 +2729,7 @@ static INLINE NODISCARD Rboolean Rsh_BaseGuard(Value *stack, SEXP expr,
   }
 }
 
-static INLINE NORET void Rsh_DotsErr(UNUSED Value *stack) {
+NORET static INLINE void Rsh_DotsErr(UNUSED Value *stack) {
   Rf_error("'...' used in an incorrect context");
 }
 

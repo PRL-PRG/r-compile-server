@@ -8,7 +8,7 @@ fun main() {
 }
 
 fun f(r0) {
-  (reg r0:I) --> I {
+  (r0:I) --> I {
     r0b: v1(I) = box< I --> v1(I) >(r0);
     r1: p(v1(I) -) = prom<v1(I) ->{
       return r0b;

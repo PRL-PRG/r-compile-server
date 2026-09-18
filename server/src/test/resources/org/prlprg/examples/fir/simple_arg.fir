@@ -7,7 +7,7 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:I) --> I {
+  (r:I) --> I {
     return r;
   }
 }

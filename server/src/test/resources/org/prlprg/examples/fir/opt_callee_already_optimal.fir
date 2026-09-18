@@ -7,7 +7,7 @@ fun main() {
 }
 
 fun identity(x) {
-  (reg x:I) --> I {
+  (x:I) --> I {
     return x;
   }
 }

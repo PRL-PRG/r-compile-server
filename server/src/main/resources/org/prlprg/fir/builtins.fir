@@ -1,816 +1,960 @@
 fun `+`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(I) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(I) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(R) { ... }
-  (reg lhs:I, reg rhs:I) --> I { ... }
-  (reg lhs:R, reg rhs:R) --> R { ... }
-  (reg lhs:I, reg rhs:R) --> R { ... }
-  (reg lhs:R, reg rhs:I) --> R { ... }
-  (reg unary:v(I), reg rhs:miss) --> v(I) { ... }
-  (reg unary:v(R), reg rhs:miss) --> v(R) { ... }
-  (reg unary:v1(I), reg rhs:miss) --> v1(I) { ... }
-  (reg unary:v1(R), reg rhs:miss) --> v1(R) { ... }
-  (reg unary:*@!, reg rhs:miss) -+> V { ... }
-  (reg unary:I, reg rhs:miss) --> I { ... }
-  (reg unary:R, reg rhs:miss) --> R { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(I) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(R) { ... }
+  (lhs:I, rhs:I) --> I { ... }
+  (lhs:R, rhs:R) --> R { ... }
+  (lhs:I, rhs:R) --> R { ... }
+  (lhs:R, rhs:I) --> R { ... }
+  (unary:v(I), rhs:miss) --> v(I) { ... }
+  (unary:v(R), rhs:miss) --> v(R) { ... }
+  (unary:v1(I), rhs:miss) --> v1(I) { ... }
+  (unary:v1(R), rhs:miss) --> v1(R) { ... }
+  (unary:*@!, rhs:miss) -+> V { ... }
+  (unary:I, rhs:miss) --> I { ... }
+  (unary:R, rhs:miss) --> R { ... }
 }
 
 fun `-`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(I) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(I) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(R) { ... }
-  (reg unary:v(I), reg rhs:miss) --> v(I) { ... }
-  (reg unary:v(R), reg rhs:miss) --> v(R) { ... }
-  (reg unary:v1(I), reg rhs:miss) --> v1(I) { ... }
-  (reg unary:v1(R), reg rhs:miss) --> v1(R) { ... }
-  (reg lhs:I, reg rhs:I) --> I { ... }
-  (reg lhs:R, reg rhs:R) --> R { ... }
-  (reg lhs:I, reg rhs:R) --> R { ... }
-  (reg lhs:R, reg rhs:I) --> R { ... }
-  (reg unary:*@!, reg rhs:miss) -+> V { ... }
-  (reg unary:I, reg rhs:miss) --> I { ... }
-  (reg unary:R, reg rhs:miss) --> R { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(I) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(R) { ... }
+  (unary:v(I), rhs:miss) --> v(I) { ... }
+  (unary:v(R), rhs:miss) --> v(R) { ... }
+  (unary:v1(I), rhs:miss) --> v1(I) { ... }
+  (unary:v1(R), rhs:miss) --> v1(R) { ... }
+  (lhs:I, rhs:I) --> I { ... }
+  (lhs:R, rhs:R) --> R { ... }
+  (lhs:I, rhs:R) --> R { ... }
+  (lhs:R, rhs:I) --> R { ... }
+  (unary:*@!, rhs:miss) -+> V { ... }
+  (unary:I, rhs:miss) --> I { ... }
+  (unary:R, rhs:miss) --> R { ... }
 }
 
 fun `*`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(I) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(I) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(R) { ... }
-  (reg lhs:I, reg rhs:I) --> I { ... }
-  (reg lhs:R, reg rhs:R) --> R { ... }
-  (reg lhs:I, reg rhs:R) --> R { ... }
-  (reg lhs:R, reg rhs:I) --> R { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(I) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(R) { ... }
+  (lhs:I, rhs:I) --> I { ... }
+  (lhs:R, rhs:R) --> R { ... }
+  (lhs:I, rhs:R) --> R { ... }
+  (lhs:R, rhs:I) --> R { ... }
 }
 
 fun `/`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(R) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(R) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(R) { ... }
-  (reg lhs:I, reg rhs:I) --> R { ... }
-  (reg lhs:R, reg rhs:R) --> R { ... }
-  (reg lhs:I, reg rhs:R) --> R { ... }
-  (reg lhs:R, reg rhs:I) --> R { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(R) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(R) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(R) { ... }
+  (lhs:I, rhs:I) --> R { ... }
+  (lhs:R, rhs:R) --> R { ... }
+  (lhs:I, rhs:R) --> R { ... }
+  (lhs:R, rhs:I) --> R { ... }
 }
 
 fun `^`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(R) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(R) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(R) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(R) { ... }
-  (reg lhs:I, reg rhs:I) --> R { ... }
-  (reg lhs:R, reg rhs:R) --> R { ... }
-  (reg lhs:I, reg rhs:R) --> R { ... }
-  (reg lhs:R, reg rhs:I) --> R { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(R) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(R) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(R) { ... }
+  (lhs:I, rhs:I) --> R { ... }
+  (lhs:R, rhs:R) --> R { ... }
+  (lhs:I, rhs:R) --> R { ... }
+  (lhs:R, rhs:I) --> R { ... }
 }
 
 fun `<`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:I, reg rhs:I) --> L { ... }
-  (reg lhs:R, reg rhs:R) --> L { ... }
-  (reg lhs:I, reg rhs:R) --> L { ... }
-  (reg lhs:R, reg rhs:I) --> L { ... }
-  (reg lhs:I, reg rhs:I) --> B { ... }
-  (reg lhs:R, reg rhs:R) --> B { ... }
-  (reg lhs:I, reg rhs:R) --> B { ... }
-  (reg lhs:R, reg rhs:I) --> B { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(L) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:I, rhs:I) --> L { ... }
+  (lhs:R, rhs:R) --> L { ... }
+  (lhs:I, rhs:R) --> L { ... }
+  (lhs:R, rhs:I) --> L { ... }
+  (lhs:I, rhs:I) --> B { ... }
+  (lhs:R, rhs:R) --> B { ... }
+  (lhs:I, rhs:R) --> B { ... }
+  (lhs:R, rhs:I) --> B { ... }
 }
 
 fun `<=`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:I, reg rhs:I) --> L { ... }
-  (reg lhs:R, reg rhs:R) --> L { ... }
-  (reg lhs:I, reg rhs:R) --> L { ... }
-  (reg lhs:R, reg rhs:I) --> L { ... }
-  (reg lhs:I, reg rhs:I) --> B { ... }
-  (reg lhs:R, reg rhs:R) --> B { ... }
-  (reg lhs:I, reg rhs:R) --> B { ... }
-  (reg lhs:R, reg rhs:I) --> B { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(L) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:I, rhs:I) --> L { ... }
+  (lhs:R, rhs:R) --> L { ... }
+  (lhs:I, rhs:R) --> L { ... }
+  (lhs:R, rhs:I) --> L { ... }
+  (lhs:I, rhs:I) --> B { ... }
+  (lhs:R, rhs:R) --> B { ... }
+  (lhs:I, rhs:R) --> B { ... }
+  (lhs:R, rhs:I) --> B { ... }
 }
 
 fun `>`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:I, reg rhs:I) --> L { ... }
-  (reg lhs:R, reg rhs:R) --> L { ... }
-  (reg lhs:I, reg rhs:R) --> L { ... }
-  (reg lhs:R, reg rhs:I) --> L { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(L) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:I, rhs:I) --> L { ... }
+  (lhs:R, rhs:R) --> L { ... }
+  (lhs:I, rhs:R) --> L { ... }
+  (lhs:R, rhs:I) --> L { ... }
 }
 
 fun `>=`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(I), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:I, reg rhs:I) --> L { ... }
-  (reg lhs:R, reg rhs:R) --> L { ... }
-  (reg lhs:I, reg rhs:R) --> L { ... }
-  (reg lhs:R, reg rhs:I) --> L { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(I), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(I)) --> v(L) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:I, rhs:I) --> L { ... }
+  (lhs:R, rhs:R) --> L { ... }
+  (lhs:I, rhs:R) --> L { ... }
+  (lhs:R, rhs:I) --> L { ... }
 }
 
 fun `==`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(S), reg rhs:v(S)) --> v(L) { ... }
-  (reg lhs:v1(L), reg rhs:v1(L)) --> v1(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(S), reg rhs:v1(S)) --> v1(L) { ... }
-  (reg lhs:*@!, reg rhs:*@!) --> L { ... }
-  (reg lhs:*@!, reg rhs:*@!) --> B { ... }
-  (reg lhs:L, reg rhs:L) --> L { ... }
-  (reg lhs:I, reg rhs:I) --> L { ... }
-  (reg lhs:R, reg rhs:R) --> L { ... }
-  (reg lhs:S, reg rhs:S) --> L { ... }
-  (reg lhs:L, reg rhs:L) --> B { ... }
-  (reg lhs:I, reg rhs:I) --> B { ... }
-  (reg lhs:R, reg rhs:R) --> B { ... }
-  (reg lhs:S, reg rhs:S) --> B { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(S), rhs:v(S)) --> v(L) { ... }
+  (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(S), rhs:v1(S)) --> v1(L) { ... }
+  (lhs:*@!, rhs:*@!) --> L { ... }
+  (lhs:*@!, rhs:*@!) --> B { ... }
+  (lhs:L, rhs:L) --> L { ... }
+  (lhs:I, rhs:I) --> L { ... }
+  (lhs:R, rhs:R) --> L { ... }
+  (lhs:S, rhs:S) --> L { ... }
+  (lhs:L, rhs:L) --> B { ... }
+  (lhs:I, rhs:I) --> B { ... }
+  (lhs:R, rhs:R) --> B { ... }
+  (lhs:S, rhs:S) --> B { ... }
 }
 
 fun `!=`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
-  (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
-  (reg lhs:v(S), reg rhs:v(S)) --> v(L) { ... }
-  (reg lhs:v1(L), reg rhs:v1(L)) --> v1(L) { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v1(L) { ... }
-  (reg lhs:v1(R), reg rhs:v1(R)) --> v1(L) { ... }
-  (reg lhs:v1(S), reg rhs:v1(S)) --> v1(L) { ... }
-  (reg lhs:*@!, reg rhs:*@!) --> L { ... }
-  (reg lhs:*@!, reg rhs:*@!) --> B { ... }
-  (reg lhs:L, reg rhs:L) --> L { ... }
-  (reg lhs:I, reg rhs:I) --> L { ... }
-  (reg lhs:R, reg rhs:R) --> L { ... }
-  (reg lhs:S, reg rhs:S) --> L { ... }
-  (reg lhs:L, reg rhs:L) --> B { ... }
-  (reg lhs:I, reg rhs:I) --> B { ... }
-  (reg lhs:R, reg rhs:R) --> B { ... }
-  (reg lhs:S, reg rhs:S) --> B { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  (lhs:v(S), rhs:v(S)) --> v(L) { ... }
+  (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
+  (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
+  (lhs:v1(S), rhs:v1(S)) --> v1(L) { ... }
+  (lhs:*@!, rhs:*@!) --> L { ... }
+  (lhs:*@!, rhs:*@!) --> B { ... }
+  (lhs:L, rhs:L) --> L { ... }
+  (lhs:I, rhs:I) --> L { ... }
+  (lhs:R, rhs:R) --> L { ... }
+  (lhs:S, rhs:S) --> L { ... }
+  (lhs:L, rhs:L) --> B { ... }
+  (lhs:I, rhs:I) --> B { ... }
+  (lhs:R, rhs:R) --> B { ... }
+  (lhs:S, rhs:S) --> B { ... }
 }
 
 fun `&`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
-  (reg lhs:v1(L), reg rhs:v1(L)) --> v1(L) { ... }
-  (reg lhs:B, reg rhs:B) --> B { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:B, rhs:B) --> B { ... }
 }
 
 fun `&&`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*) -+> V { ... }
-  (reg lhs:v1(L), reg rhs:v1(L)) --> v1(L) { ... }
-  (reg lhs:B, reg rhs:B) --> B { ... }
+  (lhs:*@!, rhs:*) -+> V { ... }
+  (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:B, rhs:B) --> B { ... }
 }
 
 fun `|`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
-  (reg lhs:v1(L), reg rhs:v1(L)) --> v1(L) { ... }
-  (reg lhs:B, reg rhs:B) --> B { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:B, rhs:B) --> B { ... }
 }
 
 fun `||`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*) -+> V { ... }
-  (reg lhs:v1(L), reg rhs:v1(L)) --> v1(L) { ... }
-  (reg lhs:B, reg rhs:B) --> B { ... }
+  (lhs:*@!, rhs:*) -+> V { ... }
+  (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:B, rhs:B) --> B { ... }
 }
 
 fun xor(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
-  (reg lhs:v1(L), reg rhs:v1(L)) --> v1(L) { ... }
-  (reg lhs:B, reg rhs:B) --> B { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:B, rhs:B) --> B { ... }
 }
 
 fun bitwNot(a) {
-  (reg a:*@!) -+> V { ... }
-  (reg a:I) --> I { ... }
+  (a:*@!) -+> V { ... }
+  (a:I) --> I { ... }
 }
 
 fun bitwAnd(a, b) {
-  (reg a:*@!, reg b:*@!) -+> V { ... }
-  (reg a:I, reg b:I) --> I { ... }
+  (a:*@!, b:*@!) -+> V { ... }
+  (a:I, b:I) --> I { ... }
 }
 
 fun bitwOr(a, b) {
-  (reg a:*@!, reg b:*@!) -+> V { ... }
-  (reg a:I, reg b:I) --> I { ... }
+  (a:*@!, b:*@!) -+> V { ... }
+  (a:I, b:I) --> I { ... }
 }
 
 fun bitwXor(a, b) {
-  (reg a:*@!, reg b:*@!) -+> V { ... }
-  (reg a:I, reg b:I) --> I { ... }
+  (a:*@!, b:*@!) -+> V { ... }
+  (a:I, b:I) --> I { ... }
 }
 
 fun bitwShiftL(a, n) {
-  (reg a:*@!, reg n:*@!) -+> V { ... }
-  (reg a:I, reg n:I) --> I { ... }
+  (a:*@!, n:*@!) -+> V { ... }
+  (a:I, n:I) --> I { ... }
 }
 
 fun bitwShiftR(a, n) {
-  (reg a:*@!, reg n:*@!) -+> V { ... }
-  (reg a:I, reg n:I) --> I { ... }
+  (a:*@!, n:*@!) -+> V { ... }
+  (a:I, n:I) --> I { ... }
 }
 
 fun `!`(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(L)) --> v(L) { ... }
-  (reg x:v(I)) --> v(L) { ... }
-  (reg x:v(R)) --> v(L) { ... }
-  (reg x:v1(L)) --> v1(L) { ... }
-  (reg x:v1(I)) --> v1(L) { ... }
-  (reg x:v1(R)) --> v1(L) { ... }
-  (reg x:B) --> B { ... }
-  (reg x:I) --> L { ... }
-  (reg x:R) --> L { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(L)) --> v(L) { ... }
+  (x:v(I)) --> v(L) { ... }
+  (x:v(R)) --> v(L) { ... }
+  (x:v1(L)) --> v1(L) { ... }
+  (x:v1(I)) --> v1(L) { ... }
+  (x:v1(R)) --> v1(L) { ... }
+  (x:B) --> B { ... }
+  (x:I) --> L { ... }
+  (x:R) --> L { ... }
 }
 
 fun `:`(lhs, rhs) {
-  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
-  (reg lhs:v1(I), reg rhs:v1(I)) --> v(I) { ... }
-  (reg lhs:v1(I), reg rhs:v1(R)) --> v(I) { ... }
-  (reg lhs:I, reg rhs:I) --> v(I) { ... }
+  (lhs:*@!, rhs:*@!) -+> V { ... }
+  (lhs:v1(I), rhs:v1(I)) --> v(I) { ... }
+  (lhs:v1(I), rhs:v1(R)) --> v(I) { ... }
+  (lhs:I, rhs:I) --> v(I) { ... }
   # If `lhs` has no decimals, it coerces to int
-  (reg lhs:I, reg rhs:R) --> v(I) { ... }
-  (reg lhs:R, reg rhs:R) --> V { ... }
-  (reg lhs:v(R), reg rhs:v(R)) --> V { ... }
+  (lhs:I, rhs:R) --> v(I) { ... }
+  (lhs:R, rhs:R) --> V { ... }
+  (lhs:v(R), rhs:v(R)) --> V { ... }
 }
 
+# `x` is borrowed in the non-generic versions: they only read it.
+#
+# Effects follow GNU-R: `x[i]` with a length-1 index can't fail (out-of-range and `NA` both read as
+# `NA`), so those are pure; with a longer index it can ("only 0's may be mixed with negative
+# subscripts"), and every `[[` fails out of range, so those are impure. The optimizer replaces the
+# pure ones with `x[i]` and the `[[` ones with `x[[i]]`, which behave the same way (see
+# `org.prlprg.fir.ir.expression.SubscriptRead`).
+@liteSpecial
 fun `[`(x, i, `...`, drop) {
-  (reg x:*@!, reg i:*, reg ddd:dots, reg drop:*@!) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(S) { ... }
-  (reg x:v(L), reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(L) { ... }
-  (reg x:v(I), reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(I) { ... }
-  (reg x:v(R), reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(R) { ... }
-  (reg x:v(S), reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(S) { ... }
-  (reg x:v(L), reg i:I, reg ddd:miss, reg drop:miss) --> L { ... }
-  (reg x:v(I), reg i:I, reg ddd:miss, reg drop:miss) --> I { ... }
-  (reg x:v(R), reg i:I, reg ddd:miss, reg drop:miss) --> R { ... }
-  (reg x:v(S), reg i:I, reg ddd:miss, reg drop:miss) --> S { ... }
+  (x:*@!, i:*, ddd:dots, drop:*@!) -+> V { ... }
+
+  # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
+  # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
+  # the call site. Both backends route them to the baseline, the interpreter because it registers
+  # its generic implementation for every version that signature covers, `fir2c` because
+  # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
+  (x:v(L), i:*@!, ddd:dots, drop:*@!) -~> V { ... }
+  (x:v(I), i:*@!, ddd:dots, drop:*@!) -~> V { ... }
+  (x:v(R), i:*@!, ddd:dots, drop:*@!) -~> V { ... }
+  (x:v(S), i:*@!, ddd:dots, drop:*@!) -~> V { ... }
+  (x:v(L)b, i:v(I), ddd:miss, drop:miss) -~> v(L) { ... }
+  (x:v(I)b, i:v(I), ddd:miss, drop:miss) -~> v(I) { ... }
+  (x:v(R)b, i:v(I), ddd:miss, drop:miss) -~> v(R) { ... }
+  (x:v(S)b, i:v(I), ddd:miss, drop:miss) -~> v(S) { ... }
+  (x:v(L)b, i:v1(I), ddd:miss, drop:miss) --> v1(L) { ... }
+  (x:v(I)b, i:v1(I), ddd:miss, drop:miss) --> v1(I) { ... }
+  (x:v(R)b, i:v1(I), ddd:miss, drop:miss) --> v1(R) { ... }
+  (x:v(S)b, i:v1(I), ddd:miss, drop:miss) --> v1(S) { ... }
+  (x:v(L)b, i:I, ddd:miss, drop:miss) --> L { ... }
+  (x:v(I)b, i:I, ddd:miss, drop:miss) --> I { ... }
+  (x:v(R)b, i:I, ddd:miss, drop:miss) --> R { ... }
+  (x:v(S)b, i:I, ddd:miss, drop:miss) --> S { ... }
+
+  # Real indices: coerce to integer and forward to the version above.
+  (x:v(L)b, i:v(R), ddd:miss, drop:miss) -~> v(L) { ... }
+  (x:v(I)b, i:v(R), ddd:miss, drop:miss) -~> v(I) { ... }
+  (x:v(R)b, i:v(R), ddd:miss, drop:miss) -~> v(R) { ... }
+  (x:v(S)b, i:v(R), ddd:miss, drop:miss) -~> v(S) { ... }
+  (x:v(L)b, i:v1(R), ddd:miss, drop:miss) --> v1(L) { ... }
+  (x:v(I)b, i:v1(R), ddd:miss, drop:miss) --> v1(I) { ... }
+  (x:v(R)b, i:v1(R), ddd:miss, drop:miss) --> v1(R) { ... }
+  (x:v(S)b, i:v1(R), ddd:miss, drop:miss) --> v1(S) { ... }
+  (x:v(L)b, i:R, ddd:miss, drop:miss) --> L { ... }
+  (x:v(I)b, i:R, ddd:miss, drop:miss) --> I { ... }
+  (x:v(R)b, i:R, ddd:miss, drop:miss) --> R { ... }
+  (x:v(S)b, i:R, ddd:miss, drop:miss) --> S { ... }
 }
 
+@liteSpecial
 fun `[[`(x, i, `...`, exact) {
-  (reg x:*@!, reg i:*, reg ddd:dots, reg exact:*@!) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(S) { ... }
-  (reg x:v(L), reg i:v1(I), reg ddd:miss, reg exact:miss) --> v1(L) { ... }
-  (reg x:v(I), reg i:v1(I), reg ddd:miss, reg exact:miss) --> v1(I) { ... }
-  (reg x:v(R), reg i:v1(I), reg ddd:miss, reg exact:miss) --> v1(R) { ... }
-  (reg x:v(S), reg i:v1(I), reg ddd:miss, reg exact:miss) --> v1(S) { ... }
-  (reg x:v(L), reg i:I, reg ddd:miss, reg exact:miss) --> L { ... }
-  (reg x:v(I), reg i:I, reg ddd:miss, reg exact:miss) --> I { ... }
-  (reg x:v(R), reg i:I, reg ddd:miss, reg exact:miss) --> R { ... }
-  (reg x:v(S), reg i:I, reg ddd:miss, reg exact:miss) --> S { ... }
+  (x:*@!, i:*, ddd:dots, exact:*@!) -+> V { ... }
+
+  # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
+  # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
+  # the call site. Both backends route them to the baseline, the interpreter because it registers
+  # its generic implementation for every version that signature covers, `fir2c` because
+  # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
+  (x:v(L), i:*@!, ddd:dots, exact:*@!) -~> V { ... }
+  (x:v(I), i:*@!, ddd:dots, exact:*@!) -~> V { ... }
+  (x:v(R), i:*@!, ddd:dots, exact:*@!) -~> V { ... }
+  (x:v(S), i:*@!, ddd:dots, exact:*@!) -~> V { ... }
+  (x:v(L)b, i:v(I), ddd:miss, exact:miss) -~> v(L) { ... }
+  (x:v(I)b, i:v(I), ddd:miss, exact:miss) -~> v(I) { ... }
+  (x:v(R)b, i:v(I), ddd:miss, exact:miss) -~> v(R) { ... }
+  (x:v(S)b, i:v(I), ddd:miss, exact:miss) -~> v(S) { ... }
+  (x:v(L)b, i:v1(I), ddd:miss, exact:miss) -~> v1(L) { ... }
+  (x:v(I)b, i:v1(I), ddd:miss, exact:miss) -~> v1(I) { ... }
+  (x:v(R)b, i:v1(I), ddd:miss, exact:miss) -~> v1(R) { ... }
+  (x:v(S)b, i:v1(I), ddd:miss, exact:miss) -~> v1(S) { ... }
+  (x:v(L)b, i:I, ddd:miss, exact:miss) -~> L { ... }
+  (x:v(I)b, i:I, ddd:miss, exact:miss) -~> I { ... }
+  (x:v(R)b, i:I, ddd:miss, exact:miss) -~> R { ... }
+  (x:v(S)b, i:I, ddd:miss, exact:miss) -~> S { ... }
+
+  # Real indices: coerce to integer and forward to the version above.
+  (x:v(L)b, i:v(R), ddd:miss, exact:miss) -~> v(L) { ... }
+  (x:v(I)b, i:v(R), ddd:miss, exact:miss) -~> v(I) { ... }
+  (x:v(R)b, i:v(R), ddd:miss, exact:miss) -~> v(R) { ... }
+  (x:v(S)b, i:v(R), ddd:miss, exact:miss) -~> v(S) { ... }
+  (x:v(L)b, i:v1(R), ddd:miss, exact:miss) -~> v1(L) { ... }
+  (x:v(I)b, i:v1(R), ddd:miss, exact:miss) -~> v1(I) { ... }
+  (x:v(R)b, i:v1(R), ddd:miss, exact:miss) -~> v1(R) { ... }
+  (x:v(S)b, i:v1(R), ddd:miss, exact:miss) -~> v1(S) { ... }
+  (x:v(L)b, i:R, ddd:miss, exact:miss) -~> L { ... }
+  (x:v(I)b, i:R, ddd:miss, exact:miss) -~> I { ... }
+  (x:v(R)b, i:R, ddd:miss, exact:miss) -~> R { ... }
+  (x:v(S)b, i:R, ddd:miss, exact:miss) -~> S { ... }
 }
 
+# Every non-generic version returns a fresh vector. The ones where `x` is borrowed copy it; the ones
+# where it's owned mutate it in place and return it (see `Builtins#registerSubAssign` and `fir2c`'s
+# `_u5b_u3c_u2d`/`_u5b_u5b_u3c_u2d` overrides).
+#
+# All of them are impure: they only write *within* the vector, so an out-of-range index is an error,
+# where GNU-R grows the vector instead.
+@liteSpecial
 fun `[<-`(x, i, value, `...`) {
-  (reg x:*@!, reg i:*, reg value:*, reg ddd:dots) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg value:v(L), reg ddd:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg value:v(I), reg ddd:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg value:v(R), reg ddd:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg value:v(S), reg ddd:miss) --> v(S) { ... }
-  (reg x:v(L), reg i:I, reg value:L, reg ddd:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:I, reg value:I, reg ddd:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:I, reg value:R, reg ddd:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:I, reg value:S, reg ddd:miss) --> v(S) { ... }
+  (x:*@!, i:*, value:*, ddd:dots) -+> V { ... }
+
+  # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
+  # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
+  # the call site. Both backends route them to the baseline, the interpreter because it registers
+  # its generic implementation for every version that signature covers, `fir2c` because
+  # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
+  (x:v(L), i:*@!, value:*, ddd:dots) -~> V { ... }
+  (x:v(I), i:*@!, value:*, ddd:dots) -~> V { ... }
+  (x:v(R), i:*@!, value:*, ddd:dots) -~> V { ... }
+  (x:v(S), i:*@!, value:*, ddd:dots) -~> V { ... }
+  (x:v(L)b, i:v(I), value:v(L), ddd:miss) -~> v(L)f { ... }
+  (x:v(I)b, i:v(I), value:v(I), ddd:miss) -~> v(I)f { ... }
+  (x:v(R)b, i:v(I), value:v(R), ddd:miss) -~> v(R)f { ... }
+  (x:v(S)b, i:v(I), value:v(S), ddd:miss) -~> v(S)f { ... }
+  (x:v(L)b, i:I, value:L, ddd:miss) -~> v(L)f { ... }
+  (x:v(I)b, i:I, value:I, ddd:miss) -~> v(I)f { ... }
+  (x:v(R)b, i:I, value:R, ddd:miss) -~> v(R)f { ... }
+  (x:v(S)b, i:I, value:S, ddd:miss) -~> v(S)f { ... }
+  (x:v(L)o, i:v(I), value:v(L), ddd:miss) -~> v(L)f { ... }
+  (x:v(I)o, i:v(I), value:v(I), ddd:miss) -~> v(I)f { ... }
+  (x:v(R)o, i:v(I), value:v(R), ddd:miss) -~> v(R)f { ... }
+  (x:v(S)o, i:v(I), value:v(S), ddd:miss) -~> v(S)f { ... }
+  (x:v(L)o, i:I, value:L, ddd:miss) -~> v(L)f { ... }
+  (x:v(I)o, i:I, value:I, ddd:miss) -~> v(I)f { ... }
+  (x:v(R)o, i:I, value:R, ddd:miss) -~> v(R)f { ... }
+  (x:v(S)o, i:I, value:S, ddd:miss) -~> v(S)f { ... }
+
+  # Real indices: coerce to integer and forward to the version above.
+  (x:v(L)b, i:v(R), value:v(L), ddd:miss) -~> v(L)f { ... }
+  (x:v(I)b, i:v(R), value:v(I), ddd:miss) -~> v(I)f { ... }
+  (x:v(R)b, i:v(R), value:v(R), ddd:miss) -~> v(R)f { ... }
+  (x:v(S)b, i:v(R), value:v(S), ddd:miss) -~> v(S)f { ... }
+  (x:v(L)b, i:R, value:L, ddd:miss) -~> v(L)f { ... }
+  (x:v(I)b, i:R, value:I, ddd:miss) -~> v(I)f { ... }
+  (x:v(R)b, i:R, value:R, ddd:miss) -~> v(R)f { ... }
+  (x:v(S)b, i:R, value:S, ddd:miss) -~> v(S)f { ... }
+  (x:v(L)o, i:v(R), value:v(L), ddd:miss) -~> v(L)f { ... }
+  (x:v(I)o, i:v(R), value:v(I), ddd:miss) -~> v(I)f { ... }
+  (x:v(R)o, i:v(R), value:v(R), ddd:miss) -~> v(R)f { ... }
+  (x:v(S)o, i:v(R), value:v(S), ddd:miss) -~> v(S)f { ... }
+  (x:v(L)o, i:R, value:L, ddd:miss) -~> v(L)f { ... }
+  (x:v(I)o, i:R, value:I, ddd:miss) -~> v(I)f { ... }
+  (x:v(R)o, i:R, value:R, ddd:miss) -~> v(R)f { ... }
+  (x:v(S)o, i:R, value:S, ddd:miss) -~> v(S)f { ... }
 }
 
+@liteSpecial
 fun `[[<-`(x, i, value) {
-  (reg x:*@!, reg i:*, reg value:*) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg value:v(L)) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg value:v(I)) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg value:v(R)) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg value:v(S)) --> v(S) { ... }
-  (reg x:v(L), reg i:I, reg value:L) --> v(L) { ... }
-  (reg x:v(I), reg i:I, reg value:I) --> v(I) { ... }
-  (reg x:v(R), reg i:I, reg value:R) --> v(R) { ... }
-  (reg x:v(S), reg i:I, reg value:S) --> v(S) { ... }
+  (x:*@!, i:*, value:*) -+> V { ... }
+
+  # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
+  # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
+  # the call site. Both backends route them to the baseline, the interpreter because it registers
+  # its generic implementation for every version that signature covers, `fir2c` because
+  # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
+  (x:v(L), i:*@!, value:*) -~> V { ... }
+  (x:v(I), i:*@!, value:*) -~> V { ... }
+  (x:v(R), i:*@!, value:*) -~> V { ... }
+  (x:v(S), i:*@!, value:*) -~> V { ... }
+  (x:v(L)b, i:v(I), value:v(L)) -~> v(L)f { ... }
+  (x:v(I)b, i:v(I), value:v(I)) -~> v(I)f { ... }
+  (x:v(R)b, i:v(I), value:v(R)) -~> v(R)f { ... }
+  (x:v(S)b, i:v(I), value:v(S)) -~> v(S)f { ... }
+  (x:v(L)b, i:I, value:L) -~> v(L)f { ... }
+  (x:v(I)b, i:I, value:I) -~> v(I)f { ... }
+  (x:v(R)b, i:I, value:R) -~> v(R)f { ... }
+  (x:v(S)b, i:I, value:S) -~> v(S)f { ... }
+  (x:v(L)o, i:v(I), value:v(L)) -~> v(L)f { ... }
+  (x:v(I)o, i:v(I), value:v(I)) -~> v(I)f { ... }
+  (x:v(R)o, i:v(I), value:v(R)) -~> v(R)f { ... }
+  (x:v(S)o, i:v(I), value:v(S)) -~> v(S)f { ... }
+  (x:v(L)o, i:I, value:L) -~> v(L)f { ... }
+  (x:v(I)o, i:I, value:I) -~> v(I)f { ... }
+  (x:v(R)o, i:I, value:R) -~> v(R)f { ... }
+  (x:v(S)o, i:I, value:S) -~> v(S)f { ... }
+
+  # Real indices: coerce to integer and forward to the version above.
+  (x:v(L)b, i:v(R), value:v(L)) -~> v(L)f { ... }
+  (x:v(I)b, i:v(R), value:v(I)) -~> v(I)f { ... }
+  (x:v(R)b, i:v(R), value:v(R)) -~> v(R)f { ... }
+  (x:v(S)b, i:v(R), value:v(S)) -~> v(S)f { ... }
+  (x:v(L)b, i:R, value:L) -~> v(L)f { ... }
+  (x:v(I)b, i:R, value:I) -~> v(I)f { ... }
+  (x:v(R)b, i:R, value:R) -~> v(R)f { ... }
+  (x:v(S)b, i:R, value:S) -~> v(S)f { ... }
+  (x:v(L)o, i:v(R), value:v(L)) -~> v(L)f { ... }
+  (x:v(I)o, i:v(R), value:v(I)) -~> v(I)f { ... }
+  (x:v(R)o, i:v(R), value:v(R)) -~> v(R)f { ... }
+  (x:v(S)o, i:v(R), value:v(S)) -~> v(S)f { ... }
+  (x:v(L)o, i:R, value:L) -~> v(L)f { ... }
+  (x:v(I)o, i:R, value:I) -~> v(I)f { ... }
+  (x:v(R)o, i:R, value:R) -~> v(R)f { ... }
+  (x:v(S)o, i:R, value:S) -~> v(S)f { ... }
 }
 
 fun `$`(x, name) {
-  (reg x:*@!, reg name:*) -+> V { ... }
-  (reg x:V, reg name:V) --> V { ... }
+  (x:*@!, name:*) -+> V { ... }
+  (x:V, name:V) --> V { ... }
 }
 
 fun `$<-`(x, name, value) {
-  (reg x:*@!, reg name:*, reg value:*) -+> V { ... }
-  (reg x:V, reg name:V, reg value:V) --> V { ... }
+  (x:*@!, name:*, value:*) -+> V { ... }
+  (x:V, name:V, value:V) --> V { ... }
 }
 
+@liteSpecial
 fun rep(x, `...`) {
-  (reg x:*@!, reg ddd:dots) -+> V { ... }
-  (reg x:v1(L), reg times:v1(I)) --> v(L) { ... }
-  (reg x:v1(I), reg times:v1(I)) --> v(I) { ... }
-  (reg x:v1(R), reg times:v1(I)) --> v(R) { ... }
-  (reg x:v1(S), reg times:v1(I)) --> v(S) { ... }
-  (reg x:L, reg times:I) --> v(L) { ... }
-  (reg x:I, reg times:I) --> v(I) { ... }
-  (reg x:R, reg times:I) --> v(R) { ... }
-  (reg x:S, reg times:I) --> v(S) { ... }
+  (x:*@!, ddd:dots) -+> V { ... }
+  (x:v1(L), times:v1(I)) --> v(L) { ... }
+  (x:v1(I), times:v1(I)) --> v(I) { ... }
+  (x:v1(R), times:v1(I)) --> v(R) { ... }
+  (x:v1(S), times:v1(I)) --> v(S) { ... }
+  (x:L, times:I) --> v(L) { ... }
+  (x:I, times:I) --> v(I) { ... }
+  (x:R, times:I) --> v(R) { ... }
+  (x:S, times:I) --> v(S) { ... }
 }
 
 fun sum(`...`, `na.rm`) {
-  (reg ddd:dots, reg naRm:*@!) -+> V { ... }
-  (reg x:v(L), reg naRm:miss) --> I { ... }
-  (reg x:v(I), reg naRm:miss) --> I { ... }
-  (reg x:v(R), reg naRm:miss) --> R { ... }
+  (ddd:dots, naRm:*@!) -+> V { ... }
+  (x:v(L), naRm:miss) --> I { ... }
+  (x:v(I), naRm:miss) --> I { ... }
+  (x:v(R), naRm:miss) --> R { ... }
 }
 
 fun `.Call`(`.NAME`, `...`, PACKAGE) {
-  (reg name:*@!, reg ddd:dots, reg package:*@!) -+> V { ... }
+  (name:*@!, ddd:dots, package:*@!) -+> V { ... }
 }
 
 fun `.External`(`.NAME`, `...`, PACKAGE) {
-  (reg name:*@!, reg ddd:dots, reg package:*@!) -+> V { ... }
+  (name:*@!, ddd:dots, package:*@!) -+> V { ... }
 }
 
 fun missing(x) {
-  (reg x:*@!) --> v(L) { ... }
-  (reg x:*@!) --> B { ... }
+  (x:*@!) --> v(L) { ... }
+  (x:*@!) --> B { ... }
 }
 
 fun seq_along(`along.with`) {
-  (reg alongWith:*@!) -+> v(I) { ... }
-  (reg alongWith:V) --> I { ... }
+  (alongWith:*@!) -+> v(I) { ... }
+  (alongWith:V) --> I { ... }
 }
 
 fun seq_len(`length.out`) {
-  (reg lengthOut:*@!) -+> v(I) { ... }
-  (reg lengthOut:v(I)) --> v(I) { ... }
-  (reg lengthOut:I) --> I { ... }
+  (lengthOut:*@!) -+> v(I) { ... }
+  (lengthOut:v(I)) --> v(I) { ... }
+  (lengthOut:I) --> I { ... }
 }
 
 fun abs(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(I) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(I) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> I { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(I) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(I) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> I { ... }
+  (x:R) --> R { ... }
 }
 
 fun sqrt(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun exp(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun log(x, base) {
-  (reg x:*@!, reg base:*@!) -+> V { ... }
-  (reg x:v(I), reg base:v(R)) --> v(R) { ... }
-  (reg x:v(R), reg base:v(R)) --> v(R) { ... }
-  (reg x:I, reg base:R) --> R { ... }
-  (reg x:R, reg base:R) --> R { ... }
+  (x:*@!, base:*@!) -+> V { ... }
+  (x:v(I), base:v(R)) --> v(R) { ... }
+  (x:v(R), base:v(R)) --> v(R) { ... }
+  (x:I, base:R) --> R { ... }
+  (x:R, base:R) --> R { ... }
 }
 
 # === MATH1_FUNS ===
 fun floor(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
   # Below is correct although unintuitive
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun ceiling(x) {
-  (reg x:*@!) -+> V { ... }
+  (x:*@!) -+> V { ... }
   # Below is correct although unintuitive
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun sign(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun expm1(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun log1p(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun cos(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun sin(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun tan(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun acos(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun asin(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun atan(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun cosh(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun sinh(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun tanh(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun acosh(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun asinh(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun atanh(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun lgamma(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun gamma(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun digamma(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun trigamma(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun cospi(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun sinpi(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 
 fun tanpi(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:v(I)) --> v(R) { ... }
-  (reg x:v(R)) --> v(R) { ... }
-  (reg x:v1(I)) --> v1(R) { ... }
-  (reg x:v1(R)) --> v1(R) { ... }
-  (reg x:I) --> R { ... }
-  (reg x:R) --> R { ... }
+  (x:*@!) -+> V { ... }
+  (x:v(I)) --> v(R) { ... }
+  (x:v(R)) --> v(R) { ... }
+  (x:v1(I)) --> v1(R) { ... }
+  (x:v1(R)) --> v1(R) { ... }
+  (x:I) --> R { ... }
+  (x:R) --> R { ... }
 }
 # ---
 
 fun length(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:V) --> v1(I) { ... }
-  (reg x:V) --> I { ... }
+  (x:*@!) -+> V { ... }
+  (x:V) --> v1(I) { ... }
+  (x:V) --> I { ... }
 }
 
+# The real overloads are what `org.prlprg.fir.opt.specialize.SpecializeRealIndex` inserts to make a
+# real subscript integral: `as.integer` truncates toward zero and maps out-of-range and `NaN` to
+# `NA`, which is exactly how the `[`-family builtins coerce a subscript.
 fun `as.integer`(x, `...`) {
-  (reg x:*@!, reg ddd:dots) -+> v(I) { ... }
-  (reg x:V, reg ddd:miss) --> I { ... }
+  (x:*@!, ddd:dots) -+> v(I) { ... }
+  (x:V, ddd:miss) --> I { ... }
+  (x:R, ddd:miss) --> I { ... }
+  (x:v1(R), ddd:miss) --> v1(I) { ... }
+  (x:v(R), ddd:miss) --> v(I) { ... }
 }
 
 fun `as.logical`(x, `...`) {
-  (reg x:*@!, reg ddd:dots) -+> v(L) { ... }
-  (reg x:V, reg ddd:miss) --> v(L) { ... }
-  (reg x:V, reg ddd:miss) --> v1(L) { ... }
-  (reg x:V, reg ddd:miss) --> L { ... }
-  (reg x:V, reg ddd:miss) --> B { ... }
-  (reg x:L, reg ddd:miss) --> B { ... }
+  (x:*@!, ddd:dots) -+> v(L) { ... }
+  (x:V, ddd:miss) --> v(L) { ... }
+  (x:V, ddd:miss) --> v1(L) { ... }
+  (x:V, ddd:miss) --> L { ... }
+  (x:V, ddd:miss) --> B { ... }
+  (x:L, ddd:miss) --> B { ... }
 }
 
 fun `as.character`(x, `...`) {
-  (reg x:*@!, reg ddd:dots) -+> v(S) { ... }
-  (reg x:V, reg ddd:miss) --> S { ... }
+  (x:*@!, ddd:dots) -+> v(S) { ... }
+  (x:V, ddd:miss) --> S { ... }
 }
 
 fun stop(`...`, `call.`, domain) {
-  (reg ddd:dots, reg call:*@!, reg domain:*@!) -+> V { ... }
+  (ddd:dots, call:*@!, domain:*@!) -+> V { ... }
 }
 
 fun warning(`...`, `call.`, `immediate.`, `noBreaks.`, domain) {
-  (reg ddd:dots, reg call:*@!, reg immediate:*@!, reg noBreaks:*@!, reg domain:*@!) -+> V { ... }
+  (ddd:dots, call:*@!, immediate:*@!, noBreaks:*@!, domain:*@!) -+> V { ... }
 }
 
 fun stopifnot(`...`, exprs, exprObject, local) {
-  (reg ddd:dots, reg exprs:*@!, reg exprObject:*@!, reg local:*@!) -+> V { ... }
+  (ddd:dots, exprs:*@!, exprObject:*@!, local:*@!) -+> V { ... }
 }
 
 fun print(x, `...`) {
-  (reg x:*@!, reg ddd:dots) -+> V { ... }
-  (reg x:v(L), reg ddd:miss) --> v(L) { ... }
-  (reg x:v(I), reg ddd:miss) --> v(I) { ... }
-  (reg x:v(R), reg ddd:miss) --> v(R) { ... }
-  (reg x:v(S), reg ddd:miss) --> v(S) { ... }
+  (x:*@!, ddd:dots) -+> V { ... }
+  (x:v(L), ddd:miss) --> v(L) { ... }
+  (x:v(I), ddd:miss) --> v(I) { ... }
+  (x:v(R), ddd:miss) --> v(R) { ... }
+  (x:v(S), ddd:miss) --> v(S) { ... }
 }
 
 fun unclass(x) {
-  (reg x:*@!) -+> V { ... }
-  (reg x:V) --> V { ... }
+  (x:*@!) -+> V { ... }
+  (x:V) --> V { ... }
 }
 
 fun `is.vector`(x, mode) {
-  (reg x:*@!, reg mode:*@!) -+> v1(L) { ... }
-  (reg x:V, reg mode:miss) --> v1(L) { ... }
+  (x:*@!, mode:*@!) -+> v1(L) { ... }
+  (x:V, mode:miss) --> v1(L) { ... }
 }
 
 fun `is.numeric`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.integer`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.double`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.logical`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.complex`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.raw`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.function`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.environment`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.list`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun inherits(x, what, which) {
-  (reg x:*@!, reg what:*@!, reg which:*@!) -+> v1(L) { ... }
-  (reg x:V, reg what:S, reg which:B) --> B { ... }
+  (x:*@!, what:*@!, which:*@!) -+> v1(L) { ... }
+  (x:V, what:S, which:B) --> B { ... }
 }
 
 fun attr(x, which, exact, value) {
-  (reg x:*@!, reg which:*@!, reg exact:*@!, reg value:*@!) -+> V { ... }
-  (reg x:V, reg which:S, reg exact:miss, reg value:miss) --> V { ... }
+  (x:*@!, which:*@!, exact:*@!, value:*@!) -+> V { ... }
+  (x:V, which:S, exact:miss, value:miss) --> V { ... }
 }
 
 fun `is.character`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.object`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun `is.symbol`(x) {
-  (reg x:*@!) -+> v1(L) { ... }
-  (reg x:V) --> B { ... }
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
 }
 
 fun c(`...`) {
-  (reg ddd:dots) --> V { ... }
+  (ddd:dots) --> V { ... }
 }

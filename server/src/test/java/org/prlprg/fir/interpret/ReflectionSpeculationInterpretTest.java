@@ -39,7 +39,7 @@ class ReflectionSpeculationInterpretTest {
   private static final String MODULE =
       """
       fun f(b) {
-        (reg b:v1(L)) -+> V {
+        (b:v1(L)) -+> V {
           mkenv;
           cond: B = naToFalse< v1(L) --> B >(b);
           if cond then L1() else L0();

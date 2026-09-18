@@ -20,7 +20,7 @@ class DefiniteForceTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg p:p(v1(I) -)) -~> v1(I) {
+            (p:p(v1(I) -)) -~> v1(I) {
               v: v1(I) = force? p;
               return v;
             }
@@ -42,7 +42,7 @@ class DefiniteForceTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v1(I)) -~> v1(I) {
+            (x:v1(I)) -~> v1(I) {
               v: v1(I) = force? x;
               return v;
             }
@@ -62,7 +62,7 @@ class DefiniteForceTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg p:p?(v1(I) -)) -~> v1(I) {
+            (p:p?(v1(I) -)) -~> v1(I) {
               v: v1(I) = force? p;
               return v;
             }

@@ -18,7 +18,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -)) --> I {
+            (x:p(I -)) --> I {
               r: I = force x;
               return r;
             }
@@ -35,7 +35,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -)) --> I {
+            (x:p(I -)) --> I {
               return 42;
             }
             """);
@@ -51,7 +51,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -), reg cond:L) --> I {
+            (x:p(I -), cond:L) --> I {
               if cond then L1() else L2();
             L1():
               r: I = force x;
@@ -72,7 +72,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -), reg cond:L) --> I {
+            (x:p(I -), cond:L) --> I {
               if cond then L1() else L2();
             L1():
               r: I = force x;
@@ -94,7 +94,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I {
+            (x:I) --> I {
               return x;
             }
             """);
@@ -110,7 +110,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -)) -+> I {
+            (x:p(I -)) -+> I {
               g: cls = ldf g;
               r: I = force x;
               return r;
@@ -128,7 +128,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -)) -+> I {
+            (x:p(I -)) -+> I {
               r: I = force x;
               g: V = ldf g;
               return r;
@@ -146,7 +146,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p?(I -)) --> I {
+            (x:p?(I -)) --> I {
               r: I = force? x;
               return r;
             }
@@ -164,8 +164,8 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun f(x) {
-              (reg x:p(I -)) --> I { ... }
-              (reg x:p(I -)) --> I {
+              (x:p(I -)) --> I { ... }
+              (x:p(I -)) --> I {
                 c: B = blackBox< B --> B >(TRUE);
                 check L1() else L2();
               L1():
@@ -179,7 +179,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
             }
 
             fun blackBox(x) {
-              (reg x:B) --> B { ... }
+              (x:B) --> B { ... }
             }
             """);
 

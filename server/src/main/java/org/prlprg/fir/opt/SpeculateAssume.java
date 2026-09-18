@@ -3,6 +3,7 @@ package org.prlprg.fir.opt;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -25,6 +26,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Insert assumptions that feedback suggests will always pass.
@@ -39,9 +41,9 @@ import org.prlprg.fir.ir.variable.Register;
 /// Then, in the earliest checkpoint after the register's definition\[1\], insert the
 /// corresponding [AssumeFunction], [AssumeConstant], or [AssumeType] respectively.
 ///
-/// \[1\] Specifically, every checkpoint that dominates the register's definition which isn't
-/// dominated by another such checkpoint. There's usually only one, although we handle the case
-/// where there's multiple.
+/// \[1\] Specifically, every checkpoint in the register's own CFG that its definition dominates
+/// and that isn't dominated by another such checkpoint. There's usually only one, although we
+/// handle the case where there's multiple.
 ///
 /// By default, this optimization doesn't run on baseline versions, since if we deoptimize from
 /// baseline we don't have anywhere to go that isn't FIŘ.
@@ -49,6 +51,14 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
     implements AbstractionOptimization {
   public SpeculateAssume(int threshold) {
     this(threshold, false);
+  }
+
+  /// The block a [Checkpoint]-terminated `bb` continues into when its assumptions hold, or `null`
+  /// if `bb` doesn't end in one.
+  private static @Nullable BB successOf(BB bb) {
+    return bb.jump().expression() instanceof Checkpoint checkpoint
+        ? checkpoint.success().get()
+        : null;
   }
 
   @Override
@@ -107,7 +117,13 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       // because strict promises are replaced by SEXP values and semantics are equivalent,
       // and we don't really get optimization since optimized code has minimal promises
       // (although we do get better correctness, since a value can't be passed to a promise)
-      if (typeFeedback.isPromise()) {
+      //
+      // Not when the register is already declared a definite promise, though. Nothing can hand it a
+      // value -- `Type#matches` won't let a caller pass one -- so there's no inlining to survive,
+      // and widening anyway makes the assumption incomparable with what's declared: a maybe-promise
+      // neither subtypes a promise nor is subtyped by one, which is exactly the shape
+      // [org.prlprg.fir.check.TypeAndEffectChecker#assumeCanSucceed] rejects.
+      if (typeFeedback.isPromise() && !register.type().isPromise()) {
         typeFeedback =
             typeFeedback.withPromisity(Promisity.maybe(typeFeedback.promisity().effects()));
         if (typeFeedback.equals(Type.ANY_SEXP.withConcreteness(Concreteness.DEFINITE))) {
@@ -115,10 +131,26 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
         }
       }
 
+      // Whether the register's declared type is already at least as precise as the feedback, so
+      // an `AssumeType` would tell us nothing -- or actively lose ground.
+      //
+      // `InferType` reads an `AssumeType`'s result straight off the assumption, so `i3: V = i2 ?:
+      // V`
+      // on an `i2: v1(I)` makes `i3` the *wider* `V`. Where that feeds a promise's return value,
+      // `ImproveSignatures` widens the promise's declared type to match, and `Specialize` -- which
+      // re-derives the assignee's type from the expression and requires it to subtype what's
+      // already declared -- fails outright the next time the abstraction is optimized.
+      var alreadyKnown = register.type().isSubtypeOf(typeFeedback);
+
+      // An assumption whose type is disjoint from what's declared can never hold, so speculating on
+      // it only buys a guaranteed deopt -- and it doesn't type-check. This is
+      // [org.prlprg.fir.check.TypeAndEffectChecker#assumeCanSucceed], spelled out rather than
+      // called, because that takes a built `AssumeType` and building one rejects the non-SEXP types
+      // (`B`, `I`, ...) plenty of registers have.
+      var canSucceed = alreadyKnown || typeFeedback.isSubtypeOf(register.type());
+
       // Skip if assumptions won't increase knowledge.
-      if (calleeFeedback == null
-          && constantFeedback == null
-          && typeFeedback.equals(register.type())) {
+      if (calleeFeedback == null && constantFeedback == null && (alreadyKnown || !canSucceed)) {
         continue;
       }
 
@@ -127,10 +159,39 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       if (defBb == null) {
         continue;
       }
+      // Where in that block: a statement's own index, or before all of them for a phi, which is
+      // assigned on entry. Compared against the *start* of the success block below, so a register
+      // defined by a statement in that very block doesn't count as reaching an assume placed ahead
+      // of it -- `DomineeSubstituter` would then be asked to rewrite the definition itself.
+      var defIndex =
+          register instanceof AssigneeOf assignee ? assignee.statement().indexInBB() : -1;
 
-      // Get possible checkpoints where after we can insert assumptions for the register
+      // Get possible checkpoints where after we can insert assumptions for the register.
+      //
+      // Only ones in the register's own CFG. `DominatorTree`'s block-level check walks a block in
+      // a promise up to the statement that defines that promise and then compares blocks,
+      // forgetting the statement index -- so `p = prom{ ... }` "dominates" every checkpoint inside
+      // its own body, and we'd insert an assume reading `p` before `p` is assigned. Even where the
+      // index does work out, an assume inside a promise makes that promise capture the register,
+      // which only a local one may do ([org.prlprg.fir.check.CaptureChecker]), and nothing has
+      // marked promises local this early. A checkpoint in a promise can't be reached from a
+      // register defined outside it in the other direction anyway: `DominatorTree` never lets
+      // anything in a promise dominate anything outside.
       var availableCheckpointBbs =
-          checkpointBbs.stream().filter(bb -> domTree.dominates(defBb, bb)).toList();
+          checkpointBbs.stream()
+              .filter(
+                  bb -> {
+                    // Against the block the assume actually lands in, not the one holding the
+                    // checkpoint. A checkpoint's success block can have other predecessors, and
+                    // then a definition that reaches the checkpoint still doesn't reach every way
+                    // into the success block -- so the assume would read a register that isn't
+                    // assigned yet on some path.
+                    var successBb = successOf(bb);
+                    return successBb != null
+                        && successBb.owner() == defBb.owner()
+                        && domTree.dominates(defBb, defIndex, successBb, -1);
+                  })
+              .toList();
       if (availableCheckpointBbs.isEmpty()) {
         continue;
       }
@@ -147,7 +208,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       assert !immediateCheckpointBbs.isEmpty();
 
       for (var cpBb : immediateCheckpointBbs) {
-        var successBb = ((Checkpoint) cpBb.jump().expression()).success().get();
+        var successBb = Objects.requireNonNull(successOf(cpBb));
 
         // Use `else if` because each assumption is strictly better,
         // and we can't substitute multiple times.
@@ -159,7 +220,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
           assumptionsToInsert
               .computeIfAbsent(successBb, _ -> new ArrayList<>())
               .add(new Spec(new AssumeConstant(constantFeedback), register));
-        } else if (!typeFeedback.equals(register.type())) {
+        } else if (!alreadyKnown && canSucceed) {
           assumptionsToInsert
               .computeIfAbsent(successBb, _ -> new ArrayList<>())
               .add(new Spec(new AssumeType(typeFeedback), register));

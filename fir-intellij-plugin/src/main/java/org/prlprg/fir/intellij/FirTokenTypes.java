@@ -8,6 +8,9 @@ public final class FirTokenTypes {
   public static final IElementType IDENTIFIER = new FirTokenType("IDENTIFIER");
   public static final IElementType BACKTICK_IDENTIFIER = new FirTokenType("BACKTICK_IDENTIFIER");
   public static final IElementType NUMBER = new FirTokenType("NUMBER");
+  public static final IElementType CONSTANT = new FirTokenType("CONSTANT");
+  /** A boxed R value in delimited SEXP syntax, e.g. {@code <int 42>} or {@code <lang f(x)>}. */
+  public static final IElementType SEXP = new FirTokenType("SEXP");
   public static final IElementType STRING = new FirTokenType("STRING");
   public static final IElementType COMMENT = new FirTokenType("COMMENT");
   public static final IElementType ARROW = new FirTokenType("ARROW");

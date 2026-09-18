@@ -12,14 +12,27 @@ import java.util.regex.Pattern;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Lightweight, regex-and-scanner based lints for FIŘ files. These don't build a real AST; they
+ * catch the common slips when hand-editing IR (unbalanced delimiters, missing `;`, invalid register
+ * names, and syntax left over from older versions of the textual form).
+ */
 public final class FirAnnotator implements Annotator {
   private static final Pattern FUN_DECLARATION = Pattern.compile("(?m)^\\s*fun\\b");
-  private static final Pattern DECLARATION =
-      Pattern.compile(
-          "\\b(reg|var)\\s+(`(?:\\\\.|[^`])*`|[^\\s:,|)]+)\\s*:\\s*((?:p\\((?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+\\))?(?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+)");
-  private static final Pattern DECLARATION_KIND_PREFIX = Pattern.compile("^(reg|var)\\b");
-  private static final Pattern TYPED_DECLARATION_WITHOUT_KIND =
+
+  /** A register definition at the start of a statement: {@code name: type = ...}. */
+  private static final Pattern ASSIGNEE =
+      Pattern.compile("(?m)^\\s*(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:[^=;\\n]*=");
+
+  /** A block header: {@code Label(params):} at the start of a line. */
+  private static final Pattern BLOCK_HEADER =
+      Pattern.compile("(?m)^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(([^)\\n]*)\\)\\s*:\\s*(?:#.*)?$");
+
+  /** A typed name in a parameter list: {@code name: type} (the type is not validated). */
+  private static final Pattern TYPED_NAME =
       Pattern.compile("^(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:");
+
+  private static final Pattern LEGACY_PARAMETER_KIND_PREFIX = Pattern.compile("^reg\\b");
   private static final Pattern SIMPLE_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
   @Override
@@ -29,26 +42,32 @@ public final class FirAnnotator implements Annotator {
     }
 
     var text = file.getText();
-    if (text.isBlank()) {
-      return;
-    }
-
-    var stripped = FirTextScanner.stripCommentsAndStrings(text);
-    var issues = new ArrayList<Issue>();
-    lintFunctionDeclarations(stripped, issues);
-    lintDelimiters(stripped, issues);
-    lintSemicolons(text, issues);
-    lintDeclarations(text, issues);
-    lintMissingDeclarationKinds(text, stripped, issues);
-
     var textLength = text.length();
-    for (var issue : issues) {
+    for (var issue : collectIssues(text)) {
       var safeRange = clamp(issue.range(), textLength);
       if (safeRange == null) {
         continue;
       }
       holder.newAnnotation(issue.severity(), issue.message()).range(safeRange).create();
     }
+  }
+
+  /** All lint issues for {@code text}, in no particular order. Empty for blank text. */
+  static ArrayList<Issue> collectIssues(String text) {
+    var issues = new ArrayList<Issue>();
+    if (text.isBlank()) {
+      return issues;
+    }
+
+    var stripped = FirTextScanner.stripCommentsAndStrings(text);
+    lintFunctionDeclarations(stripped, issues);
+    lintDelimiters(stripped, issues);
+    lintSemicolons(text, issues);
+    lintParameters(text, stripped, issues);
+    lintLegacyDeclarationLists(stripped, issues);
+    lintAssignees(text, stripped, issues);
+    lintBlockParameters(text, stripped, issues);
+    return issues;
   }
 
   // region Lint checks
@@ -63,33 +82,37 @@ public final class FirAnnotator implements Annotator {
 
   private static void lintDelimiters(String stripped, ArrayList<Issue> issues) {
     var stack = new ArrayDeque<Delimiter>();
-    FirTextScanner.scan(stripped, 0, stripped.length(), (i, c) -> {
-      if (c == '(' || c == '[' || c == '{') {
-        stack.push(new Delimiter(c, i));
-      } else if (c == ')' || c == ']' || c == '}') {
-        if (stack.isEmpty()) {
-          issues.add(
-              new Issue(
-                  new TextRange(i, i + 1),
-                  HighlightSeverity.ERROR,
-                  "Unmatched closing delimiter `" + c + "`"));
-        } else {
-          var open = stack.pop();
-          if (!isMatchingPair(open.value(), c)) {
-            issues.add(
-                new Issue(
-                    new TextRange(i, i + 1),
-                    HighlightSeverity.ERROR,
-                    "Mismatched closing delimiter `"
-                        + c
-                        + "` (expected `"
-                        + matchingClose(open.value())
-                        + "`)"));
+    FirTextScanner.scan(
+        stripped,
+        0,
+        stripped.length(),
+        (i, c) -> {
+          if (c == '(' || c == '[' || c == '{') {
+            stack.push(new Delimiter(c, i));
+          } else if (c == ')' || c == ']' || c == '}') {
+            if (stack.isEmpty()) {
+              issues.add(
+                  new Issue(
+                      new TextRange(i, i + 1),
+                      HighlightSeverity.ERROR,
+                      "Unmatched closing delimiter `" + c + "`"));
+            } else {
+              var open = stack.pop();
+              if (!isMatchingPair(open.value(), c)) {
+                issues.add(
+                    new Issue(
+                        new TextRange(i, i + 1),
+                        HighlightSeverity.ERROR,
+                        "Mismatched closing delimiter `"
+                            + c
+                            + "` (expected `"
+                            + matchingClose(open.value())
+                            + "`)"));
+              }
+            }
           }
-        }
-      }
-      return true;
-    });
+          return true;
+        });
 
     for (var open : stack) {
       issues.add(
@@ -112,7 +135,7 @@ public final class FirAnnotator implements Annotator {
       var visibleEnd = commentStart >= 0 ? commentStart : lineEnd;
       var visibleLine = text.substring(lineStart, visibleEnd);
       var trimmed = visibleLine.trim();
-      if (shouldEndWithSemicolon(trimmed) && !trimmed.endsWith(";")) {
+      if (shouldEndWithSemicolon(trimmed)) {
         var highlightEnd = visibleEnd;
         while (highlightEnd > lineStart && Character.isWhitespace(text.charAt(highlightEnd - 1))) {
           highlightEnd--;
@@ -132,6 +155,11 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
+  /**
+   * Whether a (comment-free, trimmed) line looks like an instruction that forgot its `;`. Lines
+   * that open or close a construct, headers (`fun`, `@strict`, block labels ending in `:`), stub
+   * bodies, and lines that obviously continue onto the next one are exempt.
+   */
   private static boolean shouldEndWithSemicolon(String trimmedLine) {
     if (trimmedLine.isEmpty() || trimmedLine.equals("...")) {
       return false;
@@ -142,88 +170,124 @@ public final class FirAnnotator implements Annotator {
     return !trimmedLine.endsWith(";")
         && !trimmedLine.endsWith("{")
         && !trimmedLine.endsWith("}")
-        && !trimmedLine.endsWith("|")
         && !trimmedLine.endsWith(":")
+        && !trimmedLine.endsWith(",")
+        && !trimmedLine.endsWith("(")
+        && !trimmedLine.endsWith("[")
+        && !trimmedLine.endsWith("<")
+        && !trimmedLine.endsWith("=")
         && !trimmedLine.contains("{ ... }");
   }
 
-  private static void lintDeclarations(String text, ArrayList<Issue> issues) {
-    var matcher = DECLARATION.matcher(text);
-    while (matcher.find()) {
-      var kind = matcher.group(1);
-      var name = matcher.group(2);
-      var type = matcher.group(3);
-      if (kind == null || name == null || type == null) {
-        continue;
-      }
-
-      if ("reg".equals(kind) && !isValidRegisterName(name)) {
-        issues.add(
-            new Issue(
-                new TextRange(matcher.start(2), matcher.end(2)),
-                HighlightSeverity.ERROR,
-                "Invalid register name `" + name + "`"));
-      }
-      if ("var".equals(kind) && !isValidVariableName(name)) {
-        issues.add(
-            new Issue(
-                new TextRange(matcher.start(2), matcher.end(2)),
-                HighlightSeverity.ERROR,
-                "Invalid named variable `" + name + "`"));
-      }
-
-      if ("var".equals(kind)) {
-        var normalizedType = type.replaceAll("\\s+", "").split("@")[0];
-        if (!normalizedType.equals("*") && !normalizedType.endsWith("?")) {
-          issues.add(
-              new Issue(
-                  new TextRange(matcher.start(3), matcher.end(3)),
-                  HighlightSeverity.WARNING,
-                  "Named variable types should be maybe-types (`t?`) or `*`"));
-        }
-      }
-    }
-  }
-
-  private static void lintMissingDeclarationKinds(
-      String text, String stripped, ArrayList<Issue> issues) {
-    lintMissingParameterKinds(text, stripped, issues);
-    lintMissingLocalVariableKinds(text, stripped, issues);
-  }
-
-  private static void lintMissingParameterKinds(
-      String text, String stripped, ArrayList<Issue> issues) {
+  /**
+   * Version parameters are written {@code name:type} (or {@code name:type@!}): check each name is
+   * a valid register name, and flag the legacy {@code reg} prefix.
+   */
+  private static void lintParameters(String text, String stripped, ArrayList<Issue> issues) {
     for (var i = 0; i < stripped.length(); i++) {
-      if (stripped.charAt(i) != '(') continue;
+      if (stripped.charAt(i) != '(' || !isFirstOnLine(stripped, i)) continue;
 
       var close = findMatchingParenDelimiter(stripped, i);
       if (close < 0 || !isVersionArrowAfterParen(stripped, close + 1)) continue;
 
-      lintMissingDeclarationKindsInList(
-          text,
-          stripped,
-          i + 1,
-          close,
-          issues,
-          "Potentially missing `reg` or `var` before parameter declaration");
+      for (var segment : splitTopLevelCommaSegments(stripped, i + 1, close)) {
+        var start = segment.startOffset();
+        var end = segment.endOffset();
+        while (start < end && Character.isWhitespace(text.charAt(start))) {
+          start++;
+        }
+        while (end > start && Character.isWhitespace(text.charAt(end - 1))) {
+          end--;
+        }
+        if (start >= end) {
+          continue;
+        }
+
+        var declaration = text.substring(start, end);
+        if (LEGACY_PARAMETER_KIND_PREFIX.matcher(declaration).find()) {
+          issues.add(
+              new Issue(
+                  new TextRange(start, start + 3),
+                  HighlightSeverity.ERROR,
+                  "Unexpected `reg`: parameters are written `name:type`"));
+          continue;
+        }
+
+        var matcher = TYPED_NAME.matcher(declaration);
+        if (!matcher.find()) {
+          issues.add(
+              new Issue(
+                  new TextRange(start, end),
+                  HighlightSeverity.ERROR,
+                  "Expected a parameter `name:type`"));
+          continue;
+        }
+        checkRegisterName(matcher.group(1), start + matcher.start(1), issues);
+      }
     }
   }
 
-  private static void lintMissingLocalVariableKinds(
-      String text, String stripped, ArrayList<Issue> issues) {
+  /**
+   * Older FIŘ declared registers and named variables up front, in a list ending with `|` right
+   * after a version's `{`. Registers are now typed where they're defined and named variables
+   * aren't declared, so such a list is an error.
+   */
+  private static void lintLegacyDeclarationLists(String stripped, ArrayList<Issue> issues) {
     for (var i = 0; i < stripped.length(); i++) {
       if (stripped.charAt(i) != '{' || !isVersionArrowBeforeBrace(stripped, i)) continue;
 
-      var separator = findTopLevelPipeBeforeClosingBrace(stripped, i + 1);
+      var separator = findTopLevelPipeBeforeSemicolon(stripped, i + 1);
       if (separator < 0) continue;
 
-      lintMissingDeclarationKindsInList(
-          text,
-          stripped,
-          i + 1,
-          separator,
-          issues,
-          "Potentially missing `reg` or `var` before local declaration");
+      issues.add(
+          new Issue(
+              new TextRange(separator, separator + 1),
+              HighlightSeverity.ERROR,
+              "Legacy declaration list: registers are declared where they're defined"
+                  + " (`r: t = ...`, `L(r: t):`), and named variables aren't declared"));
+    }
+  }
+
+  /** Statement assignees define registers: {@code name: type = expr}. */
+  private static void lintAssignees(String text, String stripped, ArrayList<Issue> issues) {
+    var matcher = ASSIGNEE.matcher(stripped);
+    while (matcher.find()) {
+      var name = text.substring(matcher.start(1), matcher.end(1));
+      checkRegisterName(name, matcher.start(1), issues);
+    }
+  }
+
+  /** Block parameters define registers: {@code Label(name: type, ...):}. */
+  private static void lintBlockParameters(String text, String stripped, ArrayList<Issue> issues) {
+    var matcher = BLOCK_HEADER.matcher(stripped);
+    while (matcher.find()) {
+      var listStart = matcher.start(2);
+      var listEnd = matcher.end(2);
+      for (var segment : splitTopLevelCommaSegments(stripped, listStart, listEnd)) {
+        var start = segment.startOffset();
+        var end = segment.endOffset();
+        while (start < end && Character.isWhitespace(text.charAt(start))) {
+          start++;
+        }
+        while (end > start && Character.isWhitespace(text.charAt(end - 1))) {
+          end--;
+        }
+        if (start >= end) {
+          continue;
+        }
+
+        var declaration = text.substring(start, end);
+        var typed = TYPED_NAME.matcher(declaration);
+        if (!typed.find()) {
+          issues.add(
+              new Issue(
+                  new TextRange(start, end),
+                  HighlightSeverity.ERROR,
+                  "Expected a block parameter `name: type`"));
+          continue;
+        }
+        checkRegisterName(typed.group(1), start + typed.start(1), issues);
+      }
     }
   }
 
@@ -231,42 +295,31 @@ public final class FirAnnotator implements Annotator {
 
   // region Helpers
 
-  private static void lintMissingDeclarationKindsInList(
-      String text,
-      String stripped,
-      int listStart,
-      int listEnd,
-      ArrayList<Issue> issues,
-      String message) {
-    for (var segment : splitTopLevelCommaSegments(stripped, listStart, listEnd)) {
-      var start = segment.startOffset();
-      var end = segment.endOffset();
-      while (start < end && Character.isWhitespace(text.charAt(start))) {
-        start++;
-      }
-      while (end > start && Character.isWhitespace(text.charAt(end - 1))) {
-        end--;
-      }
-      if (start >= end) {
-        continue;
-      }
-
-      var declaration = text.substring(start, end);
-      if ("...".equals(declaration) || DECLARATION_KIND_PREFIX.matcher(declaration).find()) {
-        continue;
-      }
-
-      var matcher = TYPED_DECLARATION_WITHOUT_KIND.matcher(declaration);
-      if (!matcher.find()) {
-        continue;
-      }
-
+  private static void checkRegisterName(String name, int offset, ArrayList<Issue> issues) {
+    if (!isValidRegisterName(name)) {
       issues.add(
           new Issue(
-              new TextRange(start + matcher.start(1), start + matcher.end(1)),
-              HighlightSeverity.WARNING,
-              message));
+              new TextRange(offset, offset + name.length()),
+              HighlightSeverity.ERROR,
+              "Invalid register name `" + name + "` (registers are plain identifiers)"));
     }
+  }
+
+  /**
+   * Whether only whitespace precedes {@code offset} on its line. A version header's `(` starts its
+   * line; a `(` inside a call signature (`f< v1(I) --> V >(...)`) never does.
+   */
+  private static boolean isFirstOnLine(String stripped, int offset) {
+    for (var i = offset - 1; i >= 0; i--) {
+      var c = stripped.charAt(i);
+      if (c == '\n') {
+        return true;
+      }
+      if (!Character.isWhitespace(c)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static int findMatchingParenDelimiter(String stripped, int openOffset) {
@@ -293,26 +346,36 @@ public final class FirAnnotator implements Annotator {
         && stripped.charAt(i + 2) == '>';
   }
 
+  /** Whether the `{` at {@code braceOffset} opens a version body (it follows `-fx> type`). */
   private static boolean isVersionArrowBeforeBrace(String stripped, int braceOffset) {
+    // Walk back over the return type to the arrow. Types contain no braces or semicolons, so stop
+    // at the nearest of those.
     var i = braceOffset - 1;
-    while (i >= 0 && Character.isWhitespace(stripped.charAt(i))) {
+    while (i >= 0) {
+      var c = stripped.charAt(i);
+      if (c == '{' || c == '}' || c == ';' || c == '\n') {
+        return false;
+      }
+      if (c == '>' && i >= 2 && isEffect(stripped.charAt(i - 1)) && stripped.charAt(i - 2) == '-') {
+        return true;
+      }
       i--;
     }
-    return i >= 2
-        && stripped.charAt(i) == '>'
-        && isEffect(stripped.charAt(i - 1))
-        && stripped.charAt(i - 2) == '-';
+    return false;
   }
 
-  private static int findTopLevelPipeBeforeClosingBrace(String stripped, int offset) {
+  /** The offset of a top-level `|` after {@code offset} and before the first `;`, or -1. */
+  private static int findTopLevelPipeBeforeSemicolon(String stripped, int offset) {
     var depth = 0;
     for (var i = offset; i < stripped.length(); i++) {
       var c = stripped.charAt(i);
-      if (c == '{') {
+      if (c == '{' || c == '(' || c == '[') {
         depth++;
-      } else if (c == '}') {
+      } else if (c == '}' || c == ')' || c == ']') {
         if (depth == 0) return -1;
         depth--;
+      } else if (c == ';' && depth == 0) {
+        return -1;
       } else if (c == '|' && depth == 0) {
         return i;
       }
@@ -348,41 +411,13 @@ public final class FirAnnotator implements Annotator {
     return segments;
   }
 
+  /** The effect characters of a `-fx>` arrow: none, impure, reflective. */
   private static boolean isEffect(char c) {
-    return c == '-' || c == '+' || c == '~' || c == '*';
+    return c == '-' || c == '~' || c == '+';
   }
 
   private static boolean isValidRegisterName(String name) {
     return SIMPLE_IDENTIFIER.matcher(name).matches() && !name.equals("_");
-  }
-
-  private static boolean isValidVariableName(String name) {
-    if (name.startsWith("`")) {
-      return isValidBacktickName(name);
-    }
-    return SIMPLE_IDENTIFIER.matcher(name).matches() && !name.equals("_");
-  }
-
-  private static boolean isValidBacktickName(String name) {
-    if (!name.startsWith("`") || !name.endsWith("`") || name.length() < 3) {
-      return false;
-    }
-    var escaped = false;
-    for (var i = 1; i < name.length() - 1; i++) {
-      var c = name.charAt(i);
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (c == '\\') {
-        escaped = true;
-        continue;
-      }
-      if (c == '`') {
-        return false;
-      }
-    }
-    return !escaped;
   }
 
   private static boolean isMatchingPair(char open, char close) {
@@ -411,7 +446,7 @@ public final class FirAnnotator implements Annotator {
 
   // endregion
 
-  private record Issue(TextRange range, HighlightSeverity severity, String message) {}
+  record Issue(TextRange range, HighlightSeverity severity, String message) {}
 
   private record Delimiter(char value, int offset) {}
 

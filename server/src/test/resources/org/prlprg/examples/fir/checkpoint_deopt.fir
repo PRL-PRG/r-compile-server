@@ -14,5 +14,5 @@ fun main() {
 
 # Returns the argument as is, but marks the call as an optimization barrier
 fun blackBox(x) {
-  (reg x:B) --> B { ... }
+  (x:B) --> B { ... }
 }

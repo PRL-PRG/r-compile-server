@@ -6,6 +6,14 @@ time <- function(expr) {
   tryCatch(system.time(expr)[1], error = function(e) { warning(e); NA })
 }
 
+# Time the benchmark call, once the example's code has been loaded into `env`.
+#
+# Every runner below goes through this, so that `optbench.R` can override it: that benchmark
+# compares times which are much closer together than these, so it has to repeat the call.
+timeCall <- function(env) {
+  time(eval(call, env))
+}
+
 # AST (normal evaluation)
 ast <- function(path) {
   # Source file with `env`, which assigns `func` into it
@@ -13,7 +21,7 @@ ast <- function(path) {
   source(path, local = env, echo = FALSE)
 
   # Call `func` with the benchmark arguments
-  time(eval(call, env))
+  timeCall(env)
 }
 
 # Bytecode
@@ -25,7 +33,7 @@ bc <- function(path) {
   invisible(eval(bc, env))
 
   # Call `func` with the benchmark arguments
-  time(eval(call, env))
+  timeCall(env)
 }
 
 # Compiled code (bc2c and fir2c, both have the same API)
@@ -46,7 +54,7 @@ cc <- function(path) {
   tryCatch(.Call("Fir_fun_from_r_main", env, constantPool), error = function(e) { warning("In warmup"); warning(e) })
 
   # Call `func` with the benchmark arguments
-  res <- time(eval(call, env))
+  res <- timeCall(env)
 
   # Cleanup (must be after `eval`)
   dyn.unload(paste0(path, "/code.so"))

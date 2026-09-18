@@ -104,7 +104,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg cond:I) --> I {
+        (cond:I) --> I {
           r0: I = dup 0;
           r1: I = dup 1;
           if cond then BB1() else BB2();
@@ -183,7 +183,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg cond:I) --> I {
+        (cond:I) --> I {
           r0: I = dup 0;
           r1: I = dup 1;
           if cond then BB1(r0) else BB1(r1);
@@ -224,7 +224,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg cond:I) --> I {
+        (cond:I) --> I {
           r0: I = dup 0;
           if cond then BB1(r0) else BB1(r0);
         BB1(r1: I):
@@ -252,7 +252,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg n:I) --> I {
+        (n:I) --> I {
           k: I = dup 7;
           goto Head(n);
         Head(i: I):
@@ -292,7 +292,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg n:I, reg x:I) --> I {
+        (n:I, x:I) --> I {
           if n then Spin() else Exit();
         Spin():
           x2: I = dup x;
@@ -325,7 +325,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg x:R) -~> R {
+        (x:R) -~> R {
           outer: R = dup x;
           p: p(R ~) = prom<R ~>{
             inner: R = dup outer;
@@ -358,7 +358,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg x:R) -~> R {
+        (x:R) -~> R {
           outer: R = dup x;
           p: p(R ~) = prom<R ~>{
             inner: R = dup outer;
@@ -391,7 +391,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg x:R) -~> R {
+        (x:R) -~> R {
           outer: R = dup x;
           p: p(R ~) = prom<R ~>{
             q: p(R ~) = prom<R ~>{
@@ -423,7 +423,7 @@ class LivenessTest {
     var firText =
         """
       fun main() {
-        (reg n:I) --> I {
+        (n:I) --> I {
           dead: I = dup 3;
           return n;
         }
@@ -502,7 +502,7 @@ class LivenessTest {
         cfgOf(
             """
       fun main() {
-        (reg n:I) --> I {
+        (n:I) --> I {
           return n;
         }
       }
@@ -511,7 +511,7 @@ class LivenessTest {
         cfgOf(
             """
       fun main() {
-        (reg n:I) --> I {
+        (n:I) --> I {
           r0: I = dup n;
           return r0;
         }
@@ -542,7 +542,7 @@ class LivenessTest {
       """,
           """
       fun main() {
-        (reg cond:I) --> I {
+        (cond:I) --> I {
           r0: I = dup 0;
           r1: I = dup 1;
           if cond then BB1(r0) else BB1(r1);
@@ -553,7 +553,7 @@ class LivenessTest {
       """,
           """
       fun main() {
-        (reg n:I) --> I {
+        (n:I) --> I {
           k: I = dup 7;
           goto Head(n);
         Head(i: I):
@@ -568,7 +568,7 @@ class LivenessTest {
       """,
           """
       fun main() {
-        (reg n:I, reg x:I) --> I {
+        (n:I, x:I) --> I {
           if n then Spin() else Exit();
         Spin():
           x2: I = dup x;
@@ -580,7 +580,7 @@ class LivenessTest {
       """,
           """
       fun main() {
-        (reg x:R) -~> R {
+        (x:R) -~> R {
           outer: R = dup x;
           p: p(R ~) = prom<R ~>{
             inner: R = dup outer;
