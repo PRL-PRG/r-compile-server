@@ -2527,22 +2527,23 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 	R_RegisterCFinalizerEx(reflection, &munmap_finalizer, FALSE);
 
 	// Group 5 (escape): if this compiled unit is itself a tracked promise, expose its
-	// own escape flag (owned here via escape_ext). The flag records whether the
-	// promise ever outlived its creating call unforced (2 = escaped). Non-promise
-	// units leave this NULL -> NA on export.
-	int *escape_flag = NULL;
+	// own escape cell (owned here via escape_ext). The cell is a two-int pair
+	// [escaped latch, pending count]; the stencils receive the two as separate custom
+	// values (counter = cell + 1, escaped latch = cell). `escape_cell` points at that
+	// pair. Non-promise units leave this NULL -> NA on export.
+	int *escape_cell = NULL;
 	if (escape_ext != R_NilValue)
 	{
 		SET_VECTOR_ELT(result, 5, escape_ext);
-		escape_flag = &((int *)R_ExternalPtrAddr(escape_ext))[1];
+		escape_cell = &((int *)R_ExternalPtrAddr(escape_ext))[1];
 	}
 
 	// All plugins are inserted in non-decreasing bytecode position, so the caller
 	// never has to sort. Position 0 comes first: the run counter, then (for a
 	// promise) its force transition at entry.
 	add_plugin_stencil_pos(plugins, 0, &_RCP_CUSTOM_COUNTER_REL32, &run_counter_raw[1]);
-	if (escape_flag)
-		add_plugin_stencil_pos(plugins, 0, &_RCP_PROM_FORCE, escape_flag);
+	if (escape_cell)
+		add_plugin_stencil_pos(plugins, 0, &_RCP_PROM_FORCE, escape_cell + 1); // counter
 
 	// Single ordered pass: each instruction adds its plugins at position i, then at
 	// `after` (= i + args + 1). The next instruction's i equals this `after`, so
@@ -2575,21 +2576,23 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 				jf++;
 				break;
 			case MAKEPROM_BCOP:
-				// reset transition for this child promise, just after its MAKEPROM
+				// count a fresh instance for this child promise, just after its MAKEPROM
 				if (child_prom_flags && child_prom_flags[jp])
-					add_plugin_stencil_pos(plugins, after, &_RCP_PROM_MAKE, child_prom_flags[jp]);
+					add_plugin_stencil_pos(plugins, after, &_RCP_PROM_MAKE, child_prom_flags[jp] + 1); // counter
 				jp++;
 				break;
 			case RETURN_BCOP:
 			case RETURNJMP_BCOP:
 				// reflection check, then the escape return-side transition for every
-				// compiled child promise -- all at this return's position.
+				// compiled child promise -- all at this return's position. Each escape
+				// transition gets two custom values: the counter (cell + 1) and the
+				// escaped latch (cell).
 				if (is_closure)
 					add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_REFLECTION_CHECK, &reflection_raw[1]);
 				if (child_prom_flags)
 					for (int k = 0; k < n_prom; k++)
 						if (child_prom_flags[k])
-							add_plugin_stencil_pos(plugins, i, &_RCP_PROM_EXIT, child_prom_flags[k]);
+							add_plugin_stencil_pos_ex(plugins, i, &_RCP_PROM_EXIT, child_prom_flags[k] + 1, child_prom_flags[k], NULL, NULL);
 				break;
 			default:
 				break;
@@ -2773,7 +2776,7 @@ SEXP C_rcp_export_recording(SEXP x)
 		const int *raw = (const int *)EXTPTR_PTR(esc);
 		if (!raw)
 			Rf_error("recording buffers have already been released");
-		escaped = (raw[1] == 2); // 2 = escaped at least once
+		escaped = (raw[1] != 0); // raw[1] is the escaped latch (raw[2] is the pending count)
 	}
 
 	SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
@@ -3012,14 +3015,16 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 							const char *base_name = name ? name : "promise";
 							snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
 									 base_name, closure_counter);
-							// Give this promise its own escape flag; the promise's recording
+							// Give this promise its own escape cell; the promise's recording
 							// will own it (finalizer travels with the external pointer).
+							// Layout after the size header: [escaped latch, pending count].
 							SEXP fext = R_NilValue;
 							if (child_prom_flags)
 							{
-								int *buf = mmap_near(2 * sizeof(int));
-								buf[0] = 2 * sizeof(int);
-								buf[1] = 1; // tracked, not (yet) escaped (clean)
+								int *buf = mmap_near(3 * sizeof(int));
+								buf[0] = 3 * sizeof(int);
+								buf[1] = 0; // escaped latch (exported): not escaped yet
+								buf[2] = 0; // pending instance count
 								fext = PROTECT(R_MakeExternalPtr(buf, R_NilValue, R_NilValue));
 								R_RegisterCFinalizerEx(fext, &munmap_finalizer, FALSE);
 								child_prom_flags[this_prom] = &buf[1];
@@ -3239,9 +3244,12 @@ static int classify_compiled_const(SEXP c, SEXP *out)
 		*out = c; // MAKEPROM stores the compiled promise body directly
 		return 2;
 	}
-	if (TYPEOF(c) == VECSXP && XLENGTH(c) == 2)
+	// MAKECLOSURE stores list(formals, body, srcref) -- length 3 (srcref may be NULL),
+	// though older shapes drop srcref; the body is always element 1. Accept any such
+	// vector so source closures are not silently omitted.
+	if (TYPEOF(c) == VECSXP && XLENGTH(c) >= 2)
 	{
-		SEXP b = VECTOR_ELT(c, 1); // MAKECLOSURE stores list(formals, body)
+		SEXP b = VECTOR_ELT(c, 1);
 		if (TYPEOF(b) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(b))
 		{
 			*out = b;
