@@ -9,6 +9,7 @@
 #include "runtime_internals.h"
 #include "rcp_hooks.h"
 #include <assert.h>
+#include <inttypes.h>
 #include <omp.h>
 #include <R.h>
 #include <Rinternals.h>
@@ -70,32 +71,29 @@ struct StencilProfileInfo stencil_profile_info[NUM_OPCODES];
 // Per-opcode execution counts gathered by the runtime-toggled plugin counting
 // (rcp_count_enable). Independent of PROFILE_STENCILS.
 //
-// The counters live directly in an R integer vector (named by opcode, in opcode
-// order) so C_rcp_get_counts can hand it back with zero copying or post-
-// processing: the _RCP_CUSTOM_COUNTER_ABS64 plugin that count_instructions()
-// inserts before each instruction increments INTEGER(stencil_exec_counts)[op]
-// in place. Allocated lazily on the first rcp_count_enable() and kept alive with
-// R_PreserveObject -- it must never be reallocated, since pointers into its data
-// are baked into already-compiled functions. NULL if counting is not enabled.
-static SEXP stencil_exec_counts = NULL;
+// The counters are `uint64_t`, one per opcode, in a buffer rcp maps itself with
+// mmap_near -- like the type-recording buffers -- so the plugin can reach them
+// with the rel32 _RCP_CUSTOM_COUNTER64_REL32 stencil that count_instructions()
+// inserts before each instruction. 64 bits means a hot opcode no longer wraps
+// after 2^31 executions; living outside the R heap means C_rcp_get_counts has
+// to build a fresh R vector for the values on every call.
+//
+// Unlike the recording buffers -- which belong to one compiled function and are
+// unmapped by its finalizer -- this one is global and is never unmapped or
+// moved: rel32 references to its slots are baked into every function compiled
+// while counting was on, and those keep writing to it for as long as they
+// exist. So nothing owns it: no external pointer, no finalizer, no entry in any
+// protection list. NULL when counting is off; mapped by the first
+// rcp_count_enable() and dropped (not freed) by rcp_count_disable().
+static uint64_t *stencil_exec_counts = NULL;
 
-// Allocate the per-opcode counter vector on first use (named, opcode order,
-// zeroed) and pin it. Idempotent; the data pointer is stable for the process
-// lifetime so plugin relocations into it stay valid.
-static void rcp_ensure_counts(void)
-{
-	if (stencil_exec_counts != NULL)
-		return;
-	SEXP v = PROTECT(Rf_allocVector(INTSXP, NUM_OPCODES));
-	memset(INTEGER0(v), 0, NUM_OPCODES * sizeof(int));
-	SEXP nms = PROTECT(Rf_allocVector(STRSXP, NUM_OPCODES));
-	for (int i = 0; i < NUM_OPCODES; i++)
-		SET_STRING_ELT(nms, i, Rf_mkChar(OPCODES_NAMES[i]));
-	Rf_setAttrib(v, R_NamesSymbol, nms);
-	R_PreserveObject(v);
-	stencil_exec_counts = v;
-	UNPROTECT(2); // v, nms
-}
+// The `names` attribute of every snapshot C_rcp_get_counts returns: the opcode
+// table as a STRSXP, in opcode order. The opcode names never change, so this is
+// built once alongside the counter buffer and pinned, rather than re-interning
+// NUM_OPCODES CHARSXPs on every retrieval. Attaching one preserved vector to
+// many snapshots is safe: installAttrib marks a referenced attribute
+// NAMEDMAX, so a caller renaming its own snapshot copies first.
+static SEXP stencil_exec_counts_names = NULL;
 
 // #define BC_DEFAULT_OPTIMIZE_LEVEL 2
 
@@ -822,7 +820,7 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		case LDCONST_BCOP:
 		{
 			SEXP constant = r_constpool[imms[0]];
-			if (constant->sxpinfo.scalar && ATTRIB(constant) == R_NilValue)
+			if (constant->sxpinfo.scalar && !ALTREP(constant) && ATTRIB(constant) == R_NilValue)
 			{
 				switch (TYPEOF(constant))
 				{
@@ -856,16 +854,43 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		}
 		break;
 #endif
-#ifdef SWITCH_SPECIALIZE
 		case SWITCH_BCOP:
 		{
 			SEXP names = r_constpool[imms[1]];
 			SEXP coffsets = r_constpool[imms[2]];
 			SEXP ioffsets = r_constpool[imms[3]];
 
+			// A numeric switch has no names and no character offsets, but the
+			// emit pass below substitutes the empty INTSXP for both R_NilValue
+			// operands before it asks for the stencil a second time (see
+			// SWITCH_BCOP in copy_patch_internal). Both spellings have to be
+			// recognised here, or the two passes pick different variants.
 			Rboolean is_names_null = names == R_NilValue || LENGTH_0(names) == 0;
-			assert(!ALTREP(names));
-			assert(!ALTREP(ioffsets));
+
+			// Validate the shape of the SWITCH operands once, here, instead of
+			// on every execution of the stencil. GNU R re-checks all of this in
+			// the interpreter loop (eval.c: "bad numeric 'switch' offsets",
+			// "bad character 'switch' offsets", "bad 'switch' names"), but the
+			// checks can never fire for bytecode produced by R's compiler:
+			// patchlabels() in cmp.R turns every label list into an
+			// as.integer(...) vector, and the names vector of a character
+			// switch is built alongside coffsets, so the two always have the
+			// same length. Having checked it here, the stencils can index
+			// INTEGER0()/STRING_ELT_0() directly, which also requires the
+			// vectors not to be ALTREP.
+			if (TYPEOF(ioffsets) != INTSXP || ALTREP(ioffsets))
+				BC_ERROR("bad numeric 'switch' offsets\n");
+
+			if (!is_names_null)
+			{
+				if (TYPEOF(coffsets) != INTSXP || ALTREP(coffsets))
+					BC_ERROR("bad character 'switch' offsets\n");
+				if (TYPEOF(names) != STRSXP || ALTREP(names) ||
+					LENGTH_0(names) != LENGTH_0(coffsets))
+					BC_ERROR("bad 'switch' names\n");
+			}
+
+#ifdef SWITCH_SPECIALIZE
 			int names_length = LENGTH_0(names);
 			int ioffsets_length = LENGTH_0(ioffsets);
 			DEBUG_PRINT("SWITCH_OP specialization: is_names_null=%d names_length=%d, "
@@ -882,9 +907,11 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 				return &stencil_set[3]; //&_RCP_SWITCH_101_OP;
 			else
 				BC_ERROR("Invalid SWITCH_OP immediate values\n");
+#else
+			return &stencil_set[0];
+#endif
 		}
 		break;
-#endif
 #ifdef MAKEPROM_SPECIALIZE
 		case MAKEPROM_BCOP:
 		{
@@ -904,6 +931,24 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 				default:
 					DEBUG_PRINT("Using specialized version of MAKEPROM_OP: OTHER SEXPs\n");
 					return &stencil_set[0];
+			}
+		}
+		break;
+#endif
+#ifdef MAKECLOSURE_SPECIALIZE
+		case MAKECLOSURE_BCOP:
+		{
+			SEXP mkclos_arg = r_constpool[imms[0]];
+			SEXP srcref = VECTOR_ELT_0(mkclos_arg, 2);
+			if (isNull(srcref))
+			{
+			    DEBUG_PRINT("Using specialized version of MAKECLOSURE_OP: NULL srcref\n");
+			    return &stencil_set[0];
+			}
+			else
+			{
+			    DEBUG_PRINT("Using specialized version of MAKECLOSURE_OP: NON-NULL srcref\n");
+                return &stencil_set[1];
 			}
 		}
 		break;
@@ -1347,6 +1392,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
 								  // allocated by the following calls
 	uint8_t **inst_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
+	// Where the instruction's own stencil body starts, i.e. inst_start[i] plus
+	// whatever plugins were inserted in front of it (plus the body's alignment).
+	// inst_start[i] is what branches target, so that they run the plugins too;
+	// this is what a *body* has to be written to. The two differ only when
+	// position i has plugins, and only STARTFOR (which writes its STEPFOR's body
+	// remotely, into another position's slot) needs the distinction.
+	uint8_t **inst_body_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
 	int *used_bcells = (int *)S_alloc(constpool_size, sizeof(int));
 	int *used_loopcntxt = (int *)S_alloc(bytecode_size, sizeof(int));
 	int *bytecode_lut = (int *)R_alloc(bytecode_size, sizeof(int));
@@ -1458,6 +1510,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		size_t aligned_size = align_to_higher(insts_size, stencil->alignment);
 		size_t aligned_diff = aligned_size - insts_size;
 
+		inst_body_start[i] = (uint8_t *)aligned_size;
 		insts_size = aligned_size + stencil->body_size;
 		bytecode_lut[count_opcodes++] = i;
 
@@ -1556,7 +1609,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	size_t smc_storage_used = 0;
 
 	for (int j = 0; j < count_opcodes; j++)
+	{
 		inst_start[bytecode_lut[j]] += (ptrdiff_t)executable;
+		inst_body_start[bytecode_lut[j]] += (ptrdiff_t)executable;
+	}
 
 	res.eval = (void *)executable;
 	res.bcells_size = bcells_size;
@@ -1598,6 +1654,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		int opcode = bytecode[bc_pos];
 		int *opargs = &bytecode[bc_pos + 1];
 		void *smc_variants = NULL;
+		// Cleared for an instruction whose body is written by some *other*
+		// iteration (STEPFOR, filled in by its STARTFOR). Such a position still
+		// has to run the plugin loop below: its plugins are its own, and `p` only
+		// ever advances over plugins at the position being emitted, so skipping
+		// the position outright would strand `p` there and silently drop every
+		// plugin at every later position.
+		int emit_body = 1;
 
 		DEBUG_PRINT("Copy-patching opcode: %s\n", OPCODES_NAMES[opcode]);
 
@@ -1629,8 +1692,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 				DEBUG_PRINT("Found corresponding STEPFOR_BCOP at position %d\n", stepfor_bc);
 
 				// Copy destination is the (reserved) STEPFOR slot; the driver
-				// (this STARTFOR) picks a variant by loop type at runtime.
-				uint8_t *stepfor_code = inst_start[stepfor_bc];
+				// (this STARTFOR) picks a variant by loop type at runtime. It is
+				// the *body* slot, not inst_start: any plugins at the STEPFOR
+				// position sit in front of it and are emitted by that position's
+				// own iteration below.
+				uint8_t *stepfor_code = inst_body_start[stepfor_bc];
 
 				stepfor_mem->cached_type = -1; // no variant installed yet
 				build_smc_site(
@@ -1644,8 +1710,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			}
 			break;
 			case STEPFOR_BCOP:
-				// Stepfor was already handled during startfor
-				continue;
+				// The body was already written into this slot by the matching
+				// STARTFOR above; only this position's plugins are left to emit.
+				emit_body = 0;
+				break;
 #endif
 			case SWITCH_BCOP:
 			{
@@ -1744,6 +1812,14 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		}
 
 		pos = (uint8_t *)align_to_higher((uintptr_t)pos, stencil->alignment);
+
+		// The size pass laid out plugins and body with this same arithmetic, so
+		// the two must land on the same address -- which is what lets STARTFOR
+		// write its STEPFOR's body at inst_body_start without seeing the plugins.
+		assert(pos == inst_body_start[bc_pos]);
+
+		if (!emit_body)
+			continue;
 
 		memcpy(pos, stencil->body, stencil->body_size);
 
@@ -2017,17 +2093,17 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 
 // Runtime per-instruction counting (enabled via rcp_count_enable). Insert the
 // generic incrementer plugin before each instruction body, with its custom
-// argument pointing straight at this opcode's slot in the R counter vector
-// (INTEGER(stencil_exec_counts)[op]). Unlike the hard-coded PROFILE_STENCILS
+// argument pointing straight at this opcode's uint64_t slot in the counter
+// buffer (stencil_exec_counts[op]). Unlike the hard-coded PROFILE_STENCILS
 // timing, this is opt-in at runtime and adds no overhead to functions compiled
 // while counting is disabled.
 static void count_instructions(int bytecode[], int bytecode_size, PluginStencils *plugins)
 {
-	int *counts = INTEGER0(stencil_exec_counts);
+	uint64_t *counts = stencil_exec_counts;
 	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		int op = bytecode[i];
-		add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_COUNTER_ABS64, &counts[op]);
+		add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_COUNTER64_REL32, &counts[op]);
 	}
 }
 
@@ -2325,9 +2401,10 @@ static void munmap_finalizer(SEXP ptr)
 	}
 }
 
-static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins)
+static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins, int is_closure,
+						   SEXP escape_ext, int **child_prom_flags)
 {
-	int n_branch = 0, n_type = 0, n_fun = 0;
+	int n_branch = 0, n_type = 0, n_fun = 0, n_prom = 0;
 	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		switch (bytecode[i])
@@ -2342,10 +2419,13 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 			case GETFUN_BCOP:
 				n_fun++;
 				break;
+			case MAKEPROM_BCOP:
+				n_prom++;
+				break;
 		}
 	}
 
-	SEXP result = PROTECT(allocVector(VECSXP, 3));
+	SEXP result = PROTECT(allocVector(VECSXP, 6));
 
 	// Group 0 (brifnot): two counters per point, packed adjacently -- one before
 	// the instruction and one on the fall-through path just after it.
@@ -2421,7 +2501,53 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 		R_RegisterCFinalizerEx(fun_consts, &munmap_finalizer, FALSE);
 	}
 
-	for (int i = 0, jb = 0, jt = 0, jf = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	// Buffers and result slots for the scalar groups. Their plugins are added below
+	// in the single position-ordered pass, not here.
+
+	// Group 3 (function run counter): a single counter at bytecode position 0,
+	// incremented once per call to the compiled function.
+	int *run_counter_raw = mmap_near(sizeof(int) * 2);
+	run_counter_raw[0] = sizeof(int) * 2;
+	run_counter_raw[1] = 0;
+	SEXP run_counter = R_MakeExternalPtr(run_counter_raw, R_NilValue, R_NilValue);
+	SET_VECTOR_ELT(result, 3, run_counter);
+	R_RegisterCFinalizerEx(run_counter, &munmap_finalizer, FALSE);
+
+	// Group 4 (reflection flag): for closures only, a flag raised at return if the
+	// call frame environment was reflectively accessed (envir.c recordReflection
+	// binds Rsh_ReflectivelyAccessed in it). Exceptional exits are not tracked.
+	// Inverted logic for closures: 1 = not (yet) accessed, cleared to 0 by the check
+	// stencil so its runtime store is of an immediate 0. Non-closures get no stencil
+	// and keep the NA sentinel. C_rcp_export_recording maps these back to R logicals.
+	int *reflection_raw = mmap_near(sizeof(int) * 2);
+	reflection_raw[0] = sizeof(int) * 2;
+	reflection_raw[1] = is_closure ? 1 : NA_INTEGER;
+	SEXP reflection = R_MakeExternalPtr(reflection_raw, R_NilValue, R_NilValue);
+	SET_VECTOR_ELT(result, 4, reflection);
+	R_RegisterCFinalizerEx(reflection, &munmap_finalizer, FALSE);
+
+	// Group 5 (escape): if this compiled unit is itself a tracked promise, expose its
+	// own escape flag (owned here via escape_ext). The flag records whether the
+	// promise ever outlived its creating call unforced (2 = escaped). Non-promise
+	// units leave this NULL -> NA on export.
+	int *escape_flag = NULL;
+	if (escape_ext != R_NilValue)
+	{
+		SET_VECTOR_ELT(result, 5, escape_ext);
+		escape_flag = &((int *)R_ExternalPtrAddr(escape_ext))[1];
+	}
+
+	// All plugins are inserted in non-decreasing bytecode position, so the caller
+	// never has to sort. Position 0 comes first: the run counter, then (for a
+	// promise) its force transition at entry.
+	add_plugin_stencil_pos(plugins, 0, &_RCP_CUSTOM_COUNTER_REL32, &run_counter_raw[1]);
+	if (escape_flag)
+		add_plugin_stencil_pos(plugins, 0, &_RCP_PROM_FORCE, escape_flag);
+
+	// Single ordered pass: each instruction adds its plugins at position i, then at
+	// `after` (= i + args + 1). The next instruction's i equals this `after`, so
+	// positions never decrease and same-position order is irrelevant to correctness.
+	for (int i = 0, jb = 0, jt = 0, jf = 0, jp = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		int after = i + RCP_BC_ARG_CNT[bytecode[i]] + 1;
 		switch (bytecode[i])
@@ -2448,6 +2574,23 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 				add_plugin_stencil_smc(plugins, after, SMC_GROUP_RECFUN, &fun_consts_raw[jf + 1], &VECTOR_ELT_0(fun_consts_prot, jf), fun_consts_prot, NULL);
 				jf++;
 				break;
+			case MAKEPROM_BCOP:
+				// reset transition for this child promise, just after its MAKEPROM
+				if (child_prom_flags && child_prom_flags[jp])
+					add_plugin_stencil_pos(plugins, after, &_RCP_PROM_MAKE, child_prom_flags[jp]);
+				jp++;
+				break;
+			case RETURN_BCOP:
+			case RETURNJMP_BCOP:
+				// reflection check, then the escape return-side transition for every
+				// compiled child promise -- all at this return's position.
+				if (is_closure)
+					add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_REFLECTION_CHECK, &reflection_raw[1]);
+				if (child_prom_flags)
+					for (int k = 0; k < n_prom; k++)
+						if (child_prom_flags[k])
+							add_plugin_stencil_pos(plugins, i, &_RCP_PROM_EXIT, child_prom_flags[k]);
+				break;
 			default:
 				break;
 		}
@@ -2463,12 +2606,21 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 // constants resolved back to SEXPs), so the caller can serialize the result.
 //
 // The result is a named list of three per-opcode groups, each a named list of
-// parallel vectors (one entry per recorded program point):
+// parallel vectors (one entry per recorded program point), plus a scalar
+// run_count of how many times the compiled function was called:
 //
 //   branch (brifnot)      bcids, taken, not_taken
 //   var_call (getvar/call) bcids, counters, types (observed 1u<<type bitmap)
 //   fun (getfun)          bcids, counters, consts (the single constant seen, or
 //                         R_UnboundValue when more than one distinct value)
+//   run_count             scalar int, counter placed at bytecode position 0
+//   reflection            scalar logical, TRUE if the closure's call frame was
+//                         reflectively accessed, FALSE if not, NA if not a closure
+//   escaped               scalar logical -- for a compiled PROMISE, TRUE if it ever
+//                         outlived its creating call unforced, FALSE otherwise; NA
+//                         for any unit that is not a tracked promise (e.g. closures).
+//                         The flag lives on the promise's own recording; the creating
+//                         function only contributes the reset/return-side writes.
 //
 // `x` may be the recording list itself, a compiled closure, or its (external
 // pointer) body -- in the latter two cases the recording is read from the
@@ -2481,7 +2633,7 @@ SEXP C_rcp_export_recording(SEXP x)
 	if (TYPEOF(recording) == EXTPTRSXP)
 		recording = Rf_getAttrib(recording, Rf_install("recording"));
 
-	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 3)
+	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 6)
 		Rf_error("no type recording found; compile with "
 				 "options(rcp.cmpfun.type_recording = TRUE)");
 
@@ -2590,14 +2742,54 @@ SEXP C_rcp_export_recording(SEXP x)
 	SET_STRING_ELT(fun_names, 2, Rf_mkChar("consts"));
 	Rf_setAttrib(fun_out, R_NamesSymbol, fun_names);
 
-	SEXP out = PROTECT(Rf_allocVector(VECSXP, 3));
+	// --- run_count: single counter placed at bytecode position 0 ---
+	SEXP run_counter = VECTOR_ELT_0(recording, 3);
+	int run_count = 0;
+	if (TYPEOF(run_counter) == EXTPTRSXP)
+	{
+		const int *raw = (const int *)EXTPTR_PTR(run_counter);
+		if (!raw)
+			Rf_error("recording buffers have already been released");
+		run_count = raw[1];
+	}
+
+	// --- reflection: TRUE if accessed, FALSE if a closure that wasn't, NA otherwise ---
+	SEXP reflection = VECTOR_ELT_0(recording, 4);
+	int reflected = NA_LOGICAL;
+	if (TYPEOF(reflection) == EXTPTRSXP)
+	{
+		const int *raw = (const int *)EXTPTR_PTR(reflection);
+		if (!raw)
+			Rf_error("recording buffers have already been released");
+		// inverted internally; see type_recording()
+		reflected = (raw[1] == 0) ? TRUE : (raw[1] == 1) ? FALSE : NA_LOGICAL;
+	}
+
+	// --- escaped: this unit's own promise-escape status (NA unless it is a tracked promise) ---
+	SEXP esc = VECTOR_ELT_0(recording, 5);
+	int escaped = NA_LOGICAL;
+	if (TYPEOF(esc) == EXTPTRSXP)
+	{
+		const int *raw = (const int *)EXTPTR_PTR(esc);
+		if (!raw)
+			Rf_error("recording buffers have already been released");
+		escaped = (raw[1] == 2); // 2 = escaped at least once
+	}
+
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
 	SET_VECTOR_ELT(out, 0, branch_out);
 	SET_VECTOR_ELT(out, 1, typed_out);
 	SET_VECTOR_ELT(out, 2, fun_out);
-	SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
+	SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(run_count));
+	SET_VECTOR_ELT(out, 4, Rf_ScalarLogical(reflected));
+	SET_VECTOR_ELT(out, 5, Rf_ScalarLogical(escaped));
+	SEXP names = PROTECT(Rf_allocVector(STRSXP, 6));
 	SET_STRING_ELT(names, 0, Rf_mkChar("branch"));
 	SET_STRING_ELT(names, 1, Rf_mkChar("var_call"));
 	SET_STRING_ELT(names, 2, Rf_mkChar("fun"));
+	SET_STRING_ELT(names, 3, Rf_mkChar("run_count"));
+	SET_STRING_ELT(names, 4, Rf_mkChar("reflection"));
+	SET_STRING_ELT(names, 5, Rf_mkChar("escaped"));
 	Rf_setAttrib(out, R_NamesSymbol, names);
 
 	UNPROTECT(14);
@@ -2616,6 +2808,13 @@ static Rboolean get_option_or_default(const char *option_name, Rboolean default_
 static Rboolean is_option_true(const char *option_name)
 {
 	return get_option_or_default(option_name, FALSE);
+}
+
+// TRUE when the option is (scalar) set to FALSE; unset or TRUE is not-false. A
+// degenerate NA / non-scalar value falls to the default and is reported as false.
+static Rboolean is_option_false(const char *option_name)
+{
+	return !get_option_or_default(option_name, TRUE);
 }
 
 // Read the tri-state `rcp.cmpfun.bc_recomp` option: TRUE / FALSE / NA (default).
@@ -2692,7 +2891,7 @@ static Rboolean set_option(const char *option_name, SEXP value)
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 						  const char *name, SEXP coverage_registry, SEXP hooks_registry,
-						  SEXP formals)
+						  SEXP formals, int is_closure, SEXP escape_ext)
 {
 	SEXP bcode_code = BCODE_CODE(bcode);
 	SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -2712,8 +2911,25 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	SEXP *consts = STDVEC_DATAPTR(bcode_consts);
 	int consts_size = LENGTH_0(bcode_consts);
 
+	// Promise-escape tracking (part of type recording). Each child promise owns its
+	// escape flag: the flag buffer is created here, handed to the promise's compile
+	// so the promise's own recording owns and exposes it, and its raw slot is kept
+	// so this (creating) function's code gets the reset/return-side instrumentation.
+	int attach_recording = is_option_true("rcp.cmpfun.type_recording");
+	int n_prom = 0;
+	int **child_prom_flags = NULL; // one slot per MAKEPROM site; NULL = untracked
+	if (attach_recording)
+	{
+		for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+			if (bytecode[i] == MAKEPROM_BCOP)
+				n_prom++;
+		if (n_prom > 0)
+			child_prom_flags = calloc(n_prom, sizeof(int *));
+	}
+
 	if (recursive)
 	{
+		int prom_index = 0;
 		// By default, only attach entry/exit hooks to top-level closures.
 		// Set option rcp.cmpfun.entry_exit_hooks_inner_closures = TRUE
 		// to also trace inner (dynamically created) closures.
@@ -2743,7 +2959,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					const char *base_name = name ? name : "closure";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals);
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals, 1, R_NilValue);
 					SET_VECTOR_ELT(fb, 1, res);
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
@@ -2758,10 +2974,13 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			}
 			else if (opcode == MAKEPROM_BCOP)
 			{
+				int this_prom = prom_index++;
 				int is_trivial_promise = 0;
 				SEXP body = consts[opargs[0]];
 #ifdef DECOMPILE_TRIVIAL_PROMISES
-				if (TYPEOF(body) == BCODESXP)
+				// Under type recording, do not decompile trivial promises -- compile them
+				// too so even those promises are tracked and have a recording.
+				if (!attach_recording && TYPEOF(body) == BCODESXP)
 				{
 					SEXP prom_bcode = BCODE_CODE(body);
 					SEXP *prom_consts = STDVEC_DATAPTR(BCODE_CONSTS(body));
@@ -2793,10 +3012,25 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 							const char *base_name = name ? name : "promise";
 							snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
 									 base_name, closure_counter);
-							SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals);
+							// Give this promise its own escape flag; the promise's recording
+							// will own it (finalizer travels with the external pointer).
+							SEXP fext = R_NilValue;
+							if (child_prom_flags)
+							{
+								int *buf = mmap_near(2 * sizeof(int));
+								buf[0] = 2 * sizeof(int);
+								buf[1] = 1; // tracked, not (yet) escaped (clean)
+								fext = PROTECT(R_MakeExternalPtr(buf, R_NilValue, R_NilValue));
+								R_RegisterCFinalizerEx(fext, &munmap_finalizer, FALSE);
+								child_prom_flags[this_prom] = &buf[1];
+							}
+							SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals, 0, fext);
 							// consts[opargs[0]] does not seem to work
 							// it seems that it does not propely handle GC
 							SET_VECTOR_ELT(bcode_consts, opargs[0], res);
+							if (fext != R_NilValue)
+								UNPROTECT(1); // fext now owned by res's recording
+
 							DEBUG_PRINT("**********\nPromise compiled\n");
 							break;
 						}
@@ -2881,7 +3115,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_cloconst_%d",
 					 base_name, closure_counter);
 			SEXP res = PROTECT(copy_patch_bc(body, recursive, stats, closure_name_buf,
-											 coverage_registry, inner_hooks, FORMALS(c)));
+											 coverage_registry, inner_hooks, FORMALS(c), 1, R_NilValue));
 			// Replace the constant with a patched copy rather than mutating in
 			// place, since the constant closure may be shared.
 			SEXP new_clo = PROTECT(Rf_duplicate(c));
@@ -2920,9 +3154,9 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
 
 	SEXP recording_results;
-	int attach_recording = is_option_true("rcp.cmpfun.type_recording");
 	if (attach_recording)
-		recording_results = PROTECT(type_recording(bytecode, bytecode_size, &plugins));
+		recording_results = PROTECT(type_recording(bytecode, bytecode_size, &plugins, is_closure, escape_ext, child_prom_flags));
+	free(child_prom_flags);
 
 	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
@@ -2995,6 +3229,86 @@ SEXP C_rcp_is_compiled(SEXP closure)
 	return Rf_ScalarLogical(TRUE);
 }
 
+// Classify one bytecode constant: 0 = neither, 1 = a compiled closure body,
+// 2 = a compiled promise body. On a nonzero return, *out is set to the compiled
+// body external pointer.
+static int classify_compiled_const(SEXP c, SEXP *out)
+{
+	if (TYPEOF(c) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(c))
+	{
+		*out = c; // MAKEPROM stores the compiled promise body directly
+		return 2;
+	}
+	if (TYPEOF(c) == VECSXP && XLENGTH(c) == 2)
+	{
+		SEXP b = VECTOR_ELT(c, 1); // MAKECLOSURE stores list(formals, body)
+		if (TYPEOF(b) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(b))
+		{
+			*out = b;
+			return 1;
+		}
+	}
+	if (TYPEOF(c) == CLOSXP && TYPEOF(BODY(c)) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(BODY(c)))
+	{
+		*out = BODY(c); // a closure held as a plain constant, compiled in place
+		return 1;
+	}
+	return 0;
+}
+
+// List the compiled bodies of the closures and promises created directly in the
+// compilation of `x` (NOT recursively -- the caller can recurse by passing each
+// returned body back in). Each element can be passed to rcp_export_recording(), so
+// a promise's own recording (e.g. its `escaped` flag) is reachable from R.
+// Returns list(closures = <compiled bodies>, promises = <compiled bodies>).
+SEXP C_rcp_list_compiled(SEXP x)
+{
+	SEXP body = x;
+	if (TYPEOF(body) == CLOSXP)
+		body = BODY(body);
+	if (TYPEOF(body) != EXTPTRSXP || !RSH_IS_CLOSURE_BODY(body))
+		Rf_error("Expected a JIT-compiled function or its compiled body.");
+
+	SEXP prot = R_ExternalPtrProtected(body);
+	SEXP consts = (TYPEOF(prot) == VECSXP && XLENGTH(prot) >= 1) ? VECTOR_ELT(prot, 0) : R_NilValue;
+	R_xlen_t n = (TYPEOF(consts) == VECSXP) ? XLENGTH(consts) : 0;
+
+	int nc = 0, np = 0;
+	for (R_xlen_t k = 0; k < n; k++)
+	{
+		SEXP child = R_NilValue;
+		int kind = classify_compiled_const(VECTOR_ELT(consts, k), &child);
+		if (kind == 1)
+			nc++;
+		else if (kind == 2)
+			np++;
+	}
+
+	SEXP closures = PROTECT(Rf_allocVector(VECSXP, nc));
+	SEXP promises = PROTECT(Rf_allocVector(VECSXP, np));
+	int ci = 0, pi = 0;
+	for (R_xlen_t k = 0; k < n; k++)
+	{
+		SEXP child = R_NilValue;
+		int kind = classify_compiled_const(VECTOR_ELT(consts, k), &child);
+		if (kind == 1)
+			SET_VECTOR_ELT(closures, ci++, child);
+		else if (kind == 2)
+			SET_VECTOR_ELT(promises, pi++, child);
+	}
+
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
+	SET_VECTOR_ELT(out, 0, closures);
+	SET_VECTOR_ELT(out, 1, promises);
+	SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+	SET_STRING_ELT(names, 0, Rf_mkChar("closures"));
+	SET_STRING_ELT(names, 1, Rf_mkChar("promises"));
+	Rf_setAttrib(out, R_NamesSymbol, names);
+
+	UNPROTECT(4);
+	return out;
+}
+
 static const char *guess_closure_name(SEXP f)
 {
 	SEXP env = CLOENV(f);
@@ -3060,6 +3374,12 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	if (TYPEOF(f) != CLOSXP)
 		error("The first argument must be a closure.");
 
+	// Type recording tracks promises (including trivial ones) through their compiled
+	// bodies, so promise compilation must not be disabled. Unset or TRUE is fine.
+	if (is_option_true("rcp.cmpfun.type_recording") && is_option_false("rcp.cmpfun.compile_promises"))
+		error("options(rcp.cmpfun.type_recording = TRUE) requires promise compilation; "
+			  "unset options(rcp.cmpfun.compile_promises) or set it to TRUE.");
+
 	SEXP coverage_registry = R_NilValue;
 
 	if (is_option_true("rcp.cmpfun.coverage"))
@@ -3093,6 +3413,12 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	{
 		compile_promises = get_option_or_default("rcp.cmpfun.compile_promises", RCP_COMPILE_PROMISES);
 	}
+
+	// Type recording needs promises compiled to track them. The explicit-FALSE case
+	// already errored above, so for unset/TRUE force promise compilation on here,
+	// overriding the build default so tracking never silently no-ops.
+	if (is_option_true("rcp.cmpfun.type_recording"))
+		compile_promises = TRUE;
 
 	// R option "rcp.entry_exit_hooks"
 	SEXP hooks_registry = R_NilValue;
@@ -3221,7 +3547,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	PROTECT(compiled);
 	CompilationStats stats = {0, 0};
-	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled));
+	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled), 1, R_NilValue);
 	SET_BODY(compiled, ptr);
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
@@ -3348,7 +3674,7 @@ static SEXP cmpfun_call_sexp(void)
 
 	// Create the call expression
 	SEXP call_expr = Rf_lang5(call_sym, fun_name, f_sym, options_sym, last_arg);
-	UNPROTECT(5); // call_sym, fun_name, f_sym, options_sym
+	UNPROTECT(5); // call_sym, fun_name, f_sym, options_sym, last_arg
 	PROTECT(call_expr);
 
 	// Add PACKAGE as a named argument to the last cons cell
@@ -3368,7 +3694,12 @@ static SEXP cmpfun_call_sexp(void)
 	SET_FORMALS(wrapper, formals);
 	SET_BODY(wrapper, call_expr);
 	SET_CLOENV(wrapper, compiler_namespace);
-	UNPROTECT(3); // formals, call_expr, compiler_namespace
+	// wrapper is now the only reference needed; everything else is reachable
+	// from it. UNPROTECT is a stack pop, so it has to take wrapper down with
+	// the rest -- the caller protects the return value before it allocates
+	// again. Popping only 3 here left compiler_namespace protected forever,
+	// i.e. one leaked pointer-protect slot per rcp_jit_enable() call.
+	UNPROTECT(4); // wrapper, formals, call_expr, compiler_namespace
 
 	return wrapper;
 }
@@ -3682,8 +4013,37 @@ SEXP C_rcp_get_profiling(void)
 #endif
 }
 
+// Map the zeroed per-opcode counter buffer on first use, and build the shared
+// opcode-name vector that every snapshot of it will carry. Idempotent, and the
+// buffer address never changes afterwards, so the rel32 references baked into
+// compiled code stay valid. No size header: nothing ever unmaps this buffer, so
+// there is no finalizer to tell how big it was.
+static void rcp_ensure_counts(void)
+{
+	if (stencil_exec_counts != NULL)
+		return;
+
+	// Built before the mapping, so a failure here cannot strand one. Survives
+	// rcp_count_disable(), which is why it is guarded separately.
+	if (stencil_exec_counts_names == NULL)
+	{
+		SEXP names = PROTECT(Rf_allocVector(STRSXP, NUM_OPCODES));
+		for (int i = 0; i < NUM_OPCODES; i++)
+			SET_STRING_ELT(names, i, Rf_mkChar(OPCODES_NAMES[i]));
+		R_PreserveObject(names);
+		UNPROTECT(1); // names
+		stencil_exec_counts_names = names;
+	}
+
+	uint64_t *raw = mmap_near(sizeof(uint64_t) * NUM_OPCODES);
+	if (raw == NULL)
+		Rf_error("no near memory left for the instruction counters");
+	memset(raw, 0, sizeof(uint64_t) * NUM_OPCODES);
+	stencil_exec_counts = raw;
+}
+
 // Runtime per-instruction counting (independent of PROFILE_STENCILS). Enabling
-// allocates the counter vector on first use, then makes subsequent rcp_cmpfun
+// maps the counter buffer on first use, then makes subsequent rcp_cmpfun
 // compilations instrument each instruction with the per-opcode counter plugin;
 // already-compiled functions are unaffected.
 SEXP C_rcp_count_enable(void)
@@ -3692,9 +4052,13 @@ SEXP C_rcp_count_enable(void)
 	return R_NilValue;
 }
 
+// Stop instrumenting, and forget the current buffer -- a later enable maps a
+// fresh one, so counts from the closed window disappear from the API. The old
+// buffer is deliberately not unmapped: functions compiled while it was live
+// still hold rel32 references to it and keep incrementing it. That strands one
+// page per enable/disable cycle, out of a ~2 GB arena.
 SEXP C_rcp_count_disable(void)
 {
-	R_ReleaseObject(stencil_exec_counts);
 	stencil_exec_counts = NULL;
 	return R_NilValue;
 }
@@ -3702,17 +4066,52 @@ SEXP C_rcp_count_disable(void)
 SEXP C_rcp_count_reset(void)
 {
 	if (stencil_exec_counts != NULL)
-		memset(INTEGER0(stencil_exec_counts), 0, NUM_OPCODES * sizeof(int));
+		memset(stencil_exec_counts, 0, NUM_OPCODES * sizeof(uint64_t));
 	return R_NilValue;
 }
 
-// Return the live counter vector as-is: a named integer vector, opcode name ->
-// execution count, in opcode order. No copy or sorting -- callers that want a
-// stable snapshot or a different order do that in R. NULL if counting was never
-// enabled.
+// Convert one counter to the double that will be reported, and say whether that
+// conversion was exact. Everything below 2^53 is; above it the conversion may
+// round, so round-trip and compare -- which is only defined while the rounded
+// value is still in uint64_t range, since (double)v can round up to exactly
+// 2^64, a value that is inexact by definition. Returning the converted value
+// keeps the checked double and the reported one the same one.
+static int rcp_count_to_double(uint64_t v, double *out)
+{
+	double d = (double)v;
+	*out = d;
+	if (d >= 18446744073709551616.0) // 2^64
+		return 0;
+	return (uint64_t)d == v;
+}
+
+// Snapshot the counters into a fresh numeric vector, opcode name -> execution
+// count, in opcode order, sharing the names built by rcp_ensure_counts. The
+// live slots are uint64_t and R has no 64-bit integer type, so each is
+// converted to a double; a count past 2^53 no longer converts exactly, and
+// every such slot is reported with a warning before its rounded value is
+// returned anyway. Unsorted -- callers that want a different order do that in
+// R. NULL if counting was never enabled.
 SEXP C_rcp_get_counts(void)
 {
-	return stencil_exec_counts != NULL ? stencil_exec_counts : R_NilValue;
+	if (stencil_exec_counts == NULL)
+		return R_NilValue;
+
+	const uint64_t *counts = stencil_exec_counts;
+	SEXP out = PROTECT(Rf_allocVector(REALSXP, NUM_OPCODES));
+	double *exported = REAL0(out);
+	for (int i = 0; i < NUM_OPCODES; i++)
+	{
+		if (!rcp_count_to_double(counts[i], &exported[i]))
+			Rf_warning("count for %s (%" PRIu64 ") is not exactly representable "
+					   "as a double; reported as %.0f",
+					   OPCODES_NAMES[i], counts[i], exported[i]);
+	}
+
+	Rf_setAttrib(out, R_NamesSymbol, stencil_exec_counts_names);
+
+	UNPROTECT(1); // out
+	return out;
 }
 
 SEXP C_rcp_s3_generics_deactivated(void)
@@ -4114,7 +4513,7 @@ void __attribute__((used)) rcp_print_stack_val_unbox(void *p)
 		return;
 	}
 	R_bcstack_t v = *(R_bcstack_t *)p;
-	val_unbox_inplace(&v, 1, 1, 1, 1);
+	unbox_inplace(&v, 1, 1, 1, 1);
 
 	rcp_print_stack_val(&v);
 }

@@ -1087,7 +1087,10 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);\n";
 	// Self-modifying-code copy primitive, defined in stencils-runtime.c; the SMC
 	// variants reference it as an external runtime symbol.
-	c_file << "extern Value rcp_smc_copy(void *dst, const void *src, void *jmp, size_t size);\n\n";
+	c_file << "extern Value rcp_smc_copy(void *dst, const void *src, void *jmp, size_t size);\n";
+	// Loop-context trampoline, also defined in stencils-runtime.c; the
+	// STARTLOOPCNTXT / ENDLOOPCNTXT stencils call into it.
+	c_file << "#include \"rcp_loopcntxt.h\"\n\n";
 	// Under PROFILE_STENCILS the opcode stencils reference the global
 	// stencil_profile_info[] counter array (defined in compile.c) via the
 	// hard-coded PROFILING_START/END timing. Declare it so the generated
@@ -1611,9 +1614,13 @@ static void process_section(bfd &abfd, asection &section, Stencils &stencils)
 						if (ptr_size <= 0)
 							ptr_size = 8;
 
+						// Use data()+n, not &body[n]: n can be one past the
+						// last byte (an FDE ending exactly at the section end),
+						// and forming that pointer through operator[] is UB and
+						// trips the libstdc++ bounds assertion.
 						const uint8_t *fde_start =
-							&body[offset + len_field_size + 4];
-						const uint8_t *fde_end = &body[entry_end];
+							body.data() + offset + len_field_size + 4;
+						const uint8_t *fde_end = body.data() + entry_end;
 						const uint8_t *cfi_start =
 							fde_start + ptr_size + ptr_size;
 

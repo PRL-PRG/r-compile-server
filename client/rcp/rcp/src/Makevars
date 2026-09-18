@@ -21,6 +21,12 @@ PKG_CPPFLAGS += -DC99_INLINE_SEMANTICS=0
 # this package compile.
 PKG_CPPFLAGS += -MMD -MP
 
+# Pin the C dialect, the same one the plain-make subdirectories get from common.mk. `R CMD INSTALL`
+# takes the dialect from the R build's etc/Makeconf, which just says `CC = gcc` with no -std, so the
+# compiler's own default applies. PKG_CFLAGS lands before Makeconf's $(CFLAGS), so a -std the user
+# set there still wins.
+PKG_CFLAGS += $(C_STD_FLAG)
+
 RCP_GIT_COMMIT := $(shell git -C $(ROOT_DIR) rev-parse --short HEAD 2>/dev/null || echo NA)
 PKG_CFLAGS += -DRCP_GIT_COMMIT=\"$(RCP_GIT_COMMIT)\"
 
@@ -68,6 +74,10 @@ ifneq ($(SPECIALIZE_MAKEPROM),0)
   PKG_CFLAGS += -DMAKEPROM_SPECIALIZE
 endif
 
+ifneq ($(SPECIALIZE_MAKECLOSURE),0)
+  PKG_CFLAGS += -DMAKECLOSURE_SPECIALIZE
+endif
+
 # Assume the bytecode object is always valid: turns BC_ERROR checks into ASSUME
 # (hard-aborting in debug, optimized away in release). Off by default since it
 # removes the graceful error path for corrupt/unexpected bytecode.
@@ -100,6 +110,7 @@ $(info MCMODEL=$(MCMODEL))
 $(info SPECIALIZE_STEPFOR=$(SPECIALIZE_STEPFOR))
 $(info SPECIALIZE_SWITCH=$(SPECIALIZE_SWITCH))
 $(info SPECIALIZE_MAKEPROM=$(SPECIALIZE_MAKEPROM))
+$(info SPECIALIZE_MAKECLOSURE=$(SPECIALIZE_MAKECLOSURE))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build

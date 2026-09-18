@@ -74,6 +74,40 @@ source("helpers.R")
   }),
   list(r = "boom", s = c(99, 2, 3), t = c(1, 2, 3), v = c(1, 2), y = c(42, 2)))
 
+# `next`/`break` from *inside* an open INCLNKSTK window. Note that any context
+# which emits INCLNKSTK (make.argContext / make.promiseContext) also clears
+# cntxt$loop$gotoOK, so these cannot compile to a plain GOTO -- they become a
+# real CALLSPECIAL and the loop gets a STARTLOOPCNTXT, i.e. the window is
+# unwound by R_BCProtReset rather than by DECLNKSTK. That is the only reason
+# skipping the DECLNKSTK is survivable, so pin it down.
+.check_all("unwind.next.out.of.open.window",
+  quote(function() {
+    s <- c(1, 2, 3)
+    z <- c(1, 2)
+    acc <- numeric(0)
+    for (e in s) {
+      sum(z[1] <- if (e == 2) next else e)
+      acc <- c(acc, e + { s[1] <- 99; 0 })
+    }
+    list(acc = acc, s = s, z = z)
+  }),
+  list(acc = c(1, 3), s = c(99, 2, 3), z = c(3, 2)))
+
+.check_all("unwind.break.out.of.open.window",
+  quote(function() {
+    s <- c(1, 2, 3)
+    z <- c(1, 2)
+    acc <- numeric(0)
+    for (e in s) {
+      sum(z[1] <- if (e == 3) break else e)
+      acc <- c(acc, e + { s[1] <- 99; 0 })
+    }
+    y <- c(1, 2)
+    v <- y + { y[1] <- 42; 0 }
+    list(acc = acc, s = s, z = z, v = v, y = y)
+  }),
+  list(acc = c(1, 2), s = c(99, 2, 3), z = c(2, 2), v = c(1, 2), y = c(42, 2)))
+
 # Unwind out of a *poisoned* window (see 02-declnkstk.R): applydefine has
 # committed the link counts and the jump skips the DECLNKSTK, so the only thing
 # left to restore R_BCProtCommitted is R_BCProtReset from the context.

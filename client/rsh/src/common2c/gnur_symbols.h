@@ -78,6 +78,7 @@ SEXP rcpEval(SEXP body, SEXP rho);
 
 extern int R_EvalDepth;
 extern int R_Expressions;
+extern SEXP R_SrcrefSymbol;
 
 #define BCODE_CODE(x) CAR(x)
 #define BCODE_CONSTS(x) CDR(x)

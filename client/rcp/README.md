@@ -19,8 +19,8 @@ The R implementation is described in Kocourek et al.,
 ## Prerequisites
 
 - Linux x86-64 (the stencils are platform-specific)
-- GCC 14 (`gcc-14`, `g++-14`) -- the stencil compiler requires
-  `no_callee_saved_registers` and C++20
+- GCC 14 or newer -- the stencil compiler requires
+  `no_callee_saved_registers` (added in GCC 14) and C++20
 - GNU Fortran (`gfortran`) -- needed to build R from source
 - Standard R build dependencies (see `Dockerfile.rcp-base` for the full list)
 
@@ -41,9 +41,11 @@ make check-toolchain
 make setup
 ```
 
-`make setup` uses `gcc-14`/`g++-14` by default and enforces `-std=gnu17`
-for C and `-std=gnu++20` for C++. You can override the compilers by setting
-`CC` and `CXX` in the environment.
+`make setup` picks the compilers itself: plain `gcc`/`g++` when they are at
+least GCC 14, otherwise the newest `gcc-<major>`/`g++-<major>` on `PATH`. It
+enforces `-std=gnu17` for C and `-std=gnu++20` for C++. You can override the
+compilers by setting `CC` and `CXX` in the environment; `make check-toolchain`
+rejects anything older than GCC 14 either way.
 
 Build and test the compiler:
 
