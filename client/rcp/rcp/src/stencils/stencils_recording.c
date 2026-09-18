@@ -62,41 +62,46 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_REFLECTION_CHECK)
 // between the creating function's code and the promise's own JITted code. It records
 // whether the promise ever escaped (outlived the creating call unforced) at least
 // once; once escaped it stays escaped.
-//   1 = no pending promise this invocation (clean, or forced)
-//   0 = a promise was created this invocation and is not yet forced
-//   2 = escaped at least once (permanent)
-//  <0 = the promise site was not JIT-compiled, so it is not tracked
-// The "never executed" case is not encoded here -- the promise's own run counter
-// already carries it.
+// Per site, two custom values are forwarded: a pending counter and the escaped latch.
+//   counter = GETCUSTOM_REL(0): promise instances created but not yet forced
+//   escaped = GETCUSTOM_REL(1): permanent latch (0/1), the value the recording exports
+// The cells live in an mmap_near buffer, always within REL32 reach of the code (even
+// the promise's own arena, since the near window spans <= INT32_MAX), so the relative
+// custom-data forms are used for smaller, faster patches.
+// A single state word cannot cope with one MAKEPROM site producing several live
+// instances (e.g. in a loop): forcing a later instance would mask an earlier one
+// that is still escaping. The counter tracks every outstanding instance, so any
+// instance that outlives the creating call is caught. Untracked sites (not
+// JIT-compiled) are absent (NA); "never executed" is carried by the run counter.
 
-// Just after MAKEPROM: a fresh promise is pending for this invocation.
+// Just after MAKEPROM: a fresh unforced instance.
 RCP_STENCIL_FUNCTION(_RCP_PROM_MAKE)
 {
 	PROLOGUE;
-	int *flag = (int *)GETCUSTOM(0);
-	if (*flag != 2)
-		*flag = 0;
+	int *counter = (int *)GETCUSTOM_REL(0);
+	(*counter)++;
 	NEXT;
 }
 
-// At the start of the promise's compiled code, i.e. when it is forced.
+// At the start of the promise's compiled code, i.e. when an instance is forced.
 RCP_STENCIL_FUNCTION(_RCP_PROM_FORCE)
 {
 	PROLOGUE;
-	int *flag = (int *)GETCUSTOM(0);
-	if (*flag == 0)
-		*flag = 1;
+	int *counter = (int *)GETCUSTOM_REL(0);
+	if (*counter > 0)
+		(*counter)--;
 	NEXT;
 }
 
-// At RETURN/RETURNJMP of the function that created the promise: a still-pending
-// promise outlived the call, so mark the site escaped permanently.
+// At RETURN/RETURNJMP of the creating function: if any instance is still pending it
+// outlived the call, so latch the site escaped permanently.
 RCP_STENCIL_FUNCTION(_RCP_PROM_EXIT)
 {
 	PROLOGUE;
-	int *flag = (int *)GETCUSTOM(0);
-	if (*flag == 0)
-		*flag = 2;
+	int *counter = (int *)GETCUSTOM_REL(0);
+	int *escaped = (int *)GETCUSTOM_REL(1);
+	if (*counter > 0)
+		*escaped = 1;
 	NEXT;
 }
 

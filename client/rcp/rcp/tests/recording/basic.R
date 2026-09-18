@@ -414,7 +414,47 @@ stopifnot(any(prom_escaped(cond_prom), na.rm = TRUE))  # now it escapes
 cat("Test 17 (conditional promise creation): OK\n")
 
 # ---------------------------------------------------------------------------
-# Test 18: type recording requires promise compilation.
+# Test 18: a MAKEPROM site executed repeatedly must not lose an earlier pending
+# instance when a later one is forced. In the loop below iteration 1's promise is
+# stashed unforced (escapes) while iteration 2's is forced; a single per-site state
+# word would be cleared by iteration 2 and miss the escape, so this needs the
+# per-instance pending count.
+# ---------------------------------------------------------------------------
+box <- new.env()
+box$first <- TRUE
+box$saved <- NULL
+handler <- function(a) {
+  if (box$first) { box$first <- FALSE; box$saved <- function() a; invisible(NULL) } # escape
+  else a                                                                            # force
+}
+loopy <- function() { for (i in 1:2) handler(gen()); invisible(NULL) }
+loopy <- rcp::rcp_cmpfun(loopy, list(name = "loopy"))
+invisible(loopy())
+stopifnot(any(prom_escaped(loopy), na.rm = TRUE))   # iteration 1's promise escaped
+cat("Test 18 (repeated MAKEPROM site keeps pending instances): OK\n")
+
+# ---------------------------------------------------------------------------
+# Test 19: closures created via MAKECLOSURE are listed by rcp_list_compiled().
+# Their bytecode constant is list(formals, body, srcref) -- length 3, not 2 -- so
+# the classifier must accept the real shape or source closures are silently omitted.
+# ---------------------------------------------------------------------------
+with_closure <- function() {
+  inner <- function(z) z + 1
+  inner(1)
+}
+with_closure <- rcp::rcp_cmpfun(with_closure, list(name = "with_closure"))
+invisible(with_closure())
+
+comp <- rcp::rcp_list_compiled(with_closure)
+stopifnot(identical(names(comp), c("closures", "promises")))
+stopifnot(length(comp$closures) >= 1L)          # the inner closure must be listed
+# each listed closure body has a readable recording, and a closure is not a promise.
+for (cl in comp$closures)
+  stopifnot(identical(rcp::rcp_export_recording(cl)$escaped, NA))
+cat("Test 19 (closures are listed): OK\n")
+
+# ---------------------------------------------------------------------------
+# Test 20: type recording requires promise compilation.
 # With recording on, options(rcp.cmpfun.compile_promises = FALSE) must error;
 # unset or TRUE is fine.
 # ---------------------------------------------------------------------------
@@ -432,6 +472,6 @@ ok_unset <- tryCatch({
 }, error = function(e) FALSE)
 stopifnot(isTRUE(ok_unset))
 options(rcp.cmpfun.compile_promises = old_cp)
-cat("Test 18 (recording requires promise compilation): OK\n")
+cat("Test 20 (recording requires promise compilation): OK\n")
 
 cat("All recording tests passed\n")
