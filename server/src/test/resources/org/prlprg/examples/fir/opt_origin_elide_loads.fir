@@ -10,7 +10,7 @@ fun main() {
 }
 
 fun f(r0, c0) {
-  (reg r0b:v1(I), reg c0:cls) -+> v1(I) {
+  (r0b:v1(I), c0:cls) -+> v1(I) {
     mkenv;
     st x = r0b;
     st y = c0;

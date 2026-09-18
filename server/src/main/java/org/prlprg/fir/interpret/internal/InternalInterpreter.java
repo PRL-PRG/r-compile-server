@@ -15,6 +15,7 @@ import java.util.Stack;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
+import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.interpret.InterpretException;
@@ -73,11 +74,13 @@ import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.session.GNURSession;
 import org.prlprg.sexp.ArgumentMatcher.MatchException;
@@ -513,6 +516,7 @@ public final class InternalInterpreter implements Interpreter {
           cursor = restoreDeopt(pc, deoptStack, deoptRestoreCfg);
           frame.exit();
           frame.enter(cursor, feedback);
+          frame.markDeoptRestored();
           deopted = true;
           System.out.println("DEOPT");
         }
@@ -646,14 +650,14 @@ public final class InternalInterpreter implements Interpreter {
             case AssumeFunction(var functionRef) -> {
               var value = run(statement.arg(0));
               if (!(value instanceof Value.Sexp(CloSXP sexp)
-                  && Objects.equals(extractClosure(sexp), functionRef.get()))) {
+                  && isStubFor(sexp, functionRef.get()))) {
                 throw fail("assume-function actually interpreted and failed");
               }
               yield value;
             }
             case AssumeLoadFun(var variable, var functionRef) -> {
               var sexp = loadFun(variable);
-              if (sexp == null || !Objects.equals(extractClosure(sexp), functionRef.get())) {
+              if (sexp == null || !isStubFor(sexp, functionRef.get())) {
                 throw fail("assume-load-fun actually interpreted and failed");
               }
               yield new Value.Sexp(sexp);
@@ -685,7 +689,9 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't duplicate: " + value);
         }
 
-        yield new Value.Sexp(s.copy());
+        // A `consume` argument guarantees the vector isn't read again, so this can move it instead
+        // of copying (see `org.prlprg.fir.opt.ConsumeDeadDup`).
+        yield statement.arg(0) instanceof Consume ? value : new Value.Sexp(s.copy());
       }
       case Force(var isMaybe) -> {
         var value = run(statement.arg(0));
@@ -799,7 +805,7 @@ public final class InternalInterpreter implements Interpreter {
               yield null;
             }
           };
-      case SubscriptRead _ -> {
+      case SubscriptRead(var outOfRangeIsNa) -> {
         var vectorValue = run(statement.arg(0));
         var indexValue = run(statement.arg(1));
 
@@ -811,7 +817,9 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't subscript with non-integer index: " + indexValue);
         }
 
-        yield subscriptLoad(vector, index);
+        yield outOfRangeIsNa && (index < 0 || index >= vector.size())
+            ? naElement(vector)
+            : subscriptLoad(vector, index);
       }
       case SubscriptWrite _ -> {
         var vectorValue = run(statement.arg(0));
@@ -1082,6 +1090,17 @@ public final class InternalInterpreter implements Interpreter {
     };
   }
 
+  /// The `NA` of `vector`'s element type, which is what R's `[` reads outside the vector.
+  public Value naElement(ListOrVectorSXP<?> vector) {
+    return switch (vector) {
+      case LglSXP _ -> new Value.Lgl(Logical.NA);
+      case IntSXP _ -> new Value.Int(Constants.NA_INT);
+      case RealSXP _ -> new Value.Real(Constants.NA_REAL);
+      case StrSXP _ -> new Value.Str(Constants.NA_STRING);
+      default -> throw failUnsupported("Out-of-range read on a " + vector.type() + " vector");
+    };
+  }
+
   public Value subscriptLoad(ListOrVectorSXP<?> vector, int index) {
     if (index < 0 || index >= vector.size()) {
       throw fail(
@@ -1279,14 +1298,13 @@ public final class InternalInterpreter implements Interpreter {
         if (!(value instanceof Value.Sexp(var valueSexp) && valueSexp instanceof CloSXP valueCls)) {
           return false;
         }
-        var valueFun = extractClosure(valueCls);
-        return valueFun == function;
+        return isStubFor(valueCls, function);
       }
       case AssumeLoadFun(var variable, var functionRef) -> {
         var function = functionRef.get();
 
         var found = loadFunctionForAssume(variable.name(), topFrame().environment());
-        return found != null && extractClosure(found.closure()) == function;
+        return found != null && isStubFor(found.closure(), function);
       }
       case AssumeLoadVar(var variable, var constant) -> {
         var found = loadVariableForAssume(variable.name(), topFrame().environment());
@@ -1333,6 +1351,38 @@ public final class InternalInterpreter implements Interpreter {
     if (argStack.size() != deoptStack.size()) {
       throw fail(
           "deopt stack size mismatch: expected " + argStack.size() + ", got " + deoptStack.size());
+    }
+
+    // The frame still holds the registers of the version we deoptimized *from*. The restore CFG
+    // belongs to a different abstraction, so its registers are different objects even where they
+    // came from the same bytecode and kept the same name -- each abstraction names its registers in
+    // its own namespace. Carry every value across by name, so a baseline register that's live
+    // across the checkpoint but isn't part of the bytecode stack the `deopt` carries -- a `[<-`
+    // closure looked up before the loop, a `for`'s sequence -- is still there when execution
+    // resumes. The bytecode stack is assigned below and wins, being the authoritative restore.
+    var valuesByName = new HashMap<String, Value>();
+    topFrame().registers().forEach((register, value) -> valuesByName.put(register.name(), value));
+
+    // Only registers that are actually live where we resume. One defined further down the restore
+    // CFG, or inside one of its promises, isn't -- and handing it a same-named value from the
+    // optimized frame doesn't restore it, it invents a value from an unrelated program point, which
+    // an `assume` downstream then reads and fails on.
+    var restoreDom = new CfgDominatorTree(deoptRestoreCfg);
+    var checkpointIndex = checkBc.statements().size();
+    for (var register : deoptRestoreCfg.scope().streamRegisters().toList()) {
+      var definingBb = register.definingBB();
+      if (definingBb == null || definingBb.owner() != deoptRestoreCfg) {
+        continue;
+      }
+      var definingIndex = register instanceof AssigneeOf a ? a.statement().indexInBB() : -1;
+      if (!restoreDom.dominates(definingBb, definingIndex, checkBc, checkpointIndex)) {
+        continue;
+      }
+
+      var value = valuesByName.get(register.name());
+      if (value != null) {
+        topFrame().put(register, value);
+      }
     }
 
     // Replace arguments
@@ -1683,6 +1733,31 @@ public final class InternalInterpreter implements Interpreter {
     return null;
   }
 
+  /// Whether `closure` is this interpreter's stub for `function`.
+  ///
+  /// Not plain identity, because [GlobalModules#BASE] and [GlobalModules#BUILTINS] are two separate
+  /// parses of the same `builtins.fir`, so every function it defines exists as two distinct
+  /// [Function] objects. `GlobalModules`' own initializer treats them as one -- it skips a base
+  /// binding whose name is "already defined (shared by `BUILTINS`)" -- and so does the optimizer,
+  /// which can speculate on `BUILTINS`' copy of a name the interpreter binds to `BASE`'s. Comparing
+  /// by identity there rejects a speculation that is in fact about the same function, every time.
+  private boolean isStubFor(CloSXP closure, Function function) {
+    var extracted = extractClosure(closure);
+    if (extracted == function) {
+      return true;
+    }
+    return extracted != null
+        && extracted.name().equals(function.name())
+        && isGlobalBuiltin(extracted)
+        && isGlobalBuiltin(function);
+  }
+
+  /// Whether `function` is one of the two copies of a `builtins.fir` definition.
+  private static boolean isGlobalBuiltin(Function function) {
+    var owner = function.owner();
+    return owner == GlobalModules.BASE || owner == GlobalModules.BUILTINS;
+  }
+
   /// If the closure was produced by [#closureStub(Function, EnvSXP)], returns the [Function].
   public @Nullable Function extractClosure(CloSXP cloSxp) {
     var function = closures.get(cloSxp);
@@ -1692,7 +1767,8 @@ public final class InternalInterpreter implements Interpreter {
     }
     // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
     if (module.localFunction(function.name()) != function
-        && GlobalModules.BASE.localFunction(function.name()) != function) {
+        && GlobalModules.BASE.localFunction(function.name()) != function
+        && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
       // Closure was removed or is from another interpreter.
       return null;
     }

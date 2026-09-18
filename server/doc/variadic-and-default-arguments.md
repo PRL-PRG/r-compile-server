@@ -59,7 +59,7 @@ Definition of `cat` in FIŘ
 ```fir
 # ``(`...`, file, sep, fill, labels, append)`` are cat's parameter names
 fun cat(..., file, sep, fill, labels, append) {
-  (reg ddd:dots, reg file:*, reg sep:*, reg fill:*, reg labels:*, reg append:*) -+> V {
+  (ddd:dots, file:*, sep:*, fill:*, labels:*, append:*) -+> V {
       var `...`:dots?, var file:*, var sep:*, var fill:*, var labels:*, var append:* |
     # stores `""` in `file` iff missing, `" "` in `sep`, etc.
     ...
@@ -85,7 +85,7 @@ Lazily create a version for `cat` which calls the baseline version (lazy to prev
 ```fir
 fun cat(`...`, file, sep, fill, labels, append) {
   …
-  (reg ddd:dots, reg sep:*, reg append:*) -+> V { r0:V |
+  (ddd:dots, sep:*, append:*) -+> V { r0:V |
     r0 = cat.0(ddd, <missing>, sep, <missing>, <missing>, append);
     return r0;
   }
@@ -118,13 +118,13 @@ Compile to FIŘ, unoptimized
 
 ```fir
 fun h(a, b) {
-  (reg a:*, reg b:*) -+> V { reg r0:V |
+  (a:*, b:*) -+> V { reg r0:V |
     r0 = force b;
     return r0;
   }
 }
 fun i(`...`) {
-  (reg ddd:dots) -+> V { reg r0:cls; reg r1:V |
+  (ddd:dots) -+> V { reg r0:cls; reg r1:V |
     r0 = ldf h;
     r1 = dyn r0[`...`](ddd);
     # The argument name `...` indicates that ... is in that index
@@ -140,7 +140,7 @@ However, we'll eventually create a specialized version of `i` if we repeatedly c
 ```fir
 fun i(`...`) {
   …
-  (reg b:I) -+> V { reg r0:cls; reg r1:V |
+  (b:I) -+> V { reg r0:cls; reg r1:V |
     r0 = ldf h;
     r1 = dyn r0[b](b);
     return r1;
@@ -160,7 +160,7 @@ Lazily crate a version for `h`
 ```fir
 fun h(a, b) {
   …
-  (reg b:*) -+> V { reg r0:V |
+  (b:*) -+> V { reg r0:V |
     r0 = h.0(<missing>, b);
     return r0;
   }
@@ -172,7 +172,7 @@ Optimize `i.1` by statically resolving `h` (assume speculation always succeeds)
 ```fir
 fun i(`...`) {
   …
-  (reg b:I) -+> V { reg r1:V |
+  (b:I) -+> V { reg r1:V |
     r1 = h.1(b);
     return r1;
   }

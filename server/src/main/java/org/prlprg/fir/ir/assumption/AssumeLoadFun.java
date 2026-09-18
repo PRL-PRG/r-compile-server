@@ -3,6 +3,7 @@ package org.prlprg.fir.ir.assumption;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.parseprint.Printer;
 
 /// Assume that a local function lookup of [#variable] doesn't encounter promises and yields
 /// [#function] (has no argument).
@@ -18,5 +19,10 @@ public record AssumeLoadFun(NamedVariable variable, FunctionRef functionRef) imp
 
   public Function function() {
     return functionRef.get();
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }

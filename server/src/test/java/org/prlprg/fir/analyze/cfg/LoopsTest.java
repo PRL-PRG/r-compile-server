@@ -56,7 +56,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             r0: I = dup n;
             return r0;
           }
@@ -77,7 +77,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             if n then A() else B();
           A():
             return n;
@@ -102,7 +102,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head(n);
           Head(i: I):
             if i then Body() else Exit();
@@ -139,7 +139,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head();
           Head():
             if n then Head() else Exit();
@@ -163,7 +163,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head();
           Head():
             if n then Left() else Exit();
@@ -195,7 +195,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head();
           Head():
             if n then L1() else L2();
@@ -223,7 +223,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head();
           Head():
             if n then Head() else L1();
@@ -249,7 +249,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Outer();
           Outer():
             goto Inner();
@@ -289,7 +289,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto H1();
           H1():
             if n then H1() else Mid();
@@ -324,7 +324,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             if n then A() else B();
           A():
             if n then B() else Exit();
@@ -349,7 +349,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             if n then Spin() else Exit();
           Spin():
             goto Spin();
@@ -372,7 +372,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head();
           Head():
             if n then Head() else Bail();
@@ -395,7 +395,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head();
           Head():
             if n then Head() else Exit();
@@ -408,7 +408,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             return n;
           }
         }
@@ -429,7 +429,7 @@ class LoopsTest {
         cfgOf(
             """
         fun main() {
-          (reg n:I) --> I {
+          (n:I) --> I {
             goto Head();
           Head():
             if n then Head() else Exit();
@@ -456,7 +456,7 @@ class LoopsTest {
   @Test
   void longChainLoop() {
     var blockCount = 200;
-    var firText = new StringBuilder("fun main() {\n  (reg n:I) --> I {\n    goto B0();\n");
+    var firText = new StringBuilder("fun main() {\n  (n:I) --> I {\n    goto B0();\n");
     for (var i = 0; i < blockCount; i++) {
       firText.append("  B").append(i).append("():\n    goto B").append(i + 1).append("();\n");
     }

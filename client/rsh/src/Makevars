@@ -17,18 +17,26 @@ GRPC_LIBS := $(shell pkg-config --libs grpc++)
 XXHASH_CFLAGS := $(shell pkg-config --cflags libxxhash)
 XXHASH_LIBS := $(shell pkg-config --libs libxxhash)
 
+# Homebrew's clang builds (e.g. llvm@17's) default to the SDK they were bottled against, which a
+# Command Line Tools update can delete, leaving them with neither libc headers nor libSystem. Pass
+# the current SDK explicitly, as `--sysroot`: `-isysroot` and `SDKROOT` fix the headers but still
+# lose to the built-in default when the driver picks the linker's `-syslibroot`.
+ifeq ($(shell uname -s),Darwin)
+SYSROOT_FLAGS := --sysroot=$(shell xcrun --show-sdk-path)
+endif
+
 # Both C/C++ flags.
 # -MMD -MP makes each compile write a `.d` listing the headers it read, which `-include` below
 # feeds back to make. Without it nothing here depends on a header, so editing e.g. bc2c/opcodes.h
 # silently reuses stale objects -- and an object built against different headers than its
 # neighbours usually shows up as a confusing link error, not a rebuild.
-PKG_CPPFLAGS := -DR_NO_REMAP -DSTRICT_R_HEADERS -DUSE_RINTERNALS -MMD -MP
+PKG_CPPFLAGS := -DR_NO_REMAP -DSTRICT_R_HEADERS -DUSE_RINTERNALS -MMD -MP $(SYSROOT_FLAGS)
 # C++ flags
 PKG_CXXFLAGS := $(LLVM_CPPFLAGS) $(PB_CPPFLAGS) $(ABSL_CPPFLAGS) $(GRPC_CPPFLAGS) $(XXHASH_CFLAGS) -fexceptions
 # C flags
 PKG_CFLAGS :=
 # Linker flags
-PKG_LIBS := $(LLVM_LIBS) $(PB_LIBS) $(ABSL_LIBS) $(GRPC_LIBS) $(XXHASH_LIBS)
+PKG_LIBS := $(LLVM_LIBS) $(PB_LIBS) $(ABSL_LIBS) $(GRPC_LIBS) $(XXHASH_LIBS) $(SYSROOT_FLAGS)
 
 # Allow sources in subdirectories
 CPP_FILES = $(wildcard *.cpp **/*.cpp)

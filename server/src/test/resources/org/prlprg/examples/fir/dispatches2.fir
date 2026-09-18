@@ -18,7 +18,7 @@ fun main() {
 }
 
 fun f(r) {
-  (reg r:p(v1(I) -)) -+> V {
+  (r:p(v1(I) -)) -+> V {
     mkenv;
     r2: * = r$x;
     g%< * -+> V >(r2);
@@ -31,13 +31,13 @@ fun f(r) {
 
 fun g(r) {
   # Slow case with variables, no optimizations due to `force r` causing reflection
-  (reg r:*) -+> V {
+  (r:*) -+> V {
     mkenv;
     popenv;
     return <int 42>;
   }
   # Fast case with registers, optimizations
-  (reg r:v1(I)) --> v1(I) {
+  (r:v1(I)) --> v1(I) {
     return <int 42>;
   }
 }

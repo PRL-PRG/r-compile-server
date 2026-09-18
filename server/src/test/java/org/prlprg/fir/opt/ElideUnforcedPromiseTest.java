@@ -22,7 +22,7 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R {
+            (x:R) -~> R {
               p: p(R +) = prom<R ~>{
                 mkenv;
                 popenv;
@@ -50,7 +50,7 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R {
+            (x:R) -~> R {
               p: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
@@ -78,7 +78,7 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R {
+            (x:R) -~> R {
               p: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
@@ -100,7 +100,7 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R {
+            (x:R) -~> R {
               p: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
@@ -121,7 +121,7 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R {
+            (x:R) -~> R {
               p: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
@@ -144,7 +144,7 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R {
+            (x:R) -~> R {
               p1: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;

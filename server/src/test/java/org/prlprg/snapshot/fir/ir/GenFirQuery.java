@@ -40,6 +40,14 @@ public interface GenFirQuery extends Query<Module> {
   @Override
   default void serialize(Module data, Path path, Example example, SnapshotStore store)
       throws IOException {
+    if (isDeliberatelyInvalid(example)) {
+      // The printout doesn't parse back (see `isDeliberatelyInvalid`), so a snapshot of it can
+      // only ever fail to load, which is what the *next* run would report instead of whatever the
+      // test is really checking. Nothing needs it: every query that consumes a module skips these
+      // examples, and `FirQuery#verifyExtra` -- the point of snapshotting them -- runs regardless.
+      return;
+    }
+
     Printer.toFile(path.toFile(), data);
   }
 }

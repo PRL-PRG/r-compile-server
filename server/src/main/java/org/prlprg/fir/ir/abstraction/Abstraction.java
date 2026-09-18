@@ -194,8 +194,12 @@ public final class Abstraction implements Comparable<Abstraction> {
     };
   }
 
+  /// Every [CFG] -- this abstraction's body and each of its promises' -- is constructed with its
+  /// owning abstraction, so the backlink answers this directly. Walking [#streamCfgs()] instead
+  /// costs a traversal of every block and statement, and [#contains(Register)] sits on the hot
+  /// path of [org.prlprg.fir.analyze.resolve.OriginAnalysis].
   private boolean containsCfg(CFG c) {
-    return streamCfgs().anyMatch(x -> x == c);
+    return c.scope() == this;
   }
 
   // --- Stub / CFG -----------------------------------------------------------------------------

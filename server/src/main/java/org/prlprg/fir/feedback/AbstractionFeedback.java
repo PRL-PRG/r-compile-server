@@ -194,6 +194,16 @@ public class AbstractionFeedback {
 
     remap(copy.reflectiveEnvs, statements);
     remap(copy.escapingPromises, statements);
+
+    var registers = new HashMap<Register, Register>();
+    Streams.zip(src.streamRegisters(), dst.streamRegisters(), Map::entry)
+        .forEach(e -> registers.put(e.getKey(), e.getValue()));
+
+    remapKeys(copy.types, registers);
+    remapKeys(copy.callees, registers);
+    remapKeys(copy.constants, registers);
+    remapKeys(copy.forceCount, registers);
+    remapKeys(copy.allRecorded, registers);
     return copy;
   }
 
@@ -208,6 +218,19 @@ public class AbstractionFeedback {
     var remapped = statements.stream().map(mapping::get).filter(Objects::nonNull).toList();
     statements.clear();
     statements.addAll(remapped);
+  }
+
+  private static <V> void remapKeys(Map<Register, V> map, Map<Register, Register> mapping) {
+    var remapped = new LinkedHashMap<Register, V>();
+    map.forEach(
+        (register, value) -> {
+          var dst = mapping.get(register);
+          if (dst != null) {
+            remapped.put(dst, value);
+          }
+        });
+    map.clear();
+    map.putAll(remapped);
   }
 
   @Override

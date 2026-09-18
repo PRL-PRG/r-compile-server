@@ -199,8 +199,8 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(cond) {
-              (reg cond:L) --> I { ... }
-              (reg cond:L) --> I {
+              (cond:L) --> I { ... }
+              (cond:L) --> I {
                 mkenv;
                 c: * = clos target;
                 st target = c;
@@ -247,8 +247,8 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(cond) {
-              (reg cond:L) --> I { ... }
-              (reg cond:L) --> I {
+              (cond:L) --> I { ... }
+              (cond:L) --> I {
                 mkenv;
                 c: * = clos target;
                 st target = c;
@@ -440,8 +440,8 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(cond) {
-              (reg cond:L) --> I { ... }
-              (reg cond:L) --> I {
+              (cond:L) --> I { ... }
+              (cond:L) --> I {
                 mkenv;
                 st target = <int 7>;
                 check BB1() else BBdeopt1();

@@ -17,7 +17,7 @@ class ElideRedundantBoxUnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I {
+            (x:I) --> I {
               r1: v1(I) = box< I --> v1(I) >(x);
               r2: I = unbox< v1(I) --> I >(r1);
               return r2;
@@ -37,7 +37,7 @@ class ElideRedundantBoxUnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> v1(I) {
+            (x:I) --> v1(I) {
               r1: v1(I) = box< I --> v1(I) >(x);
               r2: v1(I) = box< I --> v1(I) >(x);
               return r2;
@@ -57,7 +57,7 @@ class ElideRedundantBoxUnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> v1(I) {
+            (x:I) --> v1(I) {
               r1: v1(I) = box< I --> v1(I) >(x);
               r2: I = unbox< v1(I) --> I >(r1);
               r3: v1(I) = box< I --> v1(I) >(r2);
@@ -79,7 +79,7 @@ class ElideRedundantBoxUnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I {
+            (x:I) --> I {
               boxed: v1(I) = box< I --> v1(I) >(x);
               r1: I = unbox< v1(I) --> I >(boxed);
               r2: I = unbox< v1(I) --> I >(boxed);

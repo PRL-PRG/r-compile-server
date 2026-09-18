@@ -8,7 +8,7 @@ fun main() {
 }
 
 fun f(r1, r2) {
-  (reg r1:v(I)o, reg r2:v(I)b) -~> v(I)f {
+  (r1:v(I)o, r2:v(I)b) -~> v(I)f {
     ry: v(I)o = dup r2;
     r1[0] = 1;
     ry[2] = 3;

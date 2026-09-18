@@ -13,7 +13,7 @@ fun main() {
 }
 
 fun modify(r) {
-  (reg r:p(V +)) -+> V {
+  (r:p(V +)) -+> V {
     r$y = <int 1>;
     r0: v(I)o = v(I)[10, 20, 30];
     r$x = r0;
@@ -24,7 +24,7 @@ fun modify(r) {
 }
 
 fun read(r) {
-  (reg r:p(V +)) -+> v(I)f {
+  (r:p(V +)) -+> v(I)f {
     rx0: * = r$x;
     rx1: v(I) = rx0 as v(I);
     ry0: * = r$y;

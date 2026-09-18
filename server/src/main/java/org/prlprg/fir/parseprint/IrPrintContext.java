@@ -47,6 +47,7 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXPs;
 
 /// Prints FIŘ IR: [Module]s and everything in them, down to individual [Statement]s and [Jump]s.
 ///
@@ -70,6 +71,9 @@ public final class IrPrintContext {
 
     if (function.userProperties().strict()) {
       w.write("@strict\n");
+    }
+    if (function.userProperties().liteSpecial()) {
+      w.write("@liteSpecial\n");
     }
 
     w.write("fun ");
@@ -98,7 +102,7 @@ public final class IrPrintContext {
 
     p.print(abstraction.comments());
 
-    // Parameters, e.g. `(reg n:*, reg m:I@!)`.
+    // Parameters, e.g. `(n:*, m:I@!)`.
     w.write('(');
     var firstParam = true;
     for (var parameter : abstraction.parameters()) {
@@ -106,7 +110,6 @@ public final class IrPrintContext {
         w.write(", ");
       }
       firstParam = false;
-      w.write("reg ");
       p.print(parameter);
       w.write(':');
       p.print(parameter.type());
@@ -305,11 +308,11 @@ public final class IrPrintContext {
         w.write("dup ");
         p.print(args.getFirst());
       }
-      case SubscriptRead _ -> {
+      case SubscriptRead(var outOfRangeIsNa) -> {
         p.print(args.getFirst());
-        w.write("[");
+        w.write(outOfRangeIsNa ? "[" : "[[");
         p.print(args.get(1));
-        w.write("]");
+        w.write(outOfRangeIsNa ? "]" : "]]");
       }
       case SubscriptWrite _ -> {
         p.print(args.getFirst());
@@ -345,6 +348,11 @@ public final class IrPrintContext {
         w.write("\n}");
       }
     }
+  }
+
+  @PrintMethod
+  private void printAssume(Assumption assumption, Printer p) {
+    printAssume(p, assumption, List.of(new Constant(SEXPs.UNBOUND_VALUE)));
   }
 
   private void printAssume(Printer p, Assumption assumption, List<Argument> args) {

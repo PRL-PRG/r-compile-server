@@ -11,6 +11,9 @@ import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
+import org.prlprg.fir.analyze.cfg.CfgReachability;
+import org.prlprg.fir.analyze.cfg.Loads;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -23,15 +26,22 @@ import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
+import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Noop;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.Store.StoreType;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -43,12 +53,18 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 /// Promotes local named variables into registers when every direct load is statically known.
 ///
 /// This is effectively a conservative mem2reg pass:
-/// - It only operates in the main CFG, never across promises.
+/// - Stores are only promoted in the main CFG. A load in a nested promise is promoted too, but
+///   only when the promise body is guaranteed to run before the variable can change (see
+///   [#readsCreationTimeValue]) -- a promise reads the variable when it's *forced*, not where
+///   it's built, so its body can't just capture the value at the creation site otherwise.
 /// - It requires every direct local load to have a known origin.
 /// - It inserts phi parameters only at dominance-frontier merge points whose incoming origins
 ///   are statically known and different.
-/// - It skips abstractions with reflective effects, since reflective operations may observe the
-///   local environment and make dead-store elimination unsound.
+/// - It only runs when nothing outside the abstraction can see its environments (see
+///   [#envIsPrivate]), since otherwise the bindings the removed stores would have left are
+///   observable.
+/// - It re-stores the promoted value in every deopt branch, because a deopt resumes GNU-R
+///   bytecode that reads the variable out of the environment.
 public final class PromoteStaticallyKnownVariables implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
@@ -72,25 +88,36 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
   private static final class OnAbstraction {
     private final Abstraction scope;
     private final CFG cfg;
-    private final InferEffects inferEffects;
 
     private OnAbstraction(Abstraction scope, CFG cfg) {
       this.scope = scope;
       this.cfg = cfg;
-      inferEffects = new InferEffects(scope);
     }
 
     boolean promoteNextVariable() {
-      if (hasReflectiveEffects()) {
+      if (!envIsPrivate()) {
         return false;
       }
 
-      var analyses = new Analyses(scope, OriginAnalysis.class, CfgDominatorTree.class);
+      var analyses =
+          new Analyses(
+              scope,
+              OriginAnalysis.class,
+              CfgDominatorTree.class,
+              CfgHierarchy.class,
+              CfgReachability.class,
+              Loads.class);
       var originAnalysis = analyses.get(OriginAnalysis.class);
+      var hierarchy = analyses.get(CfgHierarchy.class);
+      var loads = analyses.get(Loads.class);
+      var reachability = analyses.get(cfg, CfgReachability.class);
       var dominatorTree = analyses.get(cfg, CfgDominatorTree.class);
       var dominanceFrontier = dominanceFrontier(dominatorTree);
 
-      for (var candidate : collectCandidates(originAnalysis).values()) {
+      for (var candidate : collectCandidates(originAnalysis, hierarchy, loads).values()) {
+        if (!deoptsKeepTheBinding(candidate, originAnalysis, reachability)) {
+          continue;
+        }
         promote(candidate, originAnalysis, dominatorTree, dominanceFrontier);
         return true;
       }
@@ -98,18 +125,88 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       return false;
     }
 
-    private boolean hasReflectiveEffects() {
-      for (var bb : cfg.bbs()) {
-        for (var statement : bb.statements()) {
-          if (inferEffects.of(statement).reflect()) {
-            return true;
+    /// Whether every deopt branch a store can reach still knows what the variable holds, so
+    /// [#restoreBeforeDeopt] can put the binding back.
+    ///
+    /// It can't when the variable is only *maybe* bound there -- one incoming path stored it and
+    /// another didn't. Then the renaming walk has no value to restore, but the path that did store
+    /// would have left one, so dropping the stores would change what the deopted-into bytecode
+    /// sees.
+    private boolean deoptsKeepTheBinding(
+        Candidate candidate, OriginAnalysis originAnalysis, CfgReachability reachability) {
+      var reachableDeopts = new LinkedHashSet<BB>();
+      for (var storeBb : candidate.storeBlocks()) {
+        for (var reachable : reachability.maySucceed(storeBb)) {
+          if (reachable.jump().expression() instanceof Deopt) {
+            reachableDeopts.add(reachable);
           }
         }
       }
-      return false;
+      return reachableDeopts.stream()
+          .noneMatch(
+              deopt -> originAnalysis.getPossible(deopt, -1, candidate.variable()).isEmpty());
     }
 
-    private Map<NamedVariable, Candidate> collectCandidates(OriginAnalysis originAnalysis) {
+    /// Whether nothing outside this abstraction can see its environments, so removing a store is
+    /// unobservable.
+    ///
+    /// Two ways to be sure: the environment is [MkEnvType#NON_REFLECTIVE] (the speculation that it
+    /// was never reflectively accessed, which is what
+    /// [org.prlprg.fir.opt.specialize.ElideDeadStore] relies on too), or nothing reflective runs
+    /// while it's alive, so even a reflectively-accessible one is never reached. A non-static
+    /// closure is ruled out either way: it captures the environment and may load from it long
+    /// after this abstraction returns.
+    ///
+    /// Deopts are *not* a reason to bail: [#restoreBeforeDeopt] puts the binding back before every
+    /// one of them.
+    ///
+    /// Note that this says nothing about *loads* being resolvable -- [OriginAnalysis] already
+    /// reports no origins for a variable in an environment reflection may have written, and
+    /// [#collectCandidates] rejects those.
+    private boolean envIsPrivate() {
+      var sawEnv = false;
+      var envIsReflectivelyAccessible = false;
+
+      for (var someCfg : scope.streamCfgs().toList()) {
+        for (var bb : someCfg.bbs()) {
+          for (var statement : bb.statements()) {
+            switch (statement.expression()) {
+              case MkEnv(var type) -> {
+                sawEnv = true;
+                envIsReflectivelyAccessible |= type == MkEnvType.REGULAR;
+              }
+              case Closure(var isStatic, _) -> {
+                if (!isStatic) {
+                  return false;
+                }
+              }
+              default -> {}
+            }
+          }
+        }
+      }
+
+      if (!sawEnv) {
+        // No env = loads and stores are non-local = can't elide
+        return false;
+      }
+      if (!envIsReflectivelyAccessible) {
+        // Env can't be reflectively accessed,
+        // so elide local loads and stores even among reflective instructions
+        return true;
+      }
+
+      // No reflective instructions
+      var inferEffects = new InferEffects(scope);
+      return scope
+          .streamCfgs()
+          .flatMap(someCfg -> someCfg.bbs().stream())
+          .flatMap(bb -> bb.statements().stream())
+          .noneMatch(statement -> inferEffects.of(statement).reflect());
+    }
+
+    private Map<NamedVariable, Candidate> collectCandidates(
+        OriginAnalysis originAnalysis, CfgHierarchy hierarchy, Loads loads) {
       var candidates = new LinkedHashMap<NamedVariable, Candidate>();
       var forbidden = new LinkedHashSet<NamedVariable>();
 
@@ -137,7 +234,16 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
               case Load(var loadType, var variable)
                   when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN -> {
                 if (someCfg != cfg) {
-                  forbidden.add(variable);
+                  // A load in a promise reads the variable when the promise is *forced*, so it can
+                  // only take the value from the creation site when the body is guaranteed to run
+                  // before that value changes.
+                  if (loadType != LoadType.LOCAL_VAR
+                      || !readsCreationTimeValue(someCfg, variable, originAnalysis, hierarchy)) {
+                    forbidden.add(variable);
+                    continue;
+                  }
+
+                  candidates.computeIfAbsent(variable, Candidate::new).addLoad();
                   continue;
                 }
 
@@ -168,6 +274,16 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       }
 
       forbidden.forEach(candidates::remove);
+      // A symbol or language constant argument is evaluated in this environment by whatever
+      // receives it (a GNU-R special gets `x[i]` as the symbols `x` and `i`), so it reads the
+      // variable by name at runtime, with no load to rewrite. [Loads] records those alongside real
+      // loads, so a statement it lists that isn't a [Load] is one of them.
+      candidates
+          .values()
+          .removeIf(
+              candidate ->
+                  loads.get(candidate.variable()).stream()
+                      .anyMatch(load -> !(load.expression() instanceof Load)));
       candidates
           .values()
           .removeIf(candidate -> !candidate.hasLoads() || candidate.storeBlocks().isEmpty());
@@ -176,6 +292,74 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
 
     private boolean isPromotableOrigin(Argument origin) {
       return origin instanceof Read || origin instanceof Constant;
+    }
+
+    /// Whether the body of the promise `promiseCfg` belongs to sees the same `variable` when it
+    /// runs as it would where the promise is built, so [#rewritePromiseBody] may replace its load
+    /// with the value the renaming walk carries at the creation site.
+    ///
+    /// A promise body runs at the *force*, which in general is anywhere the promise reaches, so we
+    /// only accept the shape the compiler actually emits for an argument: a local promise (only
+    /// local promises may read the enclosing registers at all), used once, handed straight to a
+    /// strict parameter of a static call in the same block, with no store to the variable between
+    /// the two. A strict parameter is forced inside that call, and the callee can't store into this
+    /// environment -- reaching it would take reflection, which [#envIsPrivate] has ruled out.
+    private boolean readsCreationTimeValue(
+        CFG promiseCfg,
+        NamedVariable variable,
+        OriginAnalysis originAnalysis,
+        CfgHierarchy hierarchy) {
+      var promiseStatement = hierarchy.parentPromise(promiseCfg);
+      if (promiseStatement == null
+          || !(promiseStatement.expression() instanceof Promise(_, _, _, var isLocal))
+          || !isLocal) {
+        return false;
+      }
+
+      // Only promises built directly in the main CFG: a nested one's creation site is itself in a
+      // promise body, so the value there isn't the one the renaming walk carries.
+      var bb = promiseStatement.parentBB();
+      if (bb == null || bb.owner() != cfg) {
+        return false;
+      }
+
+      // The walk must have a value to substitute, i.e. the variable is already bound here.
+      var promiseIndex = promiseStatement.indexInBB();
+      if (originAnalysis.getPossible(bb, promiseIndex, variable).isEmpty()) {
+        return false;
+      }
+
+      var assignee = promiseStatement.assignee();
+      if (assignee == null || assignee.uses().size() != 1) {
+        return false;
+      }
+      var use = assignee.uses().iterator().next();
+      if (!(use.instruction() instanceof Statement call)
+          || call.parentBB() != bb
+          || !(call.expression() instanceof Call(StaticFnCallee callee))) {
+        return false;
+      }
+
+      // Argument 0 is the callee's own closure, so parameter `i` is argument `i + 1`.
+      var parameter = use.index() - 1;
+      var strictnesses = callee.signature().parameterStrictnesses();
+      if (parameter < 0 || parameter >= strictnesses.length() || !strictnesses.get(parameter)) {
+        return false;
+      }
+
+      var callIndex = call.indexInBB();
+      if (callIndex < promiseIndex) {
+        return false;
+      }
+      for (var i = promiseIndex + 1; i < callIndex; i++) {
+        if (bb.statements().get(i).expression() instanceof Store(var storeType, var stored)
+            && storeType == StoreType.LOCAL_VAR
+            && stored.equals(variable)) {
+          return false;
+        }
+      }
+
+      return true;
     }
 
     private boolean isClosure(Argument origin) {
@@ -256,6 +440,8 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
         current = rewriteStatement(bb, i, statement, variable, current, originAnalysis);
       }
 
+      restoreBeforeDeopt(bb, variable, current);
+
       if (!phis.isEmpty()) {
         appendPhiArguments(bb.jump(), current, phis);
       }
@@ -300,8 +486,56 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
           statement.replaceWith(new Statement(statement.comments(), new Noop(), List.of()));
           yield resolved;
         }
+        case Promise(_, _, var code, _) -> {
+          rewritePromiseBody(code, variable, current);
+          yield current;
+        }
         default -> current;
       };
+    }
+
+    /// Replaces every load of `variable` in a promise body with `current`, which the promise
+    /// captures from the enclosing CFG.
+    ///
+    /// [#collectCandidates] has already checked (via [#readsCreationTimeValue]) that every such
+    /// body sees `current` when it runs, and that the promise is local, so the capture is legal.
+    private void rewritePromiseBody(CFG code, NamedVariable variable, @Nullable Argument current) {
+      var rewroteAny = false;
+
+      for (var bb : code.bbs()) {
+        for (var i = 0; i < bb.statements().size(); i++) {
+          var statement = bb.statements().get(i);
+          if (!(statement.expression() instanceof Load(var loadType, var loaded))
+              || loadType != LoadType.LOCAL_VAR
+              || !loaded.equals(variable)) {
+            continue;
+          }
+          if (current == null) {
+            throw new IllegalStateException(
+                "Missing promoted value for " + variable + " in promise " + code);
+          }
+          if (statement.assignee() != null) {
+            statement.assignee().substUsesWith(current);
+          }
+          statement.replaceWith(new Statement(statement.comments(), new Noop(), List.of()));
+          rewroteAny = true;
+        }
+      }
+
+      if (rewroteAny) {
+        for (var bb : code.bbs()) {
+          restoreBeforeDeopt(bb, variable, current);
+        }
+      }
+    }
+
+    /// If `bb` deopts, appends a store of `current` to `variable`, so the GNU-R bytecode we resume
+    /// into still finds the binding the stores we removed would have left.
+    private void restoreBeforeDeopt(BB bb, NamedVariable variable, @Nullable Argument current) {
+      if (current == null || !(bb.jump().expression() instanceof Deopt)) {
+        return;
+      }
+      bb.appendStatement(new Statement(new Store(StoreType.LOCAL_VAR, variable), List.of(current)));
     }
 
     private void appendPhiArguments(

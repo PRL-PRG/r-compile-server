@@ -165,9 +165,11 @@ public final class ModuleParseContext {
       var comments = p.parse(Comments.class);
 
       var strict = false;
-      if (s.trySkip('@')) {
+      var liteSpecial = false;
+      while (s.trySkip('@')) {
         switch (s.readIdentifierOrKeyword()) {
           case "strict" -> strict = true;
+          case "liteSpecial" -> liteSpecial = true;
           case String unknown -> throw s.fail("unknown user property: @" + unknown);
         }
       }
@@ -179,6 +181,7 @@ public final class ModuleParseContext {
       var function = module.addFunction(name, parameterNames);
       function.comments().addAll(comments);
       function.userProperties().setStrict(strict);
+      function.userProperties().setLiteSpecial(liteSpecial);
 
       s.assertAndSkip('{');
       while (!s.nextCharIs('}')) {
@@ -285,12 +288,11 @@ public final class ModuleParseContext {
 
         var comments = p.parse(Comments.class);
 
-        // Parameters, e.g. `(reg n:*, reg m:I@!)`.
+        // Parameters, e.g. `(n:*, m:I@!)`.
         var parameters = new ArrayList<FunctionParameter>();
         s.assertAndSkip('(');
         if (!s.nextCharIs(')')) {
           do {
-            s.assertAndSkip("reg");
             var name = s.readIdentifierOrKeyword();
             s.assertAndSkip(':');
             var type = p.parse(Type.class);
@@ -733,13 +735,19 @@ public final class ModuleParseContext {
               return new ParsedExpr(new ReflectiveLoad(variable), List.of(headArg1));
             } else if (s.trySkip('[')) {
               var headArg1 = requireHead(headArg, s, "a[...]");
+              // `a[[i]]` reads like R's `[[`: out-of-range is an error, not `NA`.
+              var outOfRangeIsNa = !s.trySkip('[');
               var subscript = p.parse(Argument.class);
               s.assertAndSkip(']');
+              if (!outOfRangeIsNa) {
+                s.assertAndSkip(']');
+              }
               if (s.trySkip('=')) {
                 var value = p.parse(Argument.class);
                 return new ParsedExpr(new SubscriptWrite(), List.of(headArg1, subscript, value));
               }
-              return new ParsedExpr(new SubscriptRead(), List.of(headArg1, subscript));
+              return new ParsedExpr(
+                  new SubscriptRead(outOfRangeIsNa), List.of(headArg1, subscript));
             } else if (s.trySkip("as ")) {
               var headArg1 = requireHead(headArg, s, "a as t");
               var type = p.parse(Type.class);

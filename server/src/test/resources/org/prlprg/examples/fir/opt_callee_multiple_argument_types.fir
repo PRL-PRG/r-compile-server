@@ -10,14 +10,14 @@ fun main() {
 }
 
 fun f(a, b) {
-  (reg a:*, reg b:*) --> I {
+  (a:*, b:*) --> I {
     return 24;
   }
-  (reg a:v1(I), reg b:v1(I)) --> I {
+  (a:v1(I), b:v1(I)) --> I {
     r: I = unbox< v1(I) --> I >(b);
     return 24;
   }
-  (reg a:v1(I), reg b:v1(R)) --> I {
+  (a:v1(I), b:v1(R)) --> I {
     r: I = unbox< v1(I) --> I >(a);
     return 24;
   }

@@ -31,7 +31,7 @@ fun main() {
 }
 
 fun g(n, a) {
-  (reg n:V, reg a:V) -+> V {
+  (n:V, a:V) -+> V {
     mkenv;
     provide< V --> V >(n);
     check BB1() else BB2();
@@ -44,7 +44,7 @@ fun g(n, a) {
     st x = <int 14>;
     deopt 5 [<int 14>, n];
   }
-  (reg n:V, reg a:I) -+> V {
+  (n:V, a:I) -+> V {
     provide< V --> V >(n);
     check BB1() else BB2();
   BB1():
@@ -59,14 +59,14 @@ fun g(n, a) {
 
 # Asserts the last argument given to `provide`
 fun require(x) {
-  (reg x:V) --> V { ... }
+  (x:V) --> V { ... }
 }
 
 fun provide(x) {
-  (reg x:V) --> V { ... }
+  (x:V) --> V { ... }
 }
 
 # Returns the argument as is, but marks the call as an optimization barrier
 fun blackBox(x) {
-  (reg x:V) --> V { ... }
+  (x:V) --> V { ... }
 }

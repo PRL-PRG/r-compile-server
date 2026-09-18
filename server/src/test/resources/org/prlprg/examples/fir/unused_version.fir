@@ -6,20 +6,20 @@ fun main() {
 }
 
 fun force_(x) {
-  (reg x:*) -+> V {
+  (x:*) -+> V {
     r: V = force? x;
     return r;
   }
-  (reg x:v1(I)) --> v1(I) {
+  (x:v1(I)) --> v1(I) {
     return x;
   }
-  (reg x:v1(R)) --> v1(R) {
+  (x:v1(R)) --> v1(R) {
     return x;
   }
-  (reg x:I) --> I {
+  (x:I) --> I {
     return x;
   }
-  (reg x:R) --> R {
+  (x:R) --> R {
     return x;
   }
 }

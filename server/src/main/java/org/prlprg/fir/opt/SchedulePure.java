@@ -5,15 +5,9 @@ import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
@@ -23,17 +17,15 @@ import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.abstraction.substitute.DomineeSubstituter;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.Register;
@@ -46,18 +38,21 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Can be easily extended with more defer/hoist rules.
 ///
-/// A deferred instruction is specifically deferred to the latest position(s) that dominate
-/// every use of its assignee and aren't themselves dominated by other possible positions. It's
-/// copied if there are uses in branches that don't dominate each other. Iff every use is inside
-/// a promise within the instruction's current CFG, the instruction is deferred into that
-/// promise.
+/// A deferred instruction moves to just before the earliest use(s) of its assignee that no other
+/// use dominates. It's *copied* when those uses are in branches that don't dominate each other,
+/// and each use is then rewritten to the copy that covers it. Iff every use is inside a promise
+/// within the instruction's current CFG, the instruction is deferred into that promise.
 ///
-/// A hoisted instruction is specifically hoisted immediately after the latest assignment to one
-/// of its arguments. If the instruction is in a promise and every argument is in the enclosing
-/// CFG, it's hoisted to the enclosing CFG.
+/// A hoisted instruction moves to immediately after the latest definition of one of its arguments.
+/// If the instruction is in a promise and every argument is in the enclosing CFG, it's hoisted to
+/// the enclosing CFG.
 ///
-/// TODO: this entire pass should probably be redone, it keeps having bugs and has lots of
-///   special cases which suggest it will have more
+/// The two run as separate passes -- every defer is applied before any hoist target is computed --
+/// so a hoist never has to reason about where a statement it depends on is *going* to end up. An
+/// earlier version instead built a graph of pending moves and rewrote a move whose target was
+/// itself moving; when that target was being copied to several branches, the rewrite followed it
+/// into all of them, which is how an `unbox` ended up in a deopt branch ahead of the `box` it
+/// reads.
 public final class SchedulePure implements AbstractionOptimization {
   static final ImmutableList<Predicate<Statement>> HOIST_RULES =
       ImmutableList.of(matchRule(UNBOX_FUN));
@@ -70,416 +65,337 @@ public final class SchedulePure implements AbstractionOptimization {
             && callee.function() == function;
   }
 
-  private enum Motion {
-    DEFER,
-    HOIST,
-  }
-
   @Override
   public boolean runWithoutRecording(
       @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
-    return new Run(scope).changed;
+    if (scope.cfg() == null) {
+      return false;
+    }
+
+    var run = new Run(scope);
+    var changed = run.deferAll();
+    changed |= run.hoistAll();
+    return changed;
   }
 
-  /// A statement position `(bb, index)` within the abstraction. The captured [#statement] (if any)
-  /// is a stable reference that survives code motion (the position's index may go stale, but the
-  /// statement object doesn't). `index == -1` (with a `null` statement) is the "before all
-  /// statements" boundary of a block.
-  ///
-  /// All [Pos] comparisons happen before any code motion is applied, where the statement at a
-  /// position is fully determined by `(bb, index)` — so the record's structural equality on all
-  /// three components matches identity on `(bb, index)`.
-  private record Pos(BB bb, int index, @Nullable Statement statement) {
-    Pos(BB bb, int index) {
-      this(
-          bb,
-          index,
-          index >= 0 && index < bb.statements().size() ? bb.statements().get(index) : null);
-    }
-
-    static Pos of(Instruction instruction) {
-      var bb = Objects.requireNonNull(instruction.parentBB());
-      return new Pos(bb, instruction.indexInBB(), instruction instanceof Statement s ? s : null);
-    }
-
-    CFG cfg() {
-      return bb.owner();
+  /// Where a hoisted statement goes: immediately after [#after], or at the start of [#bb] when
+  /// [#after] is `null` (the argument it follows is a phi or parameter, which has no statement).
+  private record Anchor(BB bb, @Nullable Statement after) {
+    int index() {
+      return after == null ? -1 : after.indexInBB();
     }
   }
 
-  private static final class MotionsTo {
-    final Map<Pos, Motion> motions = new LinkedHashMap<>();
-    int hoistIndex;
-    int deferIndex;
-    // Instruction objects resolved from the indices before any move (so moves don't invalidate
-    // them): hoisted statements go *after* `hoistAnchor`, deferred statements *before*
-    // `deferAnchor`. Both are `null` iff the corresponding index is the "before all statements"
-    // boundary (`-1`), in which case the statements go at the very start of the block (which can't
-    // be resolved to an anchor up-front, because the instruction currently at the start may itself
-    // be moved elsewhere).
-    @Nullable Instruction hoistAnchor;
-    @Nullable Instruction deferAnchor;
-
-    MotionsTo(int index) {
-      hoistIndex = index;
-      deferIndex = index;
-    }
-  }
+  /// Where a deferred statement's assignee is used: the uses at each position in the target CFG
+  /// ([#usesAt]), and the positions among those that no other dominates ([#targets]).
+  private record Deferral(
+      LinkedHashMap<Instruction, List<Use>> usesAt,
+      List<Instruction> targets,
+      CfgDominatorTree cfgDom) {}
 
   private static final class Run {
-    boolean changed = false;
-
     private final Abstraction scope;
     private final Analyses analyses;
     private final CfgHierarchy hierarchy;
     private final DominatorTree domTree;
 
-    private final Map<BB, TreeMap<Integer, MotionsTo>> targetToOrigin = new LinkedHashMap<>();
-    private final Map<Pos, Set<Pos>> originToTarget = new LinkedHashMap<>();
-
     Run(Abstraction scope) {
-      // Setup
       this.scope = scope;
+      // Moving statements never adds, removes, or re-links a block, so the block-level dominator
+      // trees and the CFG hierarchy stay valid for the whole run. Everything position-sensitive is
+      // read from the IR when it's needed rather than cached.
       analyses =
           new Analyses(scope, CfgHierarchy.class, DominatorTree.class, CfgDominatorTree.class);
       hierarchy = analyses.get(CfgHierarchy.class);
       domTree = analyses.get(DominatorTree.class);
-
-      // Run
-      collectMotions();
-      removeRedundantMotions();
-      applyMotions();
     }
 
-    private CfgDominatorTree domTree(CFG cfg) {
-      return analyses.get(cfg, CfgDominatorTree.class);
-    }
+    // --- Defer ----------------------------------------------------------------------------
 
-    private void collectMotions() {
-      scope
-          .streamCfgs()
-          .forEach(
-              cfg -> {
-                for (var bb : cfg.bbs()) {
-                  for (var i = 0; i < bb.statements().size(); i++) {
-                    var statement = bb.statements().get(i);
-                    var origin = new Pos(bb, i, statement);
+    boolean deferAll() {
+      var changed = false;
 
-                    for (var rule : HOIST_RULES) {
-                      if (!rule.test(statement)) {
-                        continue;
-                      }
-
-                      var target = hoistTarget(origin);
-                      if (target == null) {
-                        continue;
-                      }
-
-                      addMotion(Motion.HOIST, origin, target);
-                    }
-
-                    for (var rule : DEFER_RULES) {
-                      if (!rule.test(statement)) {
-                        continue;
-                      }
-
-                      var targets = deferTarget(origin);
-                      for (var target : targets) {
-                        addMotion(Motion.DEFER, origin, target);
-                      }
-                    }
-                  }
-                }
-              });
-    }
-
-    private void addMotion(Motion motion, Pos origin, Pos target) {
-      if (origin.equals(target)) {
-        return;
-      }
-
-      if (originToTarget.containsKey(target)) {
-        // If we have target → C, add origin → C instead.
-        // Copy first: if `target` also has a motion *to* `origin` (they swap positions), the
-        // recursive call redirects it to C, which mutates the set we're iterating.
-        for (var nextTarget : List.copyOf(originToTarget.get(target))) {
-          addMotion(motion, origin, nextTarget);
-        }
-      } else {
-        // Do add (origin → target)
-        var thisTargetToOrigin =
-            targetToOrigin
-                .computeIfAbsent(target.bb(), _ -> new TreeMap<>())
-                .computeIfAbsent(target.index(), MotionsTo::new);
-        thisTargetToOrigin.motions.put(origin, motion);
-        originToTarget.computeIfAbsent(origin, _ -> new LinkedHashSet<>()).add(target);
-
-        // Convert A → origin to A → target
-        if (targetToOrigin.containsKey(origin.bb())
-            && targetToOrigin.get(origin.bb()).containsKey(origin.index())) {
-          var nextOrigins = targetToOrigin.get(origin.bb()).remove(origin.index());
-          thisTargetToOrigin.motions.putAll(nextOrigins.motions);
-          for (var nextOrigin : nextOrigins.motions.keySet()) {
-            var nextOriginTo = Objects.requireNonNull(originToTarget.get(nextOrigin));
-            nextOriginTo.remove(origin);
-            nextOriginTo.add(target);
-          }
-        }
-      }
-    }
-
-    private @Nullable Pos hoistTarget(Pos origin) {
-      var statement = Objects.requireNonNull(origin.statement());
-      var argRegs =
-          statement.args().stream().map(Argument::variable).filter(Objects::nonNull).toList();
-
-      var boundary = origin;
-      var targetCfg = origin.cfg();
-      var innermostCfgs =
-          argRegs.stream()
-              .map(Register::definingCfg)
-              .filter(Objects::nonNull)
-              .collect(Collectors.toSet());
-      while (!innermostCfgs.contains(targetCfg)) {
-        var parent = hierarchy.parentPromise(targetCfg);
-        if (parent == null) {
-          return null;
-        }
-
-        boundary = Pos.of(parent);
-        targetCfg = Objects.requireNonNull(parent.parentBB()).owner();
-      }
-
-      return latestDefinitionInCfg(argRegs, targetCfg, boundary);
-    }
-
-    private @Nullable Pos latestDefinitionInCfg(List<Register> argRegs, CFG cfg, Pos boundary) {
-      Pos latest = null;
-
-      for (var argReg : argRegs) {
-        var defBb = argReg.definingBB();
-        if (defBb == null) {
-          return null;
-        }
-        if (defBb.owner() != cfg) {
+      // Targets are collected first and applied together. Several statements can want the same
+      // target -- a `deopt` jump routinely reads more than one boxed register -- and moving them
+      // one at a time puts each in front of the last, so they leapfrog forever and the enclosing
+      // fixpoint sequence never settles.
+      var placements = new LinkedHashMap<Instruction, List<Statement>>();
+      for (var statement : matching(DEFER_RULES)) {
+        var deferral = deferral(statement);
+        if (deferral == null) {
           continue;
         }
 
-        var defPos = definitionPos(argReg, defBb);
-        if (!domTree(cfg).dominates(defPos.bb(), defPos.index(), boundary.bb(), boundary.index())) {
-          return null;
+        if (deferral.targets().size() > 1) {
+          changed |= split(statement, deferral);
         }
-
-        latest = laterOf(latest, defPos, domTree(cfg));
-        if (latest == null) {
-          return null;
-        }
+        placements
+            .computeIfAbsent(deferral.targets().getFirst(), _ -> new ArrayList<>())
+            .add(statement);
       }
 
-      return latest != null ? latest : new Pos(cfg.entry(), -1, null);
+      for (var entry : placements.entrySet()) {
+        changed |= placeBefore(entry.getKey(), new ArrayList<>(entry.getValue()));
+      }
+      return changed;
     }
 
-    /// The position of `reg`'s definition (whose block is known to be `defBb`): an [AssigneeOf]'s
-    /// statement, or the block entry (`-1`) for a phi/parameter.
-    private static Pos definitionPos(Register reg, BB defBb) {
-      return reg instanceof AssigneeOf a
-          ? new Pos(defBb, a.statement().indexInBB(), a.statement())
-          : new Pos(defBb, -1, null);
-    }
-
-    private @Nullable Pos laterOf(@Nullable Pos left, Pos right, CfgDominatorTree domTree) {
-      return left == null || domTree.dominates(left.bb(), right.bb())
-          ? right
-          : domTree.dominates(right.bb(), left.bb()) ? left : null;
-    }
-
-    private List<Pos> deferTarget(Pos origin) {
-      var statement = Objects.requireNonNull(origin.statement());
+    /// Where `statement` should sink to, or `null` if it can't be placed.
+    private @Nullable Deferral deferral(Statement statement) {
       var assignee = statement.assignee();
-      if (assignee == null) {
-        return List.of();
+      if (assignee == null || !assignee.isUsed()) {
+        return null;
       }
 
-      var uses = assignee.uses();
-      if (uses.isEmpty()) {
-        return List.of();
-      }
-
+      // The innermost CFG containing every use. A use nested in a promise is represented there by
+      // the promise statement that (transitively) contains it.
       var targetCfg =
-          uses.stream()
+          assignee.uses().stream()
               .map(use -> Objects.requireNonNull(use.instruction().parentBB()).owner())
               .collect(hierarchy.commonAncestor())
               .orElse(null);
       if (targetCfg == null) {
-        return List.of();
+        return null;
       }
 
-      // Return all uses in `targetCfg` not dominated by other uses
-      var domTree = domTree(targetCfg);
-      var usesInCfg = new ArrayList<Pos>();
-      for (var use : uses) {
-        var nextUseInCfg =
-            Pos.of(Objects.requireNonNull(hierarchy.projectInto(targetCfg, use.instruction())));
+      var usesAt = new LinkedHashMap<Instruction, List<Use>>();
+      for (var use : List.copyOf(assignee.uses())) {
+        var projected = hierarchy.projectInto(targetCfg, use.instruction());
+        if (projected == null) {
+          return null;
+        }
+        usesAt.computeIfAbsent(projected, _ -> new ArrayList<>()).add(use);
+      }
 
-        // Don't add if dominated by a previously-added use
-        if (usesInCfg.stream()
-            .anyMatch(
-                existingUse ->
-                    domTree.dominates(
-                        existingUse.bb(), existingUse.index(),
-                        nextUseInCfg.bb(), nextUseInCfg.index()))) {
+      var cfgDom = analyses.get(targetCfg, CfgDominatorTree.class);
+
+      // The use positions no other use position dominates. One target means a plain move; several
+      // mean the uses are in branches that don't dominate each other, so the statement is copied
+      // to each.
+      var targets = new ArrayList<Instruction>();
+      for (var position : usesAt.keySet()) {
+        if (targets.stream().anyMatch(target -> cfgDom.dominates(target, position))) {
+          continue;
+        }
+        targets.removeIf(target -> cfgDom.dominates(position, target));
+        targets.add(position);
+      }
+
+      // Nothing may move to a position its own arguments don't reach. A use of the assignee is
+      // always dominated by the statement, hence by its arguments, so this only bites on malformed
+      // input -- but check every target before anything mutates, so a rejected one can't leave the
+      // rest half-applied.
+      for (var target : targets) {
+        if (!argumentsDominate(statement, target)) {
+          return null;
+        }
+      }
+
+      return new Deferral(usesAt, targets, cfgDom);
+    }
+
+    /// Copy `statement` to each of its targets past the first, and point every use at the copy
+    /// that reaches it.
+    private boolean split(Statement statement, Deferral deferral) {
+      var assignee = Objects.requireNonNull(statement.assignee());
+      var targets = deferral.targets();
+
+      // The first target keeps the original statement, so its register name survives; the rest get
+      // copies with fresh names, inserted where they're needed.
+      var registerAt = new LinkedHashMap<Instruction, Register>();
+      registerAt.put(targets.getFirst(), assignee);
+      for (var target : targets.subList(1, targets.size())) {
+        var copy = statement.copy((_, argument) -> argument);
+        var copyAssignee = Objects.requireNonNull(copy.assignee());
+        // `copy` reuses the original's name, but register names must be unique within the version:
+        // they name the register in the textual IR and in the generated C, so a duplicate makes
+        // both ambiguous (C won't even compile).
+        copyAssignee.rename(scope.freshName(assignee.name()));
+        copy.insertBefore(target);
+        registerAt.put(target, copyAssignee);
+      }
+
+      // Rewrite each use to the copy covering it, one use at a time. Rewriting by dominance over
+      // the whole abstraction instead would have to re-derive which copy reaches which use, and
+      // missing one -- a jump's phi arguments are easy to miss -- leaves a register referenced
+      // where nothing defines it.
+      for (var entry : deferral.usesAt().entrySet()) {
+        var covering =
+            targets.stream()
+                .filter(target -> deferral.cfgDom().dominates(target, entry.getKey()))
+                .findFirst()
+                .orElseThrow();
+        var register = registerAt.get(covering);
+        if (register == assignee) {
           continue;
         }
 
-        // Remove all previously-added uses dominated by it before adding
-        usesInCfg.removeIf(
-            existingUse ->
-                domTree.dominates(
-                    nextUseInCfg.bb(), nextUseInCfg.index(),
-                    existingUse.bb(), existingUse.index()));
-
-        usesInCfg.add(nextUseInCfg);
-      }
-      return usesInCfg;
-    }
-
-    private void removeRedundantMotions() {
-      for (var bbEntry : targetToOrigin.entrySet()) {
-        var bb = bbEntry.getKey();
-
-        for (var motionsToIndex : bbEntry.getValue().values()) {
-          // If a hoisted instruction is immediately after where it will be hoisted,
-          // or a deferred instruction immediately before where it will be deferred,
-          // the hoist or defer is redundant, so don't apply it.
-          // Also ignore NOOPs, which may be previous hoists or defers.
-          // Lastly, hoist after assumptions.
-          // Store in [MotionsTo] to keep nicer order by still hoisting after and deferring
-          // before the redundant motions.
-          while (motionsToIndex.hoistIndex + 1 < bb.statements().size()
-              && (motionsToIndex.motions.remove(
-                      new Pos(bb, motionsToIndex.hoistIndex + 1), Motion.HOIST)
-                  || bb.statements().get(motionsToIndex.hoistIndex + 1).expression() instanceof Noop
-                  || bb.statements().get(motionsToIndex.hoistIndex + 1).expression()
-                      instanceof Assume)) {
-            motionsToIndex.hoistIndex++;
-          }
-          while (motionsToIndex.deferIndex - 1 >= 0
-              && (removeIfRedundantDefer(motionsToIndex, new Pos(bb, motionsToIndex.deferIndex - 1))
-                  || bb.statements().get(motionsToIndex.deferIndex - 1).expression()
-                      instanceof Noop)) {
-            motionsToIndex.deferIndex--;
-          }
+        for (var use : entry.getValue()) {
+          use.replaceWith(
+              use.argument() instanceof Consume ? new Consume(register) : new Read(register));
         }
       }
+
+      return true;
     }
 
-    /// Drop the defer of `origin` into this target if it's redundant — `origin` already sits right
-    /// where it would be deferred to — reporting whether it was dropped.
+    /// Move `statements` to just before `target`, keeping the ones already sitting there put.
+    private boolean placeBefore(Instruction target, List<Statement> statements) {
+      // Skip the run of statements already immediately before the target.
+      var point = target;
+      while (point.prev() instanceof Statement placed && statements.remove(placed)) {
+        point = placed;
+      }
+
+      var changed = false;
+      for (var statement : statements) {
+        changed |= moveBefore(statement, point);
+      }
+      return changed;
+    }
+
+    // --- Hoist ----------------------------------------------------------------------------
+
+    boolean hoistAll() {
+      // Group by anchor: when several statements hoist to the same place, they have to keep their
+      // relative order. Moved one at a time, each would land in front of the last, so they'd
+      // reverse on every run and the enclosing fixpoint sequence would never settle.
+      var byAnchor = new LinkedHashMap<Anchor, List<Statement>>();
+      for (var statement : matching(HOIST_RULES)) {
+        var anchor = hoistAnchor(statement);
+        if (anchor != null) {
+          byAnchor.computeIfAbsent(anchor, _ -> new ArrayList<>()).add(statement);
+        }
+      }
+
+      var changed = false;
+      for (var entry : byAnchor.entrySet()) {
+        changed |= hoist(entry.getKey(), new ArrayList<>(entry.getValue()));
+      }
+      return changed;
+    }
+
+    private boolean hoist(Anchor anchor, List<Statement> statements) {
+      var point = anchor.after() == null ? firstInstruction(anchor.bb()) : anchor.after().next();
+
+      // Skip the run of statements already sitting where they'd be hoisted to.
+      while (point instanceof Statement placed && statements.remove(placed)) {
+        point = point.next();
+      }
+
+      var changed = false;
+      for (var statement : statements) {
+        changed |= moveBefore(statement, point);
+      }
+      return changed;
+    }
+
+    private @Nullable Anchor hoistAnchor(Statement statement) {
+      var argumentRegisters =
+          statement.args().stream().map(Argument::variable).filter(Objects::nonNull).toList();
+
+      // Climb out of promises while no argument is defined in the current CFG.
+      Instruction boundary = statement;
+      var targetCfg = Objects.requireNonNull(statement.parentBB()).owner();
+      var definingCfgs =
+          argumentRegisters.stream()
+              .map(Register::definingCfg)
+              .filter(Objects::nonNull)
+              .collect(Collectors.toSet());
+      while (!definingCfgs.contains(targetCfg)) {
+        var parent = hierarchy.parentPromise(targetCfg);
+        if (parent == null) {
+          return null;
+        }
+        boundary = parent;
+        targetCfg = Objects.requireNonNull(parent.parentBB()).owner();
+      }
+
+      var cfgDom = analyses.get(targetCfg, CfgDominatorTree.class);
+      var boundaryBb = Objects.requireNonNull(boundary.parentBB());
+      var boundaryIndex = boundary.indexInBB();
+
+      Anchor latest = null;
+      for (var register : argumentRegisters) {
+        var definingBb = register.definingBB();
+        if (definingBb == null) {
+          return null;
+        }
+        if (definingBb.owner() != targetCfg) {
+          continue;
+        }
+
+        // A phi or parameter is "defined" at the start of its block, which no statement in that
+        // block precedes.
+        var candidate =
+            register instanceof AssigneeOf a
+                ? new Anchor(definingBb, a.statement())
+                : new Anchor(definingBb, null);
+        if (!cfgDom.dominates(candidate.bb(), candidate.index(), boundaryBb, boundaryIndex)) {
+          return null;
+        }
+
+        if (latest == null || dominates(cfgDom, latest, candidate)) {
+          latest = candidate;
+        } else if (!dominates(cfgDom, candidate, latest)) {
+          // Neither argument's definition reaches the other, so there's no single point after both.
+          return null;
+        }
+      }
+
+      return latest != null ? latest : new Anchor(targetCfg.entry(), null);
+    }
+
+    private static boolean dominates(CfgDominatorTree cfgDom, Anchor left, Anchor right) {
+      return cfgDom.dominates(left.bb(), left.index(), right.bb(), right.index());
+    }
+
+    // --- Shared ---------------------------------------------------------------------------
+
+    /// Every statement in the abstraction matching one of `rules`, in program order.
     ///
-    /// Only for an `origin` deferred to exactly one target. With several targets the statement has
-    /// uses in branches that don't dominate each other, so it must be *copied* to each (see
-    /// [SchedulePure]); dropping the one it currently sits at would leave the others to move it
-    /// away instead, and the next run would find it sitting at one of those and move it back —
-    /// ping-ponging between targets, and reporting progress every time, so the enclosing fixpoint
-    /// sequence never settles.
-    private boolean removeIfRedundantDefer(MotionsTo motionsTo, Pos origin) {
-      if (motionsTo.motions.get(origin) != Motion.DEFER) {
+    /// Only statements with an assignee: one without is dead pure code for [Cleanup] to drop, and
+    /// moving it is pure churn. It also can't be moved into a deopt branch, where the interpreter
+    /// reverse-evaluates each `box`/`unbox` through its assignee and fails outright without one.
+    private List<Statement> matching(List<Predicate<Statement>> rules) {
+      return scope
+          .streamCfgs()
+          .flatMap(cfg -> cfg.bbs().stream())
+          .flatMap(bb -> bb.statements().stream())
+          .filter(statement -> statement.assignee() != null)
+          .filter(statement -> rules.stream().anyMatch(rule -> rule.test(statement)))
+          .toList();
+    }
+
+    /// Whether every register `statement` reads is defined somewhere that reaches `target`.
+    private boolean argumentsDominate(Statement statement, Instruction target) {
+      for (var argument : statement.args()) {
+        var register = argument.variable();
+        if (register == null) {
+          continue;
+        }
+        if (register.definingBB() == null || !domTree.dominates(register, target)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    /// Move `statement` to just before `point`, reporting whether that changed anything.
+    ///
+    /// [Instruction#moveBefore] is already a no-op when the statement is already there, but the
+    /// caller still has to know: reporting "changed" for a move that didn't happen keeps the
+    /// enclosing fixpoint sequence iterating until it hits its hard limit.
+    private static boolean moveBefore(Statement statement, Instruction point) {
+      if (statement == point || statement.next() == point) {
         return false;
       }
-      var targets = originToTarget.get(origin);
-      if (targets != null && targets.size() > 1) {
-        return false;
-      }
-      return motionsTo.motions.remove(origin, Motion.DEFER);
+      statement.moveBefore(point);
+      return true;
     }
 
-    private void applyMotions() {
-      var insertedAssignees = new HashSet<Register>();
-      var substs = new DomineeSubstituter(domTree, scope);
-
-      // Resolve target anchor instructions to objects before any move, since moves are by
-      // instruction reference (not index) and so don't invalidate these.
-      for (var bbEntry : targetToOrigin.entrySet()) {
-        var bb = bbEntry.getKey();
-        for (var motionsToIndex : bbEntry.getValue().values()) {
-          motionsToIndex.hoistAnchor =
-              motionsToIndex.hoistIndex == -1 ? null : instrAt(bb, motionsToIndex.hoistIndex);
-          motionsToIndex.deferAnchor =
-              motionsToIndex.deferIndex == -1 ? null : instrAt(bb, motionsToIndex.deferIndex);
-        }
-      }
-
-      for (var bbEntry : targetToOrigin.entrySet()) {
-        var bb = bbEntry.getKey();
-        for (var motionsToIndex : bbEntry.getValue().values()) {
-          // Hoisted statements move to just after `hoistAnchor` (i.e. before its successor), or to
-          // the very start of the block if there's no anchor.
-          var hoistPoint =
-              motionsToIndex.hoistAnchor == null
-                  ? instrAt(bb, 0)
-                  : motionsToIndex.hoistAnchor.next();
-          motionsToIndex.motions.entrySet().stream()
-              .filter(e -> e.getValue() == Motion.HOIST)
-              .map(Entry::getKey)
-              .forEach(
-                  hoist -> {
-                    var statement = Objects.requireNonNull(hoist.statement());
-                    if (isAlreadyBefore(statement, hoistPoint)) {
-                      return;
-                    }
-                    statement.moveBefore(hoistPoint);
-                    changed = true;
-                  });
-
-          var deferPoint =
-              motionsToIndex.deferAnchor == null ? instrAt(bb, 0) : motionsToIndex.deferAnchor;
-          motionsToIndex.motions.entrySet().stream()
-              .filter(e -> e.getValue() == Motion.DEFER)
-              .map(Entry::getKey)
-              .forEach(
-                  defer -> {
-                    var statement = Objects.requireNonNull(defer.statement());
-
-                    // We can defer the same instruction into multiple positions if none dominate
-                    // each other. This means we copy the instruction; since we use SSA, the copy
-                    // gets a fresh assignee, and we substitute it in at the defer position.
-                    var assignee = statement.assignee();
-                    if (assignee != null && !insertedAssignees.add(assignee)) {
-                      var copy = statement.copy((_, a) -> a);
-                      var newAssignee = Objects.requireNonNull(copy.assignee());
-                      // `copy` reuses the original's name, but register names must be unique
-                      // within the version: they name the register in the textual IR and in the
-                      // generated C, so a duplicate makes both ambiguous (C won't even compile).
-                      newAssignee.rename(scope.freshName(assignee.name()));
-                      substs.stage(assignee, new Read(newAssignee), bb, motionsToIndex.deferIndex);
-                      copy.insertBefore(deferPoint);
-                    } else {
-                      if (isAlreadyBefore(statement, deferPoint)) {
-                        return;
-                      }
-                      statement.moveBefore(deferPoint);
-                    }
-
-                    changed = true;
-                  });
-        }
-      }
-
-      substs.commit();
-    }
-
-    /// Whether moving `statement` to just before `point` would leave the block unchanged.
-    ///
-    /// [Instruction#moveBefore] is already a no-op in that case, but the caller still has to know,
-    /// because reporting "changed" for a move that didn't happen keeps the enclosing fixpoint
-    /// sequence iterating until it hits its hard limit.
-    private static boolean isAlreadyBefore(Instruction statement, Instruction point) {
-      return statement == point || statement.next() == point;
-    }
-
-    private static Instruction instrAt(BB bb, int index) {
-      var statements = bb.statements();
-      return index < statements.size() ? statements.get(index) : bb.jump();
+    private static Instruction firstInstruction(BB bb) {
+      return bb.statements().isEmpty() ? bb.jump() : bb.statements().getFirst();
     }
   }
 }

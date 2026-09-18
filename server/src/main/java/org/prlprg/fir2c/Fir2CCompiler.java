@@ -1234,6 +1234,9 @@ public final class Fir2CCompiler {
               case Call _ -> emitCall(statement);
               case Cast(var type) ->
                   "Fir_cast(%s, %s)".formatted(emitArgument(args.getFirst()), emitType(type));
+              // A `consume` argument guarantees the vector isn't read again, so this can move it
+              // instead of copying (see `org.prlprg.fir.opt.ConsumeDeadDup`).
+              case Dup _ when args.getFirst() instanceof Consume -> emitArgument(args.getFirst());
               case Dup _ -> "Fir_dup(%s)".formatted(emitArgument(args.getFirst()));
               case Force(var isMaybe) ->
                   (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)")
@@ -1308,7 +1311,7 @@ public final class Fir2CCompiler {
                 }
                 yield null;
               }
-              case SubscriptRead _ -> {
+              case SubscriptRead(var outOfRangeIsNa) -> {
                 var vector = args.getFirst();
                 var index = args.get(1);
                 if (!(argumentType(vector).kind()
@@ -1318,8 +1321,12 @@ public final class Fir2CCompiler {
                 }
                 var suffix = primitiveKindCName(primitiveKind);
 
-                yield "Fir_subscript_read_%s(%s, %s)"
-                    .formatted(suffix, emitArgument(vector), emitArgument(index));
+                yield "Fir_subscript_read_%s%s(%s, %s)"
+                    .formatted(
+                        outOfRangeIsNa ? "na_" : "",
+                        suffix,
+                        emitArgument(vector),
+                        emitArgument(index));
               }
               case SubscriptWrite _ -> {
                 var vector = args.getFirst();
@@ -1448,8 +1455,7 @@ public final class Fir2CCompiler {
           }
 
           private String emitBuiltinCall(List<Argument> callArgs, Function calleeFun) {
-            var builtinIndex =
-                Objects.requireNonNull(rSession.RFunTab().get(calleeFun.name().name())).index();
+            var builtinIndex = builtinIndex(calleeFun);
 
             var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
             var names =
@@ -1463,9 +1469,21 @@ public final class Fir2CCompiler {
                       + calleeFun);
             }
 
-            return "Fir_call_builtin(%d, %s, %d, %s, %s)"
-                .formatted(
-                    builtinIndex, VAR_ENV, arguments.size(), arguments.pointer(), names.pointer());
+            return builtinIndex == null
+                ? "Fir_call_base(%s, %s, %d, %s, %s)"
+                    .formatted(
+                        baseSymbolRef(pool, calleeFun),
+                        VAR_ENV,
+                        arguments.size(),
+                        arguments.pointer(),
+                        names.pointer())
+                : "Fir_call_builtin(%d, %s, %d, %s, %s)"
+                    .formatted(
+                        builtinIndex,
+                        VAR_ENV,
+                        arguments.size(),
+                        arguments.pointer(),
+                        names.pointer());
           }
 
           private void emitJump(Jump jump) {
@@ -1509,7 +1527,7 @@ public final class Fir2CCompiler {
                   }
 
                   var target = statement.args().isEmpty() ? null : statement.arg(0);
-                  var condition = emitAssumptionCondition(statement.assignee(), assumption, target);
+                  var condition = emitAssumptionCondition(statement, assumption, target);
                   cCode.stmt("if (!(%s)) {", condition);
                   emitJumpTo(2, deopt);
                   cCode.stmt("}");
@@ -1527,8 +1545,11 @@ public final class Fir2CCompiler {
           }
 
           private String emitAssumptionCondition(
-              @Nullable Register assignee, Assumption assumption, @Nullable Argument target) {
-            debugComment(cCode, "? %s", assumption);
+              Statement statement, Assumption assumption, @Nullable Argument target) {
+            assert statement.expression() instanceof Assume(var a) && a == assumption;
+            var assignee = statement.assignee();
+
+            debugComment(cCode, "? %s", statement.expression());
             debugArgs(cCode, target == null ? List.of() : List.of(target));
 
             var refAssigneePlace =
@@ -1541,11 +1562,14 @@ public final class Fir2CCompiler {
                           emitArgument(Objects.requireNonNull(target)),
                           constantRef(pool, constant));
               case AssumeFunction a when a.function().owner() == BUILTINS -> {
-                var builtinIndex =
-                    Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
-                        .index();
-                yield "Fir_assume_builtin_function(%s, %d)"
-                    .formatted(emitArgument(Objects.requireNonNull(target)), builtinIndex);
+                var builtinIndex = builtinIndex(a.function());
+                yield builtinIndex == null
+                    ? "Fir_assume_base_function(%s, %s)"
+                        .formatted(
+                            emitArgument(Objects.requireNonNull(target)),
+                            baseSymbolRef(pool, a.function()))
+                    : "Fir_assume_builtin_function(%s, %d)"
+                        .formatted(emitArgument(Objects.requireNonNull(target)), builtinIndex);
               }
               case AssumeFunction a when a.function().owner() == INTRINSICS ->
                   throw new IllegalArgumentException(
@@ -1561,12 +1585,20 @@ public final class Fir2CCompiler {
                         functionDispatchCName(a.function()));
               }
               case AssumeLoadFun a when a.function().owner() == BUILTINS -> {
-                var builtinIndex =
-                    Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
-                        .index();
-                yield "Fir_assume_load_builtin_fun(%s, %s, %d, %s)"
-                    .formatted(
-                        nvSymbolRef(pool, a.variable()), VAR_ENV, builtinIndex, refAssigneePlace);
+                var builtinIndex = builtinIndex(a.function());
+                yield builtinIndex == null
+                    ? "Fir_assume_load_base_fun(%s, %s, %s, %s)"
+                        .formatted(
+                            nvSymbolRef(pool, a.variable()),
+                            VAR_ENV,
+                            baseSymbolRef(pool, a.function()),
+                            refAssigneePlace)
+                    : "Fir_assume_load_builtin_fun(%s, %s, %d, %s)"
+                        .formatted(
+                            nvSymbolRef(pool, a.variable()),
+                            VAR_ENV,
+                            builtinIndex,
+                            refAssigneePlace);
               }
               case AssumeLoadFun a when a.function().owner() == INTRINSICS ->
                   throw new IllegalArgumentException(
@@ -1805,8 +1837,7 @@ public final class Fir2CCompiler {
 
       private Type argumentType(Argument argument) {
         return switch (argument) {
-          case Constant(var value) ->
-              throw new IllegalArgumentException("Cannot get Type of constant: " + value);
+          case Constant(var value) -> value.type();
           case Read(var reg) -> registerTypes.get(reg);
           case Consume(var reg) -> registerTypes.get(reg);
         };
@@ -2127,7 +2158,24 @@ public final class Fir2CCompiler {
     return "l_" + bb.label();
   }
 
+  /// `builtin`'s index in GNU-R's `R_FunTab`, or `null` if it has no entry there.
+  ///
+  /// Not every function in `builtins.fir` is a primitive: `bitwShiftL` and its siblings wrap an
+  /// `.Internal` whose `R_FunTab` name differs from theirs (`bitwiseShiftL`), and `print`,
+  /// `stopifnot` and `xor` are plain R. Those are base closures with no builtin index, so the
+  /// generated code refers to them by symbol ([#baseSymbolRef(ConstantPool, Function)]) and
+  /// resolves the base binding at runtime instead.
+  private @Nullable Integer builtinIndex(Function builtin) {
+    var entry = rSession.RFunTab().get(builtin.name().name());
+    return entry == null ? null : entry.index();
+  }
+
   // region constants
+  /// The symbol naming `builtin`, for the `Fir_*_base*` runtime functions.
+  private static String baseSymbolRef(ConstantPool pool, Function builtin) {
+    return constantRef(pool, SEXPs.symbol(builtin.name().name()));
+  }
+
   private static String nvSymbolRef(ConstantPool pool, NamedVariable nv) {
     return nv == NamedVariable.DOTS ? "R_DotsSymbol" : constantRef(pool, SEXPs.symbol(nv.name()));
   }

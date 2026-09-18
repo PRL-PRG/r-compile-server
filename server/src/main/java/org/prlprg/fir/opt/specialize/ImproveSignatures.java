@@ -50,6 +50,14 @@ public record ImproveSignatures() implements SpecializeOptimization {
 
     var changed = false;
     var newReturnType = analyses.get(InferType.class).of(scope.cfg());
+    // A return type can only be fresh or shared, but a `return` of an owned (or borrowed) register
+    // infers as one, and declaring that leaves every call to this version unresolvable, because no
+    // call signature's return type an owned one can be assigned to. Shared is the safe claim.
+    if (newReturnType != null
+        && newReturnType.ownership() != Ownership.FRESH
+        && newReturnType.ownership() != Ownership.SHARED) {
+      newReturnType = newReturnType.withOwnership(Ownership.SHARED);
+    }
     var newEffects = analyses.get(InferEffects.class).ofNonRecursive(scope.cfg());
     var strictParams = analyses.get(scope.cfg(), StrictnessAnalysis.class).strictParameters();
 
