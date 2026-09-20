@@ -41,7 +41,7 @@ binarytrees_naive <- function(args) {
         check(long_lived_tree), "\n")
 }
 
-#? benchmark: binarytrees_naive(16)
+#? benchmark: binarytrees_naive(11)
 
 # warmup
 for (i in 1:12) {
