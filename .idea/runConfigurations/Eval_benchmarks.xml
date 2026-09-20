@@ -11,6 +11,7 @@
     <option name="MAIN_CLASS_NAME" value="org.prlprg.snapshot.fir2c.FirAfterOpt2CTest" />
     <option name="METHOD_NAME" value="testEval" />
     <option name="TEST_OBJECT" value="method" />
+    <option name="VM_PARAMETERS" value="-Xmx4g" />
     <envs>
       <env name="EXAMPLE_FILTER" value="bench_.*" />
     </envs>

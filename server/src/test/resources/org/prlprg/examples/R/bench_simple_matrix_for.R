@@ -7,7 +7,7 @@ execute <- function(n) {
   }
 }
 
-#? benchmark: execute(10000)
+#? benchmark: execute(100)
 
 # warmup
 for (i in 1:12) {

@@ -544,6 +544,43 @@ SEXP Fir_maybe_force(SEXP valueOrPromise) {
   return TYPEOF(valueOrPromise) == PROMSXP ? Fir_force(valueOrPromise) : valueOrPromise;
 }
 
+/// Whether evaluating `code`, a promise's body, can't have an effect the program could observe.
+///
+/// Two shapes qualify. One is code that evaluates to itself, i.e. the promise is a constant. The
+/// other is R's lazy-load thunk: until something reads it, every binding of a lazily-loaded
+/// package -- `base` included, so `bitwXor` and most of the functions we speculate on -- is a
+/// promise wrapping `lazyLoadDBfetch(key, datafile, compressed, envhook)`. Running that
+/// deserializes the stored object and rebinds it, which is what R itself does on the next ordinary
+/// lookup, so doing it early is invisible.
+///
+/// Deliberately not a general purity analysis of the body. One would *reject* the lazy-load thunk,
+/// since `lazyLoadDBfetch` is an ordinary base closure that reads a file, and the thunk is the case
+/// that matters: it is what stands between an `AssumeLoadFun` and the base function it speculated
+/// on.
+static bool Fir_code_is_pure_to_eval(SEXP code) {
+  if (TYPEOF(code) == BCODESXP) {
+    code = R_BytecodeExpr(code);
+  }
+
+  switch (TYPEOF(code)) {
+    case LANGSXP: {
+      // Symbols live in R's permanent symbol table, so this needs no `PROTECT`.
+      static SEXP lazy_load_db_fetch = NULL;
+      if (lazy_load_db_fetch == NULL) {
+        lazy_load_db_fetch = Rf_install("lazyLoadDBfetch");
+      }
+      return CAR(code) == lazy_load_db_fetch;
+    }
+    case SYMSXP:
+    case PROMSXP:
+    case EXTPTRSXP:
+      return false;
+    default:
+      // Evaluates to itself.
+      return true;
+  }
+}
+
 SEXP Fir_safe_force(SEXP valueOrPromise) {
   if (TYPEOF(valueOrPromise) != PROMSXP) {
     return valueOrPromise;
@@ -560,6 +597,11 @@ SEXP Fir_safe_force(SEXP valueOrPromise) {
   SEXPTYPE t = TYPEOF(code);
   if (t != LANGSXP && t != SYMSXP && t != PROMSXP && t != BCODESXP && t != EXTPTRSXP) {
     return code;
+  }
+
+  // Run the body when running it can't be observed
+  if (Fir_code_is_pure_to_eval(code)) {
+    return Fir_force(promise);
   }
 
   // Could not force
@@ -1403,7 +1445,8 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for assume_load_fun");
 
   // `Rf_findFun`,
-  // but returns `NULL` when it encounters a promise (instead of forcing
+  // but returns `NULL` when it encounters a promise it can't force without a possible effect
+  // (instead of forcing it unconditionally)
   // or on lookup fail (instead of `Rf_error`)
   if (env == Rsh_ElidedEnv) {
     env = ENCLOS(env);
@@ -1412,10 +1455,10 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
     SEXP vl = R_findVarInFrame(env, symbol);
     if (vl != R_UnboundValue) {
       if (TYPEOF(vl) == PROMSXP) {
-        if (PROMISE_IS_EVALUATED(vl))
-          vl = PRVALUE(vl);
-        else
+        vl = Fir_safe_force(vl);
+        if (TYPEOF(vl) == PROMSXP) {
           return NULL; // fail instead of forcing
+        }
       }
       if (TYPEOF(vl) == CLOSXP || TYPEOF(vl) == BUILTINSXP || TYPEOF(vl) == SPECIALSXP) {
         return vl;

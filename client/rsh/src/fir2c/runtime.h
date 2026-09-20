@@ -187,6 +187,9 @@ SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);
 SEXP Fir_force(SEXP promise);
 SEXP Fir_maybe_force(SEXP valueOrPromise);
+/// The value behind `valueOrPromise`, if it can be had without an effect the program could
+/// observe: the promise is already forced, or its body is one whose evaluation is invisible (see
+/// `Fir_code_is_pure_to_eval`). Returns the promise unchanged otherwise.
 SEXP Fir_safe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_fun(SEXP symbol, SEXP env);
