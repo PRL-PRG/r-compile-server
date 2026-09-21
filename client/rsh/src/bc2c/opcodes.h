@@ -1515,7 +1515,7 @@ static INLINE void Rsh_SetterCall(Value *stack, SEXP call, SEXP vexpr,
   Value args_head = *GET_VAL(-2);
   Value args_tail = *GET_VAL(-1);
 
-  SEXP lhs_sxp = VAL_SXP(*lhs);
+  SEXP lhs_sxp = box_inplace(lhs);
   SEXP fun_sxp = VAL_SXP(fun);
   SEXP args = VAL_SXP(args_head);
 
@@ -1789,7 +1789,7 @@ static INLINE void Rsh_do_subassign_n(Value *stack, int rank, SEXP call,
 }
 
 static INLINE void Rsh_GetterCall(Value *stack, SEXP call, SEXP rho) {
-  SEXP lhs_sxp = VAL_SXP(*GET_VAL(-5));
+  SEXP lhs_sxp = box_inplace(GET_VAL(-5));
   SEXP fun_sxp = VAL_SXP(*GET_VAL(-3));
   SEXP args = VAL_SXP(*GET_VAL(-2));
 
