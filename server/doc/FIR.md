@@ -29,6 +29,8 @@ Each function has a name and parameter names (R names) and one or more **version
 
 A version whose body is `{ ... }` is a **stub**: a declaration without code. Builtins and intrinsics (`src/main/resources/org/prlprg/fir/builtins.fir` and `intrinsics.fir`) are declared this way and are implicitly in scope in every module.
 
+A version may also be *unevaluated*: its body is computed when it's first accessed (see [lazy-versions](lazy-versions.md)). Such a version isn't printed at all, unless it's the baseline, which prints as `{ <unevaluated> }` and doesn't parse.
+
 A function may be preceded by user properties:
 - `@strict`
 - `@liteSpecial` - the function may be called with literal AST arguments, but a non-reflective version takes them evaluated, like a builtin

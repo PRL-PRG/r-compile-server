@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy2;
-
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.FunctionParameter;
@@ -12,19 +10,22 @@ import org.prlprg.fir.ir.variable.FunctionParameter;
 /// Said version, unlike baseline, can have speculations
 ///
 /// Doesn't apply if the baseline is a stub
-public record CopyBaseline() implements Optimization {
+public final class CopyBaseline extends Optimization {
   @Override
-  public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
+  public boolean runWithoutRecording(
+      Optimization topLevel, ModuleFeedback feedback, Function function) {
     if (function.guess(function.baseline().signature()) != function.baseline()
         || function.baseline().isStub()) {
       return false;
     }
 
-    copy2(
+    LazyCopy.create(
+        topLevel,
         feedback,
         function,
         function.baseline(),
-        FunctionParameter.copyAll(function.baseline().parameters()));
+        FunctionParameter.copyAll(function.baseline().parameters()),
+        LazyCopy.Adapter.NONE);
     return true;
   }
 }

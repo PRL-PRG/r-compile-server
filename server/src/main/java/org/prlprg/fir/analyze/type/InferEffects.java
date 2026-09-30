@@ -4,6 +4,7 @@ import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Assume;
@@ -88,6 +89,7 @@ public final class InferEffects implements Analysis {
       case Call call ->
           switch (call.callee()) {
             case StaticFnCallee(_, _, var signature) -> signature.effects();
+            case FallbackCallee(var signature) -> signature.effects();
             case DynamicCallee _ -> Effects.REFLECT;
           };
       case Cast _ -> Effects.IMPURE;

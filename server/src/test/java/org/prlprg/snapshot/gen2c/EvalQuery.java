@@ -4,15 +4,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.function.Function;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
+import org.prlprg.fir2c.Fir2CSession;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.server.FirTestServer;
+import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
@@ -39,18 +44,48 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
     return moduleQuery.name() + ".eval";
   }
 
+  /// How many times a FIŘ module's `main` is called: enough for a version's stub to run its
+  /// fallback (the first call), then the compiled version (the second, which in the deterministic
+  /// mode the tests use waits for it), then what it calls compiled (the third). Not for BC2C
+  /// modules, whose tests count what one call does.
+  private static final int FIR_RUNS = 3;
+
   @Override
   public EvalOutput compute(Example example, SnapshotStore store) {
     if (example.hasOption(name(), "noEval")) {
       throw new SkipQueryException(name());
     }
 
-    var R = GNUR.instance();
-    var modulePath = store.loadPath(example, moduleQuery);
+    var evalQuery = moduleQuery.forEval();
+    var isStandalone = evalQuery.isStandalone();
+    if (!isStandalone) {
+      checkRshInstalled();
+    }
+    var R = isStandalone ? GNUR.instance() : GNUR.rshInstance();
+    var modulePath = store.loadPath(example, evalQuery);
+
+    // What the compile server has of the module, if it's connected (it isn't standalone).
+    var idPath = modulePath.resolve("id.txt");
+    var moduleId = Files.exists(idPath) ? Files.readString(idPath) : "";
+    var server = moduleId.isEmpty() ? null : FirTestServer.instance();
+    var session =
+        server == null
+            ? null
+            : Objects.requireNonNull(server.firModules().get(moduleId), "module isn't registered")
+                .session();
+
+    var runs = moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
+    var source =
+        "path <- '%s'\nprefix <- '%s'\nfir_port <- %s\nruns <- %dL\n%s"
+            .formatted(
+                modulePath.toAbsolutePath(),
+                session == null ? "" : session.prefix(),
+                server == null ? "NULL" : server.port() + "L",
+                runs,
+                EVAL_DRIVER);
 
     try {
-      var rawOutput =
-          R.capturingEval("path <- '%s'\n%s".formatted(modulePath.toAbsolutePath(), EVAL_DRIVER));
+      var rawOutput = R.capturingEval(source);
 
       if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 3) {
         throw new IllegalArgumentException(
@@ -62,7 +97,10 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
           switch (v.get(2)) {
             case NilSXP _ -> null;
             case StrSXP s when s.isSimpleScalar() -> {
-              var module = store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
+              var module =
+                  session != null
+                      ? session.module()
+                      : store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
               var parseCtx = new ModuleFeedbackParseContext(module);
               yield Parser.fromString(s.get(0), MockModuleFeedback.class, parseCtx);
             }
@@ -71,9 +109,64 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
                     "Value third item must be NULL or serialized `MockModuleFeedback`");
           };
       var outputLog = rawOutput.second();
-      return new EvalOutput(new Ok(res), outputLog, feedback, pc);
+      return new EvalOutput(new Ok(res), outputLog, feedback, pc, moduleAfter(session));
     } catch (EvalException e) {
-      return new EvalOutput(new Error(e, false), e.outputLog(), null, PerformanceCounters.EMPTY);
+      return new EvalOutput(
+          new Error(e, false),
+          e.outputLog(),
+          null,
+          PerformanceCounters.EMPTY,
+          moduleAfter(session));
+    } finally {
+      if (server != null) {
+        server.firModules().remove(moduleId);
+      }
+    }
+  }
+
+  private static boolean checkedRsh = false;
+
+  /// A module that isn't standalone gets its runtime from the `rsh` package installed in the
+  /// vendored R, not from the working tree, so that package has to be installed and up to date
+  /// (`make -C client/rsh install`). Otherwise the failures are confusing (a missing symbol at
+  /// `dyn.load`, or the old runtime's behavior), so check up front, once.
+  private static synchronized void checkRshInstalled() {
+    if (checkedRsh) {
+      return;
+    }
+    var installed = RshCompiler.R_DIRECTORY.resolve("library/rsh/libs/rsh.so");
+    if (!Files.exists(installed)) {
+      throw new IllegalStateException(
+          "The `rsh` package isn't installed in the vendored R ("
+              + installed
+              + " doesn't exist). Run `make -C client/rsh install`.");
+    }
+    var installedAt = installed.toFile().lastModified();
+    var sources = RshCompiler.RSH_DIRECTORY.resolve("src");
+    var newer =
+        Files.listDir(sources, "*", Integer.MAX_VALUE, false, true).stream()
+            .map(sources::resolve)
+            .filter(p -> p.toString().matches(".*\\.(c|h|cpp|hpp)$"))
+            .filter(p -> p.toFile().lastModified() > installedAt)
+            .toList();
+    if (!newer.isEmpty()) {
+      throw new IllegalStateException(
+          "The `rsh` package installed in the vendored R is older than its sources: "
+              + newer
+              + ". Run `make -C client/rsh install`.");
+    }
+    checkedRsh = true;
+  }
+
+  /// The module as the run left it (see [EvalOutput#module()]), or `null` if it wasn't connected.
+  private static @Nullable String moduleAfter(@Nullable Fir2CSession session) {
+    if (session == null) {
+      return null;
+    }
+    // The server changes the module on its own threads, but every request was answered before
+    // the run finished (the driver waits for that).
+    synchronized (session) {
+      return session.module().toString();
     }
   }
 
@@ -113,10 +206,12 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
           actual.behaviorOutputLogWithoutCalls(),
           "Output changed");
 
-      // Optimized FIŘ won't have feedback because the feedback-collecting baseline is subsumed
-      // by an optimized one, but we still check it against unoptimized because behavior should
-      // remain the same
-      if (expected.feedback() != null && actual.feedback() != null) {
+      // Only when both are the same compilation: an optimized module's baselines run less than
+      // the unoptimized module's (once per version, until the version is compiled), so they
+      // record less.
+      if (moduleQuery == moduleQuery.evalOracle()
+          && expected.feedback() != null
+          && actual.feedback() != null) {
         assertEquals(expected.feedback(), actual.feedback(), "Feedback changed");
       }
     }
@@ -208,6 +303,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
 
     var outputLogPath = path.resolve("output.log");
     var feedbackPath = path.resolve("feedback.txt");
+    var modulePath = path.resolve("module.fir");
 
     var result = SexpResult.read(path, R);
     var outputLog = Files.readString(outputLogPath);
@@ -217,8 +313,9 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       var parseCtx = new ModuleFeedbackParseContext(module);
       feedback = Parser.fromFile(feedbackPath.toFile(), MockModuleFeedback.class, parseCtx);
     }
+    var module = Files.exists(modulePath) ? Files.readString(modulePath) : null;
 
-    return new EvalOutput(result, outputLog, feedback, PerformanceCounters.EMPTY);
+    return new EvalOutput(result, outputLog, feedback, PerformanceCounters.EMPTY, module);
   }
 
   @Override
@@ -234,6 +331,12 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       Files.deleteIfExists(feedbackPath);
     } else {
       Printer.toFile(feedbackPath.toFile(), data.feedback());
+    }
+    var modulePath = path.resolve("module.fir");
+    if (data.module() == null) {
+      Files.deleteIfExists(modulePath);
+    } else {
+      Files.writeString(modulePath, data.module());
     }
   }
 }

@@ -65,14 +65,17 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 ///   observable.
 /// - It re-stores the promoted value in every deopt branch, because a deopt resumes GNU-R
 ///   bytecode that reads the variable out of the environment.
-public final class PromoteStaticallyKnownVariables implements AbstractionOptimization {
+public final class PromoteStaticallyKnownVariables extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
-    var cfg = abstraction.cfg();
-    if (cfg == null) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
+    if (abstraction.isStub()) {
       return false;
     }
+    var cfg = abstraction.body();
 
     var changed = false;
     while (true) {

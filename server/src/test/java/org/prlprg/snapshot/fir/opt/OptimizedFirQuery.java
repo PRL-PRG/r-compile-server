@@ -1,9 +1,15 @@
 package org.prlprg.snapshot.fir.opt;
 
 import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.prlprg.fir.check.Checker.checkAll;
+import static org.prlprg.fir.opt.Cleanup.cleanup;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.WeakHashMap;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
@@ -18,7 +24,25 @@ import org.prlprg.snapshot.fir.ir.GenFirQuery;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 
+/// The example's module after running `optimization` on it.
+///
+/// The optimizations create unevaluated versions, which are only optimized once they're evaluated
+/// (by running `optimization` again), so the module this computes isn't done being optimized.
 public record OptimizedFirQuery(Optimization optimization) implements GenFirQuery {
+  /// The feedback each module this computed was optimized with, which is also what its unevaluated
+  /// versions are optimized with when they're evaluated.
+  private static final Map<Module, MockModuleFeedback> FEEDBACKS =
+      Collections.synchronizedMap(new WeakHashMap<>());
+
+  /// The feedback `module`, which this query computed, is optimized with.
+  ///
+  /// Record into it (instead of into a new feedback) so that the versions evaluated later are
+  /// optimized with what was recorded until then.
+  public static MockModuleFeedback feedbackOf(Module module) {
+    return Objects.requireNonNull(
+        FEEDBACKS.get(module), "module wasn't computed by an `OptimizedFirQuery`");
+  }
+
   @Override
   public String name() {
     return optimization().name().equals("default")
@@ -39,21 +63,84 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     return Objects.hashCode(optimization.name());
   }
 
+  /// A module with unevaluated versions is only what this query computes until it's used.
+  @Override
+  public boolean isTransient() {
+    return true;
+  }
+
   @Override
   public Module compute(Example example, SnapshotStore store) {
+    var module = unoptimized(example, store);
+    optimization.run(feedbackOf(module), module);
+    return module;
+  }
+
+  /// The module with the baseline and the best version of every function evaluated, which is what
+  /// a program that calls each function often enough ends up running.
+  ///
+  /// It's optimized again instead of evaluating `data`, which whoever loaded it still wants
+  /// unevaluated.
+  @Override
+  public Module snapshot(Module data, Example example, SnapshotStore store) {
+    var module = unoptimized(example, store);
+
+    // Log optimizations, and save even if we fail to compute
+    var log = new OptimizationLog(module);
+    try {
+      optimization.run(feedbackOf(module), module);
+
+      // Evaluating a version optimizes it, which can add functions and better versions. Those
+      // aren't evaluated in turn: the point is what's reached, not everything.
+      for (var function : List.copyOf(module.localFunctions())) {
+        var best = function.versions().first();
+        function.baseline().body();
+        if (!best.isStub()) {
+          best.body();
+        }
+      }
+      // The baselines aren't optimized, so nothing cleaned them up since BC->FIŘ.
+      cleanup(module);
+    } finally {
+      log.close();
+
+      if (!example.hasOption("", "dontSaveSnapshots")) {
+        var path = Paths.addingExtension(store.snapshotPath(example, this), "optlog.html");
+        Files.createDirectories(path.getParent());
+        log.writeHtml(path);
+      }
+    }
+
+    return module;
+  }
+
+  /// Every version is optimized by one run of the optimizations, instead of each by the run that
+  /// evaluating it starts.
+  @Override
+  public void evaluateAll(Module module) {
+    optimization.evaluateAll(feedbackOf(module), module);
+    // The baselines aren't optimized, so nothing cleaned them up since BC->FIŘ.
+    cleanup(module);
+  }
+
+  /// The example's module before it's optimized, with the feedback to optimize it with.
+  private Module unoptimized(Example example, SnapshotStore store) {
     if (GenFirQuery.isDeliberatelyInvalid(example)) {
       // Don't try to optimize invalid FIR, it may crash
       throw new SkipQueryException(name(), new RuntimeException("Invalid FIR"));
     }
 
-    var original = store.load(example, FirQuery.INSTANCE);
+    // `FirQuery` is transient, so this is ours to optimize.
+    var module = store.load(example, FirQuery.INSTANCE);
 
     MockModuleFeedback feedback;
     // Get feedback from interpreter because feedback from eval is unimplemented.
     // When it's implemented, switch to eval.
     try {
       var interpretOutput = store.load(example, InterpretQuery.MAIN);
-      feedback = interpretOutput.feedback();
+      // It's for another module, since the interpreter loaded its own. Copying it evaluates the
+      // versions it's for, which are the baselines the interpreter called.
+      feedback = interpretOutput.feedback().copyFor(module);
       switch (interpretOutput.result()) {
         case Ok _ -> System.err.println("Using INTERPRETER feedback");
         case Error(var message, _) ->
@@ -66,30 +153,12 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
       //noinspection CallToPrintStackTrace
       e.printStackTrace();
 
-      feedback = new MockModuleFeedback(original);
+      feedback = new MockModuleFeedback(module);
       System.err.println("Using MOCK feedback");
     }
 
-    // Optimize a copy, otherwise we'll mutate the original and corrupt other tests
-    var copy = MockModuleFeedback.deepCopy(original, feedback);
-    var copyModule = copy.first();
-    var copyFeedback = copy.second();
-
-    // Log optimizations, and save even if we fail to compute
-    var log = new OptimizationLog(copyModule);
-    try {
-      optimization.run(copyFeedback, copyModule);
-    } finally {
-      log.close();
-
-      if (!example.hasOption("", "dontSaveSnapshots")) {
-        var path = Paths.addingExtension(store.snapshotPath(example, this), "optlog.html");
-        Files.createDirectories(path.getParent());
-        log.writeHtml(path);
-      }
-    }
-
-    return copyModule;
+    FEEDBACKS.put(module, feedback);
+    return module;
   }
 
   @Override
@@ -97,5 +166,11 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     if (!checkAll(data)) {
       fail("Optimized FIR is invalid");
     }
+  }
+
+  @Override
+  public void verifyNoRegression(
+      Module previous, Module current, Example example, SnapshotStore store) {
+    assertEquals(previous.toString(), current.toString(), "Optimized FIŘ changed");
   }
 }

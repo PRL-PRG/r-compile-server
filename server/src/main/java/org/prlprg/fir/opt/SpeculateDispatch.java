@@ -1,7 +1,6 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
 
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -21,13 +20,25 @@ import org.prlprg.util.Streams;
 /// Also remove ones with more specific assumptions which turn out to not be optimizations over
 /// other verisons, and try to merge ones that are equal by compiling with the intersected
 /// assumptions. In both cases, we need to keep track of those removed so they aren't recompiled.
-public record SpeculateDispatch(int threshold, int parameterLimit, int versionLimit)
-    implements AbstractionOptimization {
+public final class SpeculateDispatch extends AbstractionOptimization {
+  private final int threshold;
+  private final int parameterLimit;
+  private final int versionLimit;
+
+  public SpeculateDispatch(int threshold, int parameterLimit, int versionLimit) {
+    this.threshold = threshold;
+    this.parameterLimit = parameterLimit;
+    this.versionLimit = versionLimit;
+  }
+
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction version) {
     // Don't specialize stubs, can't run if there's no function
-    if (function == null || version.cfg() == null) {
+    if (function == null || version.isStub()) {
       return false;
     }
 
@@ -95,7 +106,7 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
     candidates.forEach(
         newParameterTypes -> {
           changed[0] = true;
-          copy(feedback.module(), function, version, newParameterTypes);
+          LazyCopy.create(topLevel, feedback.module(), function, version, newParameterTypes);
         });
     return changed[0];
   }

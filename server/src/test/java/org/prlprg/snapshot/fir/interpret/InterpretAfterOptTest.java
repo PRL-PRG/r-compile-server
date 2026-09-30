@@ -13,16 +13,33 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.ir.FirQuery;
+import org.prlprg.snapshot.fir.ir.ForcedFirQuery;
 import org.prlprg.snapshot.fir.ir.GenFirQuery;
 import org.prlprg.snapshot.fir.opt.OptimizedFirQuery;
 import org.prlprg.util.Streams;
 
 /// Test that optimizations don't change interpreter output.
 public class InterpretAfterOptTest {
-  /// Call the interpreter once on an optimization without feedback, check output.
+  /// Call the interpreter on an optimized module, check output.
+  ///
+  /// The optimized versions are unevaluated, so the first call of each runs its fallback, the
+  /// second evaluates it (which optimizes it), and the third runs what it calls evaluated.
   @FirExampleTest(skipOption = "noEval")
   void test(Example example, SnapshotStore store) {
     var module = store.load(example, new OptimizedFirQuery(optimizations()));
+    var interpreter = new TestInterpreter(module, OptimizedFirQuery.feedbackOf(module));
+
+    for (int i = 1; i <= 3; i++) {
+      store.verify(example, InterpretQuery.MAIN, interpreter.call("main"), "run " + i);
+    }
+  }
+
+  /// Evaluate and optimize every version of an optimized module, call the interpreter, check
+  /// output.
+  @FirExampleTest(skipOption = "noEval")
+  void testForced(Example example, SnapshotStore store) {
+    var module =
+        store.load(example, new ForcedFirQuery(new OptimizedFirQuery(optimizations()))).deepCopy();
     var interpreter = new TestInterpreter(module);
 
     store.verify(example, InterpretQuery.MAIN, interpreter.call("main"));
@@ -38,10 +55,7 @@ public class InterpretAfterOptTest {
 
     var optimization = optimizations();
 
-    // Optimize a copy: `store.load` hands out the one cached module, and re-optimizing it here
-    // would corrupt every other test that loads the same query (same reason
-    // [OptimizedFirQuery#compute] copies).
-    var module = store.load(example, FirQuery.INSTANCE).deepCopy();
+    var module = store.load(example, FirQuery.INSTANCE);
     var interpreter = new TestInterpreter(module);
 
     // Warmup
@@ -62,16 +76,13 @@ public class InterpretAfterOptTest {
   void testDeopt(Example example, SnapshotStore store) {
     var optimization = optimizations();
 
-    // A copy for the same reason as in [#testRepeat]: this re-optimizes as it goes, and the
-    // module `store.load` returns is shared with everything else that loads this query.
-    var module = store.load(example, new OptimizedFirQuery(optimization)).deepCopy();
-    var interpreter = new TestInterpreter(module);
+    var module = store.load(example, new OptimizedFirQuery(optimization));
+    var interpreter = new TestInterpreter(module, OptimizedFirQuery.feedbackOf(module));
 
     var deoptFnName =
-        Objects.requireNonNull(
-                Objects.requireNonNull(module.localFunction(Variable.named("main")))
-                    .baseline()
-                    .cfg())
+        Objects.requireNonNull(module.localFunction(Variable.named("main")))
+            .baseline()
+            .body()
             .entry()
             .statements()
             .stream()

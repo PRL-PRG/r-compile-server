@@ -40,13 +40,73 @@ import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Inline forces, maybe-forces, and static calls when possible.
-public record Inline(int maxInlineeSize) implements AbstractionOptimization {
+///
+/// This is the one optimization that evaluates unevaluated versions: whether a call can be inlined
+/// depends on the callee's body. It only evaluates callees that pass every check that doesn't.
+public final class Inline extends AbstractionOptimization {
+  private final int maxInlineeSize;
+
+  public Inline(int maxInlineeSize) {
+    this.maxInlineeSize = maxInlineeSize;
+  }
+
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
+    if (abstraction.isStub()) {
+      return false;
+    }
+
+    // Evaluate callees before looking at anything else, and not while inlining: evaluating one
+    // can run optimizations on the whole module, this version included.
+    var evaluated = false;
+    while (true) {
+      var unevaluated =
+          abstraction
+              .streamCfgs()
+              .flatMap(cfg -> cfg.bbs().stream())
+              .flatMap(bb -> bb.statements().stream())
+              .filter(
+                  s ->
+                      s.expression() instanceof Call(StaticFnCallee callee)
+                          && callee.exactVersion() != null
+                          && !callee.exactVersion().isStub()
+                          && !callee.exactVersion().isEvaluated()
+                          && mayInline(abstraction, callee.exactVersion(), s.argCount() - 1))
+              .map(s -> ((StaticFnCallee) ((Call) s.expression()).callee()).exactVersion())
+              .distinct()
+              .toList();
+      if (unevaluated.isEmpty()) {
+        break;
+      }
+      for (var callee : unevaluated) {
+        callee.body();
+      }
+      evaluated = true;
+    }
+
     var opt = new OnAbstraction(abstraction);
     opt.run();
-    return opt.changed;
+    // An evaluated callee is progress even if it didn't get inlined: it's now optimized, which
+    // improves what callers know about it. So is one that inlining uncovered (left for the next
+    // run to evaluate).
+    return opt.changed || evaluated || opt.sawUnevaluated;
+  }
+
+  /// Whether a call from `scope` to `callee` with `argumentCount` arguments passes the checks for
+  /// inlining that don't depend on the callee's body:
+  /// - Callee isn't the caller (recursive)
+  /// - Callee doesn't have reflective effects
+  /// - Callee isn't a stub
+  /// - Argument and parameter counts match (otherwise the CFG is invalid)
+  private static boolean mayInline(Abstraction scope, Abstraction callee, int argumentCount) {
+    return callee != scope
+        && !callee.effects().reflect()
+        && !callee.isStub()
+        && callee.parameters().size() == argumentCount;
   }
 
   private class OnAbstraction {
@@ -54,6 +114,9 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
     private final Analyses analyses;
 
     boolean changed = false;
+    /// Whether there's a call that may be inlined depending on its callee's body, which is
+    /// unevaluated.
+    boolean sawUnevaluated = false;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
@@ -68,9 +131,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
     }
 
     void run() {
-      if (scope.cfg() != null) {
-        run(scope.cfg());
-      }
+      run(scope.body());
     }
 
     void run(CFG cfg) {
@@ -223,14 +284,19 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         @Nullable Register assignee,
         Abstraction callee,
         List<Argument> arguments) {
-      // Don't inline if:
-      // - Callee is caller (recursive)
+      if (!mayInline(scope, callee, arguments.size())) {
+        return;
+      }
+      if (!callee.isEvaluated()) {
+        // A call that inlining another one brought in.
+        sawUnevaluated = true;
+        return;
+      }
+
+      // Also don't inline if:
       // - Callee calls itself (another recursive case)
-      // - Callee has effects
-      // - Callee is a stub
       // - Callee is too big
       // - Callee and caller load or store the same named variable
-      // - Argument and parameter count mismatch (invalid CFG)
       var instructionCount =
           callee
               .streamCfgs()
@@ -250,13 +316,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           !Sets.intersection(
                   namedVariablesOf(callee), analyses.get(NamedVariablesOf.class).namedVariables())
               .isEmpty();
-      if (callee == scope
-          || callee.effects().reflect()
-          || callee.cfg() == null
-          || instructionCount > maxInlineeSize
-          || callsItself
-          || variablesClash
-          || callee.parameters().size() != arguments.size()) {
+      if (instructionCount > maxInlineeSize || callsItself || variablesClash) {
         return;
       }
 
@@ -288,8 +348,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         assignee.substUsesWith(new Read(returnDest));
       }
       bb.statements().get(statementIndex).remove();
-      inline(
-          Objects.requireNonNull(callee.cfg()), bb, statementIndex - 1, returnDest, substitutions);
+      inline(callee.body(), bb, statementIndex - 1, returnDest, substitutions);
     }
 
     private void inline(

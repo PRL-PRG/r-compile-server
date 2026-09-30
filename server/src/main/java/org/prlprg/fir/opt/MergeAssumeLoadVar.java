@@ -34,10 +34,13 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Note that it does *not* combine `Load(LOCAL_FUN)` with `AssumeConstant`, nor `Load(LOCAL_VAR)`
 /// with `AssumeFunction`.
-public record MergeAssumeLoadVar() implements AbstractionOptimization {
+public final class MergeAssumeLoadVar extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     boolean[] changed = {false};
     var substs = new Substituter(scope);
 

@@ -1,5 +1,7 @@
 package org.prlprg.fir.check;
 
+import java.util.List;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
@@ -15,6 +17,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -52,6 +55,7 @@ import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Repr;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -68,6 +72,21 @@ public final class TypeAndEffectChecker extends Checker {
 
   @Override
   protected void doRun(Abstraction version) {
+    checkSignature(version);
+
+    // Check type and effects.
+    new OnAbstraction(version).run();
+  }
+
+  /// The signature isn't lazy, so it's checked the same; and the fallback stands in for the body.
+  @Override
+  protected void doRunUnevaluated(Abstraction version) {
+    checkSignature(version);
+
+    new OnAbstraction(version).runFallback();
+  }
+
+  private void checkSignature(Abstraction version) {
     var function = function();
     if (function != null) {
       // Check guaranteed effects
@@ -119,9 +138,6 @@ public final class TypeAndEffectChecker extends Checker {
         }
       }
     }
-
-    // Check type and effects.
-    new OnAbstraction(version).run();
   }
 
   public static boolean assumeCanSucceed(Assumption assumption, Type argType) {
@@ -150,16 +166,24 @@ public final class TypeAndEffectChecker extends Checker {
     }
 
     void run() {
-      var cfg = scope.cfg();
-      if (cfg == null) {
-        // Stub
+      if (scope.isStub()) {
         return;
       }
 
+      run(scope.body(), scope.streamRegisters());
+    }
+
+    void runFallback() {
+      if (scope.fallback() != null) {
+        run(scope.fallback(), scope.streamFallbackRegisters());
+      }
+    }
+
+    private void run(CFG cfg, Stream<Register> registers) {
       var onCfg = new OnCfg(cfg);
 
       // Check register and named-variable type well-formedness
-      scope.streamRegisters().forEach(onCfg::checkWellFormedRegister);
+      registers.forEach(onCfg::checkWellFormedRegister);
       scope.namedVariableTypes().forEach(onCfg::checkWellFormedNamed);
 
       // Check return type well-formedness
@@ -169,8 +193,8 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       // Check return type and effects are expected
-      var returnType = inferType.of(scope.cfg());
-      var effects = inferEffects.of(scope.cfg());
+      var returnType = inferType.of(cfg);
+      var effects = inferEffects.of(cfg);
       onCfg.checkAssignment(returnType, scope.returnType(), "Return type mismatch");
       onCfg.checkSubEffects(effects, scope.effects(), "Function effects mismatch");
 
@@ -282,22 +306,13 @@ public final class TypeAndEffectChecker extends Checker {
                 checkSubtype(
                     closureWithEnvType, Type.CLOSURE, "Environment provider must be a closure");
 
-                // Check arguments against signature parameters.
-                if (signature.parameterTypes().size() != argumentTypes.size()) {
-                  report(
-                      "Signature expects "
-                          + signature.parameterTypes().size()
-                          + " arguments, got "
-                          + argumentTypes.size());
+                checkArguments(signature, argumentTypes);
+              }
+              case FallbackCallee(var signature) -> {
+                if (cursor.cfg() != scope.fallback()) {
+                  report("Fallback call outside of a fallback's single block");
                 }
-                for (int i = 0;
-                    i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
-                    i++) {
-                  var paramType = signature.parameterTypes().get(i);
-                  var argType = argumentTypes.get(i);
-                  checkMatches(
-                      argType, paramType, "Type mismatch in argument " + i + " (for signature)");
-                }
+                checkArguments(signature, argumentTypes);
               }
               case DynamicCallee(var argumentNames) -> {
                 var calleeType = scope.typeOf(closureOrCalleeArg);
@@ -568,6 +583,24 @@ public final class TypeAndEffectChecker extends Checker {
       void checkWellFormed(Type type) {
         if (!type.isWellFormed()) {
           report("Type is not well-formed: " + type);
+        }
+      }
+
+      /// Check a call's arguments against its signature's parameters.
+      void checkArguments(Signature signature, List<@Nullable Type> argumentTypes) {
+        if (signature.parameterTypes().size() != argumentTypes.size()) {
+          report(
+              "Signature expects "
+                  + signature.parameterTypes().size()
+                  + " arguments, got "
+                  + argumentTypes.size());
+        }
+        for (int i = 0;
+            i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
+            i++) {
+          var paramType = signature.parameterTypes().get(i);
+          var argType = argumentTypes.get(i);
+          checkMatches(argType, paramType, "Type mismatch in argument " + i + " (for signature)");
         }
       }
 

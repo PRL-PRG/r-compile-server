@@ -16,10 +16,13 @@ import org.prlprg.fir.ir.variable.Register;
 /// instead of a copy (nothing can observe the difference, because nothing reads the vector again).
 ///
 /// [ElideConsumedDup] then removes the `dup` entirely whenever it can.
-public record ConsumeDeadDup() implements AbstractionOptimization {
+public final class ConsumeDeadDup extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     var changed = false;
     for (var cfg : scope.streamCfgs().toList()) {
       // Replacing a `read` with a `consume` doesn't change *which* registers each instruction uses,

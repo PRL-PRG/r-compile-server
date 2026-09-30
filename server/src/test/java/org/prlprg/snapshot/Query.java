@@ -72,6 +72,30 @@ public interface Query<T> {
   /// Compute the actual data from the example for verification.
   T compute(Example example, SnapshotStore store);
 
+  /// Whether the data stops being what this query computes once it's used, and can't be restored
+  /// from its snapshot.
+  ///
+  /// E.g. a module with unevaluated versions: using it evaluates some of them, and its snapshot
+  /// doesn't say how to evaluate the others.
+  ///
+  /// Such data is computed every time it's loaded, instead of being cached in memory or on disk.
+  /// Its snapshot is only compared against.
+  ///
+  /// By default, `false`.
+  default boolean isTransient() {
+    return false;
+  }
+
+  /// What's verified and saved for `data`: every `verify` method and
+  /// [#serialize(Object, Path, Example, SnapshotStore)] is given this instead.
+  ///
+  /// If [#isTransient()], this must not change `data`, which is still going to be used.
+  ///
+  /// By default, `data` itself.
+  default T snapshot(T data, Example example, SnapshotStore store) {
+    return data;
+  }
+
   /// Compute the expected data from the example.
   ///
   /// We check that actual data equals this. By default, this means we check for non-determinism

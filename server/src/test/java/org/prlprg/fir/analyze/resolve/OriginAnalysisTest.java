@@ -45,7 +45,7 @@ class OriginAnalysisTest {
 
     var analysis = new OriginAnalysis(main);
 
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var bb = cfg.entry();
 
     // After store statement, variable x should have r0's origin
@@ -110,7 +110,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var bb3 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB3"));
+    var bb3 = Objects.requireNonNull(main.body().bb("BB3"));
 
     var analysis = new OriginAnalysis(main);
 
@@ -140,7 +140,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
 
     var analysis = new OriginAnalysis(main);
 
@@ -195,7 +195,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var bb2 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB2"));
+    var bb2 = Objects.requireNonNull(main.body().bb("BB2"));
 
     var analysis = new OriginAnalysis(main);
 
@@ -228,7 +228,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(
@@ -259,7 +259,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(
@@ -619,7 +619,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
 
     var analysis = new OriginAnalysis(main);
 
@@ -663,7 +663,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
 
     var analysis = new OriginAnalysis(main);
 
@@ -704,7 +704,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
 
     var analysis = new OriginAnalysis(main);
 
@@ -775,7 +775,7 @@ class OriginAnalysisTest {
     var module = parseModule(firText);
     var permute =
         Objects.requireNonNull(module.localFunction(Variable.named("permute"))).baseline();
-    var cfg = Objects.requireNonNull(permute.cfg());
+    var cfg = permute.body();
     var l1 = Objects.requireNonNull(cfg.bb("L1"));
     var l2 = Objects.requireNonNull(cfg.bb("L2"));
 

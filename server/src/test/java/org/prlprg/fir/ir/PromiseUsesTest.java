@@ -82,7 +82,7 @@ class PromiseUsesTest {
   void replacingAPromiseDropsItsBodysUses() {
     // What ElideUnforcedPromise does: swap in a new promise whose body is an immediate deopt.
     var main = mainOf(CAPTURING_PROMISE);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var outer = reg(main, "outer");
     var statement = promiseStatement(cfg);
 
@@ -101,7 +101,7 @@ class PromiseUsesTest {
   @Test
   void replacingAPromiseWithANonPromiseDropsItsBodysUses() {
     var main = mainOf(CAPTURING_PROMISE);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var outer = reg(main, "outer");
 
     promiseStatement(cfg).setExpression(new Noop());
@@ -115,7 +115,7 @@ class PromiseUsesTest {
     // Re-wrapping the *same* CFG (e.g. to narrow the promise's type or effects) must not drop the
     // links, because the body is still live.
     var main = mainOf(CAPTURING_PROMISE);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var outer = reg(main, "outer");
     var statement = promiseStatement(cfg);
     var promise = (Promise) statement.expression();
@@ -129,7 +129,7 @@ class PromiseUsesTest {
   @Test
   void detachingAPromiseStatementDropsItsBodysUses() {
     var main = mainOf(CAPTURING_PROMISE);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var outer = reg(main, "outer");
 
     // `detach` rather than `remove`, since the promise register is still used by the `force`.
@@ -158,7 +158,7 @@ class PromiseUsesTest {
               }
             }
             """);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var outer = reg(main, "outer");
     var bb1 = Objects.requireNonNull(cfg.bb("BB1"));
 

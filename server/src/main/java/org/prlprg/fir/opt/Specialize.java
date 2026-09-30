@@ -34,7 +34,7 @@ import org.prlprg.fir.opt.specialize.SpecializeOptimization.Result;
 import org.prlprg.util.Streams;
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
-public class Specialize implements AbstractionOptimization {
+public class Specialize extends AbstractionOptimization {
   private final String name;
   private final List<SpecializeOptimization> subOptimizations;
   private final AnalysisTypes analysisTypes;
@@ -64,7 +64,10 @@ public class Specialize implements AbstractionOptimization {
 
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
     var analyses = new Analyses(abstraction, analysisTypes);
     var subOptimizations =
         this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction, analyses)).toList();

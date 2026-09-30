@@ -80,22 +80,21 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
       throw new IllegalStateException("Analysis not yet run");
     }
 
-    return analyses.get(scope.cfg()).returnState;
+    return analyses.get(scope.body()).returnState;
   }
 
   /// Runs the analysis.
   ///
-  /// Specifically, starts at `scope.cfg()` and computes states for every instruction, including
+  /// Specifically, starts at `scope.body()` and computes states for every instruction, including
   /// in promises but not callees.
   ///
-  /// This can be called multiple times, in which case `entry` is merged with `scope.cfg()`'s
+  /// This can be called multiple times, in which case `entry` is merged with `scope.body()`'s
   /// entry (and won't actually rerun if they're equal).
   protected final void run(S entry) {
     // Doesn't `streamCfgs` because `run` includes promises.
-    // Do handle stubs (`mainCfg == null`).
-    var mainCfg = scope.cfg();
-    if (mainCfg != null) {
-      onCfg(mainCfg).run(entry);
+    // Do handle stubs.
+    if (!scope.isStub()) {
+      onCfg(scope.body()).run(entry);
     }
     ran = true;
   }

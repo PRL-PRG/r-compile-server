@@ -9,6 +9,7 @@ import org.prlprg.util.Pair;
 
 class RestartingGNURProcess implements GNUR {
   static @Nullable RestartingGNURProcess INSTANCE;
+  static @Nullable RestartingGNURProcess RSH_INSTANCE;
 
   private final TestRSession session;
   private @Nullable GNUR R;

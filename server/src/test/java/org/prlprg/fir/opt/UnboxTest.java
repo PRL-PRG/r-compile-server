@@ -237,6 +237,8 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
 
     assertTrue(run(module), "optimization should report a change");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     // Callee new version should have unbox before return
     assertTrue(
@@ -308,6 +310,8 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
 
     assertTrue(run(module), "optimization should report a change");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     // Should create callee version with unbox before return
     assertTrue(

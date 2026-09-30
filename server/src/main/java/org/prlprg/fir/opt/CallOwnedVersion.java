@@ -22,10 +22,13 @@ import org.prlprg.fir.ir.variable.Register;
 /// A version that owns a vector can mutate it instead of copying it, which is usually a better
 /// trade than the copy this inserts: the `dup` is often removed afterwards, because the argument is
 /// itself an owned vector that isn't used again (see [ConsumeDeadDup] and [ElideConsumedDup]).
-public record CallOwnedVersion() implements AbstractionOptimization {
+public final class CallOwnedVersion extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     var changed = false;
     for (var cfg : scope.streamCfgs().toList()) {
       for (var bb : cfg.bbs()) {

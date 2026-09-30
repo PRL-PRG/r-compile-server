@@ -47,8 +47,15 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// By default, this optimization doesn't run on baseline versions, since if we deoptimize from
 /// baseline we don't have anywhere to go that isn't FIŘ.
-public record SpeculateAssume(int threshold, boolean onBaseline)
-    implements AbstractionOptimization {
+public final class SpeculateAssume extends AbstractionOptimization {
+  private final int threshold;
+  private final boolean onBaseline;
+
+  public SpeculateAssume(int threshold, boolean onBaseline) {
+    this.threshold = threshold;
+    this.onBaseline = onBaseline;
+  }
+
   public SpeculateAssume(int threshold) {
     this(threshold, false);
   }
@@ -62,22 +69,29 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
   }
 
   @Override
-  public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
+  public boolean runWithoutRecording(
+      Optimization topLevel, ModuleFeedback feedback, Function function) {
     var changed = false;
     for (var version : function.versions()) {
       // Don't run on baseline unless overridden via field
       if (!onBaseline && version == function.baseline()) {
         continue;
       }
+      if (!version.isStub() && !version.isEvaluated()) {
+        continue;
+      }
 
-      changed |= run(function, feedback.get(version), version);
+      changed |= run(topLevel, function, feedback.get(version), version);
     }
     return changed;
   }
 
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     // Compute checkpoint BBs and analyses we'll need
     var checkpointBbs =
         scope

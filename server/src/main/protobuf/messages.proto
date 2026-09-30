@@ -57,6 +57,22 @@ message FunctionRequest {
   uint64 hash = 1;
 }
 
+// Sent by a stub in compiled FIR code: a version that the server didn't compile yet, because
+// nothing had needed it. The stub runs a fallback until the response arrives.
+message FirVersionRequest {
+  string module = 1;// The module the stub is in, as named by the server in the stub
+  uint32 stub = 2;// Which of the module's stubs this is
+}
+
+// What to load to replace the stub. Besides the requested version, it may replace other stubs and
+// define versions the client doesn't have at all (as stubs of their own, or not): the ones the
+// requested version calls.
+message FirVersionResponse {
+  optional bytes code = 1;// An object file. Absent if the client already has everything
+  optional bytes constants = 2;// The (serialized) constant pool to call `init` with
+  string init = 3;// The function in `code` to call once it's loaded, which replaces the stubs
+}
+
 message Environment {
   map<string, uint64> values = 1;//Name of the variable to a hash of the value
 }

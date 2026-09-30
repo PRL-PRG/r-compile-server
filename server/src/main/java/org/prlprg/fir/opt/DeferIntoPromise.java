@@ -38,11 +38,14 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Because the deferred instructions are pure, *moving* them into the promise body (rather than
 /// copying the control-flow subgraph) computes the same values, only lazily.
-public record DeferIntoPromise() implements AbstractionOptimization {
+public final class DeferIntoPromise extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
-    return scope.cfg() != null && run(scope, scope.cfg());
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
+    return !scope.isStub() && run(scope, scope.body());
   }
 
   private boolean run(Abstraction scope, CFG cfg) {

@@ -23,7 +23,12 @@ public class CUnit {
   }
 
   public void addGlobalVariable(String type, String name) {
-    globalVariables.add(new CGlobalVariable(type, name));
+    globalVariables.add(new CGlobalVariable(type, name, null));
+  }
+
+  /// A global variable initialized with the C expression `initializer`.
+  public void addGlobalVariable(String type, String name, String initializer) {
+    globalVariables.add(new CGlobalVariable(type, name, initializer));
   }
 
   public void addExternFunction(String returnType, String name, List<String> parameters) {

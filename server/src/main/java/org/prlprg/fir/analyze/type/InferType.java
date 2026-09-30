@@ -11,6 +11,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Assume;
@@ -81,6 +82,7 @@ public final class InferType implements Analysis {
       case Call call ->
           switch (call.callee()) {
             case StaticFnCallee(_, _, var signature) -> signature.returnType();
+            case FallbackCallee(var signature) -> signature.returnType();
             case DynamicCallee _ -> Type.ANY_VALUE_SEXP;
           };
       case Cast(var castType) -> castType;

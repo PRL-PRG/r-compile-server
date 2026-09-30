@@ -8,9 +8,14 @@ import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.If;
+import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
@@ -56,6 +61,45 @@ public class CFGChecker extends Checker {
     new OnAbstraction(version).run();
   }
 
+  /// An unevaluated version must have a well-formed fallback, unless it's the baseline.
+  ///
+  /// The baseline is the exception because it's what every fallback ultimately calls, and because
+  /// code that needs to run it without evaluating it has the original bytecode to run instead
+  /// (`Fir2CCompiler` compiles it to a shim that does), so nothing asks a baseline for a fallback.
+  /// Anything else that's unevaluated can only run through its fallback.
+  @Override
+  protected void doRunUnevaluated(Abstraction version) {
+    var fallback = version.fallback();
+    if (fallback == null) {
+      var function = function();
+      if (function != null && version != function.baseline()) {
+        report(version, "Unevaluated version has no fallback, but isn't the baseline");
+      }
+      return;
+    }
+
+    if (fallback.bbs().size() != 1) {
+      report(version, "Fallback must be a single block, but has " + fallback.bbs().size());
+      return;
+    }
+    var entry = fallback.entry();
+    if (!(entry.jump().expression() instanceof Return)) {
+      report(entry, entry.statements().size(), "Fallback must end in a return");
+    }
+    var fallbackCalls =
+        entry.statements().stream()
+            .filter(s -> s.expression() instanceof Call(FallbackCallee _))
+            .count();
+    if (fallbackCalls != 1) {
+      report(
+          entry,
+          -1,
+          "Fallback must call another version exactly once, but has "
+              + fallbackCalls
+              + " fallback calls");
+    }
+  }
+
   private class OnAbstraction {
     final Abstraction scope;
     final Map<CFG, CfgDominatorTree> dominatorTrees;
@@ -68,11 +112,11 @@ public class CFGChecker extends Checker {
     }
 
     void run() {
-      if (scope.cfg() == null) {
+      if (scope.isStub()) {
         return;
       }
 
-      var entry = scope.cfg().entry();
+      var entry = scope.body().entry();
 
       // All declared registers (parameters, phi parameters, and statement assignees) and the
       // non-parameter "local" registers among them.
@@ -257,6 +301,30 @@ public class CFGChecker extends Checker {
                   pred,
                   pred.statements().size(),
                   "Another block, " + bb.label() + ", has this block as its predecessor");
+            }
+          }
+        }
+
+        // A checkpoint's assumptions are the `assume`s at the start of its success block: those
+        // are what it checks (and, for a load, what it assigns), so one after another statement
+        // is never checked.
+        for (var bb : cfg.bbs()) {
+          if (!(bb.jump().expression() instanceof Checkpoint)) {
+            continue;
+          }
+          var success = bb.jump().targets().getFirst().bb();
+          var pastAssumptions = false;
+          for (var i = 0; i < success.statements().size(); i++) {
+            var stmt = success.statements().get(i);
+            if (!(stmt.expression() instanceof Assume)) {
+              pastAssumptions = true;
+            } else if (pastAssumptions) {
+              report(
+                  success,
+                  i,
+                  "Assumption isn't among the leading assumptions of the checkpoint in "
+                      + bb.label()
+                      + ", so it's never checked");
             }
           }
         }

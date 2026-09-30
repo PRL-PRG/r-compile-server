@@ -30,6 +30,8 @@ class CreateOwnedParameterVersionTest implements OptimizationUnitTest {
 
     assertTrue(run(module), "optimization should report a change");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     assertTrue(
         printed.contains("(v:v(I)o) --> v(I)f"),

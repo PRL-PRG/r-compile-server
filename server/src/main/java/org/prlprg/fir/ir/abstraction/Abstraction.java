@@ -50,15 +50,31 @@ public final class Abstraction implements Comparable<Abstraction> {
   /// Declared types of named environment variables. Register types live on the registers
   /// themselves ([Register#type]).
   private final Map<NamedVariable, Type> namedVariableTypes = new LinkedHashMap<>();
-  private final @Nullable CFG cfg;
+  /// `null` iff this is a stub.
+  private final @Nullable LazyBody lazyBody;
 
   private final DisambiguatorMap nextLocalDisambiguator = new DisambiguatorMap();
 
+  /// A version whose body is empty.
   public Abstraction(Module module, List<FunctionParameter> parameters) {
     this(module, parameters, false);
   }
 
+  /// A version that's a stub (has no body), or whose body is empty.
   public Abstraction(Module module, List<FunctionParameter> parameters, boolean isStub) {
+    this(module, parameters, isStub, null);
+  }
+
+  /// A version whose body is computed by `body` when it's first accessed.
+  public Abstraction(Module module, List<FunctionParameter> parameters, LazyBody.Initializer body) {
+    this(module, parameters, false, body);
+  }
+
+  private Abstraction(
+      Module module,
+      List<FunctionParameter> parameters,
+      boolean isStub,
+      LazyBody.@Nullable Initializer body) {
     comments = new Comments();
     this.module = module;
     this.parameters = parameters.toArray(FunctionParameter[]::new);
@@ -69,11 +85,13 @@ public final class Abstraction implements Comparable<Abstraction> {
     // Cache
     returnType = Type.ANY_VALUE_SEXP;
     effects = Effects.REFLECT;
-    cfg = isStub ? null : new CFG(this);
 
+    // Before creating the body, which may create registers.
     for (var parameter : this.parameters) {
       reserveName(parameter.name());
     }
+
+    lazyBody = isStub ? null : body == null ? new LazyBody(this) : new LazyBody(this, body);
   }
 
   public Module module() {
@@ -165,11 +183,30 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   /// All registers defined in this version: parameters, then each block's phi parameters and each
   /// statement's assignee, across the body and nested promise CFGs.
+  ///
+  /// Evaluates the body.
   public Stream<Register> streamRegisters() {
+    return streamRegisters(streamCfgs());
+  }
+
+  /// All registers defined in this version's fallback: parameters, then each statement's assignee,
+  /// across the fallback and nested promise CFGs.
+  ///
+  /// @throws IllegalStateException If there's no fallback.
+  public Stream<Register> streamFallbackRegisters() {
+    return streamRegisters(streamFallbackCfgs());
+  }
+
+  /// All registers defined in this version given that its body is `body`: [#streamRegisters()],
+  /// but usable while the body is being evaluated.
+  public Stream<Register> streamRegisters(CFG body) {
+    return streamRegisters(streamCfgs(body));
+  }
+
+  private Stream<Register> streamRegisters(Stream<CFG> cfgs) {
     return Stream.concat(
         Arrays.stream(parameters),
-        streamCfgs()
-            .flatMap(c -> c.bbs().stream())
+        cfgs.flatMap(c -> c.bbs().stream())
             .flatMap(
                 bb ->
                     Stream.concat(
@@ -202,32 +239,84 @@ public final class Abstraction implements Comparable<Abstraction> {
     return c.scope() == this;
   }
 
-  // --- Stub / CFG -----------------------------------------------------------------------------
+  // --- Stub / body ----------------------------------------------------------------------------
 
-  /// True iff [#cfg()] is `null`, which is iff this version was constructed as a stub.
+  /// Whether this version has no body: a declaration without code, e.g. a builtin.
+  ///
+  /// A version that isn't a stub is either [evaluated][#isEvaluated()] or *unevaluated*: its body
+  /// is computed when first accessed.
   public boolean isStub() {
-    return cfg == null;
+    return lazyBody == null;
   }
 
-  public @Nullable CFG cfg() {
-    return cfg;
+  /// Whether this version has a body that's already been computed, so accessing it is free.
+  ///
+  /// Code that handles every version (e.g. checkers and optimizations) should skip versions that
+  /// aren't evaluated, otherwise nothing is lazy.
+  public boolean isEvaluated() {
+    return lazyBody != null && lazyBody.isEvaluated();
   }
 
-  /// Yields the function body's CFG ([#cfg()]) followed by each [Promise]'s CFG, in pre-order.
+  /// The body's thunk, or `null` if this is a stub.
+  public @Nullable LazyBody lazyBody() {
+    return lazyBody;
+  }
+
+  /// The body's CFG. Evaluates it if it isn't already.
+  ///
+  /// @throws UnsupportedOperationException If this is a stub.
+  /// @throws IllegalStateException If called while the body is being evaluated.
+  public CFG body() {
+    if (lazyBody == null) {
+      throw new UnsupportedOperationException("A stub has no body");
+    }
+    return lazyBody.get();
+  }
+
+  /// A CFG that can be run instead of the body while it's unevaluated, or `null` if there is none
+  /// (see [LazyBody#fallback()]).
+  public @Nullable CFG fallback() {
+    return lazyBody == null ? null : lazyBody.fallback();
+  }
+
+  /// Whether `cfg` is this version's body or fallback, as opposed to the code of a promise in one
+  /// of them. Doesn't evaluate the body.
+  public boolean isRoot(CFG cfg) {
+    return lazyBody != null && lazyBody.isRoot(cfg);
+  }
+
+  /// Yields the [#body()] followed by each [Promise]'s CFG, in pre-order. Yields nothing if this is
+  /// a stub.
+  ///
+  /// Evaluates the body.
   public Stream<CFG> streamCfgs() {
-    return cfg == null
-        ? Stream.of()
-        : Streams.worklist(
-            cfg,
-            (prev, worklist) -> {
-              for (var bb : prev.bbs()) {
-                for (var statement : bb.statements()) {
-                  if (statement.expression() instanceof Promise promise) {
-                    worklist.add(promise.code());
-                  }
-                }
+    return lazyBody == null ? Stream.of() : streamCfgs(lazyBody.get());
+  }
+
+  /// Yields the [#fallback()] followed by each [Promise]'s CFG, in pre-order.
+  ///
+  /// @throws IllegalStateException If there's no fallback.
+  public Stream<CFG> streamFallbackCfgs() {
+    var fallback = fallback();
+    if (fallback == null) {
+      throw new IllegalStateException("Version has no fallback");
+    }
+    return streamCfgs(fallback);
+  }
+
+  /// Yields `root` followed by each [Promise]'s CFG in it, in pre-order.
+  public static Stream<CFG> streamCfgs(CFG root) {
+    return Streams.worklist(
+        root,
+        (prev, worklist) -> {
+          for (var bb : prev.bbs()) {
+            for (var statement : bb.statements()) {
+              if (statement.expression() instanceof Promise promise) {
+                worklist.add(promise.code());
               }
-            });
+            }
+          }
+        });
   }
 
   public Signature signature() {

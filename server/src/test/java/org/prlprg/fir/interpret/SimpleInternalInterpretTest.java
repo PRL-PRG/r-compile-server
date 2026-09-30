@@ -60,7 +60,7 @@ class SimpleInternalInterpretTest {
     var version = function.baseline();
     version.setReturnType(Type.INTEGER);
 
-    var cfg = Objects.requireNonNull(version.cfg());
+    var cfg = version.body();
     var entry = cfg.entry();
 
     // Add return instruction: return 42
@@ -84,7 +84,7 @@ class SimpleInternalInterpretTest {
     var version = function.baseline();
     version.setReturnType(Type.INTEGER);
 
-    var cfg = Objects.requireNonNull(version.cfg());
+    var cfg = version.body();
     var entry = cfg.entry();
 
     // Add return instruction: return r
@@ -104,7 +104,7 @@ class SimpleInternalInterpretTest {
     var function = module.addFunction(Variable.named("test"), List.of(Variable.named("r")), false);
     var version = function.baseline();
 
-    var cfg = Objects.requireNonNull(version.cfg());
+    var cfg = version.body();
     var entry = cfg.entry();
     entry.setJump(new Jump(new Return(), List.of(new Constant(SEXPs.integer(0)))));
 
@@ -123,7 +123,7 @@ class SimpleInternalInterpretTest {
     var function = module.addFunction(Variable.named("test"), List.of(), false);
     var version = function.baseline();
 
-    var entry = Objects.requireNonNull(version.cfg()).entry();
+    var entry = version.body().entry();
     entry.appendStatement(new Statement(new MkEnv(MkEnvType.ELIDED)));
     entry.appendStatement(
         new Statement(
@@ -145,7 +145,7 @@ class SimpleInternalInterpretTest {
     var version = function.baseline();
     version.setReturnType(Type.ANY_VALUE_SEXP);
 
-    var entry = Objects.requireNonNull(version.cfg()).entry();
+    var entry = version.body().entry();
     entry.appendStatement(new Statement(new MkEnv(MkEnvType.ELIDED)));
     var loadStmt = new Statement(new Load(LoadType.LOCAL_VAR, Variable.named("x")));
     entry.appendStatement(loadStmt);
@@ -168,7 +168,7 @@ class SimpleInternalInterpretTest {
     var inner = module.addFunction(Variable.named("inner"), List.of(), false);
     var innerV = inner.baseline();
     innerV.setReturnType(Type.ANY_VALUE_SEXP);
-    var innerEntry = Objects.requireNonNull(innerV.cfg()).entry();
+    var innerEntry = innerV.body().entry();
     var vargsStmt =
         new Statement(
             new MkVector(new Kind.Dots(), Collections.<NamedVariable>singletonList(null)),
@@ -189,7 +189,7 @@ class SimpleInternalInterpretTest {
     var main = module.addFunction(Variable.named("main"), List.of(), false);
     var mainV = main.baseline();
     mainV.setReturnType(Type.ANY_VALUE_SEXP);
-    var mainEntry = Objects.requireNonNull(mainV.cfg()).entry();
+    var mainEntry = mainV.body().entry();
     mainEntry.appendStatement(new Statement(new MkEnv(MkEnvType.REGULAR)));
     var innerSig = new Signature(ImmutableList.of(), Type.ANY_VALUE_SEXP, Effects.REFLECT);
     var mainCallStmt =
@@ -212,7 +212,7 @@ class SimpleInternalInterpretTest {
     var function = module.addFunction(Variable.named("test"), List.of(), false);
     var version = function.baseline();
 
-    var cfg = Objects.requireNonNull(version.cfg());
+    var cfg = version.body();
     var entry = cfg.entry();
 
     // Define a register in an unreachable block, then return it from the entry: at runtime its

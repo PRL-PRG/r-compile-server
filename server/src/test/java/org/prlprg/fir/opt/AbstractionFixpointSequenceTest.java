@@ -16,7 +16,7 @@ import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 class AbstractionFixpointSequenceTest {
   /// Test optimization that tracks how many times it's called and can be configured to return
   /// different values.
-  private static class TestOptimization implements AbstractionOptimization {
+  private static class TestOptimization extends AbstractionOptimization {
     private final boolean[] changedReturns;
     private int callCount = 0;
 
@@ -26,7 +26,10 @@ class AbstractionFixpointSequenceTest {
 
     @Override
     public boolean runWithoutRecording(
-        @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+        Optimization topLevel,
+        @Nullable Function function,
+        AbstractionFeedback feedback,
+        Abstraction abstraction) {
       // Cycle through `changedReturns`.
       return changedReturns[callCount++ % changedReturns.length];
     }

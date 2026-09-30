@@ -13,6 +13,36 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void unboxIsntHoistedIntoACheckpointsAssumptions() {
+    // `y` is hoisted to right after `x1`, which would put it between the checkpoint's assumptions
+    // -- and an assumption after another statement is never checked.
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*) -+> I {
+              mkenv;
+              check L1() else D0();
+            L1():
+              x1: v1(I) = x ?: v1(I);
+              x2: v1(I) = x ?: v1(I);
+              y: I = unbox< v1(I) --> I >(x1);
+              y2: I = unbox< v1(I) --> I >(x2);
+              s: I = `+`< I,I --> I >(y, y2);
+              popenv;
+              return s;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "x2: v1(I) = x ?: v1(I);", "y: I = unbox< v1(I) --> I >(x1);");
+    assertOrder(printed, "x2: v1(I) = x ?: v1(I);", "y2: I = unbox< v1(I) --> I >(x2);");
+  }
+
+  @Test
   void boxIsDeferredAcrossBasicBlocks() {
     var abstraction =
         ParseUtil.parseAbstraction(

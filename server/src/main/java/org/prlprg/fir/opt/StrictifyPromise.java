@@ -1,6 +1,5 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy2;
 import static org.prlprg.fir.ir.cfg.cursor.CFGInliner.inline;
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfsNoDeopts;
 
@@ -10,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -66,21 +64,24 @@ import org.prlprg.util.Streams;
 ///
 /// Furthermore, only inlines if there's a compatible version with the new signature, or one can
 /// be created from the old version (in which case creates it)
-public record StrictifyPromise() implements AbstractionOptimization {
+public final class StrictifyPromise extends AbstractionOptimization {
   private record Inlineable(
       int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
 
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
-    if (scope.cfg() == null) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
+    if (scope.isStub()) {
       return false;
     }
 
     var changed = false;
 
     // Iterate in reverse so inlines don't affect iteration.
-    for (var bb : bbReverseDfsNoDeopts(scope.cfg())) {
+    for (var bb : bbReverseDfsNoDeopts(scope.body())) {
       for (int callIdx = bb.statements().size() - 1; callIdx >= 0; callIdx--) {
         var stmt = bb.statements().get(callIdx);
         if (!(stmt.expression() instanceof Call(StaticFnCallee callee))) {
@@ -108,7 +109,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
           }
           var promiseDefStmt = assignee.statement();
           var defBb = promiseDefStmt.parentBB();
-          if (defBb == null || defBb.owner() != scope.cfg()) {
+          if (defBb == null || defBb.owner() != scope.body()) {
             continue;
           }
 
@@ -198,29 +199,37 @@ public record StrictifyPromise() implements AbstractionOptimization {
                 new FunctionParameter(oldParam.name(), inlineable.valueType, false));
           }
 
-          var newVersion = copy2(feedback.module(), calleeFun, oldVersion, newParams);
+          var valueTypes =
+              inlineables.stream()
+                  .collect(Collectors.toMap(Inlineable::argIndex, Inlineable::valueType));
+          LazyCopy.create(
+              topLevel,
+              feedback.module(),
+              calleeFun,
+              oldVersion,
+              newParams,
+              new LazyCopy.Adapter() {
+                /// Wrap the (now value-typed) parameter back into a promise, which is what the
+                /// old version takes (and forces).
+                @Override
+                public @Nullable Statement adaptParameter(Abstraction copy, int index) {
+                  var valueType = valueTypes.get(index);
+                  if (valueType == null) {
+                    return null;
+                  }
+                  var valueParam = copy.parameters().get(index);
 
-          var newEntry = Objects.requireNonNull(newVersion.cfg()).entry();
-          for (var inlineable : inlineables) {
-            var newValueParam = newVersion.parameters().get(inlineable.argIndex);
-
-            // Wrap the (now value-typed) parameter back into a promise that the copied body forces.
-            var promWrapper = new Promise(inlineable.valueType, Effects.NONE, new CFG(newVersion));
-            var promStmt = new Statement(promWrapper);
-            var promReg =
-                promStmt.setAssignee(
-                    newVersion.freshName(newValueParam.name()),
-                    Type.promise(inlineable.valueType, Effects.NONE));
-            newEntry.prependStatement(promStmt);
-
-            // Redirect the body's uses of the value parameter to the wrapping promise, then make
-            // the promise return the value parameter.
-            newValueParam.substUsesWith(new Read(promReg));
-            promWrapper
-                .code()
-                .entry()
-                .setJump(new Jump(new Return(), List.of(new Read(newValueParam))));
-          }
+                  var promWrapper = new Promise(valueType, Effects.NONE, new CFG(copy));
+                  promWrapper
+                      .code()
+                      .entry()
+                      .setJump(new Jump(new Return(), List.of(new Read(valueParam))));
+                  var promStmt = new Statement(promWrapper);
+                  promStmt.setAssignee(
+                      copy.freshName(valueParam.name()), Type.promise(valueType, Effects.NONE));
+                  return promStmt;
+                }
+              });
         }
 
         // Replace the call's operation (keeping its arguments) with the better-signature call.
@@ -321,8 +330,9 @@ public record StrictifyPromise() implements AbstractionOptimization {
   /// Only paths that reach a force constrain this. On one that doesn't, nothing ever looks at the
   /// promise's value, so having computed it for nothing is invisible: it has no effects.
   private static boolean forcesUndisturbed(@Nullable Abstraction version, int argIndex) {
-    if (version == null || version.cfg() == null || argIndex >= version.parameters().size()) {
-      // A dispatch call, or a stub: no body to look at.
+    if (version == null || !version.isEvaluated() || argIndex >= version.parameters().size()) {
+      // A dispatch call, a stub, or an unevaluated version: no body to look at (without
+      // evaluating it, which only inlining is worth).
       return false;
     }
     var parameter = version.parameters().get(argIndex);
@@ -331,8 +341,8 @@ public record StrictifyPromise() implements AbstractionOptimization {
     // code that can run before the promise is forced.
     var worklist = new ArrayDeque<BB>();
     var seen = new HashSet<BB>();
-    worklist.add(version.cfg().entry());
-    seen.add(version.cfg().entry());
+    worklist.add(version.body().entry());
+    seen.add(version.body().entry());
 
     while (!worklist.isEmpty()) {
       var bb = worklist.poll();
@@ -388,6 +398,10 @@ public record StrictifyPromise() implements AbstractionOptimization {
   private static boolean isReflectedOn(@Nullable Abstraction version, int argIndex) {
     if (version == null || argIndex >= version.parameters().size()) {
       return false;
+    }
+    if (!version.isStub() && !version.isEvaluated()) {
+      // Its parameters' uses aren't known until it's evaluated.
+      return true;
     }
     return version.parameters().get(argIndex).uses().stream()
         .anyMatch(

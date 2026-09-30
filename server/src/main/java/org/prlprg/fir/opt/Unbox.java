@@ -2,13 +2,11 @@ package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.GlobalModules.BOX_FUN;
 import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy2;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -18,8 +16,6 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.instruction.Jump;
-import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Concreteness;
@@ -48,10 +44,13 @@ import org.prlprg.util.ImmutableBoolArray;
 ///   `r = box<X --> v1(X)>(r1)` after the call.
 /// - Compatible scalar-return versions can be created from non-stub versions, by copying,
 ///   changing the return type to unboxed, and unboxing the returned value before every return.
-public class Unbox implements AbstractionOptimization {
+public class Unbox extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
     var changed = false;
 
     var cfgs = abstraction.streamCfgs().toList();
@@ -65,7 +64,7 @@ public class Unbox implements AbstractionOptimization {
             continue;
           }
 
-          var specialization = planSpecialization(feedback, callee);
+          var specialization = planSpecialization(topLevel, feedback, callee);
           if (specialization == null) continue;
 
           // Insert unbox instructions before the call, and rewrite the unboxed arguments.
@@ -119,7 +118,7 @@ public class Unbox implements AbstractionOptimization {
   }
 
   private @Nullable Specialization planSpecialization(
-      AbstractionFeedback feedback, StaticFnCallee callee) {
+      Optimization topLevel, AbstractionFeedback feedback, StaticFnCallee callee) {
     var function = callee.function();
     if (function == BOX_FUN || function == UNBOX_FUN) {
       return null;
@@ -150,7 +149,7 @@ public class Unbox implements AbstractionOptimization {
     var currentVersion = callee.minVersion();
     if (currentVersion != null && !currentVersion.isStub()) {
       createUnboxedVersion(
-          feedback, function, currentVersion, callee.signature(), bestSpecialization);
+          topLevel, feedback, function, currentVersion, callee.signature(), bestSpecialization);
       return bestSpecialization;
     }
 
@@ -236,6 +235,7 @@ public class Unbox implements AbstractionOptimization {
   }
 
   private void createUnboxedVersion(
+      Optimization topLevel,
       AbstractionFeedback feedback,
       Function function,
       Abstraction boxedVersion,
@@ -253,46 +253,50 @@ public class Unbox implements AbstractionOptimization {
       newParams.set(i, new FunctionParameter(oldParam.name(), unboxed(sigParamType), false));
     }
 
-    var newVersion = copy2(feedback.module(), function, boxedVersion, newParams);
-    var newCfg = Objects.requireNonNull(newVersion.cfg());
-    var newEntry = newCfg.entry();
+    var boxedReturnType = boxedVersion.returnType();
+    LazyCopy.create(
+        topLevel,
+        feedback.module(),
+        function,
+        boxedVersion,
+        newParams,
+        new LazyCopy.Adapter() {
+          /// Re-box each unboxed parameter, so the boxed version (or its body) still sees the
+          /// boxed value.
+          @Override
+          public @Nullable Statement adaptParameter(Abstraction copy, int index) {
+            if (!specialization.parameterUnboxings().get(index)) {
+              return null;
+            }
+            var scalarParam = copy.parameters().get(index);
+            var sigParamType = signature.parameterTypes().get(index);
 
-    // Re-box each unboxed parameter at the entry so the copied body still sees the boxed value.
-    for (var i = 0; i < numParams; i++) {
-      if (!specialization.parameterUnboxings().get(i)) continue;
+            var boxStmt = boxStatement(new Read(scalarParam), sigParamType);
+            boxStmt.setAssignee(copy.freshName(scalarParam.name()), sigParamType);
+            return boxStmt;
+          }
 
-      var scalarParam = newVersion.parameters().get(i);
-      var sigParamType = signature.parameterTypes().get(i);
+          @Override
+          public Type returnType(Type sourceReturnType) {
+            return specialization.returnUnboxing() ? unboxed(sourceReturnType) : sourceReturnType;
+          }
 
-      // Build `boxReg = box(<placeholder>)` with a constant placeholder, redirect the body's uses
-      // of the scalar parameter to `boxReg`, then wire the box to read the scalar parameter.
-      var boxStmt = boxStatement(Constant.ELIDED_CLOSURE, sigParamType);
-      var boxReg = boxStmt.setAssignee(newVersion.freshName(scalarParam.name()), sigParamType);
-      newEntry.prependStatement(boxStmt);
-      scalarParam.substUsesWith(new Read(boxReg));
-      boxStmt.setArg(1, new Read(scalarParam));
-    }
+          @Override
+          public @Nullable Statement adaptReturn(Abstraction copy, Argument sourceReturn) {
+            if (!specialization.returnUnboxing()) {
+              return null;
+            }
 
-    // Add return unbox
-    if (!specialization.returnUnboxing()) return;
-
-    var oldReturnType = newVersion.returnType();
-    var newReturnType = unboxed(oldReturnType);
-    newVersion.setReturnType(newReturnType);
-    for (var newExit : List.copyOf(newCfg.exits())) {
-      if (!(newExit.jump().expression() instanceof Return)) continue;
-      var value = newExit.jump().arg(0);
-
-      var unboxStmt = unboxStatement(value, oldReturnType);
-      var unboxedReg =
-          unboxStmt.setAssignee(
-              newVersion.freshName(
-                  value.variable() == null ? Register.DEFAULT_NAME : value.variable().name()),
-              newReturnType);
-      newExit.appendStatement(unboxStmt);
-      newExit.setJump(
-          new Jump(newExit.jump().comments(), new Return(), List.of(new Read(unboxedReg))));
-    }
+            var unboxStmt = unboxStatement(sourceReturn, boxedReturnType);
+            unboxStmt.setAssignee(
+                copy.freshName(
+                    sourceReturn.variable() == null
+                        ? Register.DEFAULT_NAME
+                        : sourceReturn.variable().name()),
+                unboxed(boxedReturnType));
+            return unboxStmt;
+          }
+        });
   }
 
   /// Insert `unbox<v1(X) --> X>(original)` immediately before `point`, and return its register.

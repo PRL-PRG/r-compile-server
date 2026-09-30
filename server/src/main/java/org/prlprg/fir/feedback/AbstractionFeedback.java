@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Type;
@@ -27,6 +28,14 @@ public class AbstractionFeedback {
   /// Create a feedback for a single-[Abstraction] module, only for use in tests.
   public static AbstractionFeedback standaloneForTesting(Abstraction abstraction) {
     return new MockModuleFeedback(abstraction.module()).get(abstraction);
+  }
+
+  /// Create a feedback that isn't in `module`, so whatever is recorded in it is discarded.
+  ///
+  /// For code that must record somewhere but whose feedback doesn't describe a version's body,
+  /// i.e. its [fallback][Abstraction#fallback()].
+  public static AbstractionFeedback discarded(ModuleFeedback module) {
+    return new AbstractionFeedback(module);
   }
 
   private final ModuleFeedback module;
@@ -184,19 +193,23 @@ public class AbstractionFeedback {
   ///
   /// @param src The [Abstraction] this contains feedback for.
   /// @param dst The [Abstraction] the copy will contain feedback for, which must be
-  ///            structurally equivalent.
+  ///            structurally equivalent. Its body may still be being evaluated (it's copied into
+  ///            while it is), but must have been started.
   AbstractionFeedback copy(Abstraction src, Abstraction dst) {
     var copy = copy();
 
+    var srcBody = src.body();
+    var dstBody = Objects.requireNonNull(Objects.requireNonNull(dst.lazyBody()).peek());
+
     var statements = new HashMap<Statement, Statement>();
-    Streams.zip(streamStatements(src), streamStatements(dst), Map::entry)
+    Streams.zip(streamStatements(srcBody), streamStatements(dstBody), Map::entry)
         .forEach(e -> statements.put(e.getKey(), e.getValue()));
 
     remap(copy.reflectiveEnvs, statements);
     remap(copy.escapingPromises, statements);
 
     var registers = new HashMap<Register, Register>();
-    Streams.zip(src.streamRegisters(), dst.streamRegisters(), Map::entry)
+    Streams.zip(src.streamRegisters(srcBody), dst.streamRegisters(dstBody), Map::entry)
         .forEach(e -> registers.put(e.getKey(), e.getValue()));
 
     remapKeys(copy.types, registers);
@@ -207,9 +220,8 @@ public class AbstractionFeedback {
     return copy;
   }
 
-  private static Stream<Statement> streamStatements(Abstraction abstraction) {
-    return abstraction
-        .streamCfgs()
+  private static Stream<Statement> streamStatements(CFG body) {
+    return Abstraction.streamCfgs(body)
         .flatMap(cfg -> cfg.bbs().stream())
         .flatMap(bb -> bb.statements().stream());
   }

@@ -29,8 +29,8 @@ public final class Loads implements Analysis {
 
   @AnalysisConstructor
   public Loads(Abstraction scope) {
-    if (scope.cfg() != null) {
-      run(scope.cfg());
+    if (!scope.isStub()) {
+      run(scope.body());
     }
   }
 

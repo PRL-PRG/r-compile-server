@@ -45,11 +45,14 @@ import org.prlprg.fir.ir.variable.AssigneeOf;
 /// Only applies when some incoming argument is *already* a value and every use forces the phi.
 /// Retyping it is then invisible to its consumers. A non-forcing use, such as `st x = phi`, would
 /// observe the difference between storing a promise and storing its value.
-public record StrictifyPhi() implements AbstractionOptimization {
+public final class StrictifyPhi extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
-    return scope.cfg() != null && new Run(scope).run();
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
+    return !scope.isStub() && new Run(scope).run();
   }
 
   private static final class Run {

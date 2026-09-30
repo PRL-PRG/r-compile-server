@@ -17,6 +17,19 @@ public interface GNUR extends AutoCloseable {
     return RestartingGNURProcess.INSTANCE;
   }
 
+  /// Lazily create the instance that runs compiled FIŘ code, with the `rsh` package (which
+  /// provides the runtime and the connection to the compile server) loaded.
+  ///
+  /// Separate from [#instance()] so that `rsh`'s symbols, which it loads globally, don't reach the
+  /// standalone modules the other tests load (on Linux, they'd take over the same-named symbols
+  /// in those).
+  static GNUR rshInstance() {
+    if (RestartingGNURProcess.RSH_INSTANCE == null) {
+      RestartingGNURProcess.RSH_INSTANCE = new RestartingGNURProcess(new TestRSession());
+    }
+    return RestartingGNURProcess.RSH_INSTANCE;
+  }
+
   boolean isAlive();
 
   SEXP eval(String source);

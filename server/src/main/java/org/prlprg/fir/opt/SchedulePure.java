@@ -22,6 +22,7 @@ import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -53,7 +54,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// itself moving; when that target was being copied to several branches, the rewrite followed it
 /// into all of them, which is how an `unbox` ended up in a deopt branch ahead of the `box` it
 /// reads.
-public final class SchedulePure implements AbstractionOptimization {
+public final class SchedulePure extends AbstractionOptimization {
   static final ImmutableList<Predicate<Statement>> HOIST_RULES =
       ImmutableList.of(matchRule(UNBOX_FUN));
   private static final ImmutableList<Predicate<Statement>> DEFER_RULES =
@@ -67,8 +68,11 @@ public final class SchedulePure implements AbstractionOptimization {
 
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
-    if (scope.cfg() == null) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
+    if (scope.isStub()) {
       return false;
     }
 
@@ -241,8 +245,12 @@ public final class SchedulePure implements AbstractionOptimization {
 
     /// Move `statements` to just before `target`, keeping the ones already sitting there put.
     private boolean placeBefore(Instruction target, List<Statement> statements) {
-      // Skip the run of statements already immediately before the target.
+      // Not into a checkpoint's assumptions: if the target is one of them, before all of them.
       var point = target;
+      while (point.prev() instanceof Statement prev && prev.expression() instanceof Assume) {
+        point = prev;
+      }
+      // Skip the run of statements already immediately before the target.
       while (point.prev() instanceof Statement placed && statements.remove(placed)) {
         point = placed;
       }
@@ -277,6 +285,13 @@ public final class SchedulePure implements AbstractionOptimization {
 
     private boolean hoist(Anchor anchor, List<Statement> statements) {
       var point = anchor.after() == null ? firstInstruction(anchor.bb()) : anchor.after().next();
+
+      // Not into a checkpoint's assumptions, which are the statements at the start of its success
+      // block: the checkpoint only checks (and, for a load, assigns) the leading run of `assume`s,
+      // so one that ends up after another statement is never checked.
+      while (point instanceof Statement placed && placed.expression() instanceof Assume) {
+        point = point.next();
+      }
 
       // Skip the run of statements already sitting where they'd be hoisted to.
       while (point instanceof Statement placed && statements.remove(placed)) {

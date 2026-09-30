@@ -17,6 +17,8 @@ import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcOptLevel;
 import org.prlprg.bc2c.BC2CCompiler;
+import org.prlprg.fir2c.Fir2CCompiler;
+import org.prlprg.gen2c.CompiledPatch;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.NativeClosure;
@@ -34,6 +36,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
   private @Nullable GNURSession session = null;
 
+  private final FirModules firModules;
+
   // Cache for byte-code, only for functions. We keep the already serialized code in the cache
   // not the Bc (or BcCodeSXP)
   // Key is (hash, optimisationLevel)
@@ -42,6 +46,19 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   // Key is (hash, bcOpt, ccOpt)
   private final HashMap<Triple<Long, BcOptLevel, Integer>, NativeClosure> nativeCache =
       new HashMap<>();
+
+  CompileService() {
+    this(new FirModules());
+  }
+
+  CompileService(FirModules firModules) {
+    this.firModules = firModules;
+  }
+
+  /// The FIŘ modules whose stubs' requests this serves.
+  FirModules firModules() {
+    return firModules;
+  }
 
   private static String genSymbol(Messages.Function function) {
     // the hash is uint64 (unsigned ) but java does not have unsigned numbers and store it as a long
@@ -240,6 +257,72 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     var res = response.build();
     responseObserver.onNext(res);
     logger.info("Response size : " + res.getSerializedSize());
+    responseObserver.onCompleted();
+  }
+
+  /// Compile the version a stub stands for (see `server/doc/lazy-versions.md`).
+  ///
+  /// Requests for the same module are served one at a time: compiling a version changes the
+  /// module, and what the client has of it.
+  @Override
+  public void compileFirVersion(
+      Messages.FirVersionRequest request,
+      StreamObserver<Messages.FirVersionResponse> responseObserver) {
+    var entry = firModules.get(request.getModule());
+    if (entry == null) {
+      responseObserver.onError(
+          Status.NOT_FOUND
+              .withDescription("No FIR module registered as " + request.getModule())
+              .asRuntimeException());
+      return;
+    }
+
+    logger.info(
+        "Received request to compile stub "
+            + request.getStub()
+            + " of FIR module "
+            + request.getModule());
+
+    var response = Messages.FirVersionResponse.newBuilder();
+    try {
+      var session = entry.session();
+      CompiledPatch patch;
+      synchronized (session) {
+        patch = Fir2CCompiler.compileStub(session, request.getStub());
+      }
+
+      if (patch != null) {
+        var inputFile = File.createTempFile("fir_patch", ".c");
+        patch.code().writeTo(inputFile.toPath());
+        var outputFile = File.createTempFile("fir_patch", ".o");
+
+        RshCompiler.getInstance(entry.ccOpt(), RuntimeVariant.FIR2C)
+            .createBuilder(inputFile.toPath(), outputFile.toPath())
+            .flag("-c")
+            .compile();
+
+        response.setCode(ByteString.copyFrom(Files.asByteSource(outputFile).read()));
+        response.setConstants(RDSWriter.writeByteString(patch.constantPool()));
+        response.setInit(patch.init());
+      }
+    } catch (Exception e) {
+      logger.log(Level.WARNING, "Failed to compile FIR version", e);
+      var msg = String.valueOf(e.getMessage());
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  "Cannot compile stub "
+                      + request.getStub()
+                      + " of FIR module "
+                      + request.getModule()
+                      + "; "
+                      // gRPC has a max header size of 8KB
+                      + msg.substring(0, Math.min(msg.length(), 7000)))
+              .asRuntimeException());
+      return;
+    }
+
+    responseObserver.onNext(response.build());
     responseObserver.onCompleted();
   }
 
