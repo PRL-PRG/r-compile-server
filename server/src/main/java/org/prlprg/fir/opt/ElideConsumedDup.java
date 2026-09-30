@@ -13,10 +13,13 @@ import org.prlprg.fir.ir.type.Ownership;
 
 /// Elides a `dup` that only moves one owned vector into another (`r1 = dup consume r`, which
 /// [ConsumeDeadDup] produces), replacing every use of the assignee with the consumed register.
-public record ElideConsumedDup() implements AbstractionOptimization {
+public final class ElideConsumedDup extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     var changed = false;
     for (var cfg : scope.streamCfgs().toList()) {
       for (var bb : cfg.bbs()) {

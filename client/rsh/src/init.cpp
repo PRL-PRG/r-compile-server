@@ -2,6 +2,7 @@
 
 #include "client.hpp"
 #include "compiler.hpp"
+#include "fir_stubs.hpp"
 
 extern "C" {
 #include "bc2c/runtime.h"
@@ -16,6 +17,8 @@ static const R_CallMethodDef callMethods[] = {
     {"init_client", (DL_FUNC)&rsh::init_client, 3},
     {"get_total_size", (DL_FUNC)&rsh::get_total_size, 0},
     {"clear_cache", (DL_FUNC)&rsh::clear_cache, 0},
+    {"fir_connect", (DL_FUNC)&rsh::fir_connect, 3},
+    {"fir_drain", (DL_FUNC)&rsh::fir_drain, 0},
     // Registered because `R_useDynamicSymbols` is off below, so an unregistered entry point can't
     // be reached by name: `.Call("Fir_serialized_feedback", <module constant pool>)` (see
     // `server/doc/bytecode-baseline-feedback.md`) would fail to resolve, and the callers that wrap

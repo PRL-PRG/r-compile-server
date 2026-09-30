@@ -14,11 +14,20 @@ import org.prlprg.fir.ir.type.Effects;
 /// Replaces promises that have been created at least [#threshold] times and never forced with
 /// an empty body that immediately deoptimizes. The promise's effect annotation is set to
 /// [Effects#NONE].
-public record ElideUnforcedPromise(int threshold) implements AbstractionOptimization {
+public final class ElideUnforcedPromise extends AbstractionOptimization {
+  private final int threshold;
+
+  public ElideUnforcedPromise(int threshold) {
+    this.threshold = threshold;
+  }
+
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
-    return abstraction.cfg() != null && run(feedback, abstraction, abstraction.cfg());
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
+    return !abstraction.isStub() && run(feedback, abstraction, abstraction.body());
   }
 
   private boolean run(AbstractionFeedback feedback, Abstraction scope, CFG cfg) {

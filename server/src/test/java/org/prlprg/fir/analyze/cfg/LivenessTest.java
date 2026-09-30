@@ -24,7 +24,7 @@ class LivenessTest {
   }
 
   private static CFG cfgOf(@Language("FIR") String firText) {
-    return Objects.requireNonNull(mainOf(firText).cfg());
+    return mainOf(firText).body();
   }
 
   /// The register named `name` defined in `version` (registers are identity-based, so tests look
@@ -75,7 +75,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var entry = cfg.entry();
 
     var liveness = new Liveness(cfg);
@@ -117,7 +117,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
 
     var liveness = new Liveness(cfg);
 
@@ -159,7 +159,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
 
     var liveness = new Liveness(cfg);
 
@@ -194,7 +194,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
 
     var liveness = new Liveness(cfg);
 
@@ -338,7 +338,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var liveness = new Liveness(cfg);
     var entry = cfg.entry();
 
@@ -371,7 +371,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var liveness = new Liveness(cfg);
     var entry = cfg.entry();
     var inner = reg(main, "inner");
@@ -408,7 +408,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var liveness = new Liveness(cfg);
     var entry = cfg.entry();
 
@@ -431,7 +431,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var liveness = new Liveness(cfg);
     var entry = cfg.entry();
     var dead = reg(main, "dead");
@@ -484,7 +484,7 @@ class LivenessTest {
       """;
 
     var main = mainOf(firText);
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var entry = cfg.entry();
 
     var liveness = new Liveness(cfg);

@@ -60,7 +60,7 @@ public final class DominatorTree implements Analysis {
     return switch (definition) {
       case FunctionParameter param -> {
         var owner = Objects.requireNonNull(param.owner());
-        var entry = Objects.requireNonNull(owner.cfg()).entry();
+        var entry = owner.body().entry();
         yield dominates(entry, -1, useBb, useIdx);
       }
       case BlockParameter phi -> dominates(Objects.requireNonNull(phi.owner()), -1, useBb, useIdx);

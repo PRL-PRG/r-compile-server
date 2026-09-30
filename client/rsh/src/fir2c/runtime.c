@@ -67,6 +67,36 @@ Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type cons
   return (Fir_Signature) {.return_type = return_type, .param_count = param_count, .param_types = param_types, .effects = effects};
 }
 
+static const Fir_StubCompiler *stub_compiler = NULL;
+
+void Fir_set_stub_compiler(const Fir_StubCompiler *compiler) {
+  stub_compiler = compiler;
+}
+
+void *Fir_stub_enter(Fir_Stub *stub) {
+  if (stub->compiled != NULL) {
+    return stub->compiled;
+  }
+  if (stub_compiler == NULL || stub->state == FIR_STUB_FAILED) {
+    return NULL;
+  }
+
+  if (stub->state == FIR_STUB_UNREQUESTED) {
+    // Run the fallback while the server compiles.
+    stub->state = FIR_STUB_REQUESTED;
+    stub_compiler->request(stub);
+    return NULL;
+  }
+
+  stub_compiler->poll(stub, stub_compiler->deterministic);
+  return stub->compiled;
+}
+
+void Fir_stub_compiled(Fir_Stub *stub, void *compiled) {
+  stub->compiled = compiled;
+  stub->state = FIR_STUB_COMPILED;
+}
+
 static void Fir_assert_symbol(SEXP sym, const char *what) {
   ASSERT(
     TYPEOF(sym) == SYMSXP,
@@ -204,7 +234,9 @@ static bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
     return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP ||
            TYPEOF(value) == SPECIALSXP;
   case FIR_KIND_DOTS:
-    return TYPEOF(value) == DOTSXP || value == R_MissingArg;
+    // `NULL` is the empty dots list, and it's what the server's `Type.of` calls `dots` (so a
+    // speculation from interpreter feedback on a `NULL` value is `?: dots`).
+    return TYPEOF(value) == DOTSXP || value == R_MissingArg || value == R_NilValue;
   case FIR_KIND_MISSING:
     return value == R_MissingArg;
   }
@@ -1047,6 +1079,23 @@ static SEXP Fir_bc_baseline_code(SEXP pool) {
   return code;
 }
 
+// What to bind `...` to in a bytecode baseline's environment, given a FIŘ `dots` value: FIŘ code
+// passes dots as a plain pairlist (or `NULL` when empty), but bytecode expects what
+// `applyClosure` binds `...` to, a `DOTSXP` (or the missing argument when empty).
+static SEXP Fir_dots_for_bytecode(SEXP dots) {
+  if (dots == R_NilValue) {
+    return R_MissingArg;
+  }
+  if (TYPEOF(dots) != LISTSXP) {
+    return dots;
+  }
+  // The caller may still use its pairlist, so retype a copy of the spine.
+  dots = PROTECT(Rf_shallow_duplicate(dots));
+  SET_TYPEOF(dots, DOTSXP);
+  UNPROTECT(1);
+  return dots;
+}
+
 SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
   // Count the call, which becomes the version's number of recorded calls
   // (nothing else records it: the JIT only records individual instructions).
@@ -1061,6 +1110,9 @@ SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
   for (int i = 0; i < argc; ++i, formal = CDR(formal)) {
     ASSERT(formal != R_NilValue, "bytecode baseline called with more arguments than formals");
     SEXP value = args[i];
+    if (TAG(formal) == R_DotsSymbol) {
+      value = Fir_dots_for_bytecode(value);
+    }
     if (value == R_MissingArg && CAR(formal) != R_MissingArg) {
       // Bind a missing argument that has a default as a promise of the default,
       // like GNU-R's `applyClosure`.

@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
-
 import com.google.common.collect.ImmutableList;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -17,9 +15,18 @@ import org.prlprg.util.Lists;
 /// If there's a call whose best guaranteed version
 /// ([Function#guess(org.prlprg.fir.ir.type.Signature)]) does not exactly match its arguments'
 /// static types, copy that version into a new one and narrow the parameter types to match
-public record CreateBestVersion(int versionLimit) implements AbstractionOptimization {
+public final class CreateBestVersion extends AbstractionOptimization {
+  private final int versionLimit;
+
+  public CreateBestVersion(int versionLimit) {
+    this.versionLimit = versionLimit;
+  }
+
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction version) {
     var callStatements =
         version
             .streamCfgs()
@@ -28,11 +35,12 @@ public record CreateBestVersion(int versionLimit) implements AbstractionOptimiza
             .filter(s -> s.expression() instanceof Call)
             .toList();
     boolean[] changed = {false};
-    callStatements.forEach(stmt -> changed[0] |= run(feedback, version, stmt));
+    callStatements.forEach(stmt -> changed[0] |= run(topLevel, feedback, version, stmt));
     return changed[0];
   }
 
-  private boolean run(AbstractionFeedback feedback, Abstraction scope, Statement statement) {
+  private boolean run(
+      Optimization topLevel, AbstractionFeedback feedback, Abstraction scope, Statement statement) {
     if (!(statement.expression() instanceof Call call)
         || !(call.callee() instanceof StaticFnCallee callee)) {
       // We can't optimize dynamic calls
@@ -66,7 +74,7 @@ public record CreateBestVersion(int versionLimit) implements AbstractionOptimiza
     }
 
     // Create a new version with the exact parameter types
-    copy(feedback.module(), calleeFun, bestVersion, argumentTypes);
+    LazyCopy.create(topLevel, feedback.module(), calleeFun, bestVersion, argumentTypes);
     return true;
   }
 }

@@ -49,11 +49,10 @@ class CreateBestVersionTest {
     // Override baseline to have BOXED_INTEGER parameter type so typeOf(a) returns BOXED_INTEGER
     var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
     var callerVersion = callerFun.addVersion(List.of(paramA), false);
-    assert callerVersion.cfg() != null;
 
     var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
     callerVersion
-        .cfg()
+        .body()
         .entry()
         .appendStatement(
             new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
@@ -80,11 +79,10 @@ class CreateBestVersionTest {
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
     var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
     var callerVersion = callerFun.addVersion(List.of(paramA), false);
-    assert callerVersion.cfg() != null;
 
     var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
     callerVersion
-        .cfg()
+        .body()
         .entry()
         .appendStatement(
             new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
@@ -114,11 +112,10 @@ class CreateBestVersionTest {
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
     var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
     var callerVersion = callerFun.addVersion(List.of(paramA), false);
-    assert callerVersion.cfg() != null;
 
     var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
     callerVersion
-        .cfg()
+        .body()
         .entry()
         .appendStatement(
             new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
@@ -146,11 +143,10 @@ class CreateBestVersionTest {
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
     var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
     var callerVersion = callerFun.addVersion(List.of(paramA), false);
-    assert callerVersion.cfg() != null;
 
     var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
     callerVersion
-        .cfg()
+        .body()
         .entry()
         .appendStatement(
             new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
@@ -172,13 +168,12 @@ class CreateBestVersionTest {
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
     var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
     var callerVersion = callerFun.addVersion(List.of(paramA), false);
-    assert callerVersion.cfg() != null;
 
     // Use a DynamicCallee which returns null for function(). Its args are
     // `[actualCallee, ...callArgs]`, so the callee is `args[0]`.
     var call = new Call(new DynamicCallee(ImmutableList.of(OptionalNamedVariable.empty())));
     callerVersion
-        .cfg()
+        .body()
         .entry()
         .appendStatement(new Statement(call, ImmutableList.of(new Read(paramA), new Read(paramA))));
 
@@ -206,11 +201,10 @@ class CreateBestVersionTest {
     var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
     var paramB = new FunctionParameter("b", Type.BOXED_REAL);
     var callerVersion = callerFun.addVersion(List.of(paramA, paramB), false);
-    assert callerVersion.cfg() != null;
 
     var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
     callerVersion
-        .cfg()
+        .body()
         .entry()
         .appendStatement(
             new Statement(

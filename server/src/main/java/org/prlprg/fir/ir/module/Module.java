@@ -14,6 +14,7 @@ import java.util.function.Supplier;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.abstraction.LazyBody;
 import org.prlprg.fir.ir.observer.Observer;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -30,6 +31,10 @@ public final class Module {
 
   // Data
   private final Map<NamedVariable, Function> functions = new LinkedHashMap<>();
+
+  // Pinning
+  private int pins = 0;
+  private final Map<Object, Runnable> deferred = new LinkedHashMap<>();
 
   public @UnmodifiableView Collection<Function> localFunctions() {
     return Collections.unmodifiableCollection(functions.values());
@@ -71,6 +76,17 @@ public final class Module {
     return function;
   }
 
+  /// Add a function with a baseline version whose body is computed by `baselineBody` when it's
+  /// first accessed.
+  public Function addFunction(
+      NamedVariable name, List<NamedVariable> parameterNames, LazyBody.Initializer baselineBody) {
+    var function = addFunction(name, parameterNames);
+    function.addBaseline(
+        new Abstraction(
+            function.owner(), Function.computeBaselineParameters(parameterNames), baselineBody));
+    return function;
+  }
+
   /// Add a function with no baseline.
   ///
   /// A function without a baseline is incomplete: you must call
@@ -98,6 +114,55 @@ public final class Module {
             throw new IllegalArgumentException("Function '" + function + "' does not exist.");
           }
         });
+  }
+
+  /// Keep the evaluated code in this module as it is until the returned pin is closed.
+  ///
+  /// For whoever holds on to the code across something that may change it, i.e. the interpreter:
+  /// the instructions it's in the middle of running must not be optimized away under it, which
+  /// evaluating a version (in particular, when the interpreter calls it) would otherwise do (see
+  /// [#changeWhenUnpinned(Object, Runnable)]).
+  ///
+  /// Pins nest: the code can change again once every pin is closed.
+  public Pin pin() {
+    pins++;
+    return new Pin();
+  }
+
+  /// Run `change`, which changes evaluated code, as soon as the module isn't [pinned][#pin()]:
+  /// now if it isn't.
+  ///
+  /// If a change with the same `key` is already waiting, this one is dropped: `key` identifies
+  /// changes that do the same thing when they're run at the same time, e.g. runs of the same
+  /// optimizations.
+  public void changeWhenUnpinned(Object key, Runnable change) {
+    if (pins == 0) {
+      change.run();
+    } else {
+      deferred.putIfAbsent(key, change);
+    }
+  }
+
+  /// Keeps a module's evaluated code as it is until closed (see [Module#pin()]).
+  public final class Pin implements AutoCloseable {
+    private boolean closed = false;
+
+    private Pin() {}
+
+    /// Unpin the module, and if that was its last pin, run the changes that waited for it.
+    @Override
+    public void close() {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      pins--;
+
+      while (pins == 0 && !deferred.isEmpty()) {
+        var key = deferred.keySet().iterator().next();
+        deferred.remove(key).run();
+      }
+    }
   }
 
   public void addObserver(Observer observer) {
@@ -142,6 +207,56 @@ public final class Module {
         });
   }
 
+  /// Evaluate every unevaluated baseline, including those of the functions that adds (a
+  /// function's inner closures are only added once its baseline is evaluated).
+  public void evaluateBaselines() {
+    while (true) {
+      var unevaluated =
+          List.copyOf(functions.values()).stream()
+              .map(Function::baseline)
+              .filter(baseline -> !baseline.isStub() && !baseline.isEvaluated())
+              .toList();
+      if (unevaluated.isEmpty()) {
+        return;
+      }
+      for (var baseline : unevaluated) {
+        baseline.body();
+      }
+    }
+  }
+
+  /// Whether any version is unevaluated.
+  public boolean hasUnevaluated() {
+    return functions.values().stream()
+        .flatMap(function -> function.versions().stream())
+        .anyMatch(version -> !version.isStub() && !version.isEvaluated());
+  }
+
+  /// Evaluate every unevaluated version, including those of functions and versions that
+  /// evaluating another one adds (e.g. an inner closure, or a version created by the
+  /// optimizations that run when a version is evaluated).
+  public void evaluateAll() {
+    while (true) {
+      var unevaluated =
+          List.copyOf(functions.values()).stream()
+              .flatMap(function -> function.versions().stream())
+              .filter(version -> !version.isStub() && !version.isEvaluated())
+              .toList();
+      if (unevaluated.isEmpty()) {
+        return;
+      }
+      for (var version : unevaluated) {
+        version.body();
+      }
+    }
+  }
+
+  /// Copy this module by printing and re-parsing it.
+  ///
+  /// Unevaluated versions aren't printed, so the copy doesn't have them (see
+  /// [#evaluateAll()]).
+  ///
+  /// @throws org.prlprg.parseprint.ParseException If a function's baseline is unevaluated.
   public Module deepCopy() {
     return Parser.fromString(toString(), Module.class);
   }

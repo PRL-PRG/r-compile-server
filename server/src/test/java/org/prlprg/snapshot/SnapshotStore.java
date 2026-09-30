@@ -35,13 +35,17 @@ public class SnapshotStore {
   /// reported (this call raises an exception) but the snapshot is still saved for debugging.
   ///
   /// Returns the actual computed value (and only returns if it passes verification).
+  ///
+  /// What's checked and saved is the computed value's [snapshot][Query#snapshot(Object, Example,
+  /// SnapshotStore)].
   public <T> T verify(Example example, Query<T> query) {
     var actual = query.compute(example, this);
+    var snapshot = query.snapshot(actual, example, this);
 
     RegressionStatus[] regresses = {RegressionStatus.UNCHECKED};
     Throwable error = null;
     try {
-      verify(example, query, actual, null, regresses);
+      verifySnapshot(example, query, snapshot, null, regresses);
       return actual;
     } catch (Exception | Error e) {
       error = e;
@@ -51,7 +55,7 @@ public class SnapshotStore {
         assert error != null
             : "didn't get to set regression status but no prior exception was thrown, how did control-flow divert?";
         try {
-          verifyNoRegression(example, query, actual, regresses);
+          verifyNoRegression(example, query, snapshot, regresses);
         } catch (Exception | Error e) {
           error.addSuppressed(e);
         }
@@ -67,7 +71,7 @@ public class SnapshotStore {
               && (regresses[0] == RegressionStatus.NO
                   || TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches());
       if (shouldSaveToDisk) {
-        saveToDisk(actual, example, query);
+        saveToDisk(snapshot, example, query);
       }
     }
   }
@@ -82,19 +86,26 @@ public class SnapshotStore {
 
   /// Same as [#verify(Example, Query, Object)] but provides `context` in the error message.
   public <T> void verify(Example example, Query<T> query, T actual, @Nullable String context) {
-    verify(example, query, actual, context, new RegressionStatus[] {RegressionStatus.UNCHECKED});
+    verifySnapshot(
+        example,
+        query,
+        query.snapshot(actual, example, this),
+        context,
+        new RegressionStatus[] {RegressionStatus.UNCHECKED});
   }
 
-  private <T> void verify(
+  private <T> void verifySnapshot(
       Example example,
       Query<T> query,
       T actual,
       @Nullable String context,
       RegressionStatus[] regresses) {
     try {
+      // The oracle is only ever compared against, so it's its snapshot that's cached (which is
+      // what makes it safe to cache even if the query is transient).
       T oracle = loadFromMemory(true, example, query);
       if (oracle == null) {
-        oracle = query.oracle(example, this);
+        oracle = query.snapshot(query.oracle(example, this), example, this);
         saveToMemory(oracle, true, example, query);
       }
 
@@ -157,6 +168,10 @@ public class SnapshotStore {
   ///
   /// @throws MissingSnapshotException if no snapshot exists and computation failed
   public <T> T load(Example example, Query<T> query) {
+    if (query.isTransient()) {
+      return compute(example, query);
+    }
+
     // Try to load from memory
     T inMemory = loadFromMemory(false, example, query);
     if (inMemory != null) {
@@ -201,7 +216,7 @@ public class SnapshotStore {
       Files.deleteRecursively(path);
     }
 
-    if (!Files.exists(path)) {
+    if (query.isTransient() || !Files.exists(path)) {
       computeAndSave(example, query);
     }
 
@@ -219,19 +234,24 @@ public class SnapshotStore {
   }
 
   private <T> T computeAndSave(Example example, Query<T> query) {
-    T computed;
+    var computed = compute(example, query);
+    if (!query.isTransient()) {
+      saveToMemory(computed, true, example, query);
+    }
+    if (!example.hasOption("", "dontSaveSnapshots")) {
+      saveToDisk(query.snapshot(computed, example, this), example, query);
+    }
+    return computed;
+  }
+
+  private <T> T compute(Example example, Query<T> query) {
     try {
-      computed = query.oracle(example, this);
+      return query.oracle(example, this);
     } catch (SkipQueryException e) {
       throw new SkipQueryException(query.name(), e);
     } catch (Exception | Error e) {
       throw new MissingSnapshotException(query.name(), e);
     }
-    saveToMemory(computed, true, example, query);
-    if (!example.hasOption("", "dontSaveSnapshots")) {
-      saveToDisk(computed, example, query);
-    }
-    return computed;
   }
 
   private <T> @Nullable T loadFromMemory(boolean isOracle, Example example, Query<T> query) {

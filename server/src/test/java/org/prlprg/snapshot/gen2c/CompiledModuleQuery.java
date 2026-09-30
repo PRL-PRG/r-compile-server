@@ -6,6 +6,7 @@ import java.io.*;
 import java.nio.charset.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.prlprg.examples.Example;
 import org.prlprg.gen2c.CUnit;
 import org.prlprg.gen2c.CompiledModule;
@@ -33,6 +34,24 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   ///
   /// This isn't the oracle of the query itself, since the snapshot's structure matters.
   CompiledModuleQuery evalOracle();
+
+  /// The query whose compiled module [EvalQuery] runs for this one: by default this one.
+  default CompiledModuleQuery forEval() {
+    return this;
+  }
+
+  /// Whether the compiled module is loaded on its own, with its runtime compiled in, as opposed to
+  /// into an R that has the `rsh` package (which provides the runtime, and the connection to the
+  /// compile server).
+  default boolean isStandalone() {
+    return true;
+  }
+
+  /// What the compile server knows `compiled`'s module as (see
+  /// [org.prlprg.fir2c.Fir2CSession#id()]), or empty if it doesn't know it (it isn't connected).
+  default String moduleId(CompiledModule compiled) {
+    return "";
+  }
 
   @Override
   default void verifyEqual(
@@ -68,13 +87,15 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
 
     data.code().writeTo(cPath);
     RDSWriter.writeFile(bindingsPath.toFile(), data.constantPool());
+    // So whoever runs the module can find what the server has of it.
+    Files.writeString(path.resolve("id.txt"), moduleId(data));
 
     // Compile for both `EvalQuery` and easier debugging outside of tests.
     var soPath = path.resolve("code.so");
     try {
       RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime())
           .createBuilder(cPath, soPath)
-          .inputs(RshCompiler.standaloneRuntimeSources(runtime()))
+          .inputs(isStandalone() ? RshCompiler.standaloneRuntimeSources(runtime()) : List.of())
           .flag("-shared")
           .flag("-Wl,-undefined,dynamic_lookup")
           .flag("-DRSH_TESTS")

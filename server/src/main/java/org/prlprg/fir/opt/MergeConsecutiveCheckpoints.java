@@ -31,10 +31,13 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// If any non-assumption statement in the first success BB defines a register that is referenced by
 /// a second-checkpoint assumption, the merge is not performed.
-public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
+public final class MergeConsecutiveCheckpoints extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     boolean[] changed = {false};
 
     scope

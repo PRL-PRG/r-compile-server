@@ -25,7 +25,7 @@ public class CaptureChecker extends Checker {
 
   @Override
   protected void doRun(Abstraction version) {
-    if (version.cfg() == null) {
+    if (version.isStub()) {
       return;
     }
 

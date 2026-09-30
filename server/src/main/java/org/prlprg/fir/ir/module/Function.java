@@ -14,6 +14,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.abstraction.LazyBody;
 import org.prlprg.fir.ir.properties.FunctionUserProperties;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
@@ -161,8 +162,17 @@ public final class Function {
   /// Gets the best version whose signature can be substituted with `signature` in a call, i.e.
   /// the best version with more permissive parameters and more restrictive effects/return.
   public @Nullable Abstraction guess(Signature signature) {
+    return guess(signature, null);
+  }
+
+  /// [#guess(Signature)], but never returns `excluded`.
+  ///
+  /// This is how a [FallbackCallee][org.prlprg.fir.ir.callee.FallbackCallee] in `excluded`'s
+  /// fallback is resolved.
+  public @Nullable Abstraction guess(Signature signature, @Nullable Abstraction excluded) {
     for (var version : versions()) {
-      if (signature.hasNarrowerParameters(version.signature())
+      if (version != excluded
+          && signature.hasNarrowerParameters(version.signature())
           && version.signature().hasNarrowerPostconditions(signature)) {
         return version;
       }
@@ -188,6 +198,14 @@ public final class Function {
   /// Construct a new version, immediately add it to this function, and return it
   public Abstraction addVersion(List<FunctionParameter> params, boolean isStub) {
     var version = new Abstraction(owner, params, isStub);
+    addVersion(version);
+    return version;
+  }
+
+  /// Construct a new version whose body is computed by `body` when it's first accessed,
+  /// immediately add it to this function, and return it
+  public Abstraction addVersion(List<FunctionParameter> params, LazyBody.Initializer body) {
+    var version = new Abstraction(owner, params, body);
     addVersion(version);
     return version;
   }

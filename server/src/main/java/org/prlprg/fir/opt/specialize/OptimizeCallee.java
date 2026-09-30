@@ -14,6 +14,7 @@ import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
@@ -145,6 +146,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
     var oldSignature =
         switch (callee) {
           case StaticFnCallee(_, _, var signature) -> signature;
+          case FallbackCallee(var signature) -> signature;
           case DynamicCallee _ -> null;
         };
     return new Signature(

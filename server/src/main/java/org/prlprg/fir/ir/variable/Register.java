@@ -56,15 +56,16 @@ public sealed interface Register permits AssigneeOf, BlockParameter, FunctionPar
 
   /// The [BB][org.prlprg.fir.ir.cfg.BB] where this register is defined: an [AssigneeOf]'s
   /// statement's block, a [BlockParameter]'s owner block, or a [FunctionParameter]'s abstraction
-  /// entry block. Returns `null` if the definition isn't (yet) attached to a CFG.
+  /// entry block. Returns `null` if the definition isn't (yet) attached to a CFG, which includes a
+  /// [FunctionParameter] of a stub or unevaluated abstraction.
   default @Nullable BB definingBB() {
     return switch (this) {
       case AssigneeOf a -> a.statement().parentBB();
       case BlockParameter p -> p.owner();
       case FunctionParameter param -> {
         var owner = param.owner();
-        var cfg = owner == null ? null : owner.cfg();
-        yield cfg == null ? null : cfg.entry();
+        var body = owner == null || owner.lazyBody() == null ? null : owner.lazyBody().peek();
+        yield body == null ? null : body.entry();
       }
     };
   }

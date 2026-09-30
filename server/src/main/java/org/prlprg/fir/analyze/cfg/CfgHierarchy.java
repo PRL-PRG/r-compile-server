@@ -25,8 +25,8 @@ public final class CfgHierarchy implements Analysis {
 
   @AnalysisConstructor
   public CfgHierarchy(Abstraction scope) {
-    if (scope.cfg() != null) {
-      run(scope.cfg());
+    if (!scope.isStub()) {
+      run(scope.body());
     }
   }
 

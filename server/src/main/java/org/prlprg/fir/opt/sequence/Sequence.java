@@ -12,7 +12,7 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.Optimization;
 
 /// Run the optimizations in order, then don't re-run.
-public class Sequence implements Optimization {
+public final class Sequence extends Optimization {
   private final String name;
   private final List<Optimization> subOptimizations;
 
@@ -32,14 +32,15 @@ public class Sequence implements Optimization {
   }
 
   @Override
-  public boolean runWithoutRecording(ModuleFeedback feedback, Module module) {
+  public boolean runWithoutRecording(
+      Optimization topLevel, ModuleFeedback feedback, Module module) {
     return runImpl(
         feedback,
         module,
         new TargetImpl<>() {
           @Override
           public boolean run(Optimization opt, ModuleFeedback feedback, Module module) {
-            return opt.run(feedback, module);
+            return opt.run(topLevel, feedback, module);
           }
 
           @Override
@@ -50,14 +51,15 @@ public class Sequence implements Optimization {
   }
 
   @Override
-  public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
+  public boolean runWithoutRecording(
+      Optimization topLevel, ModuleFeedback feedback, Function function) {
     return runImpl(
         feedback,
         function,
         new TargetImpl<>() {
           @Override
           public boolean run(Optimization opt, ModuleFeedback feedback, Function function) {
-            return opt.run(feedback, function);
+            return opt.run(topLevel, feedback, function);
           }
 
           @Override

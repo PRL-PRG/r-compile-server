@@ -1,0 +1,48 @@
+name: Set up rsh
+description: >-
+  Build the `rsh` client package and install it into the vendored GNU-R at `R/`
+  (which must already be set up).
+
+# The server's FIŘ→C eval tests run their compiled modules in an R that has
+# `rsh` loaded: it provides the fir2c runtime and the connection to the compile
+# server that the modules' stubs ask for their versions (see
+# `server/doc/lazy-versions.md`). Loading it needs LLVM 17 (for the ORC JIT),
+# gRPC and protobuf, which is why this is its own step and not part of the
+# GNU-R cache.
+#
+# UNVERIFIED: this was written without a CI run. The package names are the
+# ones `client/rsh/src/Makevars` and `client/rsh/R/rsh.R` look for.
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          llvm-17 llvm-17-dev clang-17 \
+          libgrpc++-dev protobuf-compiler protobuf-compiler-grpc libprotobuf-dev \
+          libabsl-dev libxxhash-dev pkg-config
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install llvm@17 grpc protobuf abseil xxhash pkg-config
+
+    - name: Generate the protocol's C++
+      shell: bash
+      run: make -C proto
+
+    - name: Build and install rsh (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: make -C client/rsh install
+
+    - name: Build and install rsh (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        LLVM_DIR="$(brew --prefix llvm@17)" LLVM_CONFIG="$(brew --prefix llvm@17)/bin/llvm-config" \
+          make -C client/rsh install

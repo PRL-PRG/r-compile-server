@@ -18,10 +18,13 @@ import org.prlprg.fir.ir.module.Function;
 ///
 /// Preconditions for removal: the success BB has no phi parameters and no other predecessors
 /// (besides the checkpoint block itself).
-public record ElideUnusedCheckpoints() implements AbstractionOptimization {
+public final class ElideUnusedCheckpoints extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     boolean[] changed = {false};
 
     scope

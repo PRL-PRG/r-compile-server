@@ -32,6 +32,15 @@ public class MockModuleFeedback implements ModuleFeedback {
     this.module = module;
   }
 
+  /// A copy of this feedback for `module`, which must have every function and version this has
+  /// feedback for, with the same registers.
+  ///
+  /// This evaluates those versions (unless the feedback is only for their parameters).
+  public MockModuleFeedback copyFor(Module module) {
+    return Parser.fromString(
+        toString(), MockModuleFeedback.class, new ModuleFeedbackParseContext(module));
+  }
+
   public Module module() {
     return module;
   }

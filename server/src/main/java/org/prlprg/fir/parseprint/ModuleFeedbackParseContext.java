@@ -1,6 +1,5 @@
 package org.prlprg.fir.parseprint;
 
-import java.util.Objects;
 import java.util.Optional;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.MockModuleFeedback;
@@ -48,15 +47,24 @@ public final class ModuleFeedbackParseContext {
       var name = p.parse(NamedVariable.class);
       var fn = module.localFunction(name);
       if (fn == null) {
+        // An inner closure's function is only added once the enclosing function's baseline is
+        // evaluated, and feedback for it means it was called, so it exists.
+        module.evaluateBaselines();
+        fn = module.localFunction(name);
+      }
+      if (fn == null) {
         throw s.fail("No such function: " + name);
       }
       s.assertAndSkip('<');
 
       var signature = p.parse(Signature.class);
-      var version = fn.guess(signature);
-      if (version == null || !version.signature().equals(signature)) {
-        throw s.fail("No such version: " + name + "/" + signature);
-      }
+      // Least specific first, so the baseline wins over a copy of it that still has its
+      // signature (an unevaluated one does).
+      var version =
+          fn.versions().reversed().stream()
+              .filter(v -> v.signature().equals(signature))
+              .findFirst()
+              .orElseThrow(() -> s.fail("No such version: " + name + "/" + signature));
       s.assertAndSkip('>');
 
       s.assertAndSkip('=');
@@ -120,6 +128,11 @@ public final class ModuleFeedbackParseContext {
           var calleeName = p2.parse(NamedVariable.class);
           var callee = module.lookupFunction(calleeName);
           if (callee == null) {
+            // As above: an inner closure's function exists once its enclosing baseline does.
+            module.evaluateBaselines();
+            callee = module.lookupFunction(calleeName);
+          }
+          if (callee == null) {
             throw s.fail("No such function: " + calleeName);
           }
           feedback.callees.put(register, Optional.of(callee));
@@ -150,6 +163,12 @@ public final class ModuleFeedbackParseContext {
     private Register parseRegister(Parser p) {
       var s = p.scanner();
       var name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+      // Parameters first, because an unevaluated version has feedback for them (from calls that
+      // ran its fallback), and looking through its other registers would evaluate it.
+      var parameter = scope.parameters().stream().filter(r -> r.name().equals(name)).findFirst();
+      if (parameter.isPresent()) {
+        return parameter.get();
+      }
       return scope
           .streamRegisters()
           .filter(r -> r.name().equals(name))
@@ -162,8 +181,10 @@ public final class ModuleFeedbackParseContext {
     /// [ModuleFeedbackPrintContext.AbstractionFeedbackPrintContext]'s `printPosition`.
     private Statement parsePosition(Parser p) {
       var s = p.scanner();
-      var cfg =
-          Objects.requireNonNull(scope.cfg(), "can't parse a position for a stub abstraction");
+      if (scope.isStub()) {
+        throw s.fail("can't parse a position for a stub abstraction");
+      }
+      var cfg = scope.body();
 
       Statement statement;
       while (true) {

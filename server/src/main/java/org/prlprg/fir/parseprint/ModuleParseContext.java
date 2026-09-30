@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
@@ -309,6 +308,11 @@ public final class ModuleParseContext {
 
         s.assertAndSkip('{');
 
+        if (s.trySkip(IrPrintContext.UNEVALUATED_BODY)) {
+          throw s.fail(
+              "can't parse an unevaluated version: its printed form doesn't say how to evaluate it");
+        }
+
         var isStub = s.trySkip("...");
         var abstraction = new Abstraction(module, parameters, isStub);
         abstraction.comments().addAll(comments);
@@ -326,7 +330,7 @@ public final class ModuleParseContext {
           define(parameter.name(), parameter);
         }
 
-        var body = new BodyParseContext(Objects.requireNonNull(abstraction.cfg()));
+        var body = new BodyParseContext(abstraction.body());
         body.parseInto(p.withContext(body));
 
         s.assertAndSkip('}');

@@ -33,6 +33,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     assertTrue(run(module), "optimization should report a change");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     assertTrue(
         printed.contains("(vec:v(I)b) -~> I"),
@@ -159,6 +161,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     assertTrue(run(module), "a local promise doesn't outlive the frame, so it can read a loan");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     assertTrue(
         printed.contains("(vec:v(I)b) -~> v1(I)"),
@@ -240,6 +244,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     assertTrue(run(module), "a callee that only borrows can be handed a loan");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     assertTrue(
         printed.contains("(vec:v(I)b) -~> I"),

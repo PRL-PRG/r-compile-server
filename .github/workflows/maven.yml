@@ -10,9 +10,9 @@ name: Java CI with Maven
 
 # Nearly everything this builds lives under server/ -- including the .proto
 # files, which `make -C proto` copies into server/src/main/protobuf. The
-# exceptions are client/rsh/src, whose headers the server's tests compile the
-# generated C against (plus the fir2c runtime sources they compile into it, so
-# the result loads without the `rsh` package), and the vendored GNU-R those
+# exceptions are client/rsh, whose headers the server's tests compile the
+# generated C against and whose package the FIŘ→C eval tests load into R (so
+# it's built and installed, from proto/ too), and the vendored GNU-R those
 # tests run and link against (the `R` gitlink plus the script that builds it).
 # The two `paths` lists must be kept in sync; GitHub Actions does not support
 # YAML anchors.
@@ -21,22 +21,26 @@ on:
     branches: ["main"]
     paths:
       - "server/**"
-      - "client/rsh/src/**"
+      - "client/rsh/**"
+      - "proto/**"
       # Only the gitlink is tracked for the submodule, so this is a plain path
       # rather than an `R/**` glob, which would never match.
       - "R"
       - "tools/build-gnur.sh"
       - ".github/workflows/maven.yml"
       - ".github/actions/setup-gnur/**"
+      - ".github/actions/setup-rsh/**"
   pull_request:
     branches: ["main"]
     paths:
       - "server/**"
-      - "client/rsh/src/**"
+      - "client/rsh/**"
+      - "proto/**"
       - "R"
       - "tools/build-gnur.sh"
       - ".github/workflows/maven.yml"
       - ".github/actions/setup-gnur/**"
+      - ".github/actions/setup-rsh/**"
   workflow_dispatch:
 
 # Skip the `stdlib_*` examples in the snapshot tests: they're slow and cover the
@@ -117,6 +121,8 @@ jobs:
           cache: maven
       - name: Set up GNU-R
         uses: ./.github/actions/setup-gnur
+      - name: Set up rsh
+        uses: ./.github/actions/setup-rsh
       - name: Run tests (no static analyses)
         working-directory: server
         run: ./mvnw --batch-mode --update-snapshots test
@@ -135,6 +141,8 @@ jobs:
           cache: maven
       - name: Set up GNU-R
         uses: ./.github/actions/setup-gnur
+      - name: Set up rsh
+        uses: ./.github/actions/setup-rsh
       - name: Run tests and static analyses
         working-directory: server
         run: ./mvnw --batch-mode --update-snapshots verify
@@ -161,6 +169,8 @@ jobs:
           cache: maven
       - name: Set up GNU-R
         uses: ./.github/actions/setup-gnur
+      - name: Set up rsh
+        uses: ./.github/actions/setup-rsh
       - name: Run tests and static analyses
         working-directory: server
         run: ./mvnw --batch-mode --update-snapshots verify

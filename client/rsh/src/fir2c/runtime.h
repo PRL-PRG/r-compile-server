@@ -12,7 +12,8 @@ extern "C" {
 
 // FIXME: use the SCALAR_ macros
 #define Fir_const(env, idx) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)]
-#define Fir_set_const(env, idx, value) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)] = (value)
+// With the write barrier: a pool is written to after allocations that may have made it old.
+#define Fir_set_const(env, idx, value) SET_VECTOR_ELT((env), (idx), (value))
 
 typedef enum {
   FIR_MKENV_REGULAR,
@@ -122,6 +123,59 @@ typedef struct Fir_PromiseLocalData {
   /// exited. Set to `false` when created, then `true` when the creating frame exits.
   bool escaped;
 } Fir_PromiseLocalData;
+
+/// A version the server hasn't compiled yet (see `server/doc/lazy-versions.md`).
+///
+/// The generated code defines one of these for the version, and a function with the version's
+/// name and signature that calls `Fir_stub_enter`, then either the compiled version it returns or
+/// (if it returns `NULL`) the version's fallback, which is compiled into the function.
+typedef struct Fir_Stub {
+  /// What the server calls the module this is in.
+  const char *module;
+  /// Which of the module's stubs this is.
+  int id;
+  /// The compiled version, or `NULL` until it's loaded. Its type is the stub function's.
+  void *compiled;
+  /// A `Fir_StubState`.
+  int state;
+} Fir_Stub;
+
+typedef enum {
+  /// Never called.
+  FIR_STUB_UNREQUESTED = 0,
+  /// The server was asked to compile the version, and the answer hasn't been loaded.
+  FIR_STUB_REQUESTED = 1,
+  /// `compiled` is set.
+  FIR_STUB_COMPILED = 2,
+  /// The server couldn't compile the version, so the fallback is all there will ever be.
+  FIR_STUB_FAILED = 3,
+} Fir_StubState;
+
+/// How stubs get their versions compiled. The runtime can't do it itself (it would need the
+/// connection to the server, and a way to load code), so whoever can registers one of these: the
+/// `rsh` package.
+typedef struct Fir_StubCompiler {
+  /// Ask for `stub`'s version to be compiled, and return without waiting for it.
+  void (*request)(Fir_Stub *stub);
+  /// If what `request(stub)` asked for has arrived, load it, which sets `stub->compiled` (and
+  /// that of every other stub it replaces) via `Fir_stub_compiled`, or the state to
+  /// `FIR_STUB_FAILED`. If `wait`, block until it has.
+  void (*poll)(Fir_Stub *stub, bool wait);
+  /// Whether a stub's second call waits for the compiled version, so that which calls run the
+  /// fallback doesn't depend on how long compiling takes: the first call does, no other. For
+  /// tests.
+  bool deterministic;
+} Fir_StubCompiler;
+
+/// Register how stubs get their versions compiled, or unregister with `NULL` (the default),
+/// which leaves every stub on its fallback. `compiler` must stay valid.
+void Fir_set_stub_compiler(const Fir_StubCompiler *compiler);
+/// The compiled version to call in place of `stub`'s fallback, or `NULL` to run the fallback.
+///
+/// The first call asks the server for the version, and later ones load it once it has arrived.
+void *Fir_stub_enter(Fir_Stub *stub);
+/// Make `stub` call `compiled` from now on. Called by the code the server sends, once loaded.
+void Fir_stub_compiled(Fir_Stub *stub, void *compiled);
 
 extern Fir_Kind Fir_kind_any_value;
 extern Fir_Kind Fir_kind_closure;

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
@@ -34,7 +35,19 @@ import org.prlprg.util.Strings;
 
 public class Optimizations {
   /// An optimization that never changes anything
-  private static final Optimization NOOP = (_, _) -> false;
+  private static final Optimization NOOP =
+      new Optimization() {
+        @Override
+        public String name() {
+          return "noop";
+        }
+
+        @Override
+        public boolean runWithoutRecording(
+            Optimization topLevel, ModuleFeedback feedback, org.prlprg.fir.ir.module.Function f) {
+          return false;
+        }
+      };
 
   private static final int DEFAULT_THRESHOLD = 10;
 

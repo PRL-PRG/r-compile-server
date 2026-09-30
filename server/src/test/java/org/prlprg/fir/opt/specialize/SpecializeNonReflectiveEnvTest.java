@@ -2,7 +2,6 @@ package org.prlprg.fir.opt.specialize;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
@@ -118,7 +117,7 @@ class SpecializeNonReflectiveEnvTest {
   }
 
   private static Statement mkEnvPosition(Abstraction abstraction) {
-    var cfg = Objects.requireNonNull(abstraction.cfg());
+    var cfg = abstraction.body();
     for (var bb : cfg.bbs()) {
       for (var statement : bb.statements()) {
         if (statement.expression() instanceof MkEnv) {

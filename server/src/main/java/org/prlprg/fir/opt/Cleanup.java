@@ -52,8 +52,14 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// This is a special optimization that's implicitly run after other optimizations, and never
 /// reports changes.
-public record Cleanup(boolean reportChanges) implements AbstractionOptimization {
-  /// Run the [Cleanup] optimization on `module`
+public final class Cleanup extends AbstractionOptimization {
+  private final boolean reportChanges;
+
+  public Cleanup(boolean reportChanges) {
+    this.reportChanges = reportChanges;
+  }
+
+  /// Run the [Cleanup] optimization on every evaluated version in `module`
   public static boolean cleanup(Module module) {
     var changed = false;
     for (var function : module.localFunctions()) {
@@ -64,8 +70,11 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     return changed;
   }
 
-  /// Run the [Cleanup] optimization on `abstraction`
+  /// Run the [Cleanup] optimization on `abstraction`, unless it's unevaluated
   public static boolean cleanup(Abstraction abstraction) {
+    if (!abstraction.isStub() && !abstraction.isEvaluated()) {
+      return false;
+    }
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;
@@ -73,7 +82,10 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
 
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return reportChanges && opt.changed;

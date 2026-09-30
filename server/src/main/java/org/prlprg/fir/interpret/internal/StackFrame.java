@@ -46,15 +46,29 @@ final class StackFrame {
   private int numEnvsPushed = 0;
   /// Whether this frame has [deopt-restored][#markDeoptRestored()].
   private boolean deoptRestored = false;
+  /// The environment of the closure being called, i.e. [#environment] before any `mkenv`.
+  private final EnvSXP closureEnv;
+  /// Whether this frame runs a version's [fallback][Abstraction#fallback()] instead of its body.
+  private final boolean isFallback;
 
-  StackFrame(Function function, EnvSXP parentEnv, Map<EnvSXP, Statement> userEnvPositions) {
+  StackFrame(
+      Function function,
+      EnvSXP parentEnv,
+      Map<EnvSXP, Statement> userEnvPositions,
+      boolean isFallback) {
     this.function = function;
     environment = parentEnv;
+    closureEnv = parentEnv;
     this.userEnvPositions = userEnvPositions;
+    this.isFallback = isFallback;
   }
 
   Function function() {
     return function;
+  }
+
+  EnvSXP closureEnv() {
+    return closureEnv;
   }
 
   @UnmodifiableView
@@ -72,7 +86,9 @@ final class StackFrame {
   /// Enters a sub-frame for `position`'s [`CFG`][org.prlprg.fir.ir.cfg.CFG].
   public void enter(CFGCursor position, ModuleFeedback feedback) {
     var scope = position.cfg().scope();
-    var scopeFeedback = feedback.get(scope);
+    // A fallback's registers and statements are gone once the body is evaluated, so what's
+    // recorded about them would refer to nothing.
+    var scopeFeedback = isFallback ? AbstractionFeedback.discarded(feedback) : feedback.get(scope);
     subFrames.add(new SubFrame(position, scopeFeedback));
   }
 

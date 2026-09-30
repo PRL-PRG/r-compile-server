@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
-
 import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -20,10 +18,19 @@ import org.prlprg.fir.ir.type.Type;
 /// parameter itself once it owns it: in the copy, the `dup` becomes redundant and
 /// [ConsumeDeadDup]/[ElideConsumedDup] remove it. Callers that have a vector to spare can then use
 /// the copy ([CallOwnedVersion]), and the original still serves the ones that don't.
-public record CreateOwnedParameterVersion(int versionLimit) implements AbstractionOptimization {
+public final class CreateOwnedParameterVersion extends AbstractionOptimization {
+  private final int versionLimit;
+
+  public CreateOwnedParameterVersion(int versionLimit) {
+    this.versionLimit = versionLimit;
+  }
+
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction version) {
     if (function == null || version.isStub() || version == function.baseline()) {
       return false;
     }
@@ -62,7 +69,7 @@ public record CreateOwnedParameterVersion(int versionLimit) implements Abstracti
       return false;
     }
 
-    copy(feedback.module(), function, version, newParameterTypes);
+    LazyCopy.create(topLevel, feedback.module(), function, version, newParameterTypes);
     return true;
   }
 

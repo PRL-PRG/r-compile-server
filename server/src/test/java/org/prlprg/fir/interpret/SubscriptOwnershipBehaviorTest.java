@@ -69,9 +69,13 @@ class SubscriptOwnershipBehaviorTest {
     assertTrue(
         OWNERSHIP.run(interpreter.feedback(), module), "optimization should report a change");
 
+    // The first call runs the fallback of the version `main` now calls, and the second evaluates
+    // it (which optimizes it, so it's what's printed).
+    var viaFallback = interpreter.call("main");
     var after = interpreter.call("main");
     var printed = Printer.toString(module);
 
+    assertEquals(before, viaFallback, "the fallback changed the output; printed:\n" + printed);
     assertEquals(before, after, "optimization changed the output; printed:\n" + printed);
     assertTrue(
         printed.contains("(v:v(I)o) -~> v(I)f"),

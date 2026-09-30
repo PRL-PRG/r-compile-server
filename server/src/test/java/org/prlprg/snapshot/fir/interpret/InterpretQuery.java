@@ -90,18 +90,20 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
 
     var checkpointTracePath = path.resolve("trace.log");
     var feedbackPath = path.resolve("feedback.txt");
+    var modulePath = path.resolve("module.fir");
 
     var result = SexpResult.read(path, R);
     var checkpointTrace = Files.readString(checkpointTracePath);
 
-    // Relies on `module` being cached in-memory, because `feedback` has direct pointers.
+    // The feedback points into `module`, which nothing else has, so whoever optimizes with it
+    // has to copy it for their own module ([MockModuleFeedback#copyFor(Module)]).
     var feedback =
         Parser.fromFile(
             feedbackPath.toFile(),
             MockModuleFeedback.class,
             new ModuleFeedbackParseContext(module));
 
-    return new InterpretOutput(result, checkpointTrace, feedback);
+    return new InterpretOutput(result, checkpointTrace, feedback, Files.readString(modulePath));
   }
 
   @Override
@@ -109,10 +111,12 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
       throws IOException {
     var checkpointTracePath = path.resolve("trace.log");
     var feedbackPath = path.resolve("feedback.txt");
+    var modulePath = path.resolve("module.fir");
 
     Files.createDirectories(path);
     data.result().write(path);
     Files.writeString(checkpointTracePath, data.checkpointTrace());
     Printer.toFile(feedbackPath.toFile(), data.feedback());
+    Files.writeString(modulePath, data.module());
   }
 }

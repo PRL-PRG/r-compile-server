@@ -8,13 +8,20 @@ import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
+/// What running a compiled module did.
+///
+/// @param module For a module with stubs, its FIŘ as printed after the run: what the compile
+///     server evaluated (and optimized) to answer the stubs (an unevaluated version isn't printed,
+///     or, if it's a baseline, only its signature is). Only saved, not compared: it's what the run
+///     left behind, not what it did.
 // we do not persist the performance counters
 public record EvalOutput(
     SexpResult result,
     String outputLog,
     @Nullable MockModuleFeedback feedback,
-    PerformanceCounters pc) {
-  /// Ignore `pc` in comparison
+    PerformanceCounters pc,
+    @Nullable String module) {
+  /// Ignore `pc` and `module` in comparison
   @Override
   public boolean equals(Object o) {
     if (!(o instanceof EvalOutput that)) {
@@ -25,7 +32,7 @@ public record EvalOutput(
         && Objects.equals(feedback, that.feedback);
   }
 
-  /// Ignore `pc` in comparison
+  /// Ignore `pc` and `module` in comparison
   @Override
   public int hashCode() {
     return Objects.hash(result, behaviorOutputLog(), feedback);

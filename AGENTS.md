@@ -108,6 +108,7 @@ R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
 ### Testing Strategy
 
 - **Snapshot integration tests**: Each test runs on example source code from `src/test/resources/org/prlprg/examples/`. It takes as input either the source itself and/or outputs of tests for earlier segments of the pipeline (e.g. the FIŘ to C test takes as input a FIŘ module encoding the example, which is produced by the FIŘ parser test for FIŘ examples and BC to FIŘ test for R examples). It produces output, which is either the next stage or end result of the pipeline, and saves it to a subdirectory of `src/test/snapshots/org/prlprg/snapshots/`.
+  - The FIŘ→C eval tests run the compiled code in an R that has the `rsh` package loaded, connected to a compile server in the test JVM that compiles the versions the code's stubs ask for (see `./server/doc/lazy-versions.md`). So `rsh` must be installed in the vendored R (`make -C client/rsh install`), and reinstalled after changing its runtime; the tests check this.
 - **Unit tests**: JUnit 5
 - **Property tests**: JQwik
 
@@ -133,7 +134,7 @@ Tools that are automatically invoked by Makefiles and other code. Don't invoke d
 
 At `./.github/workflows`. Both workflows are gated on `paths`, so most changes run neither. Both can also be run manually via `workflow_dispatch`, which ignores `paths`.
 
-- `maven.yml` - builds and tests `./server`. Runs on `server/**`, which also covers the protocol buffers, since `make -C proto` copies them into `./server/src/main/protobuf`, and on `client/rsh/src/**`, whose headers the tests compile the generated C against.
+- `maven.yml` - builds and tests `./server`. Runs on `server/**`, which also covers the protocol buffers, since `make -C proto` copies them into `./server/src/main/protobuf`, on `proto/**` and `client/rsh/**`, since the tests build and install `rsh` (its headers are what the generated C is compiled against, and the FIŘ→C eval tests load the package).
 - `rcp-benchmarks.yml` - builds the rcp Docker images, runs rcp's test suites, and runs the benchmarks on a self-hosted runner. Runs on `client/rcp/**`, `R`, `tools/build-gnur.sh` (which builds the R it links against), and `client/rsh/inst/benchmarks/**` (the harness it drives). `R` is the submodule pointer: only the gitlink is tracked, so it's a plain path and not a `R/**` glob, which would never match.
 
 When editing these, note that a `paths` list can't be shared between a workflow's `push` and `pull_request` triggers, because GitHub Actions does not support YAML anchors -- keep the two copies in sync.

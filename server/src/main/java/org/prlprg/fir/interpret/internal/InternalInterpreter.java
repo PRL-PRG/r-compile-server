@@ -7,10 +7,12 @@ import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.Stack;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
@@ -31,6 +33,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -121,6 +124,8 @@ public final class InternalInterpreter implements Interpreter {
   // Input
   private final Module module;
   private final Map<Abstraction, ExternalVersion> externalVersions = new HashMap<>();
+  /// Unevaluated versions whose fallback already ran, so their next call evaluates them.
+  private final Set<Abstraction> ranFallback = new HashSet<>();
 
   // State
   private final GlobalEnvSXP globalEnv;
@@ -142,7 +147,7 @@ public final class InternalInterpreter implements Interpreter {
   /// [elided][MkEnvType#ELIDED].
   private final Map<EnvSXP, Statement> userEnvPositions = new HashMap<>();
 
-  /// Whether the most-recently-returned [#run(StackFrame, CFG, CFG)] deopt-restored at
+  /// Whether the most-recently-returned [#run(StackFrame, CFG, Abstraction)] deopt-restored at
   /// some point. Set right before `run` returns and consumed (reset) by [#call]; used to check
   /// the result against the deopt-restore CFG's return type instead of the version's, since a
   /// version's return type only describes its normal returns.
@@ -157,8 +162,20 @@ public final class InternalInterpreter implements Interpreter {
   /// New functions added to the module are automatically added to the interpreter's environment
   /// thanks to [org.prlprg.fir.ir.observer.Observer].
   public InternalInterpreter(Module module) {
+    this(module, new MockModuleFeedback(module));
+  }
+
+  /// [#InternalInterpreter(Module)], but records feedback in `feedback` (which must be for
+  /// `module`) instead of starting with none.
+  ///
+  /// This is for a module with unevaluated versions that optimize themselves when evaluated: pass
+  /// the feedback those optimizations read, so they see what was recorded since.
+  public InternalInterpreter(Module module, MockModuleFeedback feedback) {
+    if (feedback.module() != module) {
+      throw new IllegalArgumentException("Feedback is for a different module");
+    }
     this.module = module;
-    feedback = new MockModuleFeedback(module);
+    this.feedback = feedback;
 
     var baseEnv = new BaseEnvSXP();
     globalEnv = new GlobalEnvSXP(baseEnv);
@@ -314,7 +331,9 @@ public final class InternalInterpreter implements Interpreter {
 
   @Override
   public Value call(String functionName, Value... arguments) {
-    try {
+    // Pinned, because evaluating a version optimizes the module, including the code this is in
+    // the middle of interpreting. The optimizations run once this returns.
+    try (var _ = module.pin()) {
       var function = module.lookupFunction(Variable.named(functionName));
       if (function == null) {
         throw fail("Unknown function: " + functionName);
@@ -356,31 +375,38 @@ public final class InternalInterpreter implements Interpreter {
               + "]");
     }
 
-    var result = call(function, best, closureEnv, arguments, function.baseline().cfg());
+    var result = call(function, best, closureEnv, arguments, function.baseline());
 
     checkType(result, function.baseline().returnType(), "return");
     return result;
   }
 
   /// Calls the function version with the arguments in the nested-closure and stack environment
+  ///
+  /// The first call of an unevaluated version runs its fallback (if it has one), and the second
+  /// evaluates it. This is the same order of events as in compiled code, where the first call runs
+  /// the fallback while the version is being compiled.
   private Value call(
       Function function,
       Abstraction abstraction,
       EnvSXP closureEnv,
       List<Value> arguments,
-      @Nullable CFG deoptRestoreCfg) {
+      @Nullable Abstraction deoptRestore) {
     // Hijack if we registered external code for this version
     var hijacker = externalVersions.get(abstraction);
     if (hijacker != null) {
       return callExternal(hijacker, abstraction, arguments, closureEnv);
     }
 
-    var cfg = abstraction.cfg();
-    if (cfg == null) {
+    if (abstraction.isStub()) {
       throw failUnsupported("Can't call unregistered stub");
     }
 
-    var frame = mkFrame(function, closureEnv);
+    var fallback = abstraction.isEvaluated() ? null : abstraction.fallback();
+    var isFallback = fallback != null && ranFallback.add(abstraction);
+    var cfg = isFallback ? fallback : abstraction.body();
+
+    var frame = new StackFrame(function, closureEnv, userEnvPositions, isFallback);
     var feedback = feedback().get(abstraction);
     feedback.recordCall();
 
@@ -405,7 +431,7 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     // Execute CFG (a function body, so it has no enclosing promises)
-    var result = run(frame, cfg, deoptRestoreCfg);
+    var result = run(frame, cfg, deoptRestore);
 
     // The frame has exited: any promise it created has now escaped (outlived its frame). Forcing
     // one afterwards is detected in `force`.
@@ -475,15 +501,11 @@ public final class InternalInterpreter implements Interpreter {
     }
   }
 
-  private StackFrame mkFrame(Function function, EnvSXP parentEnv) {
-    return new StackFrame(function, parentEnv, userEnvPositions);
-  }
-
   /// Interprets the control flow graph starting from the entry block.
   ///
   /// Also pushes/pops `frame`; every [CFG] runs at its own stack frame index (the frame itself
   /// is reused across all CFGs in the [Abstraction]).
-  private Value run(StackFrame frame, CFG cfg, @Nullable CFG deoptRestoreCfg) {
+  private Value run(StackFrame frame, CFG cfg, @Nullable Abstraction deoptRestore) {
     checkStack();
 
     var cursor = new CFGCursor(cfg);
@@ -509,6 +531,10 @@ public final class InternalInterpreter implements Interpreter {
           return value;
         }
         case ControlFlow.Deopt(var pc, var deoptStack) -> {
+          // Only evaluated here, so a version that never deoptimizes doesn't evaluate the
+          // baseline.
+          var deoptRestoreCfg =
+              deoptRestore == null || deoptRestore.isStub() ? null : deoptRestore.body();
           if (cfg == deoptRestoreCfg) {
             throw fail("Can't restore from the same CFG we deoptimized from");
           }
@@ -872,7 +898,16 @@ public final class InternalInterpreter implements Interpreter {
             Objects.requireNonNull(exactVersion),
             closureEnv,
             arguments,
-            function.baseline().cfg());
+            function.baseline());
+      }
+      case FallbackCallee(var signature) -> {
+        var frame = topFrame();
+        var function = frame.function();
+        var version = function.guess(signature, frame.scope());
+        if (version == null) {
+          throw fail("No other versions of " + function.name() + " match signature: " + signature);
+        }
+        yield call(function, version, frame.closureEnv(), arguments, function.baseline());
       }
       case DynamicCallee(var argumentNames) -> {
         var calleeValue = run(calleeArg);

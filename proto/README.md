@@ -10,7 +10,9 @@ The communication between the client and the server is done through gRPC.
 ## Services
 
 - `CompileService` runs on the server side to compile the code and return the result. It also has 
- an `Init` route to initialize the server (version of R on the client...)
+ an `Init` route to initialize the server (version of R on the client...), and a `CompileFirVersion`
+ route that the stubs in compiled FIŘ code use to ask for the versions they stand for (see
+ `../server/doc/lazy-versions.md`).
 - `FactService` runs on the client side and is interrogated by the server to get information to compile functions, 
   for instance, a value in an environment.
 

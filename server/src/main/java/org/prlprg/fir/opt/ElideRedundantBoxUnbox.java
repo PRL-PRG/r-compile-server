@@ -27,10 +27,13 @@ import org.prlprg.fir.ir.variable.Register;
 ///   second result with `r`.
 /// - Two identical `box(r)` calls, or two identical `unbox(r)` calls, substitute dominated uses
 ///   of the later result with the earlier result.
-public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
+public final class ElideRedundantBoxUnbox extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     return new OnAbstraction(scope).run();
   }
 

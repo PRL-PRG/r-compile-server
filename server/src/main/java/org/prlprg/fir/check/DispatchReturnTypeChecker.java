@@ -19,10 +19,10 @@ public class DispatchReturnTypeChecker extends Checker {
 
   @Override
   protected void doRun(Abstraction version) {
-    var cfg = version.cfg();
-    if (cfg == null) {
+    if (version.isStub()) {
       return;
     }
+    var cfg = version.body();
 
     var cursor = new CFGCursor(cfg);
     for (var bb : cfg.bbs()) {

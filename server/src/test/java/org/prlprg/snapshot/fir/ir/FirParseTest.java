@@ -27,7 +27,8 @@ public class FirParseTest {
   @FirExampleTest
   @Order(2)
   void testRoundTrip(Example example, SnapshotStore store) {
-    var module = store.load(example, FirQuery.INSTANCE);
+    // An unevaluated version doesn't round-trip: it isn't printed (or doesn't parse).
+    var module = store.load(example, new ForcedFirQuery(FirQuery.INSTANCE));
     var print = module.toString();
 
     // Skip negative-test examples: they carry expected-error annotations (`# <checker>-error:`)

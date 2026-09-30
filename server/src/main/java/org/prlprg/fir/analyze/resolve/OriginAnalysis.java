@@ -228,13 +228,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// `null` iff there are no returns, a return has unknown origin, or the possible return
   /// origins are different.
   public @Nullable Argument getReturn() {
-    var mainCfg = scope.cfg();
-    if (mainCfg == null) {
-      // Stub
+    if (scope.isStub()) {
       return null;
     }
 
-    return ((OnCfg) onCfg(mainCfg)).returnOrigin();
+    return ((OnCfg) onCfg(scope.body())).returnOrigin();
   }
 
   private static @Nullable Argument uniqueOrNull(@Nullable Set<Argument> origins) {

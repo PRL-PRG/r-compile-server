@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -12,6 +10,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
@@ -39,10 +38,19 @@ import org.prlprg.fir.ir.variable.FunctionParameter;
 /// This is the inverse of [CreateOwnedParameterVersion], and the two never fight over the same
 /// parameter: that one promotes exactly the parameters a `dup` reads, and this one skips those (see
 /// [#isDupped]).
-public record CreateBorrowedParameterVersion(int versionLimit) implements AbstractionOptimization {
+public final class CreateBorrowedParameterVersion extends AbstractionOptimization {
+  private final int versionLimit;
+
+  public CreateBorrowedParameterVersion(int versionLimit) {
+    this.versionLimit = versionLimit;
+  }
+
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction version) {
     if (function == null || version.isStub() || version == function.baseline()) {
       return false;
     }
@@ -82,7 +90,7 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
       return false;
     }
 
-    copy(feedback.module(), function, version, newParameterTypes);
+    LazyCopy.create(topLevel, feedback.module(), function, version, newParameterTypes);
     return true;
   }
 
@@ -158,6 +166,8 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
     return switch (callee) {
       // Nothing bounds what an unknown callee does with its arguments.
       case DynamicCallee _ -> true;
+      // Only in a fallback, which isn't optimized.
+      case FallbackCallee _ -> true;
       case StaticFnCallee(_, _, var signature) -> {
         var parameterTypes = signature.parameterTypes();
         // Index 0 is the closure-with-env, which is shared, and an index past the end is an arity
@@ -176,9 +186,8 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
   /// promise).
   private static Set<CFG> escapingCfgs(Abstraction version) {
     var escapingCfgs = new HashSet<CFG>();
-    var cfg = version.cfg();
-    if (cfg != null) {
-      collectEscapingCfgs(cfg, false, escapingCfgs);
+    if (!version.isStub()) {
+      collectEscapingCfgs(version.body(), false, escapingCfgs);
     }
     return escapingCfgs;
   }

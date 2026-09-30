@@ -1,6 +1,5 @@
 package org.prlprg.bc2fir;
 
-import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
@@ -26,8 +25,18 @@ public final class BC2FirClosureCompiler {
 
   /// Compile the closure, add it to the module, and return it.
   ///
-  /// If `bytecodes` is non-`null`, records the closure's GNU-R bytecode (and, transitively, that
-  /// of every inner closure) in it.
+  /// The function's baseline is unevaluated: the bytecode is only compiled into its body when the
+  /// body is first accessed, which is also when the functions of the closure's inner closures are
+  /// added to the module (and when an unsupported bytecode is reported, by
+  /// [BC2FirCFGCompilerUnsupportedException]). It has no fallback, because what runs instead of an
+  /// unevaluated baseline is the bytecode itself.
+  ///
+  /// The body isn't cleaned up ([org.prlprg.fir.opt.Cleanup]): the compiler leaves unreachable
+  /// blocks and other things behind, which the optimizations remove anyway.
+  ///
+  /// If `bytecodes` is non-`null`, records the closure's GNU-R bytecode in it (and, when the
+  /// baseline is evaluated, that of every inner closure, as well as the baseline's feedback
+  /// registers).
   ///
   /// @throws IllegalArgumentException If `r` is `null` and `closure` has AST default arguments
   /// or an AST body.
@@ -62,16 +71,15 @@ public final class BC2FirClosureCompiler {
 
     var origin = bytecodes == null ? null : bytecodes.record(name, bc, closure.parameters());
 
-    var output = module.addFunction(Variable.named(name), parameterNames, false);
-    var outputBaseline = output.baseline();
-    var outputCfg = Objects.requireNonNull(outputBaseline.cfg(), "baseline is never a stub");
-    var outputCursor = new CFGCursor(outputCfg);
+    // The baseline's signature doesn't depend on the bytecode, so only the body is lazy.
+    return module.addFunction(
+        Variable.named(name),
+        parameterNames,
+        body -> {
+          var cfgCompiler = new BC2FirCFGCompiler(r, new CFGCursor(body), bc, bytecodes, origin);
 
-    var cfgCompiler = new BC2FirCFGCompiler(r, outputCursor, bc, bytecodes, origin);
-
-    cfgCompiler.compileClosureEntry(parameterNames, closure.parameters().values());
-    cfgCompiler.compileBc();
-
-    return output;
+          cfgCompiler.compileClosureEntry(parameterNames, closure.parameters().values());
+          cfgCompiler.compileBc();
+        });
   }
 }

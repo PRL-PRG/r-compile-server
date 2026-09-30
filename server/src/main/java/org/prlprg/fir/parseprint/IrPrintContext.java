@@ -13,6 +13,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -58,6 +59,10 @@ import org.prlprg.sexp.SEXPs;
 public final class IrPrintContext {
   // region module, function, version
 
+  /// What's printed in place of the body of an unevaluated version. Deliberately not parseable:
+  /// the text doesn't say how to evaluate the body.
+  public static final String UNEVALUATED_BODY = "<unevaluated>";
+
   @PrintMethod
   private void printModule(Module module, Printer p) {
     p.printSeparated("\n\n", module.localFunctions());
@@ -88,7 +93,14 @@ public final class IrPrintContext {
           // textual form goes baseline first and then increasingly specific — which is also what
           // the parser assumes, since it takes the first version it reads as the baseline. So
           // print the reverse; otherwise print -> parse -> print moves the baseline every time.
+          //
+          // Unevaluated versions aren't printed, because the text couldn't say how to evaluate
+          // them. The exception is the baseline, which a function can't go without: it's printed
+          // with a body that doesn't parse.
           for (var version : function.versions().reversed()) {
+            if (version != function.baseline() && !version.isStub() && !version.isEvaluated()) {
+              continue;
+            }
             w.write('\n');
             p.print(version);
           }
@@ -126,10 +138,14 @@ public final class IrPrintContext {
 
     w.write(" {");
 
-    var cfg = abstraction.cfg();
-    if (cfg == null) {
+    if (abstraction.isStub()) {
       w.write(" ... ");
+    } else if (!abstraction.isEvaluated()) {
+      w.write(' ');
+      w.write(UNEVALUATED_BODY);
+      w.write(' ');
     } else {
+      var cfg = abstraction.body();
       // Registers declare their type inline at their definition site (see [Statement] and the phi
       // parameters in a block header), so there is no separate declarations line — the body follows
       // the `{` directly.
@@ -234,6 +250,14 @@ public final class IrPrintContext {
               p.print(closureWithEnv);
             }
             w.write("< ");
+            p.print(signature);
+            w.write(" >");
+            p.printAsList("(", ")", args.subList(1, args.size()));
+          }
+          case FallbackCallee(var signature) -> {
+            // For debugging only: fallbacks aren't printed with their version, so there's
+            // nothing to parse this back.
+            w.write("fallback< ");
             p.print(signature);
             w.write(" >");
             p.printAsList("(", ")", args.subList(1, args.size()));

@@ -628,7 +628,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
 
   private static CFG cfg(Module module) {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main")));
-    return Objects.requireNonNull(main.versions().first().cfg());
+    return main.versions().first().body();
   }
   // endregion
 }
