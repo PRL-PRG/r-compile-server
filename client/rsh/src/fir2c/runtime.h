@@ -4,6 +4,7 @@
 // IT IS USED BY THE SERVER COMPILER
 
 #include "../common2c/rsh_utils.h"
+#include <stdarg.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -99,14 +100,28 @@ typedef struct Fir_Signature {
 } Fir_Signature;
 
 typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
+typedef SEXP (*Fir_DispatchImplFn)(SEXP env, Fir_Signature signature, va_list args);
+typedef SEXP (*Fir_FromRFn)(SEXP env, SEXP constants);
 typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
 typedef SEXP (*Fir_PromiseFn)(SEXP env, void **captures);
 
 typedef struct Fir_FunctionData {
   const char* name;
+  /// Dispatches a call with runtime-typed arguments to the function's best version. Fixed for the
+  /// function's life, and its identity (see `Fir_assume_function`): forwards to `dispatch_impl`.
   Fir_DispatchFn dispatch;
+  /// What `dispatch` calls. It's compiled from the versions the function has, so whenever the
+  /// function gets more (compiled in a patch, see `Fir_stub_compiled`) it's regenerated and
+  /// replaced (`Fir_fun_set_entries`).
+  Fir_DispatchImplFn dispatch_impl;
+  /// What a call from R (the body of one of the function's closures, which forwards here) runs.
+  /// Regenerated and replaced like `dispatch_impl`.
+  Fir_FromRFn from_r;
   SEXP formal_names;
 } Fir_FunctionData;
+
+/// The `Fir_FunctionData` of the function whose constant pool is `constants`.
+#define Fir_fun_data(constants) ((Fir_FunctionData *)STDVEC_DATAPTR(Fir_const((constants), 0)))
 
 typedef struct Fir_PromiseGlobalData {
   Fir_PromiseFn eval;
@@ -225,6 +240,9 @@ bool Fir_value_matches(SEXP value, Fir_Type type);
 Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects);
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
+/// Replace the dispatch and from-R entries of the function whose constant pool is `constants`
+/// (see `Fir_FunctionData`).
+void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_FromRFn from_r);
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env);
 /// Prepend `promise` to `tracked_list` (a pairlist of promises created in the current frame),
 /// re-protecting it at `idx`, and return `promise`. Used to remember which promises to mark

@@ -1,7 +1,6 @@
 package org.prlprg.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
@@ -23,7 +22,8 @@ import org.prlprg.fir.opt.LazyCopy;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.sexp.SEXPs;
 
-/// The interpreter runs an unevaluated version's fallback once, then evaluates it.
+/// The interpreter runs an unevaluated version's fallback for the rest of the top-level call, then
+/// evaluates it.
 class LazyVersionInterpretTest {
   private static final class NoOptimization extends Optimization {
     @Override
@@ -73,14 +73,59 @@ class LazyVersionInterpretTest {
 
     var first = interpreter.call("main");
     assertEquals(new Value.Sexp(SEXPs.integer(42)), first);
-    assertFalse(copy.isEvaluated(), "the first call ran the fallback");
-    assertEquals(1, feedback.get(copy).numCalls(), "which counts as a call");
+    assertEquals(1, feedback.get(copy).numCalls(), "the fallback counts as a call");
+    assertTrue(copy.isEvaluated(), "the copy is evaluated once the top-level call returns");
 
     var second = interpreter.call("main");
     assertEquals(new Value.Sexp(SEXPs.integer(42)), second);
-    assertTrue(copy.isEvaluated(), "the second call evaluated the copy");
+    assertEquals(2, feedback.get(copy).numCalls());
+  }
 
-    var third = interpreter.call("main");
-    assertEquals(new Value.Sexp(SEXPs.integer(42)), third);
+  /// Within one top-level call, an unevaluated version runs its fallback however many times it's
+  /// called: it can't be evaluated mid-call (optimizing it would change the code being run).
+  @Test
+  void fallbackForTheWholeTopLevelCall() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                r1: V = f< v1(I) --> V >(<int 1>);
+                r2: V = f< v1(I) --> V >(<int 2>);
+                return r2;
+              }
+            }
+
+            fun f(x) {
+              (x:*) -+> V {
+                v: V = force? x;
+                return v;
+              }
+              (x:v(I)) --> V {
+                r: v(I) = `+`< v(I),v(I) --> v(I) >(x, <int 1>);
+                return r;
+              }
+            }
+            """);
+    var f = Objects.requireNonNull(module.localFunction(Variable.named("f")));
+    var source = f.versions().first();
+    var feedback = new MockModuleFeedback(module);
+    var copy =
+        LazyCopy.create(new NoOptimization(), feedback, f, source, List.of(Type.BOXED_INTEGER));
+
+    var interpreter = new InternalInterpreter(module, feedback);
+    registerBuiltins(interpreter);
+
+    // Both calls in `main` dispatch to the copy, and both run its fallback.
+    var first = interpreter.call("main");
+    assertEquals(new Value.Sexp(SEXPs.integer(3)), first);
+    assertEquals(2, feedback.get(copy).numCalls());
+    assertTrue(copy.isEvaluated(), "evaluated afterwards");
+    assertEquals(
+        2, feedback.get(source).numCalls(), "the fallbacks called the source, in the same call");
+
+    var second = interpreter.call("main");
+    assertEquals(new Value.Sexp(SEXPs.integer(3)), second);
+    assertEquals(2, feedback.get(source).numCalls(), "now the copy's body runs instead");
   }
 }

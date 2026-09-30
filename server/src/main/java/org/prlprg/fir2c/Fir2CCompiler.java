@@ -138,6 +138,7 @@ public final class Fir2CCompiler {
     // Evaluated explicitly (instead of by emitting it) so that the patch is planned around the
     // evaluated version, whose signature may be narrower than the stub's.
     version.body();
+    session.warnIfCompiledIrChanged();
     return new Fir2CCompiler(session).runPatch(version);
   }
 
@@ -243,30 +244,47 @@ public final class Fir2CCompiler {
 
     // The compiled version calls things the client may not have. Like `run`, but the client has
     // most of the module, and a stub whose version is evaluated by now is replaced.
-    while (!functionWorklist.isEmpty() || !versionWorklist.isEmpty()) {
-      if (!functionWorklist.isEmpty()) {
-        var next = functionWorklist.removeFirst();
-        if (!session.hasFunction(next)) {
-          patch.addFunction(next);
+    while (true) {
+      while (!functionWorklist.isEmpty() || !versionWorklist.isEmpty()) {
+        if (!functionWorklist.isEmpty()) {
+          var next = functionWorklist.removeFirst();
+          if (!session.hasFunction(next)) {
+            patch.addFunction(next);
+          }
+          continue;
         }
-        continue;
-      }
 
-      var next = versionWorklist.firstEntry();
-      versionWorklist.remove(next.getKey());
-      var nextVersion = next.getKey();
-      var nextFunction = next.getValue();
-      if (!session.hasFunction(nextFunction)) {
-        patch.addFunction(nextFunction);
-        continue;
+        var next = versionWorklist.firstEntry();
+        versionWorklist.remove(next.getKey());
+        var nextVersion = next.getKey();
+        var nextFunction = next.getValue();
+        if (!session.hasFunction(nextFunction)) {
+          patch.addFunction(nextFunction);
+          continue;
+        }
+        if (session.version(nextVersion) == null) {
+          patch.addVersion(nextFunction, nextVersion);
+        } else if (pendingReplacements.contains(nextVersion)) {
+          patch.replace(nextVersion);
+        }
       }
-      if (session.version(nextVersion) == null) {
-        patch.addVersion(nextFunction, nextVersion);
-      } else if (pendingReplacements.contains(nextVersion)) {
-        patch.replace(nextVersion);
+      assert pendingReplacements.isEmpty() : "every referenced replacement is defined";
+
+      // Every function whose versions changed (in the module, or in what the client has of
+      // them) gets its entries regenerated, so that what it dispatches among is up to date. That
+      // refers to versions the client may not have (new ones, as stubs), so go around again.
+      var stale =
+          session.functions().stream()
+              .filter(f -> f.canDispatch() && !unitFunctions.contains(f))
+              .filter(f -> !currentEntryCallees(f).equals(session.entryCallees(f)))
+              .toList();
+      if (stale.isEmpty()) {
+        break;
+      }
+      for (var function : stale) {
+        patch.regenerateEntries(function);
       }
     }
-    assert pendingReplacements.isEmpty() : "every referenced replacement is defined";
     emitReferencedExternalDeclarations();
 
     return patch.finish();
@@ -275,6 +293,21 @@ public final class Fir2CCompiler {
   private void referenceFunction(Function function) {
     referencedFunctions.add(function);
     functionWorklist.add(function);
+  }
+
+  /// What `function`'s entries would dispatch among if they were regenerated now: its versions,
+  /// by the names its entries would call them by. Compared to what they were generated from.
+  private Map<Abstraction, String> currentEntryCallees(Function function) {
+    var callees = new LinkedHashMap<Abstraction, String>();
+    for (var version : function.versions()) {
+      var state = session.version(version);
+      var name =
+          state != null && state.isStub() && version.isEvaluated()
+              ? null // Replaced by this patch once referred to, so its name will change
+              : versionCallCName(function, version);
+      callees.put(version, name);
+    }
+    return callees;
   }
 
   /// A call to `version` of `function`, which returns what the client's code for the version
@@ -489,9 +522,31 @@ public final class Fir2CCompiler {
       return cName;
     }
 
+    /// Regenerate `function`'s dispatch and from-R entries, since the versions they dispatch
+    /// among (or their names) changed: the client has more or fewer versions of it now, or a
+    /// stub was replaced by the compiled version.
+    void regenerateEntries(Function function) {
+      var entries = session.nextEntries(function);
+      var entriesPool = new ConstantPool();
+      var poolCName = entriesConstantsCName(function, entries);
+      cUnit.addGlobalVariable(CONSTANTS_C_TYPE, poolCName);
+      referenceFunction(function);
+
+      new FunctionEmitter(function).emitEntries(entries, entriesPool, poolCName);
+
+      var initCode = initCFunction.add();
+      debugComment(initCode, "# Regenerated entries (%d) of %s", entries, function.name().name());
+      initCode.stmt("%s = %s;", poolCName, nestedPoolRef(pool, entriesPool.toSexp()));
+      replacements.stmt(
+          "Fir_fun_set_entries(%s, %s, %s);",
+          functionConstantsCName(function),
+          dispatchImplCName(function, entries),
+          fromRImplCName(function, entries));
+    }
+
     CompiledPatch finish() {
       var initCode = initCFunction.add();
-      debugComment(initCode, "# Replace stubs");
+      debugComment(initCode, "# Replace stubs and entries");
       initCode.stmt("%s", replacements.toString().stripTrailing());
       initCFunction.add().stmt("return R_NilValue;");
       return new CompiledPatch(cUnit, pool.toSexp(), initCFunction.name());
@@ -529,12 +584,13 @@ public final class Fir2CCompiler {
 
       emitConstants();
 
-      beginEmitInit();
+      var entries = function.canDispatch() ? session.nextEntries(function) : -1;
+      beginEmitInit(entries);
 
       if (function.canDispatch()) {
-        emitDispatchFromR();
-
-        emitDispatch();
+        emitFromRTrampoline();
+        emitDispatchTrampoline();
+        emitEntries(entries, fnPool, functionConstantsCName(function));
       }
 
       emitVersions();
@@ -549,7 +605,9 @@ public final class Fir2CCompiler {
       cUnit.addGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
     }
 
-    private void beginEmitInit() {
+    /// @param entries The generation of the function's dispatch and from-R entries (see
+    ///     [#emitEntries(int, ConstantPool, String)]), or -1 if it can't dispatch.
+    private void beginEmitInit(int entries) {
       debugComment(initCFunction().add(), "## Init %s", function.name());
 
       var cCode = initCFunction().add();
@@ -571,19 +629,72 @@ public final class Fir2CCompiler {
       cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_FunctionData));");
       cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
       cCode.stmt(
-          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .formal_names = %s};",
+          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .dispatch_impl = %s, .from_r = %s, .formal_names = %s};",
           functionName,
           function.canDispatch() ? functionDispatchCName(function) : "NULL",
+          function.canDispatch() ? dispatchImplCName(function, entries) : "NULL",
+          function.canDispatch() ? fromRImplCName(function, entries) : "NULL",
           formalNames);
       cCode.stmt("Fir_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
+    }
+
+    /// The function's from-R entry: what its closures' bodies call. It forwards to the current
+    /// from-R implementation, since that's regenerated as the function gets versions (see
+    /// [#emitEntries(int, ConstantPool, String)]), while closures keep pointing here.
+    private void emitFromRTrampoline() {
+      var cFunction =
+          cUnit.addFunction(FROM_R_C_RETURN, functionFromRCName(function), FROM_R_C_PARAMS);
+      var cCode = cFunction.add();
+      debugComment(cCode, "## From-R %s", function.name());
+      cCode.stmt(
+          "return Fir_fun_data(%s)->from_r(%s, %s);",
+          functionConstantsCName(function), VAR_ENV, VAR_DATA);
+    }
+
+    /// The function's dispatch entry: what dispatch calls and `Fir_call_dynamic` call, and what
+    /// identifies the function to `Fir_assume_function`. Like the from-R entry, it forwards to
+    /// the current implementation.
+    private void emitDispatchTrampoline() {
+      var cFunction =
+          cUnit.addFunction(DISPATCH_C_RETURN, functionDispatchCName(function), DISPATCH_C_PARAMS);
+      var cCode = cFunction.add();
+      debugComment(cCode, "## Dispatch %s", function.name());
+      cCode.stmt("va_list args;");
+      cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
+      cCode.stmt(
+          "SEXP out = Fir_fun_data(%s)->dispatch_impl(%s, %s, args);",
+          functionConstantsCName(function), VAR_ENV, VAR_SIGNATURE);
+      cCode.stmt("va_end(args);");
+      cCode.stmt("return out;");
+    }
+
+    /// Emits generation `entries` of the function's from-R and dispatch implementations, which
+    /// dispatch among the versions the function has now (referring to each, so a patch defines
+    /// the ones the client doesn't have). The function's entries forward to them once
+    /// `Fir_fun_set_entries` is called (which a function's init does through its
+    /// `Fir_FunctionData`, and a patch does explicitly).
+    ///
+    /// @param pool Where the implementations' constants go, aliased as `pool` by `poolCName`
+    ///     (the function's own pool when the function is being defined, else a pool of the patch).
+    void emitEntries(int entries, ConstantPool pool, String poolCName) {
+      var callees = new LinkedHashMap<Abstraction, String>();
+      for (var version : function.versions()) {
+        if (!version.isStub()) {
+          referenceVersion(version, function);
+        }
+        callees.put(version, versionCallCName(function, version));
+      }
+      session.setEntryCallees(function, callees);
+
+      emitDispatchFromR(fromRImplCName(function, entries), pool, poolCName);
+      emitDispatch(dispatchImplCName(function, entries));
     }
 
     private void endEmitInit() {
       initCFunction().add().stmt("return R_NilValue;");
     }
 
-    private void emitDispatchFromR() {
-      var cName = functionFromRCName(function);
+    private void emitDispatchFromR(String cName, ConstantPool pool, String poolCName) {
       var cFunction = cUnit.addFunction(FROM_R_C_RETURN, cName, FROM_R_C_PARAMS);
 
       int numParams = function.parameterNames().size();
@@ -616,7 +727,7 @@ public final class Fir2CCompiler {
       }
 
       if (!function.parameterNames().isEmpty()) {
-        emitConstantPoolAlias(cFunction);
+        cFunction.add().stmt("SEXP %s = %s;", VAR_POOL, poolCName);
       }
 
       cCode = cFunction.add();
@@ -631,7 +742,7 @@ public final class Fir2CCompiler {
           cCode.stmt("SEXP %s = Rf_findVarInFrame(%s, R_DotsSymbol);", argName, VAR_ENV);
           cCode.stmt("%s = %s == R_MissingArg ? R_NilValue : %s;", argName, argName, argName);
         } else {
-          var paramSym = nvSymbolRef(fnPool, paramName);
+          var paramSym = nvSymbolRef(pool, paramName);
           cCode.stmt(
               "SEXP %s = Fir_safe_force(Rf_findVarInFrame(%s, %s));", argName, VAR_ENV, paramSym);
         }
@@ -698,9 +809,8 @@ public final class Fir2CCompiler {
       cCode.stmt("return out;");
     }
 
-    private void emitDispatch() {
-      var cName = functionDispatchCName(function);
-      var cFunction = cUnit.addFunction(DISPATCH_C_RETURN, cName, DISPATCH_C_PARAMS);
+    private void emitDispatch(String cName) {
+      var cFunction = cUnit.addFunction(DISPATCH_C_RETURN, cName, DISPATCH_IMPL_C_PARAMS);
 
       var versions =
           function.versions().stream()
@@ -730,8 +840,6 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       cCode.stmt("bool incompatible[%d];", versions.size());
-      cCode.stmt("va_list args;");
-      cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
       cCode.stmt("va_list args2;");
       cCode.stmt("va_copy(args2, args);");
 
@@ -837,7 +945,6 @@ public final class Fir2CCompiler {
           sanitizeString(function.name().name()));
 
       cCode = cFunction.add();
-      cCode.stmt("va_end(args);");
       cCode.stmt("return out;");
     }
 
@@ -1009,10 +1116,6 @@ public final class Fir2CCompiler {
           SEXPs.string(FIR_BC_BASELINE_FEEDBACK_MAGIC, prefix),
           SEXPs.integer(offsets),
           SEXPs.string(registers));
-    }
-
-    private void emitConstantPoolAlias(CFunction cFunction) {
-      cFunction.add().stmt("SEXP %s = %s;", VAR_POOL, functionConstantsCName(function));
     }
 
     private final class VersionEmitter {
@@ -2352,6 +2455,27 @@ public final class Fir2CCompiler {
     return cNamePrefix() + "fun_dispatch_" + escapeForC(function.name().name());
   }
 
+  /// Generation `entries` of the function's from-R implementation (see
+  /// [FunctionEmitter#emitEntries(int, ConstantPool, String)]).
+  private String fromRImplCName(Function function, int entries) {
+    return functionFromRCName(function) + "_" + entries;
+  }
+
+  /// Generation `entries` of the function's dispatch implementation.
+  private String dispatchImplCName(Function function, int entries) {
+    return functionDispatchCName(function) + "_" + entries;
+  }
+
+  /// The constant pool of generation `entries` of the function's entries, when a patch
+  /// regenerates them (the function's own pool is already full).
+  private String entriesConstantsCName(Function function, int entries) {
+    return cNamePrefix()
+        + "fun_entries_constants_"
+        + escapeForC(function.name().name())
+        + "_"
+        + entries;
+  }
+
   private String versionConstantsCName(Function function, Abstraction version) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no constants";
@@ -2539,6 +2663,12 @@ public final class Fir2CCompiler {
       List.of("SEXP %s".formatted(VAR_ENV), "SEXP %s".formatted(VAR_DATA));
 
   private static final String FROM_R_C_RETURN = "SEXP";
+
+  private static final List<String> DISPATCH_IMPL_C_PARAMS =
+      List.of(
+          "SEXP %s".formatted(VAR_ENV),
+          "Fir_Signature %s".formatted(VAR_SIGNATURE),
+          "va_list args");
 
   private static final List<String> DISPATCH_C_PARAMS =
       List.of("SEXP %s".formatted(VAR_ENV), "Fir_Signature %s".formatted(VAR_SIGNATURE), "...");

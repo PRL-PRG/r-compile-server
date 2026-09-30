@@ -7,8 +7,8 @@ import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -124,8 +124,10 @@ public final class InternalInterpreter implements Interpreter {
   // Input
   private final Module module;
   private final Map<Abstraction, ExternalVersion> externalVersions = new HashMap<>();
-  /// Unevaluated versions whose fallback already ran, so their next call evaluates them.
-  private final Set<Abstraction> ranFallback = new HashSet<>();
+  /// Unevaluated versions whose fallback ran during the current top-level call. They're
+  /// evaluated once it returns (see [#call(String, Value...)]), like the compiler compiles a
+  /// version while the client runs its stub's fallback.
+  private final Set<Abstraction> ranFallback = new LinkedHashSet<>();
 
   // State
   private final GlobalEnvSXP globalEnv;
@@ -344,6 +346,31 @@ public final class InternalInterpreter implements Interpreter {
       throw e;
     } catch (Throwable e) {
       throw fail("Unhandled interpreter crash", e);
+    } finally {
+      evaluateRanFallbacks();
+    }
+  }
+
+  /// Evaluate every unevaluated version whose fallback ran during the top-level call that just
+  /// returned, so that its next call runs its body, optimized.
+  ///
+  /// This is when compiled code would have the version too: its stub's first call asked the
+  /// compiler for it, which evaluated and optimized it while the fallback ran, and (in the
+  /// deterministic mode the tests use) its next call runs it. The interpreter can't evaluate a
+  /// version in the middle of a top-level call, since optimizing it optimizes the module, so a
+  /// version dispatched to during a top-level call is never evaluated by that call: it runs its
+  /// fallback, however many times it's called.
+  private void evaluateRanFallbacks() {
+    // Pinned so that the optimization runs that evaluating triggers wait until every version is
+    // evaluated, and run once each.
+    try (var _ = module.pin()) {
+      for (var version : ranFallback) {
+        if (!version.isEvaluated()) {
+          version.body();
+        }
+      }
+    } finally {
+      ranFallback.clear();
     }
   }
 
@@ -383,9 +410,11 @@ public final class InternalInterpreter implements Interpreter {
 
   /// Calls the function version with the arguments in the nested-closure and stack environment
   ///
-  /// The first call of an unevaluated version runs its fallback (if it has one), and the second
-  /// evaluates it. This is the same order of events as in compiled code, where the first call runs
-  /// the fallback while the version is being compiled.
+  /// An unevaluated version with a fallback runs the fallback, and is evaluated once the top-level
+  /// call returns (see [#evaluateRanFallbacks()]), so its next top-level call runs its body. This
+  /// is the same order of events as in compiled code, where a stub's calls run the fallback while
+  /// the version is being compiled. An unevaluated version without one (a baseline) is evaluated
+  /// right away, like compiled code has the baseline's bytecode to run.
   private Value call(
       Function function,
       Abstraction abstraction,
@@ -403,7 +432,10 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     var fallback = abstraction.isEvaluated() ? null : abstraction.fallback();
-    var isFallback = fallback != null && ranFallback.add(abstraction);
+    var isFallback = fallback != null;
+    if (isFallback) {
+      ranFallback.add(abstraction);
+    }
     var cfg = isFallback ? fallback : abstraction.body();
 
     var frame = new StackFrame(function, closureEnv, userEnvPositions, isFallback);

@@ -133,6 +133,13 @@ class Fir2CCompilerTest {
         code.contains("Fir_m_ver_call_f_vec_int_fx_none_ret_value(env, r_x)"),
         "the fallback calls the source, in the same environment:\n" + code);
     assertTrue(code.contains("Fir_m_ver_call_f_baseline("), "with the module prefix:\n" + code);
+    assertTrue(
+        code.contains("Fir_fun_data(Fir_m_fun_constants_f)->dispatch_impl(env, signature, args)")
+            && code.contains("Fir_fun_data(Fir_m_fun_constants_f)->from_r(env, data)"),
+        "the entries forward to their implementations:\n" + code);
+    assertTrue(
+        code.contains(".dispatch_impl = Fir_m_fun_dispatch_f_0, .from_r = Fir_m_fun_from_r_f_0"),
+        "which are generation 0:\n" + code);
 
     var patch = Fir2CCompiler.compileStub(session, 0);
     assertNotNull(patch);
@@ -148,6 +155,18 @@ class Fir2CCompilerTest {
         patchCode.contains("extern Fir_Stub Fir_m_ver_stub_f_" + state.stubPart()),
         "the stub is in the piece the client already has:\n" + patchCode);
     assertFalse(Objects.requireNonNull(session.version(copy)).isStub());
+    assertTrue(
+        patchCode.contains(
+                "SEXP Fir_m_fun_dispatch_f_1(SEXP env, Fir_Signature signature, va_list args)")
+            && patchCode.contains("SEXP Fir_m_fun_from_r_f_1(SEXP env, SEXP data)")
+            && patchCode.contains(
+                "Fir_fun_set_entries(Fir_m_fun_constants_f, Fir_m_fun_dispatch_f_1, Fir_m_fun_from_r_f_1);"),
+        "the patch regenerates f's entries, which now dispatch to the compiled version:\n"
+            + patchCode);
+    assertTrue(
+        patchCode.contains("out = Fir_m_ver_call_f_" + state.stubPart() + "_compiled(env, arg0);"),
+        patchCode);
+    assertFalse(patchCode.contains("Fir_fun_set_entries(Fir_m_fun_constants_main"), patchCode);
 
     assertNull(
         Fir2CCompiler.compileStub(session, 0), "the client already has the compiled version");
