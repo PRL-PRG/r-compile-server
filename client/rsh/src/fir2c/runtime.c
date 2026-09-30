@@ -291,6 +291,12 @@ SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
   return closure;
 }
 
+void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_FromRFn from_r) {
+  Fir_FunctionData *data = Fir_fun_data(constants);
+  data->dispatch_impl = dispatch_impl;
+  data->from_r = from_r;
+}
+
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env) {
   ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
 

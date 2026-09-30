@@ -4,12 +4,16 @@ import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.AppConfig;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
@@ -26,6 +30,8 @@ import org.prlprg.session.RSession;
 /// which stay valid even as the versions' signatures (which the names are made from) change, and
 /// which are unique across every module the client loads (they're prefixed by [#id()]).
 public final class Fir2CSession {
+  private static final Logger logger = Logger.getLogger(Fir2CSession.class.getName());
+
   /// Whether the client has a version, and as what.
   ///
   /// @param part The version's part of the C names of what the client calls (`Fir_ver_call_...`)
@@ -61,6 +67,11 @@ public final class Fir2CSession {
 
   /// Functions the client has (their constants, initializer, and dispatch).
   private final Set<Function> compiledFunctions = new LinkedHashSet<>();
+  /// How many generations of each function's dispatch and from-R entries the client has.
+  private final Map<Function, Integer> entryGenerations = new HashMap<>();
+  /// What each function's current entries dispatch among: its versions when they were generated,
+  /// by the C names they call them by.
+  private final Map<Function, Map<Abstraction, String>> entryCallees = new HashMap<>();
 
   /// Each version's part of its C names, assigned when first referred to (see
   /// [#part(Function, Abstraction, Supplier)]).
@@ -74,6 +85,10 @@ public final class Fir2CSession {
   private final Map<Abstraction, Function> functions = new HashMap<>();
   /// Indexed by stub id.
   private final List<Abstraction> stubs = new ArrayList<>();
+
+  /// Under [AppConfig#DEBUG], every compiled version's IR when the client got it (see
+  /// [#warnIfCompiledIrChanged()]).
+  private final Map<Abstraction, String> compiledIr = new LinkedHashMap<>();
 
   private int promises = 0;
   private int patches = 0;
@@ -128,6 +143,27 @@ public final class Fir2CSession {
   /// Record that the client gets `function`. `false` if it already has it.
   boolean addFunction(Function function) {
     return compiledFunctions.add(function);
+  }
+
+  /// Every function the client has, in the order it got them.
+  public List<Function> functions() {
+    return List.copyOf(compiledFunctions);
+  }
+
+  /// The generation of `function`'s dispatch and from-R entries the client gets next (0 when the
+  /// function is first compiled; a patch that regenerates them takes the next).
+  int nextEntries(Function function) {
+    return entryGenerations.merge(function, 1, Integer::sum) - 1;
+  }
+
+  /// Record what `function`'s current entries were generated from.
+  void setEntryCallees(Function function, Map<Abstraction, String> callees) {
+    entryCallees.put(function, Map.copyOf(callees));
+  }
+
+  /// What `function`'s current entries dispatch among (see [#setEntryCallees(Function, Map)]).
+  public Map<Abstraction, String> entryCallees(Function function) {
+    return entryCallees.getOrDefault(function, Map.of());
   }
 
   // --- Versions -------------------------------------------------------------------------------
@@ -202,6 +238,50 @@ public final class Fir2CSession {
               newPart, returnRepr, old.stubId(), old.stubPart(), old.stubReturnRepr()));
     }
     functions.put(version, function);
+    if (AppConfig.DEBUG) {
+      compiledIr.put(version, version.toString());
+    }
+  }
+
+  /// Under [AppConfig#DEBUG], warn about every version whose IR changed since the client got it
+  /// compiled (once per change).
+  ///
+  /// The client's code is compiled from the version as it was, and it keeps running that: it's
+  /// not recompiled. Evaluating another version can re-run the optimizations on the whole module,
+  /// and they can improve a version that was at a fixpoint given the module then, since the
+  /// module has changed: callees have been evaluated (so they can be inlined, or their promises
+  /// and closures known), versions have been added (so calls can be retargeted, and types
+  /// narrowed after them). The code the client has is still correct, since the optimizations
+  /// preserve semantics, just not as optimized. A changed signature is adapted at the calls
+  /// compiled later (see [VersionState#returnRepr()]).
+  public void warnIfCompiledIrChanged() {
+    if (!AppConfig.DEBUG) {
+      return;
+    }
+    for (var entry : compiledIr.entrySet()) {
+      var version = entry.getKey();
+      var was = entry.getValue();
+      var now = version.toString();
+      if (now.equals(was)) {
+        continue;
+      }
+      entry.setValue(now);
+      var state = Objects.requireNonNull(versions.get(version));
+      var signatureChanged = version.returnType().kind().repr() != state.returnRepr();
+      logger.warning(
+          "Version "
+              + version.signature()
+              + " of "
+              + functionOf(version).name()
+              + " (FIR module "
+              + id
+              + ") changed since the client got it compiled"
+              + (signatureChanged ? ", including its return type's representation" : "")
+              + ": the client keeps running the code compiled from the old IR.\nWas:\n"
+              + was
+              + "\nNow:\n"
+              + now);
+    }
   }
 
   /// Record that the client gets a stub for `version`, and return it.
