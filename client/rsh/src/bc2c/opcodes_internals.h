@@ -1470,7 +1470,7 @@ static
 // the unused builtins fold away to a single checked op + branch.
 #define DO_ARITH_INT_OFLOW(op, a, b, r)                                        \
   __extension__({                                                              \
-    _Bool __of__;                                                              \
+    int __of__;                                                                \
     switch (op) {                                                              \
     case ADD_OP:                                                               \
       __of__ = __builtin_add_overflow((a), (b), (r));                          \
