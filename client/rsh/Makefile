@@ -60,20 +60,23 @@ TXT_RED = \033[0;31m
 
 .PHONY: test
 test:
-	@for file in $(TEST_DIR)/*.R; do \
+	@failed=0; \
+	for file in $(TEST_DIR)/*.R; do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
 		cmd="$(TEST_R) $$file;"; \
 		echo $$cmd; \
 		eval "$$cmd"; \
 		exit=$$?; \
-		echo -n "$(TXT_BOLD)└──── $$test: "; \
-	  if [ $$exit -eq 0 ]; then \
+		printf "$(TXT_BOLD)└──── $$test: "; \
+		if [ $$exit -eq 0 ]; then \
 			echo "$(TXT_GREEN)OK$(TXT_NORM)"; \
 		else \
-		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+			echo "$(TXT_RED)FAIL $$exit$(TXT_NORM)"; \
+			failed=$$((failed + 1)); \
 		fi; \
-	done
+	done; \
+	[ $$failed -eq 0 ]
 
 BENCH_ITER ?= 15
 
@@ -100,11 +103,11 @@ benchmark:
 		echo $$cmd; \
 		eval "$$cmd"; \
 		exit=$$?; \
-		echo -n "$(TXT_BOLD)└──── $$test: "; \
+		printf "$(TXT_BOLD)└──── $$test: "; \
 		if [ $$exit -eq 0 ]; then \
 			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(BENCH_OUT_DIR)/$$label.csv)"; \
 		else \
-			echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+			echo "$(TXT_RED)FAIL $$exit$(TXT_NORM)"; \
 			failed=$$((failed + 1)); \
 			failed_tests="$$failed_tests $$test"; \
 		fi; \
