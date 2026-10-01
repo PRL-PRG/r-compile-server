@@ -124,11 +124,14 @@ class Fir2CCompilerTest {
     var state = Objects.requireNonNull(session.version(copy));
     assertTrue(state.isStub());
     assertEquals(List.of(copy), session.stubs());
+    var part = state.part();
     assertTrue(
-        code.contains(
-            "Fir_Stub Fir_m_ver_stub_f_" + state.stubPart() + " = {.module = \"m\", .id = 0"),
-        code);
-    assertTrue(code.contains("Fir_stub_enter(&Fir_m_ver_stub_f_" + state.stubPart() + ")"), code);
+        code.contains("Fir_Stub Fir_m_ver_stub_f_" + part + " = {.module = \"m\", .id = 0"), code);
+    assertTrue(code.contains("Fir_stub_enter(&Fir_m_ver_stub_f_" + part + ")"), code);
+    assertTrue(
+        code.contains("SEXP (*Fir_m_ver_call_f_" + part + ")(SEXP env, SEXP r_x);")
+            && code.contains("Fir_m_ver_call_f_" + part + " = Fir_m_ver_impl_f_" + part + "_0;"),
+        "calls of the version go through an entry, assigned the stub:\n" + code);
     assertTrue(
         code.contains("Fir_m_ver_call_f_vec_int_fx_none_ret_value(env, r_x)"),
         "the fallback calls the source, in the same environment:\n" + code);
@@ -147,25 +150,30 @@ class Fir2CCompilerTest {
     var patchCode = patch.code().toString();
     assertTrue(patch.init().startsWith("Fir_m_patch_init_"), patch.init());
     assertTrue(patchCode.contains(patch.init() + "(SEXP pool)"), patchCode);
+    var replaced = Objects.requireNonNull(session.version(copy));
+    assertFalse(replaced.isStub());
+    assertEquals(part, replaced.part(), "same entry (same calling convention)");
+    assertEquals(1, replaced.implementation());
+    var implCName = "Fir_m_ver_impl_f_" + part + "_1";
+    assertTrue(
+        patchCode.contains("SEXP " + implCName + "(SEXP env, SEXP r_x)")
+            && patchCode.contains("Fir_m_ver_call_f_" + part + " = " + implCName + ";"),
+        "the patch defines the compiled version and assigns it to the entry:\n" + patchCode);
+    assertTrue(
+        patchCode.contains("extern SEXP (*Fir_m_ver_call_f_" + part + ")(SEXP env, SEXP r_x);"),
+        "which the client has:\n" + patchCode);
     assertTrue(
         patchCode.contains(
-            "Fir_stub_compiled(&Fir_m_ver_stub_f_" + state.stubPart() + ", (void *)"),
-        "the patch replaces the stub:\n" + patchCode);
+            "Fir_stub_compiled(&Fir_m_ver_stub_f_" + part + ", (void *)" + implCName + ");"),
+        "the patch tells the stub:\n" + patchCode);
     assertTrue(
-        patchCode.contains("extern Fir_Stub Fir_m_ver_stub_f_" + state.stubPart()),
+        patchCode.contains("extern Fir_Stub Fir_m_ver_stub_f_" + part),
         "the stub is in the piece the client already has:\n" + patchCode);
-    assertFalse(Objects.requireNonNull(session.version(copy)).isStub());
-    assertTrue(
-        patchCode.contains(
-                "SEXP Fir_m_fun_dispatch_f_1(SEXP env, Fir_Signature signature, va_list args)")
-            && patchCode.contains("SEXP Fir_m_fun_from_r_f_1(SEXP env, SEXP data)")
-            && patchCode.contains(
-                "Fir_fun_set_entries(Fir_m_fun_constants_f, Fir_m_fun_dispatch_f_1, Fir_m_fun_from_r_f_1);"),
-        "the patch regenerates f's entries, which now dispatch to the compiled version:\n"
+    assertFalse(
+        patchCode.contains("Fir_fun_set_entries(Fir_m_fun_constants_f"),
+        "f's dispatch and from-R already reach the compiled version through the entry, and f has"
+            + " the same versions, so they aren't regenerated:\n"
             + patchCode);
-    assertTrue(
-        patchCode.contains("out = Fir_m_ver_call_f_" + state.stubPart() + "_compiled(env, arg0);"),
-        patchCode);
     assertFalse(patchCode.contains("Fir_fun_set_entries(Fir_m_fun_constants_main"), patchCode);
 
     assertNull(
@@ -190,7 +198,7 @@ class Fir2CCompilerTest {
     var stub = Objects.requireNonNull(session.version(copy));
     assertTrue(stub.isStub());
     assertEquals(Repr.SEXP, stub.returnRepr());
-    assertEquals(Repr.SEXP, stub.stubReturnRepr());
+    var stubPart = stub.part();
 
     // Evaluate the version and narrow its return type to an unboxed integer, like optimizing it
     // (`Unbox`, then `ImproveSignatures`) would.
@@ -215,33 +223,40 @@ class Fir2CCompilerTest {
     var compiled = Objects.requireNonNull(session.version(copy));
     assertFalse(compiled.isStub());
     assertEquals(Repr.INT, compiled.returnRepr());
-    assertEquals(Repr.SEXP, compiled.stubReturnRepr(), "the stub still returns what it did");
-    var compiledCName = "Fir_m_ver_call_f_" + compiled.part();
-    var adapterCName = "Fir_m_ver_call_f_" + stub.stubPart() + "_boxed";
+    assertEquals(2, compiled.entries().size(), "a new entry, for the new calling convention");
+    assertEquals(Repr.SEXP, compiled.entries().getFirst().returnRepr(), "the old one is kept");
+    var newPart = compiled.part();
+    var implCName = "Fir_m_ver_impl_f_" + newPart + "_1";
+    var adapterCName = implCName + "_boxed";
     assertTrue(
-        patchCode.contains("int " + compiledCName + "(SEXP env, SEXP r_x)"),
+        patchCode.contains("int " + implCName + "(SEXP env, SEXP r_x)"),
         "the compiled version returns the unboxed integer:\n" + patchCode);
     assertTrue(
-        patchCode.contains("SEXP " + adapterCName + "(SEXP env, SEXP r_x)"),
-        "the adapter has the stub's signature:\n" + patchCode);
+        patchCode.contains("int (*Fir_m_ver_call_f_" + newPart + ")(SEXP env, SEXP r_x);")
+            && patchCode.contains("Fir_m_ver_call_f_" + newPart + " = " + implCName + ";"),
+        "the new entry is defined and assigned it:\n" + patchCode);
+    assertTrue(
+        patchCode.contains("SEXP " + adapterCName + "(SEXP env, SEXP r_x)")
+            && patchCode.contains(
+                "return Fir_ver_call_box_scalar_int_fx_none_ret_vec1_int(R_EmptyEnv, "
+                    + implCName
+                    + "(env, r_x));"),
+        "the adapter has the old entry's convention and boxes the result:\n" + patchCode);
+    assertTrue(
+        patchCode.contains("Fir_m_ver_call_f_" + stubPart + " = " + adapterCName + ";"),
+        "the old entry (which the client's calls use) is assigned the adapter:\n" + patchCode);
     assertTrue(
         patchCode.contains(
-            "return Fir_ver_call_box_scalar_int_fx_none_ret_vec1_int(R_EmptyEnv, "
-                + compiledCName
-                + "(env, r_x));"),
-        "the adapter boxes what the compiled version returns:\n" + patchCode);
+            "Fir_stub_compiled(&Fir_m_ver_stub_f_" + stubPart + ", (void *)" + adapterCName + ");"),
+        "as is the stub:\n" + patchCode);
     assertTrue(
-        patchCode.contains(
-            "Fir_stub_compiled(&Fir_m_ver_stub_f_"
-                + stub.stubPart()
-                + ", (void *)"
-                + adapterCName
-                + ");"),
-        "the stub is patched with the adapter:\n" + patchCode);
+        patchCode.contains("Fir_fun_set_entries(Fir_m_fun_constants_f"),
+        "f's dispatch and from-R are regenerated, since the version's signature changed:\n"
+            + patchCode);
   }
 
   @Test
-  void callsToANarrowedCompiledVersionUnboxWhatItsCodeReturns() {
+  void changedCompiledVersionIsReimplementedWithTheNextPatch() {
     var module = moduleWithLazyVersion();
     var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
     var f = Objects.requireNonNull(module.localFunction(Variable.named("f")));
@@ -288,29 +303,36 @@ class Fir2CCompilerTest {
     Objects.requireNonNull(Fir2CCompiler.compileStub(session, copyStub));
     var compiledCopy = Objects.requireNonNull(session.version(copy));
     assertEquals(Repr.SEXP, compiledCopy.returnRepr());
-    var copyCallCName = "Fir_m_ver_call_f_" + compiledCopy.part();
+    assertEquals(1, compiledCopy.implementation());
+    var oldPart = compiledCopy.part();
 
-    // ...and then its signature is narrowed (say by a later optimization run), without the
-    // client's code for it changing.
+    // ...and then it changes (say a later optimization run narrows its return type), so the
+    // client's code for it is out of date.
     copy.setReturnType(unboxedInt);
     caller.setReturnType(unboxedInt);
 
+    // The next patch (for anything) brings the new implementation, with a new entry for its new
+    // calling convention; the old entry converts, for the client's existing calls.
     var patch = Objects.requireNonNull(Fir2CCompiler.compileStub(session, callerStub));
     var patchCode = patch.code().toString();
-    assertEquals(
-        Repr.SEXP,
-        Objects.requireNonNull(session.version(copy)).returnRepr(),
-        "what the client has doesn't change");
+    var updatedCopy = Objects.requireNonNull(session.version(copy));
+    assertEquals(2, updatedCopy.implementation());
+    assertEquals(Repr.INT, updatedCopy.returnRepr());
+    var newPart = updatedCopy.part();
+    var implCName = "Fir_m_ver_impl_f_" + newPart + "_2";
     assertTrue(
-        patchCode.contains("SEXP " + copyCallCName + "(SEXP env, SEXP r_x)"),
-        "the compiled version is declared as it was compiled:\n" + patchCode);
-    assertFalse(patchCode.contains("int " + copyCallCName + "("), patchCode);
+        patchCode.contains("int " + implCName + "(SEXP env, SEXP r_x)")
+            && patchCode.contains("Fir_m_ver_call_f_" + newPart + " = " + implCName + ";")
+            && patchCode.contains("Fir_m_ver_call_f_" + oldPart + " = " + implCName + "_boxed;"),
+        "the copy is reimplemented:\n" + patchCode);
     assertTrue(
-        patchCode.contains(
-            "Fir_ver_call_unbox_vec1_int_borrowed_fx_none_ret_scalar_int(R_EmptyEnv, "
-                + copyCallCName
-                + "(R_EmptyEnv, r_x))"),
-        "the call unboxes what the compiled version returns:\n" + patchCode);
+        patchCode.contains("Fir_m_ver_call_f_" + newPart + "(R_EmptyEnv, r_x)"),
+        "the caller calls the new entry, with the new convention:\n" + patchCode);
+    assertFalse(patchCode.contains("Fir_ver_call_unbox_"), patchCode);
+
+    assertNull(
+        Fir2CCompiler.compileStub(session, copyStub),
+        "the copy's stub was replaced before, so there's nothing to do for it");
   }
 
   private static String compileMainToC() {

@@ -1,19 +1,18 @@
 package org.prlprg.fir2c;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.hash.HashCode;
+import com.google.common.hash.Hashing;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.logging.Logger;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.AppConfig;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
@@ -30,33 +29,62 @@ import org.prlprg.session.RSession;
 /// which stay valid even as the versions' signatures (which the names are made from) change, and
 /// which are unique across every module the client loads (they're prefixed by [#id()]).
 public final class Fir2CSession {
-  private static final Logger logger = Logger.getLogger(Fir2CSession.class.getName());
+  /// One of the C names the client calls a version by (`Fir_ver_call_...`, a function pointer
+  /// its current implementation is assigned to), with the calling convention it has.
+  ///
+  /// @param part The version's part of the name.
+  /// @param returnRepr What a call returns: the representation of the version's return type
+  ///     when the entry was made. When an implementation returns something else (optimizing the
+  ///     version more can unbox it), the version gets a new entry, which calls compiled from
+  ///     then on use, and the older entries are assigned adapters that convert.
+  public record Entry(String part, Repr returnRepr) {}
 
   /// Whether the client has a version, and as what.
   ///
-  /// @param part The version's part of the C names of what the client calls (`Fir_ver_call_...`)
-  ///     and initializes.
-  /// @param returnRepr What `Fir_ver_call_...` returns: the representation of the version's
-  ///     return type when it was compiled. The version's may have narrowed since (optimizing it
-  ///     more can unbox it), but the client's code is what it is, so calls to it compiled later
-  ///     must expect this and convert.
+  /// @param entries The names the client calls the version by, oldest first; the last is what
+  ///     calls compiled now use.
+  /// @param implementations How many implementations of the version the client has, each a
+  ///     function `Fir_ver_impl_..._<index>` with its own constants: a stub (running the
+  ///     fallback) is one, and so is each compiled one (the first, and every update).
   /// @param stubId If the client has a stub for the version, its id.
-  /// @param stubPart If the client has a stub for the version, the stub's part of its C names
-  ///     (including of the `Fir_Stub` it's patched through), which is `part` until the version is
-  ///     compiled.
-  /// @param stubReturnRepr If the client has a stub for the version, what the stub returns
-  ///     (`returnRepr` when it was compiled).
+  /// @param compiled Whether the client has the version compiled (else only its stub).
+  /// @param ir What the client's compiled implementation was compiled from (a fingerprint of the
+  ///     version's IR), to tell when the version changed since; `null` if it isn't compiled.
   public record VersionState(
-      String part,
-      Repr returnRepr,
+      List<Entry> entries,
+      int implementations,
       @Nullable Integer stubId,
-      @Nullable String stubPart,
-      @Nullable Repr stubReturnRepr) {
+      boolean compiled,
+      @Nullable HashCode ir) {
+    public Entry entry() {
+      return entries.getLast();
+    }
+
+    /// The version's part of its current C names.
+    public String part() {
+      return entry().part();
+    }
+
+    /// What the client's current entry returns.
+    public Repr returnRepr() {
+      return entry().returnRepr();
+    }
+
+    /// The index of the client's current implementation.
+    public int implementation() {
+      return implementations - 1;
+    }
+
     /// Whether what the client calls is a stub (running its fallback), as opposed to the
     /// compiled version.
     public boolean isStub() {
-      return stubId != null && part.equals(stubPart);
+      return stubId != null && !compiled;
     }
+  }
+
+  /// A fingerprint of `version`'s IR, to tell whether it changed (see [VersionState#ir()]).
+  public static HashCode fingerprint(Abstraction version) {
+    return Hashing.sha256().hashUnencodedChars(version.toString());
   }
 
   private final String id;
@@ -70,10 +98,10 @@ public final class Fir2CSession {
   /// How many generations of each function's dispatch and from-R entries the client has.
   private final Map<Function, Integer> entryGenerations = new HashMap<>();
   /// What each function's current entries dispatch among: its versions when they were generated,
-  /// by the C names they call them by.
-  private final Map<Function, Map<Abstraction, String>> entryCallees = new HashMap<>();
+  /// in dispatch order, by the C names they call them by, with their signatures.
+  private final Map<Function, List<String>> entryCallees = new HashMap<>();
 
-  /// Each version's part of its C names, assigned when first referred to (see
+  /// Each version's part of its current C names, assigned when first referred to (see
   /// [#part(Function, Abstraction, Supplier)]).
   private final Map<Abstraction, String> parts = new HashMap<>();
   /// Every part handed out, qualified by function name, so the C names are unique.
@@ -85,10 +113,9 @@ public final class Fir2CSession {
   private final Map<Abstraction, Function> functions = new HashMap<>();
   /// Indexed by stub id.
   private final List<Abstraction> stubs = new ArrayList<>();
-
-  /// Under [AppConfig#DEBUG], every compiled version's IR when the client got it (see
-  /// [#warnIfCompiledIrChanged()]).
-  private final Map<Abstraction, String> compiledIr = new LinkedHashMap<>();
+  /// Entries the client has the definition of (the rest of the pieces declare them `extern`),
+  /// qualified by function name like [#usedParts].
+  private final Set<String> definedEntries = new HashSet<>();
 
   private int promises = 0;
   private int patches = 0;
@@ -157,13 +184,13 @@ public final class Fir2CSession {
   }
 
   /// Record what `function`'s current entries were generated from.
-  void setEntryCallees(Function function, Map<Abstraction, String> callees) {
-    entryCallees.put(function, Map.copyOf(callees));
+  void setEntryCallees(Function function, List<String> callees) {
+    entryCallees.put(function, List.copyOf(callees));
   }
 
-  /// What `function`'s current entries dispatch among (see [#setEntryCallees(Function, Map)]).
-  public Map<Abstraction, String> entryCallees(Function function) {
-    return entryCallees.getOrDefault(function, Map.of());
+  /// What `function`'s current entries dispatch among (see [#setEntryCallees(Function, List)]).
+  public List<String> entryCallees(Function function) {
+    return entryCallees.getOrDefault(function, List.of());
   }
 
   // --- Versions -------------------------------------------------------------------------------
@@ -213,75 +240,34 @@ public final class Fir2CSession {
     return part;
   }
 
-  /// Record that the client gets `version` compiled.
+  /// Record that the client gets an implementation of `version` compiled from its IR as it is
+  /// now: its first, one replacing its stub, or one updating the compiled one it has (because
+  /// the version changed since). Returns the state after, whose [VersionState#implementation()]
+  /// is the new implementation's index.
   ///
-  /// If the client has a stub for it, the stub keeps its part (its `Fir_Stub` is patched through
-  /// it), so the compiled version gets a new one.
-  ///
-  /// @throws IllegalStateException If the client already has it compiled.
-  void addCompiled(Function function, Abstraction version, Supplier<String> defaultPart) {
+  /// If what the new implementation returns isn't what the version's current entry returns, the
+  /// version gets a new entry, named from `defaultPart` (see [Entry#returnRepr()]).
+  VersionState addCompiled(Function function, Abstraction version, Supplier<String> defaultPart) {
     var old = versions.get(version);
-    if (old != null && !old.isStub()) {
-      throw new IllegalStateException("Client already has this version compiled: " + version);
-    }
     var returnRepr = version.returnType().kind().repr();
+    var ir = fingerprint(version);
+    VersionState state;
     if (old == null) {
-      versions.put(
-          version,
-          new VersionState(part(function, version, defaultPart), returnRepr, null, null, null));
+      var entry = new Entry(part(function, version, defaultPart), returnRepr);
+      state = new VersionState(List.of(entry), 1, null, true, ir);
     } else {
-      var newPart = freshPart(function, old.stubPart() + "_compiled");
-      parts.put(version, newPart);
-      versions.put(
-          version,
-          new VersionState(
-              newPart, returnRepr, old.stubId(), old.stubPart(), old.stubReturnRepr()));
-    }
-    functions.put(version, function);
-    if (AppConfig.DEBUG) {
-      compiledIr.put(version, version.toString());
-    }
-  }
-
-  /// Under [AppConfig#DEBUG], warn about every version whose IR changed since the client got it
-  /// compiled (once per change).
-  ///
-  /// The client's code is compiled from the version as it was, and it keeps running that: it's
-  /// not recompiled. Evaluating another version can re-run the optimizations on the whole module,
-  /// and they can improve a version that was at a fixpoint given the module then, since the
-  /// module has changed: callees have been evaluated (so they can be inlined, or their promises
-  /// and closures known), versions have been added (so calls can be retargeted, and types
-  /// narrowed after them). The code the client has is still correct, since the optimizations
-  /// preserve semantics, just not as optimized. A changed signature is adapted at the calls
-  /// compiled later (see [VersionState#returnRepr()]).
-  public void warnIfCompiledIrChanged() {
-    if (!AppConfig.DEBUG) {
-      return;
-    }
-    for (var entry : compiledIr.entrySet()) {
-      var version = entry.getKey();
-      var was = entry.getValue();
-      var now = version.toString();
-      if (now.equals(was)) {
-        continue;
+      var entries = new ArrayList<>(old.entries());
+      if (old.returnRepr() != returnRepr) {
+        var newPart = freshPart(function, defaultPart.get());
+        parts.put(version, newPart);
+        entries.add(new Entry(newPart, returnRepr));
       }
-      entry.setValue(now);
-      var state = Objects.requireNonNull(versions.get(version));
-      var signatureChanged = version.returnType().kind().repr() != state.returnRepr();
-      logger.warning(
-          "Version "
-              + version.signature()
-              + " of "
-              + functionOf(version).name()
-              + " (FIR module "
-              + id
-              + ") changed since the client got it compiled"
-              + (signatureChanged ? ", including its return type's representation" : "")
-              + ": the client keeps running the code compiled from the old IR.\nWas:\n"
-              + was
-              + "\nNow:\n"
-              + now);
+      state =
+          new VersionState(List.copyOf(entries), old.implementations() + 1, old.stubId(), true, ir);
     }
+    versions.put(version, state);
+    functions.put(version, function);
+    return state;
   }
 
   /// Record that the client gets a stub for `version`, and return it.
@@ -291,13 +277,31 @@ public final class Fir2CSession {
     if (versions.containsKey(version)) {
       throw new IllegalStateException("Client already has this version: " + version);
     }
-    var part = part(function, version, defaultPart);
-    var returnRepr = version.returnType().kind().repr();
-    var state = new VersionState(part, returnRepr, stubs.size(), part, returnRepr);
+    var entry = new Entry(part(function, version, defaultPart), version.returnType().kind().repr());
+    var state = new VersionState(List.of(entry), 1, stubs.size(), false, null);
     stubs.add(version);
     versions.put(version, state);
     functions.put(version, function);
     return state;
+  }
+
+  /// Every version the client has, in no particular order.
+  public Set<Abstraction> versions() {
+    return Set.copyOf(versions.keySet());
+  }
+
+  /// The entries of `version` the client doesn't have the definition of yet, and record that the
+  /// piece being compiled defines them.
+  List<Entry> takeUndefinedEntries(Abstraction version) {
+    var state = Objects.requireNonNull(versions.get(version));
+    var function = functionOf(version);
+    var undefined = new ArrayList<Entry>();
+    for (var entry : state.entries()) {
+      if (definedEntries.add(function.name().name() + "/" + entry.part())) {
+        undefined.add(entry);
+      }
+    }
+    return undefined;
   }
 
   private String freshPart(Function function, String part) {
