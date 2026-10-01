@@ -160,43 +160,42 @@ The server keeps the sessions of the modules its clients run in
 is a C unit with an initializer that the client calls with the patch's constant pool. It defines
 the compiled version and makes its stub call it (`Fir_stub_compiled`), and, following the compiled
 version's static calls, whatever else the client doesn't have: new functions, new versions (as
-stubs if they're unevaluated), and the compiled versions of stubs whose versions have been
-evaluated since. It doesn't redefine what the client already has; those are declared `extern` and
-resolved by the client's JIT against the code it loaded before. An answer can therefore have no
-code at all, when an earlier one already brought the version.
+stubs if they're unevaluated). It doesn't redefine what the client already has and is up to date
+(see below); that's declared `extern` and resolved by the client's JIT against the code it loaded
+before. An answer can therefore have no code at all, when an earlier one already brought the
+version.
 
-A function's *entries* -- its dispatch function (what dispatch calls and `Fir_call_dynamic` call,
-and what identifies the function to `Fir_assume_function`) and its from-R function (what its
-closures' bodies call) -- choose among the versions the function has, so they'd go stale as it
-gets more. They're therefore fixed trampolines that forward, through the function's
-`Fir_FunctionData`, to a generated implementation (`Fir_fun_dispatch_f_0`, `Fir_fun_from_r_f_0`,
-...). A patch regenerates the implementations of every function whose versions changed since the
-client's were generated -- versions added or removed, or a stub replaced, so that they dispatch to
-the compiled version directly -- and replaces them (`Fir_fun_set_entries`). Regenerating refers to
-every version of the function, so the patch also defines the ones the client doesn't have (as
-stubs), and dispatch in the client always sees the same versions the interpreter would.
+What the client calls a version by (`Fir_ver_call_...`) is an *entry*: a function pointer that
+the client's current *implementation* of the version (`Fir_ver_impl_..._<n>`, each with its own
+constants and initializer) is assigned to. A stub is the first implementation; a patch assigns the
+entry the compiled one. That's also how a version the client already has compiled is *updated*: a
+patch reimplements every version the client has whose IR changed since (`Fir2CSession` keeps a
+fingerprint of what each implementation was compiled from), as well as every stub whose version
+was evaluated since, not just the one the patch was asked for. A version's IR changes after it's
+compiled because evaluating another version re-runs the optimizations on the whole module, and
+although the other versions were at a fixpoint, the module has changed under them: callees are
+now evaluated (so `Inline` can inline them, and `StrictifyPromise` and `StaticClosure` can look
+inside them), and versions have been added (so `OptimizeCallee` can retarget calls, and
+`ImproveSignatures` narrow types after them).
 
-The client's code for a version keeps the calling convention it was compiled with, but optimizing
-the version further (which evaluating another version can trigger) may narrow its return type to
-an unboxed one. So the session remembers what each version's code returns, calls compiled after
-that unbox what the code returns, and `extern` declarations say what the code returns. A stub
-whose version was narrowed before it was compiled is patched with an adapter that has the stub's
-convention and boxes what the compiled version (which gets a new C name, and is what calls
-compiled after that use) returns. The session also remembers each version's function, because a
-version the client has may since have been removed from its function as unused.
+An entry has a fixed calling convention, but optimizing a version can narrow what it returns (to
+an unboxed scalar). An implementation that returns something else than the version's current
+entry gives the version a new entry, which calls compiled from then on use, and the older entries
+are assigned an adapter that boxes the new implementation's result, for the client's existing
+calls. Calls compiled later also convert what an entry returns if the version's return type has
+narrowed since without the version being reimplemented (which doesn't happen in practice).
 
-More generally, the client's code for a version is compiled from the version as it was, and isn't
-recompiled when the version changes. Evaluating a version re-runs the optimizations on the whole
-module, and although the other versions were at a fixpoint, the module has changed under them:
-callees are now evaluated (so `Inline` can inline them, and `StrictifyPromise` and
-`StaticClosure` can look inside them), and versions have been added (so `OptimizeCallee` can
-retarget calls, and `ImproveSignatures` narrow types after them). The client's code is still
-correct, since the optimizations preserve semantics -- just not as optimized as the IR. Under
-`DEBUG=true`, `Fir2CSession#warnIfCompiledIrChanged` logs a warning, with the old and new IR,
-for every compiled version this happens to (checked whenever a patch is compiled).
-
-There's no FIŘ compilation tier in the `Compile` RPC yet: the modules the server serves are the
-ones registered with it directly, which the tests do.
+A function's dispatch function (what dispatch calls and `Fir_call_dynamic` call, and what
+identifies the function to `Fir_assume_function`) and its from-R function (what its closures'
+bodies call) choose among the versions the function has, so they're fixed trampolines that
+forward, through the function's `Fir_FunctionData`, to a generated implementation
+(`Fir_fun_dispatch_f_0`, `Fir_fun_from_r_f_0`, ...). A patch regenerates the implementations of
+every function whose versions changed since the client's were generated -- versions added or
+removed, an entry added, or a signature changed -- and replaces them (`Fir_fun_set_entries`).
+Regenerating refers to every version of the function, so the patch also defines the ones the
+client doesn't have (as stubs), and dispatch in the client always sees the same versions the
+interpreter would. The session also remembers each version's function, because a version the
+client has may since have been removed from its function as unused.
 
 ### The client
 
