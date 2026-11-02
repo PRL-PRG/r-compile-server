@@ -180,7 +180,6 @@ SEXP compile(SEXP closure, SEXP options) {
   // through the R JIT)
   if (opts.inplace) {
     SET_BODY(closure, body);
-    UNPROTECT(1); // For P1 or P2
     // FIXME: add logging primitives
     Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ", opts.name.c_str(),
             closure, body);
@@ -204,7 +203,7 @@ SEXP compile(SEXP closure, SEXP options) {
     }
   }
 
-  UNPROTECT(1); // P3
+  UNPROTECT(1); // P3, or P1/P2 in place
 
   return closure;
 }
