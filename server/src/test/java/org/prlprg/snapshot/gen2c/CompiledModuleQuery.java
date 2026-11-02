@@ -6,7 +6,10 @@ import java.io.*;
 import java.nio.charset.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.prlprg.examples.Example;
 import org.prlprg.gen2c.CUnit;
 import org.prlprg.gen2c.CompiledModule;
@@ -92,18 +95,28 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
 
     // Compile for both `EvalQuery` and easier debugging outside of tests. Without debug info,
     // because nothing here reads it, and on macOS it costs a `dsymutil` run per module.
-    var soPath = path.resolve("code.so");
     try {
       var compiler = RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime(), false);
       var defines = List.of("-DRSH_TESTS", "-DRSH_PC");
-      compiler
-          .createBuilder(cPath, soPath)
-          .inputs(
-              isStandalone() ? StandaloneRuntime.objects(compiler, runtime(), defines) : List.of())
-          .flag("-shared")
-          .flag("-Wl,-undefined,dynamic_lookup")
-          .flags(defines)
-          .compile();
+      var runtimeObjects = new ArrayList<Path>();
+      if (isStandalone()) {
+        for (var source : RshCompiler.standaloneRuntimeSources(runtime())) {
+          runtimeObjects.add(
+              CompileCache.compile(
+                  compiler,
+                  source,
+                  List.of(),
+                  Stream.concat(defines.stream(), Stream.of("-c")).toList()));
+        }
+      }
+      var module =
+          CompileCache.compile(
+              compiler,
+              cPath,
+              runtimeObjects,
+              Stream.concat(defines.stream(), Stream.of("-shared", "-Wl,-undefined,dynamic_lookup"))
+                  .toList());
+      Files.copy(module, path.resolve("code.so"), StandardCopyOption.REPLACE_EXISTING);
     } catch (CCompilationException e) {
       throw new AssertionError("Failed to compile", e);
     } catch (InterruptedException e) {
