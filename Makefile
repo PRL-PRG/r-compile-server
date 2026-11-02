@@ -27,6 +27,7 @@ proto:
 .PHONY: setup-git
 setup-git:
 	cp -f .githooks/pre-commit.sh .git/hooks/pre-commit
+	git lfs install --local
 
 .PHONY: clean
 clean: 

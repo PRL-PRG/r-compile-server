@@ -137,6 +137,15 @@ public interface Query<T> {
     return "";
   }
 
+  /// Whether the snapshot at `path`, which exists, has everything a later run needs to skip
+  /// recomputing. The committed snapshots omit build products (see `server/.gitignore`), so a
+  /// query whose snapshot has some must override this to check for them.
+  ///
+  /// By default, `true`.
+  default boolean isComplete(Path path) {
+    return true;
+  }
+
   /// Deserialize the snapshot data from `path`.
   ///
   /// `store` and `example` are provided to query dependencies if necessary, but usually aren't.

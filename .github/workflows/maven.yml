@@ -113,6 +113,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+      # A contributor without `git lfs install` commits the content itself, which `.gitattributes`
+      # can't prevent. Compare the tracked snapshots with the ones git LFS knows.
+      - name: Check that every tracked snapshot is a git LFS pointer
+        run: diff <(git ls-files -- server/src/test/snapshots | sort) <(git lfs ls-files --name-only | sort)
       - name: Set up JDK 26
         uses: actions/setup-java@v5
         with:

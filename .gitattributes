@@ -1,0 +1,4 @@
+# Snapshots of the `stdlib_*` examples are stored in git LFS. `.lfsconfig` keeps a clone from
+# downloading them; see `server/src/test/java/org/prlprg/snapshot/package-info.java`.
+server/src/test/snapshots/**/stdlib_* filter=lfs diff=lfs merge=lfs -text
+server/src/test/snapshots/**/stdlib_*/** filter=lfs diff=lfs merge=lfs -text

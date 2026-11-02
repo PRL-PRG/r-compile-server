@@ -20,6 +20,10 @@ This shall clone also the submodules. If you forgot to clone the submodules, you
 git submodule update --init --recursive
 ```
 
+Install [git LFS](https://git-lfs.com) and run `make setup-git` (below) before committing. The
+stdlib test snapshots are stored in LFS, and aren't downloaded unless you ask for them (see
+`server/src/test/java/org/prlprg/snapshot/package-info.java`).
+
 ### From dev container
 
 To quickly get started with development, you can use the project's [Dev Container](https://containers.dev/). We strongly recommend using IntelliJ.
@@ -45,7 +49,7 @@ If the dev container is too slow, you can also setup on the host machine. To do 
 
 - Run `make setup` to initialize the dependencies
   - It installs GNU-R in `R`.
-- Run `make setup-git` to install Git Hooks. The commit hook formats, the pre-push hook runs tests and static analyses.
+- Run `make setup-git` to install Git Hooks. The commit hook formats, and `git lfs install` adds the LFS hooks (the pre-push hook uploads LFS objects).
 - Build with `make` or `mvn package`
 - Test (no static analyses) with `make test` or `mvn test`
 - Test and static anaylses with `make check` or `mvn verify`

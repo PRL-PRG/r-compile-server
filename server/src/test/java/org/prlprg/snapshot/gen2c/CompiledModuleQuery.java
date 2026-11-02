@@ -64,6 +64,11 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   }
 
   @Override
+  default boolean isComplete(Path path) {
+    return Files.exists(path.resolve("code.so"));
+  }
+
+  @Override
   default CompiledModule deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
     var R = GNUR.instance();

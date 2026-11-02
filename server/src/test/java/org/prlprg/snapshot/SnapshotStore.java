@@ -1,6 +1,10 @@
 package org.prlprg.snapshot;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import org.jspecify.annotations.Nullable;
 import org.opentest4j.TestAbortedException;
@@ -246,7 +250,7 @@ public class SnapshotStore {
       Files.deleteRecursively(path);
     }
 
-    if (query.isTransient() || !Files.exists(path)) {
+    if (query.isTransient() || !isOnDisk(path) || !query.isComplete(path)) {
       computeAndSave(example, query);
     }
 
@@ -315,7 +319,7 @@ public class SnapshotStore {
     }
 
     var path = snapshotPath(example, query);
-    if (!Files.exists(path)) {
+    if (!isOnDisk(path)) {
       return null;
     }
 
@@ -329,6 +333,32 @@ public class SnapshotStore {
               + path
               + "\nYou may need to delete it or run with `IGNORE_SNAPSHOTS`",
           e);
+    }
+  }
+
+  /// Whether `path` holds a snapshot's content: it exists, and it isn't a git LFS pointer (or a
+  /// directory with one) that was checked out without being fetched (see `.lfsconfig`). An
+  /// un-fetched snapshot is recomputed like a missing one, and the recomputed one overwrites it;
+  /// `git status` then lists the snapshots whose content changed.
+  private static boolean isOnDisk(Path path) {
+    if (!Files.exists(path)) {
+      return false;
+    }
+    try (var files = java.nio.file.Files.walk(path)) {
+      return files.filter(Files::isRegularFile).noneMatch(SnapshotStore::isLfsPointer);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static final byte[] LFS_POINTER_HEADER =
+      "version https://git-lfs.github.com/spec/v1".getBytes(StandardCharsets.US_ASCII);
+
+  private static boolean isLfsPointer(Path file) {
+    try (var in = java.nio.file.Files.newInputStream(file)) {
+      return Arrays.equals(in.readNBytes(LFS_POINTER_HEADER.length), LFS_POINTER_HEADER);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 

@@ -11,6 +11,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `Makefile` — Sets up the vendored GNU-R and the sub-projects.
 - `repo-map.md` — This index.
 - `.gitignore`, `.gitmodules`, `.git-blame-ignore-revs` — Git configuration (`R` is a submodule).
+- `.gitattributes`, `.lfsconfig` — The `stdlib_*` snapshots are in git LFS, and not downloaded by default.
 - `.githooks/pre-commit.sh` — Pre-commit hook (formatting).
 - `.devcontainer/` — Dev container (`Dockerfile`, `devcontainer.json`).
 - `.github/actions/setup-gnur/action.yml` — CI action: build the vendored GNU-R.
@@ -643,4 +644,4 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
 - `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts, `order.txt`.
 - `server/src/test/resources/org/prlprg/gen2c/`, `bc2c/` — Build files and data for compiled-C tests.
-- `server/src/test/snapshots/` — Saved snapshot outputs (data).
+- `server/src/test/snapshots/` — Saved snapshot outputs (data). Only the `stdlib_*` examples' are committed, in git LFS.
