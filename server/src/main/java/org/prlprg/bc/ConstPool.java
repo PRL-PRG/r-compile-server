@@ -10,14 +10,20 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Complex;
+import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.StrOrRegSymSXP;
 import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Classes;
 
@@ -120,7 +126,8 @@ public final class ConstPool extends ForwardingList<SEXP> {
    * <p>Not synchronized, so don't use from multiple threads.
    */
   public static class Builder {
-    private final Map<SEXP, Integer> index;
+    /// The indices of the values, grouped by `equals`.
+    private final Map<SEXP, List<Integer>> index;
     private final List<SEXP> values;
 
     public Builder() {
@@ -136,21 +143,65 @@ public final class ConstPool extends ForwardingList<SEXP> {
       this.index = new HashMap<>(consts.size());
       this.values = new ArrayList<>(consts);
       for (var i = 0; i < values.size(); i++) {
-        index.putIfAbsent(values.get(i), i);
+        index.computeIfAbsent(values.get(i), _ -> new ArrayList<>()).add(i);
       }
     }
 
+    /// Add a constant, or reuse an identical one, like GNU-R's `putconst`.
+    ///
+    /// GNU-R reuses a constant if it is `identical`, which unlike `equals` keeps `NA` and the
+    /// other `NaN`s apart.
     public <S extends SEXP> Idx<S> add(S c) {
+      var sameEquals = index.computeIfAbsent(c, _ -> new ArrayList<>());
+      var naKinds = naKinds(c);
       var i =
-          index.computeIfAbsent(
-              c,
-              (ignored) -> {
-                var x = values.size();
-                values.add(c);
-                return x;
-              });
+          sameEquals.stream()
+              .filter(j -> naKinds(values.get(j)).equals(naKinds))
+              .findFirst()
+              .orElseGet(
+                  () -> {
+                    var x = values.size();
+                    values.add(c);
+                    sameEquals.add(x);
+                    return x;
+                  });
 
       return Idx.create(i, c);
+    }
+
+    /// Whether each `NaN` in `x`, in order, is GNU-R's `NA`.
+    private static List<Boolean> naKinds(SEXP x) {
+      var out = new ArrayList<Boolean>();
+      addNaKinds(x, out);
+      return out;
+    }
+
+    private static void addNaKinds(Object x, List<Boolean> out) {
+      switch (x) {
+        // GNU-R's `R_IsNA`.
+        case Double d when Double.isNaN(d) ->
+            out.add((Double.doubleToRawLongBits(d) & 0xFFFFFFFFL) == 1954);
+        case Complex(var re, var im) -> {
+          addNaKinds(re, out);
+          addNaKinds(im, out);
+        }
+        case TaggedElem(var _, var value) -> addNaKinds(value, out);
+        case LangSXP l -> {
+          addNaKinds(l.fun(), out);
+          addNaKinds(l.args(), out);
+        }
+        case ListOrVectorSXP<?> l -> l.forEach(e -> addNaKinds(e, out));
+        case BCodeSXP b -> b.bc().consts().forEach(e -> addNaKinds(e, out));
+        case CloSXP c -> {
+          addNaKinds(c.parameters(), out);
+          addNaKinds(c.body(), out);
+        }
+        case PromSXP p -> addNaKinds(p.expr(), out);
+        default -> {}
+      }
+      if (x instanceof SEXP s && s.attributes() != null) {
+        s.attributes().values().forEach(e -> addNaKinds(e, out));
+      }
     }
 
     /**

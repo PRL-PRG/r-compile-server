@@ -19,4 +19,17 @@ public class ConstPoolTest {
     assertEquals(3, builder.build().size());
     assertEquals(0, builder.add(a).idx());
   }
+
+  /// Like GNU-R's `putconst`, which uses `identical`, `add` keeps `NA` and `NaN` apart.
+  @Test
+  public void addKeepsNaAndNaNApart() {
+    var na = SEXPs.complex(Double.longBitsToDouble(0x7FF00000000007A2L), 0);
+    var nan = SEXPs.complex(Double.NaN, 0);
+    var builder = new ConstPool.Builder();
+
+    assertEquals(0, builder.add(nan).idx());
+    assertEquals(1, builder.add(na).idx());
+    assertEquals(0, builder.add(SEXPs.complex(Double.NaN, 0)).idx());
+    assertEquals(1, builder.add(na).idx());
+  }
 }
