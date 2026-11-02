@@ -317,7 +317,8 @@ public class BCCompiler {
   private static final Set<String> ALLOWED_FOLDABLE_FUNS =
       Set.of(
           "c", "+", "*", "/", ":", "-", "^", "(", "cos", "exp", "log", "log10", "log2", "seq.int",
-          "seq_len", "sin", "sqrt", "rep", "tan");
+          "seq_len", "sin", "sqrt", "rep", "tan", "==", "!=", "<", "<=", ">", ">=", "atan",
+          "choose", "round");
 
   /**
    * The set of functions that if encounted in loop body allow us to stop the search whether loop
@@ -2307,6 +2308,10 @@ public class BCCompiler {
       case "sin" -> ConstantFolding.sin(args);
       case "sqrt" -> ConstantFolding.sqrt(args);
       case "tan" -> ConstantFolding.tan(args);
+      case "==", "!=", "<", "<=", ">", ">=" -> ConstantFolding.relop(funName, args);
+      case "atan" -> ConstantFolding.atan(args);
+      case "choose" -> ConstantFolding.choose(args);
+      case "round" -> ConstantFolding.round(args);
       case "rep" -> ConstantFolding.rep(args);
       case "seq.int" -> ConstantFolding.seqInt(args);
       case "seq_len" -> ConstantFolding.seqLen(args);

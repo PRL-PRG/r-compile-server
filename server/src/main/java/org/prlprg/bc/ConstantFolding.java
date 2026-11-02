@@ -7,6 +7,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -28,6 +32,11 @@ public final class ConstantFolding {
   /// Enough to scale any subnormal `double` into the normal range.
   private static final int SUBNORMAL_SHIFT = 54;
 
+  /// Strings whose ordering is the same in every locale: ASCII digits and letters of one case.
+  private static final Pattern[] LOCALE_INDEPENDENT_STRINGS = {
+    Pattern.compile("[0-9a-z]*"), Pattern.compile("[0-9A-Z]*")
+  };
+
   private ConstantFolding() {}
 
   public static Optional<SEXP> add(List<SEXP> args) {
@@ -36,6 +45,10 @@ public final class ConstantFolding {
 
   public static Optional<SEXP> div(List<SEXP> args) {
     return math2(Arithmetic.Operation.DIV, args);
+  }
+
+  public static Optional<SEXP> atan(List<SEXP> args) {
+    return doubleMath1(args, Math::atan);
   }
 
   public static Optional<SEXP> cos(List<SEXP> args) {
@@ -231,6 +244,138 @@ public final class ConstantFolding {
 
   public static Optional<SEXP> sqrt(List<SEXP> args) {
     return doubleMath1(args, Math::sqrt);
+  }
+
+  /// A relational operator: `==`, `!=`, `<`, `<=`, `>` or `>=`.
+  ///
+  /// It doesn't fold what GNU-R warns about, what keeps attributes, or what depends on the
+  /// locale: complex numbers, mixed strings and numbers, and string orderings outside of
+  /// [#LOCALE_INDEPENDENT_STRINGS].
+  public static Optional<SEXP> relop(String op, List<SEXP> args) {
+    if (args.size() != 2
+        || !(args.get(0) instanceof VectorSXP<?> a)
+        || !(args.get(1) instanceof VectorSXP<?> b)
+        || hasAttributes(a)
+        || hasAttributes(b)) {
+      return Optional.empty();
+    }
+
+    var la = a.size();
+    var lb = b.size();
+    var l = la == 0 || lb == 0 ? 0 : Math.max(la, lb);
+    if (l % Math.max(1, Math.min(la, lb)) != 0) {
+      return Optional.empty();
+    }
+
+    IntPredicate holds =
+        switch (op) {
+          case "==" -> c -> c == 0;
+          case "!=" -> c -> c != 0;
+          case "<" -> c -> c < 0;
+          case "<=" -> c -> c <= 0;
+          case ">" -> c -> c > 0;
+          case ">=" -> c -> c >= 0;
+          default -> throw new IllegalArgumentException("Not a relational operator: " + op);
+        };
+
+    // The sign of `a[i] <op> b[j]`, or `null` if it's `NA`.
+    BiFunction<Integer, Integer, @Nullable Integer> compare;
+    if (a.type() == SEXPType.STR && b.type() == SEXPType.STR) {
+      var x = a.coerceToStrings();
+      var y = b.coerceToStrings();
+      if (!op.equals("==")
+          && !op.equals("!=")
+          && !Stream.of(LOCALE_INDEPENDENT_STRINGS)
+              .anyMatch(
+                  p ->
+                      Stream.concat(Arrays.stream(x), Arrays.stream(y))
+                          .allMatch(s -> Coercions.isNA(s) || p.matcher(s).matches()))) {
+        return Optional.empty();
+      }
+      compare =
+          (i, j) -> Coercions.isNA(x[i]) || Coercions.isNA(y[j]) ? null : x[i].compareTo(y[j]);
+    } else if (Stream.of(a, b)
+        .allMatch(v -> v.type() == SEXPType.LGL || v instanceof NumericSXP<?>)) {
+      var x = a.coerceToReals();
+      var y = b.coerceToReals();
+      compare =
+          (i, j) ->
+              Double.isNaN(x[i]) || Double.isNaN(y[j])
+                  ? null
+                  : x[i] < y[j] ? -1 : x[i] > y[j] ? 1 : 0;
+    } else {
+      return Optional.empty();
+    }
+
+    var ans = new Logical[l];
+    for (var i = 0; i < l; i++) {
+      var c = compare.apply(i % la, i % lb);
+      ans[i] = c == null ? Logical.NA : holds.test(c) ? Logical.TRUE : Logical.FALSE;
+    }
+    return Optional.of(SEXPs.logical(ans));
+  }
+
+  /// `round(x)` and `round(x, 0)`, which round half to even like C's `nearbyint`.
+  public static Optional<SEXP> round(List<SEXP> args) {
+    if (args.isEmpty()
+        || args.size() > 2
+        || args.getFirst().type() != SEXPType.REAL
+        || hasAttributes(args.getFirst())) {
+      return Optional.empty();
+    }
+    if (args.size() == 2
+        && !(args.get(1) instanceof NumericSXP<?> digits
+            && digits.size() == 1
+            && digits.coerceToReals()[0] == 0)) {
+      return Optional.empty();
+    }
+    return doubleMath1(args.subList(0, 1), Math::rint);
+  }
+
+  /// `choose(n, k)` of two scalars, with GNU-R's algorithm for `k < 30`.
+  public static Optional<SEXP> choose(List<SEXP> args) {
+    if (args.size() != 2
+        || !args.stream()
+            .allMatch(
+                a ->
+                    (a.type() == SEXPType.LGL || a instanceof NumericSXP<?>)
+                        && ((VectorSXP<?>) a).size() == 1
+                        && !hasAttributes(a))) {
+      return Optional.empty();
+    }
+
+    var n = ((VectorSXP<?>) args.get(0)).coerceToReals()[0];
+    var k0 = ((VectorSXP<?>) args.get(1)).coerceToReals()[0];
+    var k = Math.rint(k0);
+    // GNU-R warns when it rounds `k`, and returns `NaN`s without folding them.
+    if (Double.isNaN(n) || Double.isNaN(k) || Math.abs(k - k0) > 1e-9 * Math.max(1, Math.abs(k0))) {
+      return Optional.empty();
+    }
+    if (k >= 30) {
+      return Optional.empty();
+    }
+
+    var nIsInt = Math.abs(n - Math.rint(n)) <= 1e-9 * Math.max(1, Math.abs(n));
+    if (n - k < k && n >= 0 && nIsInt) {
+      k = Math.rint(n - k);
+    }
+    double r;
+    if (k < 0) {
+      r = 0;
+    } else if (k == 0) {
+      r = 1;
+    } else {
+      r = n;
+      for (var j = 2; j <= k; j++) {
+        r *= (n - j + 1) / j;
+      }
+      r = nIsInt ? Math.rint(r) : r;
+    }
+    return Optional.of(SEXPs.real(r));
+  }
+
+  private static boolean hasAttributes(SEXP x) {
+    return x.attributes() != null && !x.attributes().isEmpty();
   }
 
   public static Optional<SEXP> sub(List<SEXP> args) {
