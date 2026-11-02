@@ -289,8 +289,11 @@ class ClosureCompiler {
 
   private void updateBranchStackState(BcInstr instr) {
     var op = instr.op();
-    if (op == BcOp.GOTO || op == BcOp.BASEGUARD) {
-      // these do not change the stack state
+    // `GOTO` records its depth like any other jump: a label may be reached only by it, after code
+    // that falls through at another depth (`if (c) x else break` in a loop: the `break` jumps away
+    // at loop depth, the then-arm reaches the join with its value pushed). `BASEGUARD`'s fail path
+    // pushes a value before jumping, and its fall-through reaches the target at that same depth.
+    if (op == BcOp.BASEGUARD) {
       return;
     }
 
