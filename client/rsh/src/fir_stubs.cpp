@@ -30,7 +30,7 @@ namespace {
 // Slots of a counting body's state (see `rsh_tier`), after the ones it shares with a bytecode
 // baseline's pool (`FIR_BC_BASELINE_*`), which make `Fir_bc_baseline_code` work on it.
 enum {
-  // `TIER_MAGIC`, in place of the baseline's `FIR_BC_BASELINE_ID`.
+  // `NULL`, in place of the baseline's `FIR_BC_BASELINE_ID`: the state isn't a baseline's pool.
   TIER_ID = FIR_BC_BASELINE_ID,
   // A `TierRequest`, as a scalar integer.
   TIER_REQUEST = FIR_BC_BASELINE_SIZE,
@@ -41,12 +41,16 @@ enum {
   TIER_SIZE,
 };
 
+// The tag of the external pointer a counting body holds its state behind.
 constexpr char const *TIER_MAGIC = "rsh_tier_state";
 
 enum TierRequest {
   TIER_UNREQUESTED = 0,
   TIER_REQUESTED = 1,
+  // The server failed, or loading its answer did: the closure runs the baseline from then on.
   TIER_FAILED = 2,
+  // `TIER_OPTIMIZED` is set.
+  TIER_LOADED = 3,
 };
 
 // A request for a stub's version (if `closure` is empty) or a closure's module. `module` and `id`
@@ -71,6 +75,44 @@ struct Answer {
 };
 
 using InitFun = SEXP (*)(SEXP pool);
+
+// Run `body`, and return the message of the R error it raises, if any (a warning raises one under
+// `options(warn = 2)`).
+template <typename F> std::optional<std::string> try_r(F body) {
+  struct Data {
+    F &body;
+    std::optional<std::string> error;
+  } data{body, std::nullopt};
+  R_tryCatchError(
+      [](void *data) -> SEXP {
+        static_cast<Data *>(data)->body();
+        return R_NilValue;
+      },
+      &data,
+      [](SEXP condition, void *data) -> SEXP {
+        SEXP message = TYPEOF(condition) == VECSXP && XLENGTH(condition) > 0
+                           ? VECTOR_ELT(condition, 0)
+                           : R_NilValue;
+        static_cast<Data *>(data)->error = TYPEOF(message) == STRSXP && XLENGTH(message) > 0
+                                               ? CHAR(STRING_ELT(message, 0))
+                                               : "unknown error";
+        return R_NilValue;
+      },
+      &data);
+  return data.error;
+}
+
+// Add an answer's object to the JIT and call its initializer `init` with its constant pool, which
+// it returns. Raises an R error if that fails.
+SEXP load_code(std::string const &code, std::string const &init, std::string const &constants) {
+  GJIT->add_object(code);
+  auto init_fun = (InitFun)GJIT->lookup(init.c_str());
+  // The code refers to its constants for as long as it exists, which is forever.
+  SEXP pool = rsh::deserialize(constants);
+  R_PreserveObject(pool);
+  init_fun(pool);
+  return pool;
+}
 
 // Sends stubs' requests to the compile server and loads what it answers.
 //
@@ -149,73 +191,87 @@ class FirStubClient {
   }
 
   // Load a closure's answer: define the module and store the body that runs it in the state.
-  void load_closure(Answer const &answer) {
-    SEXP state = answer.state;
+  // Returns the warning to give, if any.
+  //
+  // The request's bookkeeping is done first, so that it's done even if loading raises an R error.
+  std::string load_closure(Answer const &answer) {
+    SEXP state = PROTECT(answer.state);
     {
       std::lock_guard<std::mutex> lock(mutex);
       closure_tickets.erase(state);
     }
+    R_ReleaseObject(state);
+    int *request = INTEGER(VECTOR_ELT(state, TIER_REQUEST));
+    *request = TIER_FAILED;
 
     auto const &response = answer.closure_response;
-    bool ok = answer.ok && !response.code().empty();
-    if (ok) {
-      GJIT->add_object(response.code());
-      auto init = (InitFun)GJIT->lookup(response.init().c_str());
-      auto from_r = GJIT->lookup(response.from_r().c_str());
-
-      // The code refers to its constants for as long as it exists, which is forever.
-      SEXP pool = rsh::deserialize(response.constants());
-      R_PreserveObject(pool);
-      init(pool);
-
-      SET_VECTOR_ELT(state, TIER_OPTIMIZED, R_MakeExternalPtr(from_r, Rsh_CodeTag, pool));
-    } else {
-      INTEGER(VECTOR_ELT(state, TIER_REQUEST))[0] = TIER_FAILED;
+    std::string error = !answer.ok                ? "the server failed: " + answer.error
+                        : response.code().empty() ? std::string("no code in the answer")
+                                                  : "";
+    if (error.empty()) {
+      auto load_error = try_r([&] {
+        SEXP pool = load_code(response.code(), response.init(), response.constants());
+        auto from_r = GJIT->lookup(response.from_r().c_str());
+        SET_VECTOR_ELT(state, TIER_OPTIMIZED, R_MakeExternalPtr(from_r, Rsh_CodeTag, pool));
+      });
+      if (load_error) {
+        error = "loading the answer failed: " + *load_error;
+      } else {
+        *request = TIER_LOADED;
+      }
     }
 
-    if (!ok) {
-      Rf_warning("Compile server failed to compile closure %s: %s",
-                 CHAR(STRING_ELT(VECTOR_ELT(state, TIER_NAME), 0)),
-                 answer.ok ? "no code in the answer" : answer.error.c_str());
+    std::string warning;
+    if (!error.empty()) {
+      warning = std::string("Compile server failed to compile closure ") +
+                CHAR(STRING_ELT(VECTOR_ELT(state, TIER_NAME), 0)) + ": " + error;
     }
-    R_ReleaseObject(state);
+    UNPROTECT(1);
+    return warning;
   }
 
-  // Load an answer: define what the server sent and let it replace the stubs it's for.
-  void load(Answer const &answer) {
+  // Load an answer: define what the server sent and let it replace the stubs it's for. Returns the
+  // warning to give, if any.
+  std::string load(uint64_t ticket, Answer const &answer) {
     if (answer.state != nullptr) {
-      load_closure(answer);
-      return;
+      return load_closure(answer);
     }
 
     auto stub = answer.stub;
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      auto current = tickets.find(stub);
+      if (current != tickets.end() && current->second == ticket) {
+        tickets.erase(current);
+      }
+    }
+    // Until it's loaded, so that an R error while loading leaves the stub on its fallback.
+    stub->state = FIR_STUB_FAILED;
+    auto prefix = "version " + std::to_string(stub->id) + " of FIR module " + stub->module;
     if (!answer.ok) {
-      stub->state = FIR_STUB_FAILED;
-      Rf_warning("Compile server failed to compile version %d of FIR module %s: %s",
-                 stub->id, stub->module, answer.error.c_str());
-      return;
+      return "Compile server failed to compile " + prefix + ": " + answer.error;
     }
 
     auto const &response = answer.response;
+    std::optional<std::string> load_error;
     if (response.has_code() && !response.code().empty()) {
-      GJIT->add_object(response.code());
-      auto init = (InitFun)GJIT->lookup(response.init().c_str());
-
-      // The code refers to its constants for as long as it exists, which is forever.
-      SEXP pool = rsh::deserialize(response.constants());
-      R_PreserveObject(pool);
-      init(pool);
+      load_error = try_r([&] { load_code(response.code(), response.init(), response.constants()); });
     }
 
     // An answer without code means the version came with an earlier answer, or (`fallback`) that
     // it's the same as the fallback.
-    if (stub->compiled == nullptr && response.fallback()) {
+    if (stub->compiled != nullptr) {
+      stub->state = FIR_STUB_COMPILED;
+    } else if (!load_error && response.fallback()) {
       Fir_stub_fallback(stub);
-    } else if (stub->compiled == nullptr) {
-      stub->state = FIR_STUB_FAILED;
-      Rf_warning("Compile server didn't send version %d of FIR module %s", stub->id,
-                 stub->module);
     }
+    if (load_error) {
+      return "Failed to load " + prefix + ": " + *load_error;
+    }
+    if (stub->state == FIR_STUB_FAILED) {
+      return "Compile server didn't send " + prefix;
+    }
+    return "";
   }
 
 public:
@@ -266,17 +322,26 @@ public:
   // Load everything that has arrived, after waiting for `ticket`'s answer if `wait`. Not only
   // what one requester asked for: an answer can come without code because an earlier one had it
   // (see `load`). Unlocks `lock`.
+  //
+  // Answers are taken one at a time, so that if a warning raises an R error, the ones after it
+  // stay for the next poll.
   void load_arrived(std::unique_lock<std::mutex> &lock, uint64_t ticket, bool wait) {
     if (wait) {
       changed.wait(lock, [&] { return answers.count(ticket) > 0; });
     }
-    std::map<uint64_t, Answer> arrived;
-    arrived.swap(answers);
-    lock.unlock();
-
-    for (auto const &[_, answer] : arrived) {
-      load(answer);
+    while (!answers.empty()) {
+      std::string warning;
+      {
+        auto arrived = answers.extract(answers.begin());
+        lock.unlock();
+        warning = load(arrived.key(), arrived.mapped());
+      }
+      if (!warning.empty()) {
+        Rf_warning("%s", warning.c_str());
+      }
+      lock.lock();
     }
+    lock.unlock();
   }
 
   void drain() {
@@ -310,20 +375,25 @@ void poll(Fir_Stub *stub, bool wait) { FIR_STUB_CLIENT->poll(stub, wait); }
 
 Fir_StubCompiler FIR_STUB_COMPILER = {&request, &poll, false};
 
-SEXP mk_tier_state(SEXP bytecode, SEXP formals, SEXP name) {
+// An external pointer to a new counting body's state. The state is mutable, so it's behind the
+// pointer: GNU-R treats bytecode constants as immutable (`R_CHECK_CONSTANTS`), but neither
+// duplicates nor compares what an external pointer protects. The address is the state's, so that
+// `identical` tells two apart.
+SEXP mk_tier(SEXP bytecode, SEXP formals, SEXP name) {
   SEXP state = PROTECT(Rf_allocVector(VECSXP, TIER_SIZE));
   SET_VECTOR_ELT(state, FIR_BC_BASELINE_CODE, bytecode);
   SET_VECTOR_ELT(state, FIR_BC_BASELINE_FORMALS, formals);
-  SET_VECTOR_ELT(state, TIER_ID, Rf_mkString(TIER_MAGIC));
   SET_VECTOR_ELT(state, FIR_BC_BASELINE_CALLS, Rf_ScalarInteger(0));
   SET_VECTOR_ELT(state, TIER_REQUEST, Rf_ScalarInteger(TIER_UNREQUESTED));
   SET_VECTOR_ELT(state, TIER_NAME, name);
+  SEXP tier = R_MakeExternalPtr(state, Rf_install(TIER_MAGIC), state);
   UNPROTECT(1);
-  return state;
+  return tier;
 }
 
-// The state of `body` if it's a counting body (see `rsh_tier`), otherwise `nullptr`.
-SEXP tier_state_of(SEXP body) {
+// The external pointer to the state of `body` if it's a counting body (see `rsh_tier`),
+// otherwise `nullptr`.
+SEXP tier_of(SEXP body) {
   if (TYPEOF(body) != BCODESXP) {
     return nullptr;
   }
@@ -331,16 +401,14 @@ SEXP tier_state_of(SEXP body) {
   if (TYPEOF(expr) != LANGSXP || Rf_length(expr) != 3) {
     return nullptr;
   }
-  SEXP state = CADDR(expr);
-  if (TYPEOF(state) != VECSXP || XLENGTH(state) != TIER_SIZE) {
+  SEXP tier = CADDR(expr);
+  if (TYPEOF(tier) != EXTPTRSXP || R_ExternalPtrTag(tier) != Rf_install(TIER_MAGIC)) {
     return nullptr;
   }
-  SEXP id = VECTOR_ELT(state, TIER_ID);
-  if (TYPEOF(id) != STRSXP || XLENGTH(id) != 1 || strcmp(CHAR(STRING_ELT(id, 0)), TIER_MAGIC)) {
-    return nullptr;
-  }
-  return state;
+  return tier;
 }
+
+SEXP tier_state(SEXP tier) { return R_ExternalPtrProtected(tier); }
 
 // The name to send for the closure called by `call`: its state's, or else the function's name in
 // the call, or else "f".
@@ -381,40 +449,45 @@ void request_closure(SEXP fun, SEXP call, SEXP state, int calls_in_baseline) {
   FIR_STUB_CLIENT->request(state, std::move(message));
 }
 
-// Make `fun` run `body` instead of its counting body, if it still has the one `state` is from.
-void replace_body(SEXP fun, SEXP state, SEXP body) {
-  if (TYPEOF(fun) == CLOSXP && tier_state_of(BODY(fun)) == state) {
+// Make `fun` run `body` instead of its counting body, if it still has the one `tier` is from.
+void replace_body(SEXP fun, SEXP tier, SEXP body) {
+  if (TYPEOF(fun) == CLOSXP && tier_of(BODY(fun)) == tier) {
     SET_BODY(fun, body);
   }
 }
 
 } // namespace
 
-SEXP rsh_tier(SEXP state) {
+SEXP rsh_tier(SEXP tier) {
   // The running closure's context: `.Call` makes none, or a builtin one. (`sys.function()` would
   // return a copy of the closure, so setting its body would change nothing.)
   RCNTXT *context = R_GlobalContext;
   while (context->nextcontext != nullptr && !(context->callflag & CTXT_FUNCTION)) {
     context = context->nextcontext;
   }
-  if (!(context->callflag & CTXT_FUNCTION) || tier_state_of(BODY(context->callfun)) != state) {
+  if (!(context->callflag & CTXT_FUNCTION) || tier_of(BODY(context->callfun)) != tier) {
     Rf_error("rsh_tier must only be called by the counting body of a closure");
   }
   SEXP fun = context->callfun;
   SEXP env = context->cloenv;
   // Replacing the body can make the state unreachable.
-  PROTECT(state);
+  PROTECT(tier);
+  SEXP state = tier_state(tier);
 
-  SEXP optimized = VECTOR_ELT(state, TIER_OPTIMIZED);
   int *request = INTEGER(VECTOR_ELT(state, TIER_REQUEST));
-  if (optimized == R_NilValue && *request == TIER_REQUESTED && FIR_STUB_CLIENT != nullptr) {
+  if (*request == TIER_REQUESTED && FIR_STUB_CLIENT != nullptr) {
     FIR_STUB_CLIENT->poll(state, FIR_STUB_COMPILER.deterministic);
-    optimized = VECTOR_ELT(state, TIER_OPTIMIZED);
   }
-  if (optimized != R_NilValue) {
-    replace_body(fun, state, optimized);
+  if (*request == TIER_LOADED) {
+    SEXP optimized = VECTOR_ELT(state, TIER_OPTIMIZED);
+    replace_body(fun, tier, optimized);
     UNPROTECT(1);
     return Rf_eval(optimized, env);
+  }
+  if (*request == TIER_FAILED) {
+    SEXP out = Rf_eval(Fir_bc_baseline_code(state), env);
+    UNPROTECT(1);
+    return out;
   }
 
   int *calls = INTEGER(VECTOR_ELT(state, FIR_BC_BASELINE_CALLS));
@@ -427,10 +500,6 @@ SEXP rsh_tier(SEXP state) {
   // before the request.
   SEXP code = *calls > threshold ? Fir_bc_baseline_code(state)
                                  : VECTOR_ELT(state, FIR_BC_BASELINE_CODE);
-  if (*request == TIER_FAILED) {
-    replace_body(fun, state, code);
-  }
-
   SEXP out = PROTECT(Rf_eval(code, env));
 
   if (*calls >= 2 * threshold && *request == TIER_UNREQUESTED && FIR_STUB_CLIENT != nullptr) {
@@ -443,12 +512,12 @@ SEXP rsh_tier(SEXP state) {
 
 SEXP rsh_jit_closure(SEXP compiled, SEXP name, SEXP tier_entry) {
   SEXP body = BODY(compiled);
-  if (TYPEOF(body) != BCODESXP || tier_state_of(body) != nullptr) {
+  if (TYPEOF(body) != BCODESXP || tier_of(body) != nullptr) {
     return compiled;
   }
 
-  SEXP state = PROTECT(mk_tier_state(body, FORMALS(compiled), name));
-  SEXP tier_call = PROTECT(Rf_lang3(Rf_install(".Call"), tier_entry, state));
+  SEXP tier = PROTECT(mk_tier(body, FORMALS(compiled), name));
+  SEXP tier_call = PROTECT(Rf_lang3(Rf_install(".Call"), tier_entry, tier));
   SEXP quoted = PROTECT(Rf_lang2(Rf_install("quote"), tier_call));
   SEXP compile = PROTECT(Rf_lang3(R_DoubleColonSymbol, Rf_install("compiler"),
                                   Rf_install("compile")));
@@ -470,8 +539,10 @@ SEXP rsh_jit_tier(SEXP fun) {
   char const *tier = "interpreted";
   if (IS_RSH_CODE(body)) {
     tier = "optimized";
-  } else if (SEXP state = tier_state_of(body)) {
-    if (INTEGER(VECTOR_ELT(state, FIR_BC_BASELINE_CALLS))[0] >= Fir_jit_threshold) {
+  } else if (SEXP state = tier_of(body)) {
+    state = tier_state(state);
+    if (INTEGER(VECTOR_ELT(state, FIR_BC_BASELINE_CALLS))[0] >= Fir_jit_threshold ||
+        INTEGER(VECTOR_ELT(state, TIER_REQUEST))[0] == TIER_FAILED) {
       tier = "baseline";
     }
   }

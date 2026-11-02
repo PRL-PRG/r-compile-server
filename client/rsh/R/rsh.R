@@ -148,8 +148,9 @@ rsh_cmpfun <- function(f, options) {
 #'
 #' @param f closure
 #' @return `"interpreted"` if `f` didn't run `threshold` times since [rsh_cmpfun()] compiled it
-#'   (or it never did), `"baseline"` if it did, and `"optimized"` once it runs code compiled by the
-#'   compile server (see [rsh_jit_enable()])
+#'   (or it never did), `"baseline"` if it did (also after the compile server failed to compile
+#'   it), and `"optimized"` once it runs code compiled by the compile server (see
+#'   [rsh_jit_enable()])
 #' @export
 rsh_jit_tier <- function(f) {
   .Call(C_rsh_jit_tier, f)

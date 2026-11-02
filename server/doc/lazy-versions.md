@@ -247,8 +247,9 @@ finds its version already loaded (or, with `fallback`, puts the stub on its fall
 (`client/rsh/README.md`). GNU-R's JIT calls the hook on the first or second call of a closure
 whose body isn't bytecode. `rsh_cmpfun` compiles the closure to bytecode with GNU-R's compiler.
 It returns a closure whose body is a *counting body*: bytecode that runs
-`.Call(C_rsh_tier, state)` (`client/rsh/src/fir_stubs.cpp`). GNU-R copies that body onto the
-running closure. The state holds the bytecode, the formals, the baseline's code, the call counter,
+`.Call(C_rsh_tier, tier)` (`client/rsh/src/fir_stubs.cpp`). GNU-R copies that body onto the
+running closure. `tier` is an external pointer to the state, because GNU-R treats bytecode
+constants as immutable. The state holds the bytecode, the formals, the baseline's code, the call counter,
 the request state, the closure's name, and the optimized body.
 
 With N the threshold, a closure moves through three tiers (`rsh::rsh_jit_tier(f)` returns the
@@ -267,8 +268,8 @@ tier):
    function. GNU-R's evaluator calls that pointer directly, and GNU-R's JIT skips it.
 
 If the client isn't connected (`rsh_fir_connect`), the closure stays in the baseline. If the
-server fails, the client sets the closure's body to the baseline's code, so the counting body
-costs nothing after that.
+server fails, or loading its answer raises an R error, the closure stays in the baseline: the
+counting body runs the baseline's code, and doesn't count or ask again.
 
 ### The `CompileFirClosure` RPC
 

@@ -32,7 +32,8 @@ Small closures that aren't top-level are never compiled either, unless `R_JIT_ST
 when R starts, which also makes the hook run on the first call.
 
 `rsh_cmpfun` compiles the closure to bytecode with GNU-R's compiler, and gives it a *counting
-body*: bytecode that runs `.Call(C_rsh_tier, state)` (`src/fir_stubs.cpp`). `state` holds the
+body*: bytecode that runs `.Call(C_rsh_tier, tier)` (`src/fir_stubs.cpp`). `tier` is an external
+pointer (bytecode constants must not change) to a state that holds the
 bytecode, the formals, the baseline's code, a call counter, the request state, the closure's name
 and, once it's loaded, the optimized body. With N the threshold, the closure:
 
@@ -46,7 +47,8 @@ and, once it's loaded, the optimized body. With N the threshold, the closure:
    call, else `f`. Later calls check for the answer (in `deterministic` mode, call 2N+1 waits for
    it). Once the module is loaded, the closure's body becomes an external pointer (`Rsh_CodeTag`)
    to the module's from-R function, which GNU-R calls directly ("optimized"). If the server fails,
-   the closure's body becomes the baseline's code.
+   or loading its answer does, the closure runs the baseline from then on and doesn't ask again
+   ("baseline").
 
 `rsh_jit_tier(f)` returns "baseline" once `f` ran N calls, i.e. when its next call runs the
 baseline. See `../../server/doc/lazy-versions.md` for what the server does with the request.
