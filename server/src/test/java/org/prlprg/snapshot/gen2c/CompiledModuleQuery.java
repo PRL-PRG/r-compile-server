@@ -71,8 +71,10 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     var cPath = path.resolve("code.c");
     var bindingsPath = path.resolve("bindings.rds");
 
+    // `CUnit` prints a newline after its extra code, which `serialize` already printed.
+    var text = Files.readString(cPath, StandardCharsets.UTF_8);
     var code = new CUnit();
-    code.addExtra(Files.readString(cPath, StandardCharsets.UTF_8));
+    code.addExtra(text.endsWith("\n") ? text.substring(0, text.length() - 1) : text);
     var constantPool = (VecSXP) RDSReader.readFile(R.getSession(), bindingsPath.toFile());
 
     return new CompiledModule(code, constantPool);
