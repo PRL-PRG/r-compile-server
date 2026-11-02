@@ -304,6 +304,10 @@
         <configuration>
           <parallel>all</parallel>
           <threadCount>8</threadCount>
+          <!-- Name test cases in reports by display name, so an example test's report names the example -->
+          <statelessTestsetReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5Xml30StatelessReporter">
+            <usePhrasedTestCaseMethodName>true</usePhrasedTestCaseMethodName>
+          </statelessTestsetReporter>
         </configuration>
         <!-- automatically runs on `test` (and `verify` because `verify` invokes `test`) -->
       </plugin>
