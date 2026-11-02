@@ -133,7 +133,7 @@ public class FirQuery implements GenFirQuery {
     var env = new UserEnvSXP();
     env.set("main", SEXPs.closure(SEXPs.list(), SEXPs.bcode(bc), env));
 
-    // Records the bytecode, for `ModuleBcOriginMap.of`.
+    // Records the bytecode, for `BC2FirUtils#bytecodes(Module)`.
     return compile(env, R.getSession(), strict, new ModuleBcOriginMap());
   }
 

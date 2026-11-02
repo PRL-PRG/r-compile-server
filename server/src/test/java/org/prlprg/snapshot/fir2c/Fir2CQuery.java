@@ -29,6 +29,7 @@ import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.bc.BCQuery;
+import org.prlprg.snapshot.bc2fir.BC2FirUtils;
 import org.prlprg.snapshot.fir.ir.FirQuery;
 import org.prlprg.snapshot.fir.ir.ForcedFirQuery;
 import org.prlprg.snapshot.fir.ir.GenFirQuery;
@@ -144,7 +145,7 @@ public record Fir2CQuery(
             server.firModules().freshId(),
             firModule,
             R.getSession(),
-            ModuleBcOriginMap.of(firModule),
+            BC2FirUtils.bytecodes(firModule),
             ImmutableSet.copyOf(options));
     server.firModules().register(session, isOptimized ? 3 : 0);
     var compiled = compile(session, firMainFn);

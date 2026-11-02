@@ -1,12 +1,12 @@
 package org.prlprg.server;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +28,7 @@ import org.prlprg.fir.opt.Optimizations;
 import org.prlprg.fir2c.Fir2CCompiler;
 import org.prlprg.fir2c.Fir2CSession;
 import org.prlprg.fir2c.Option;
+import org.prlprg.gen2c.CUnit;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
@@ -41,6 +42,7 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Pair;
 import org.prlprg.util.Triple;
+import org.prlprg.util.cc.CCompilationException;
 
 class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
@@ -224,16 +226,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           // Name should be fully decided by the client?
           var name = genSymbol(function);
           var module = BC2CCompiler.compile(bc, name, false);
-          var inputFile = File.createTempFile("cfile", ".c");
-          module.code().writeTo(inputFile.toPath());
-          var outputFile = File.createTempFile("ofile", ".o");
-
-          RshCompiler.getInstance(ccOpt, RuntimeVariant.DIRECT_BC2C)
-              .createBuilder(inputFile.toPath(), outputFile.toPath())
-              .flag("-c")
-              .compile();
-
-          var res = Files.asByteSource(outputFile).read();
+          var res = compileObject(module.code(), "bc2c", ccOpt, RuntimeVariant.DIRECT_BC2C);
           var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
 
           ccCached = new NativeClosure(ByteString.copyFrom(res), name, serializedConstantPool);
@@ -300,16 +293,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       response.setFallback(answer.fallback());
       var patch = answer.patch();
       if (patch != null) {
-        var inputFile = File.createTempFile("fir_patch", ".c");
-        patch.code().writeTo(inputFile.toPath());
-        var outputFile = File.createTempFile("fir_patch", ".o");
-
-        RshCompiler.getInstance(entry.ccOpt(), RuntimeVariant.FIR2C)
-            .createBuilder(inputFile.toPath(), outputFile.toPath())
-            .flag("-c")
-            .compile();
-
-        response.setCode(ByteString.copyFrom(Files.asByteSource(outputFile).read()));
+        response.setCode(
+            ByteString.copyFrom(
+                compileObject(patch.code(), "fir_patch", entry.ccOpt(), RuntimeVariant.FIR2C)));
         response.setConstants(RDSWriter.writeByteString(patch.constantPool()));
         response.setInit(patch.init());
       }
@@ -369,6 +355,27 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     responseObserver.onCompleted();
   }
 
+  /// Compile `code` into an object file, and return its contents. The files are temporary.
+  private static byte[] compileObject(CUnit code, String prefix, int ccOpt, RuntimeVariant variant)
+      throws IOException, InterruptedException, CCompilationException {
+    var inputFile = Files.createTempFile(prefix, ".c");
+    try {
+      var outputFile = Files.createTempFile(prefix, ".o");
+      try {
+        code.writeTo(inputFile);
+        RshCompiler.getInstance(ccOpt, variant)
+            .createBuilder(inputFile, outputFile)
+            .flag("-c")
+            .compile();
+        return Files.readAllBytes(outputFile);
+      } finally {
+        Files.deleteIfExists(outputFile);
+      }
+    } finally {
+      Files.deleteIfExists(inputFile);
+    }
+  }
+
   private Messages.FirClosureResponse compileFirClosure(Messages.FirClosureRequest request)
       throws Exception {
     var rSession = session();
@@ -414,18 +421,13 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       compiled = Fir2CCompiler.compile(fir2cSession, function);
     }
 
-    var inputFile = File.createTempFile("fir_closure", ".c");
-    compiled.code().writeTo(inputFile.toPath());
-    var outputFile = File.createTempFile("fir_closure", ".o");
-    RshCompiler.getInstance(request.getCcOpt(), RuntimeVariant.FIR2C)
-        .createBuilder(inputFile.toPath(), outputFile.toPath())
-        .flag("-c")
-        .compile();
+    var code =
+        compileObject(compiled.code(), "fir_closure", request.getCcOpt(), RuntimeVariant.FIR2C);
 
     firModules.register(fir2cSession, request.getCcOpt());
     return Messages.FirClosureResponse.newBuilder()
         .setModule(fir2cSession.id())
-        .setCode(ByteString.copyFrom(Files.asByteSource(outputFile).read()))
+        .setCode(ByteString.copyFrom(code))
         .setConstants(RDSWriter.writeByteString(compiled.constantPool()))
         .setInit(Fir2CCompiler.functionInitCName(fir2cSession, function))
         .setFromR(Fir2CCompiler.functionFromRCName(fir2cSession, function))

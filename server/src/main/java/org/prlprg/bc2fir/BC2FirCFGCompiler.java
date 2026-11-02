@@ -1342,16 +1342,12 @@ public final class BC2FirCFGCompiler {
   }
 
   /// Record that the `GETVAR` being compiled pushes `variable`'s argument, if `variable` is a
-  /// parameter, no earlier `GETVAR` was recorded for it, and the bytecode never stores to it (see
-  /// [FunctionBcOrigin#parameterReads()]).
+  /// parameter and the bytecode never stores to it (see [FunctionBcOrigin#parameterReads()]).
   ///
   /// Does nothing if we aren't recording bytecode origins.
   private void recordParameterRead(NamedVariable variable) {
     var parameter = parameters.get(variable);
-    if (origin == null
-        || parameter == null
-        || origin.parameterReads().containsValue(parameter.name())
-        || storedVariables().contains(variable)) {
+    if (origin == null || parameter == null || storedVariables().contains(variable)) {
       return;
     }
     origin.recordParameterRead(bcPos, parameter.name());

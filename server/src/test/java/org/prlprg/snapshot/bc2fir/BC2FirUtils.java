@@ -1,6 +1,9 @@
 package org.prlprg.snapshot.bc2fir;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc2fir.BC2FirClosureCompiler;
@@ -14,6 +17,9 @@ import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
 
 public final class BC2FirUtils {
+  private static final Map<Module, ModuleBcOriginMap> BYTECODES =
+      Collections.synchronizedMap(new WeakHashMap<>());
+
   /// Compile every closure bound in `rModuleEnv` into a function of a new module.
   ///
   /// The functions' baselines are unevaluated: the bytecode of a closure (and of its inner
@@ -24,10 +30,13 @@ public final class BC2FirUtils {
   /// If `strict`, every function is marked strict, including the ones added later.
   ///
   /// If `bytecodes` is non-`null`, the GNU-R bytecode of every function is recorded in it (also
-  /// when its function is added).
+  /// when its function is added), and [#bytecodes(Module)] returns it for the module.
   public static Module compile(
       EnvSXP rModuleEnv, RSession session, boolean strict, @Nullable ModuleBcOriginMap bytecodes) {
     var firModule = new Module();
+    if (bytecodes != null) {
+      BYTECODES.put(firModule, bytecodes);
+    }
     if (strict) {
       firModule.addObserver(
           (String func, List<Object> _, @Nullable Object returnValue) -> {
@@ -64,6 +73,12 @@ public final class BC2FirUtils {
       BC2FirClosureCompiler.compile(session, firModule, funName, funSexp, bytecodes);
     }
     return firModule;
+  }
+
+  /// The map [#compile(EnvSXP, RSession, boolean, ModuleBcOriginMap)] recorded `module`'s bytecode
+  /// in, or `null` if it recorded none.
+  public static @Nullable ModuleBcOriginMap bytecodes(Module module) {
+    return BYTECODES.get(module);
   }
 
   private BC2FirUtils() {

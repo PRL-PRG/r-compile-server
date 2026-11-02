@@ -22,10 +22,12 @@ import org.prlprg.bc.BcOptLevel;
 import org.prlprg.bc2fir.BC2FirClosureCompiler;
 import org.prlprg.bc2fir.BcRecordingFeedback;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
@@ -124,8 +126,8 @@ class BytecodeBaselineFeedbackTest {
     var pool = pools.getFirst();
     assertInstanceOf(BCodeSXP.class, pool.get(0), "slot 0 must be the bytecode");
     assertEquals(
-        SEXPs.string(Fir2CCompiler.FIR_BC_BASELINE_FEEDBACK_MAGIC, "main"),
-        pool.get(Fir2CCompiler.FIR_BC_BASELINE_FEEDBACK),
+        SEXPs.string(Fir2CCompiler.FIR_BC_BASELINE_MAGIC, "main"),
+        pool.get(Fir2CCompiler.FIR_BC_BASELINE_ID),
         "slot 3 must be the magic string and the function's name");
     assertInstanceOf(
         NilSXP.class,
@@ -256,49 +258,30 @@ class BytecodeBaselineFeedbackTest {
         "no recordings is no feedback");
   }
 
-  /// A `GETVAR` that pushes a parameter's argument also describes the parameter: only the first
-  /// `GETVAR` of `x`, and none of `y`, which the function assigns.
+  /// A `GETVAR` that pushes a parameter's argument also describes the parameter: the `GETVAR` of
+  /// `x` that ran most often, and none of `y`, which the function assigns.
   @Test
   void translatesParameterGetVarsIntoParameterFeedback() {
-    var session = GNUR.instance().getSession();
-    var source = (CloSXP) GNUR.instance().eval("function(x, y) { y <- x; x + y }");
-    var bc =
-        new BCCompiler(source, session)
-            .compile()
-            .orElseThrow(() -> new AssertionError("example didn't compile"));
-    var closure = SEXPs.closure(source.parameters(), SEXPs.bcode(bc), source.env());
-
-    // The offsets, from a throwaway compile: the translation must evaluate the baseline itself,
-    // because that's what records the parameters' `GETVAR`s.
-    var throwawayBytecodes = new ModuleBcOriginMap();
-    var throwaway =
-        BC2FirClosureCompiler.compile(session, new Module(), "f", closure, throwawayBytecodes)
-            .baseline();
-    var offsets =
-        BcRecordingFeedback.feedbackOffsets(
-            throwaway, Objects.requireNonNull(throwawayBytecodes.get("f")));
+    var compiled = compileF("function(x, y) { y <- x; x + y }");
+    var offsets = compiled.offsets();
     var registers = List.copyOf(offsets.values());
     assertEquals(3, offsets.size(), "the `GETVAR`s of `x`, `x`, and `y`: " + offsets);
 
-    var module = new Module();
-    var bytecodes = new ModuleBcOriginMap();
-    var function = BC2FirClosureCompiler.compile(session, module, "f", closure, bytecodes);
-
     // 3 calls, but the first `GETVAR` counts 6: the parameter's feedback counts at most the calls.
-    var recording =
-        recording(
-            3,
-            group(List.of(), List.of(), List.of(), "taken", "not_taken"),
-            group(
-                List.copyOf(offsets.keySet()),
-                List.of(6, 3, 3),
-                List.of(1 << 28, 1 << 28, 1 << 28),
-                "counters",
-                "types"),
-            (VecSXP)
-                SEXPs.vec(SEXPs.integer(), SEXPs.integer(), SEXPs.vec())
-                    .withNames(List.of("bcids", "counters", "callees")));
-    var recordings = List.of(new BcRecordingFeedback.Recording("f", recording));
+    var recordings =
+        List.of(
+            new BcRecordingFeedback.Recording(
+                "f",
+                recording(
+                    3,
+                    group(List.of(), List.of(), List.of(), "taken", "not_taken"),
+                    group(
+                        List.copyOf(offsets.keySet()),
+                        List.of(6, 3, 3),
+                        List.of(1 << 28, 1 << 28, 1 << 28),
+                        "counters",
+                        "types"),
+                    noCallees())));
     assertEquals(
         """
         feedback {
@@ -311,22 +294,118 @@ class BytecodeBaselineFeedbackTest {
           ]
         }"""
             .formatted(
-                Printer.toString(function.baseline().signature()),
+                Printer.toString(compiled.baseline().signature()),
                 registers.get(0),
                 registers.get(1),
                 registers.get(2)),
-        BcRecordingFeedback.print(module, bytecodes, recordings));
+        BcRecordingFeedback.print(compiled.module(), compiled.bytecodes(), recordings));
 
-    var feedback =
-        Objects.requireNonNull(BcRecordingFeedback.translate(module, bytecodes, recordings))
-            .get(function.baseline());
-    var x = function.baseline().parameters().get(0);
-    var y = function.baseline().parameters().get(1);
+    var feedback = compiled.translate(recordings);
+    var x = compiled.baseline().parameters().get(0);
+    var y = compiled.baseline().parameters().get(1);
     assertEquals(
         List.of(Type.BOXED_REAL),
         feedback.type(x).streamHits(3, x.type()).toList(),
         "`x`'s type must be a hit at the threshold");
     assertTrue(feedback.type(y).isEmpty(), "`y` is assigned, so it has no feedback");
+  }
+
+  /// A parameter's feedback is that of its `GETVAR` that ran most often, not of its first, which
+  /// here is in the branch that's rarely taken.
+  @Test
+  void translatesTheMostRunParameterGetVarIntoParameterFeedback() {
+    var compiled = compileF("function(x, b) if (b) x + 1 else x - 1");
+    var offsets = compiled.offsets();
+    var b = offsetOf(compiled.bc(), offsets, BcInstr.GetVar.class, 0);
+    var rare = offsetOf(compiled.bc(), offsets, BcInstr.GetVar.class, 1);
+    var often = offsetOf(compiled.bc(), offsets, BcInstr.GetVar.class, 2);
+
+    var recordings =
+        List.of(
+            new BcRecordingFeedback.Recording(
+                "f",
+                recording(
+                    10,
+                    group(List.of(), List.of(), List.of(), "taken", "not_taken"),
+                    group(
+                        List.of(b, rare, often),
+                        List.of(10, 1, 9),
+                        List.of(1 << 11, 1 << 28, 1 << 28),
+                        "counters",
+                        "types"),
+                    noCallees())));
+    assertEquals(
+        """
+        feedback {
+          f< %s > = 10x
+          [
+            reg %s :v1(L) (10x)
+            reg b :v1(L)[v1(L) 10x] (10x)
+            reg %s :v1(R) (1x)
+            reg %s :v1(R) (9x)
+            reg x :v1(R)[v1(R) 9x] (9x)
+          ]
+        }"""
+            .formatted(
+                Printer.toString(compiled.baseline().signature()),
+                offsets.get(b),
+                offsets.get(rare),
+                offsets.get(often)),
+        BcRecordingFeedback.print(compiled.module(), compiled.bytecodes(), recordings));
+
+    var x = compiled.baseline().parameters().get(0);
+    assertEquals(
+        List.of(Type.BOXED_REAL),
+        compiled.translate(recordings).type(x).streamHits(9, x.type()).toList(),
+        "`x`'s type must be a hit as often as its most run `GETVAR` ran");
+  }
+
+  /// `source` compiled into the function `f` of a module, with its bytecode recorded, and the
+  /// feedback offsets of its baseline.
+  private record CompiledF(
+      Module module,
+      ModuleBcOriginMap bytecodes,
+      Function function,
+      Bc bc,
+      SequencedMap<Integer, String> offsets) {
+    Abstraction baseline() {
+      return function.baseline();
+    }
+
+    AbstractionFeedback translate(List<BcRecordingFeedback.Recording> recordings) {
+      return Objects.requireNonNull(BcRecordingFeedback.translate(module, bytecodes, recordings))
+          .get(baseline());
+    }
+  }
+
+  private static CompiledF compileF(@Language("R") String source) {
+    var session = GNUR.instance().getSession();
+    var closure0 = (CloSXP) GNUR.instance().eval(source);
+    var bc =
+        new BCCompiler(closure0, session)
+            .compile()
+            .orElseThrow(() -> new AssertionError("example didn't compile"));
+    var closure = SEXPs.closure(closure0.parameters(), SEXPs.bcode(bc), closure0.env());
+
+    // The offsets, from a throwaway compile: the translation must evaluate the baseline itself,
+    // because that's what records the parameters' `GETVAR`s.
+    var throwawayBytecodes = new ModuleBcOriginMap();
+    var throwaway =
+        BC2FirClosureCompiler.compile(session, new Module(), "f", closure, throwawayBytecodes)
+            .baseline();
+    var throwawayOrigin = Objects.requireNonNull(throwawayBytecodes.get("f"));
+    var offsets = BcRecordingFeedback.feedbackOffsets(throwaway, throwawayOrigin);
+
+    var module = new Module();
+    var bytecodes = new ModuleBcOriginMap();
+    var function = BC2FirClosureCompiler.compile(session, module, "f", closure, bytecodes);
+    return new CompiledF(module, bytecodes, function, throwawayOrigin.bc(), offsets);
+  }
+
+  private static VecSXP noCallees() {
+    return (VecSXP)
+        SEXPs.vec(SEXPs.integer(), SEXPs.integer(), SEXPs.vec())
+            .withNames(List.of("bcids", "counters", "callees"));
   }
 
   /// The offset of `bc`'s `index`th recorded instruction of the given class.
@@ -365,15 +444,15 @@ class BytecodeBaselineFeedbackTest {
       Module module, ModuleBcOriginMap bytecodes, String code, VecSXP constantPool) {
     /// Every bytecode baseline's pool, found the way the runtime finds them: by walking the
     /// module's constant pool and testing each nested pool for the magic string. Mirrors
-    /// `Fir_visit_vectors` and `Fir_bc_baseline_feedback_map` in `runtime.c`.
+    /// `Fir_visit_vectors` and `Fir_bc_baseline_name` in `runtime.c`.
     List<VecSXP> baselinePools() {
       return nestedVectors(constantPool).stream()
           .filter(
               pool ->
                   pool.size() > Fir2CCompiler.FIR_BC_BASELINE_CALLS
-                      && pool.get(Fir2CCompiler.FIR_BC_BASELINE_FEEDBACK) instanceof StrSXP header
+                      && pool.get(Fir2CCompiler.FIR_BC_BASELINE_ID) instanceof StrSXP header
                       && header.size() == 2
-                      && header.get(0).equals(Fir2CCompiler.FIR_BC_BASELINE_FEEDBACK_MAGIC))
+                      && header.get(0).equals(Fir2CCompiler.FIR_BC_BASELINE_MAGIC))
           .toList();
     }
 

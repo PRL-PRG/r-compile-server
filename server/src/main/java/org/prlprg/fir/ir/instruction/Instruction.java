@@ -245,8 +245,8 @@ public abstract sealed class Instruction permits Statement, Jump {
   /// registers don't outlive it. See [#dropArgumentUses].
   ///
   /// `code` itself is left as it is: this is also how a version's fallback is discarded, which
-  /// may be running (the version is evaluated by its second call, which its first call, which
-  /// runs the fallback, may still be making).
+  /// may be running (the version is evaluated by a later call, which an earlier call, which runs
+  /// the fallback, may still be making).
   public static void dropUsesIn(CFG code) {
     for (var bb : code.bbs()) {
       for (var instruction : bb.instructions()) {

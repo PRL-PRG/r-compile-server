@@ -50,9 +50,9 @@ public final class FunctionBcOrigin {
   /// The name of the parameter whose argument a `GETVAR` pushes, keyed by the instruction's index
   /// into [#bc()]'s code.
   ///
-  /// A parameter has at most one entry: its first `GETVAR`. A parameter that the bytecode stores
-  /// to has none, because after the store the variable's value isn't the argument. The type the
-  /// copy-and-patch JIT records for the `GETVAR` is then the type of the forced argument.
+  /// A parameter has an entry for each of its `GETVAR`s, except a parameter that the bytecode
+  /// stores to has none, because after the store the variable's value isn't the argument. The
+  /// type the copy-and-patch JIT records for the `GETVAR` is then the type of the forced argument.
   public @UnmodifiableView Map<Integer, String> parameterReads() {
     return Collections.unmodifiableMap(parameterReads);
   }

@@ -44,7 +44,7 @@ one from.
 
 Evaluating the version discards the fallback (`LazyBody#fallback()` becomes `null`), dropping its
 uses of the parameters so that the body's are the only ones. The CFG itself is left intact,
-because it may be running: the version is evaluated by its second call, which its first call, which
+because it may be running: the version is evaluated by a later call, which an earlier call, which
 runs the fallback, may still be making (recursion).
 
 The `CFGChecker` requires every unevaluated version except the baseline to have a fallback, and

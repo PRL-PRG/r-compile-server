@@ -165,18 +165,18 @@ public final class Fir2CCompiler {
   /// Constant pool slot of what identifies a bytecode baseline's pool (see
   /// [FunctionEmitter#bcBaselineId()]).
   ///
-  /// Mirrored by `FIR_BC_BASELINE_FEEDBACK` in `runtime.c`.
-  static final int FIR_BC_BASELINE_FEEDBACK = 3;
+  /// Mirrored by `FIR_BC_BASELINE_ID` in `runtime.h`.
+  static final int FIR_BC_BASELINE_ID = 3;
 
   /// Constant pool slot of a bytecode baseline's call counter (a scalar integer the baseline
   /// increments, which becomes the version's number of recorded calls).
   ///
-  /// Mirrored by `FIR_BC_BASELINE_CALLS` in `runtime.c`.
+  /// Mirrored by `FIR_BC_BASELINE_CALLS` in `runtime.h`.
   static final int FIR_BC_BASELINE_CALLS = 4;
 
-  /// First element of [#FIR_BC_BASELINE_FEEDBACK], which is how `Fir_serialized_feedback`
+  /// First element of [#FIR_BC_BASELINE_ID], which is how `Fir_serialized_feedback`
   /// in `runtime.c` recognizes bytecode baseline pools while walking the module's constant pool.
-  static final String FIR_BC_BASELINE_FEEDBACK_MAGIC = "Fir_bc_baseline_feedback";
+  static final String FIR_BC_BASELINE_MAGIC = "Fir_bc_baseline_feedback";
 
   // Input
   private final Fir2CSession session;
@@ -1234,12 +1234,12 @@ public final class Fir2CCompiler {
       // The translation of the baseline's recording refers to its registers and its inner
       // closures' functions, which only exist once it's evaluated.
       baseline.body();
-      var feedbackIdx = pool.internUnique(bcBaselineId());
+      var idIdx = pool.internUnique(bcBaselineId());
       var callsIdx = pool.internSpace();
       assert bcIdx == 0
           && formalsIdx == 1
           && jitIdx == 2
-          && feedbackIdx == FIR_BC_BASELINE_FEEDBACK
+          && idIdx == FIR_BC_BASELINE_ID
           && callsIdx == FIR_BC_BASELINE_CALLS;
 
       cCode.stmt("SEXP %s = %s;", VAR_POOL, constantsCName);
@@ -1261,10 +1261,10 @@ public final class Fir2CCompiler {
     }
 
     /// What identifies a bytecode baseline's pool to `Fir_serialized_feedback` in `runtime.c`:
-    /// [#FIR_BC_BASELINE_FEEDBACK_MAGIC] and the name of the baseline's function, which names its
+    /// [#FIR_BC_BASELINE_MAGIC] and the name of the baseline's function, which names its
     /// recording. The server translates the recording ([org.prlprg.bc2fir.BcRecordingFeedback]).
     private StrSXP bcBaselineId() {
-      return SEXPs.string(FIR_BC_BASELINE_FEEDBACK_MAGIC, function.name().name());
+      return SEXPs.string(FIR_BC_BASELINE_MAGIC, function.name().name());
     }
 
     private final class VersionEmitter {

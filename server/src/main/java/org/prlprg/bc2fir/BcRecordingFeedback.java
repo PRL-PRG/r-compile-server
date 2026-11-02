@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.Nullable;
@@ -99,12 +100,31 @@ public final class BcRecordingFeedback {
 
   /// The name of the parameter whose argument each `GETVAR` in
   /// [FunctionBcOrigin#parameterReads()] pushes, keyed by the instruction's offset into the
-  /// encoded bytecode.
-  private static Map<Integer, String> parameterOffsets(FunctionBcOrigin origin) {
+  /// encoded bytecode, but only the `GETVAR` of each parameter that ran most often (the first of
+  /// those): one in a rarely taken branch runs less often than the function is called.
+  ///
+  /// Only `GETVAR`s in `offsets` are considered.
+  private static Map<Integer, String> parameterOffsets(
+      FunctionBcOrigin origin, Map<Integer, String> offsets, Group varCall) {
     var labels = LabelMapping.toGNUR(origin.bc().code());
-    return origin.parameterReads().entrySet().stream()
-        .collect(
-            Collectors.toMap(e -> labels.extract(new BcLabel(e.getKey())), Map.Entry::getValue));
+    ToIntFunction<Integer> times =
+        offset -> {
+          var j = varCall.indexOf(offset);
+          return j == null ? 0 : varCall.ints(0, j);
+        };
+    var best = new LinkedHashMap<String, Integer>();
+    origin.parameterReads().entrySet().stream()
+        .map(e -> Map.entry(labels.extract(new BcLabel(e.getKey())), e.getValue()))
+        .filter(e -> offsets.containsKey(e.getKey()))
+        .sorted(Map.Entry.comparingByKey())
+        .forEach(
+            e ->
+                best.merge(
+                    e.getValue(),
+                    e.getKey(),
+                    (a, b) -> times.applyAsInt(b) > times.applyAsInt(a) ? b : a));
+    return best.entrySet().stream()
+        .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
   }
 
   /// The feedback `recordings` describe, or `null` if there are none.
@@ -123,8 +143,9 @@ public final class BcRecordingFeedback {
   ///
   /// A version's number of calls is the recording's `calls`. A register's number of recordings
   /// is its instruction's counter, and instructions that never ran are omitted. A parameter's
-  /// number of recordings, and of hits of its type, is the lesser of its `GETVAR`'s counter and
-  /// `calls`. A parameter whose type isn't definitely a value is omitted.
+  /// feedback is that of its `GETVAR` with the highest counter. Its number of recordings, and of
+  /// hits of its type, is the lesser of that counter and `calls`. A parameter whose type isn't
+  /// definitely a value is omitted.
   public static @Nullable String print(
       Module module, ModuleBcOriginMap bytecodes, List<Recording> recordings) {
     if (recordings.isEmpty()) {
@@ -163,7 +184,7 @@ public final class BcRecordingFeedback {
 
     // `feedbackOffsets` evaluates the baseline, which records the parameter reads.
     var offsets = feedbackOffsets(baseline, origin);
-    var parameters = parameterOffsets(origin);
+    var parameters = parameterOffsets(origin, offsets, varCall);
     for (var e : offsets.entrySet()) {
       var offset = e.getKey();
       var register = e.getValue();
@@ -325,16 +346,19 @@ public final class BcRecordingFeedback {
   }
 
   /// The function of `module` named `name`, which may be an inner closure's, whose function is
-  /// only added once the enclosing function's baseline is evaluated.
+  /// only added once the enclosing function's baseline is evaluated. Evaluates the unevaluated
+  /// baselines one at a time, in module order, until the function exists.
   private static Function function(Module module, String name) {
     var variable = Variable.named(name);
     var function = module.localFunction(variable);
-    if (function == null) {
-      module.evaluateBaselines();
+    while (function == null) {
+      module.localFunctions().stream()
+          .map(Function::baseline)
+          .filter(baseline -> !baseline.isStub() && !baseline.isEvaluated())
+          .findFirst()
+          .orElseThrow(() -> new IllegalArgumentException("No such function: " + name))
+          .body();
       function = module.localFunction(variable);
-    }
-    if (function == null) {
-      throw new IllegalArgumentException("No such function: " + name);
     }
     return function;
   }

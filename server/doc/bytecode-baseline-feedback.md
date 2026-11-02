@@ -134,8 +134,8 @@ line up with the JIT's `bcids` by construction. The server must compile the byte
 client ran. It doesn't recompile the closure, because the offsets index the client's bytecode.
 
 bc2fir also records which `GETVAR`s push a parameter's argument
-(`BC2FirCFGCompiler#recordParameterRead` → `FunctionBcOrigin#parameterReads`). It records the
-first `GETVAR` of each parameter. It records no `GETVAR` of a parameter that the bytecode stores
+(`BC2FirCFGCompiler#recordParameterRead` → `FunctionBcOrigin#parameterReads`). It records every
+`GETVAR` of each parameter. It records no `GETVAR` of a parameter that the bytecode stores
 to (`SETVAR`, `ENDASSIGN`, or a `for` loop's element), because after the store the variable isn't
 the argument. The type the JIT records for such a `GETVAR` is the type of the forced argument, so
 it is also feedback for the parameter.
@@ -166,7 +166,8 @@ feedback {
   recorded as plain `SEXPTYPE`s, so they become the top value type `V` instead of something like
   `v(I)`.
 - A `GETVAR` that pushes a parameter's argument (`n` above) also gives type feedback for the
-  parameter. The parser resolves the register name to the parameter first. The line lists the
+  parameter. Of a parameter's `GETVAR`s, the one with the highest counter gives it, because one in
+  a rarely taken branch runs less often than the function. The parser resolves the register name to the parameter first. The line lists the
   type as a hit (`[v1(R) 3x]`), because `SpeculateDispatch` reads hits, and a bare `:T` parses as
   one hit. The number of hits and recordings is the lesser of the `GETVAR`'s counter and `calls`,
   because a `GETVAR` in a loop runs more often than the function. A type that isn't definitely a
