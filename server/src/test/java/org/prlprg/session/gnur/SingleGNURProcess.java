@@ -208,8 +208,10 @@ class SingleGNURProcess implements GNUR {
         break;
       }
 
-      if (line.equals(requestId)) {
-        return output.toString();
+      // Output that doesn't end with a newline (e.g. `alarm()`'s "\a") shares the request ID's
+      // line.
+      if (line.endsWith(requestId)) {
+        return output.append(line, 0, line.length() - requestId.length()).toString();
       }
 
       output.append(line).append("\n");
