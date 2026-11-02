@@ -148,7 +148,7 @@ public final class Fir2CSession {
     return rSession;
   }
 
-  @Nullable ModuleBcOriginMap bytecodes() {
+  public @Nullable ModuleBcOriginMap bytecodes() {
     return bytecodes;
   }
 

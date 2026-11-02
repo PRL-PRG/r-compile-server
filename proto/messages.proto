@@ -57,6 +57,27 @@ message FunctionRequest {
   uint64 hash = 1;
 }
 
+// Sent by the rsh JIT once a closure ran its bytecode often enough: compile it into a FIR module
+// whose versions dispatch on the argument types (see `server/doc/lazy-versions.md`).
+message FirClosureRequest {
+  bytes closure = 1;// The closure (RDS) with its bytecode body, which the recording's offsets index
+  string name = 2;// The closure's name, which names the module's function
+  // What the copy-and-patch JIT recorded while the bytecode ran (RDS, see
+  // `server/doc/bytecode-baseline-feedback.md`). Absent if it recorded nothing.
+  optional bytes recording = 3;
+  uint32 threshold = 4;// The client's call threshold: how many calls the recording has about
+  uint32 cc_opt = 5;
+}
+
+// The module's first piece: the closure's function, with its specialized versions as stubs.
+message FirClosureResponse {
+  string module = 1;// The module's name, which its stubs' requests use
+  bytes code = 2;// An object file
+  bytes constants = 3;// The (serialized) constant pool to call `init` with
+  string init = 4;// The function in `code` to call once it's loaded
+  string from_r = 5;// The function in `code` that runs the closure: `(SEXP env, SEXP constants) -> SEXP`
+}
+
 // Sent by a stub in compiled FIR code: a version that the server didn't compile yet, because
 // nothing had needed it. The stub runs a fallback until the response arrives.
 message FirVersionRequest {

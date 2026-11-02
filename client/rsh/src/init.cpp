@@ -17,12 +17,16 @@ static const R_CallMethodDef callMethods[] = {
     {"init_client", (DL_FUNC)&rsh::init_client, 3},
     {"get_total_size", (DL_FUNC)&rsh::get_total_size, 0},
     {"clear_cache", (DL_FUNC)&rsh::clear_cache, 0},
-    {"fir_connect", (DL_FUNC)&rsh::fir_connect, 3},
+    {"fir_connect", (DL_FUNC)&rsh::fir_connect, 4},
     {"fir_drain", (DL_FUNC)&rsh::fir_drain, 0},
+    {"set_jit_threshold", (DL_FUNC)&rsh::set_jit_threshold, 1},
+    {"rsh_jit_closure", (DL_FUNC)&rsh::rsh_jit_closure, 3},
+    {"rsh_tier", (DL_FUNC)&rsh::rsh_tier, 1},
+    {"rsh_jit_tier", (DL_FUNC)&rsh::rsh_jit_tier, 1},
     // Registered because `R_useDynamicSymbols` is off below, so an unregistered entry point can't
-    // be reached by name: `.Call("Fir_serialized_feedback", <module constant pool>)` (see
-    // `server/doc/bytecode-baseline-feedback.md`) would fail to resolve, and the callers that wrap
-    // it in `tryCatch` would silently read the feedback as "nothing recorded".
+    // be reached by name: `.Call("Fir_serialized_feedback", <module constant pool>)` would fail to
+    // resolve, and the callers that wrap it in `tryCatch` would silently read the feedback as
+    // "nothing recorded".
     {"Fir_serialized_feedback", (DL_FUNC)&Fir_serialized_feedback, 1},
     {NULL, NULL, 0}};
 

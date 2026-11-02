@@ -215,9 +215,11 @@ SEXP is_compiled(SEXP closure) {
   }
 
   // TODO: check if the pointer is a valid function, i.e. ORC knows about it
+  // A bc2c body (`Rsh_ClosureBodyTag`) or a FIŘ one (`Rsh_CodeTag`).
   SEXP body = BODY(closure);
   return Rf_ScalarLogical(
-      RSH_IS_CLOSURE_BODY(body) && RSH_JIT_PTR(body) != NULL ? TRUE : FALSE);
+      (RSH_IS_CLOSURE_BODY(body) && RSH_JIT_PTR(body) != NULL) || IS_RSH_CODE(body) ? TRUE
+                                                                                   : FALSE);
 }
 
 #define RSH_PACKAGE_NAME "rsh"

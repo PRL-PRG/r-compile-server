@@ -144,7 +144,7 @@ public record Fir2CQuery(
             server.firModules().freshId(),
             firModule,
             R.getSession(),
-            FirQuery.bytecodesOf(firModule),
+            ModuleBcOriginMap.of(firModule),
             ImmutableSet.copyOf(options));
     server.firModules().register(session, isOptimized ? 3 : 0);
     var compiled = compile(session, firMainFn);
@@ -158,7 +158,7 @@ public record Fir2CQuery(
   /// The FIR module snapshot round-trips through text, which drops the bytecode, so this re-runs
   /// bc2fir on a throwaway module purely to record it; generated inner-closure names are
   /// hash-derived, so they match the snapshot module's.
-  private static @Nullable ModuleBcOriginMap bytecodes(Example example, SnapshotStore store) {
+  public static @Nullable ModuleBcOriginMap bytecodes(Example example, SnapshotStore store) {
     if (!example.type().equals("R")) {
       return null;
     }

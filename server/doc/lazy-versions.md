@@ -6,8 +6,8 @@ its place. This is what lets the compiler create a version for every call it wou
 specialize, and only pay to compile and optimize the ones that actually run.
 
 This document describes the IR, how optimizations create and evaluate lazy versions, how the
-interpreter runs them, and how the FIŘ-to-C compiler, the compile server and the client turn them
-into code that patches itself.
+interpreter runs them, how the FIŘ-to-C compiler, the compile server and the client turn them
+into code that patches itself, and how the client's JIT gets a closure into a module.
 
 ## The IR
 
@@ -200,11 +200,96 @@ client has may since have been removed from its function as unused.
 ### The client
 
 The `rsh` package registers the `Fir_StubCompiler` (`rsh::rsh_fir_connect(address, port,
-deterministic)`, `client/rsh/src/fir_stubs.cpp`). Requests are sent by one worker thread, one at
-a time in the order stubs made them; everything else -- loading the object into the ORC JIT,
-deserializing the constants, calling the initializer -- happens on the R thread when a stub polls.
+deterministic, threshold)`, `client/rsh/src/fir_stubs.cpp`). Requests are sent by one worker
+thread, one at a time in the order stubs (and the JIT's closures, see
+[below](#how-a-closure-gets-into-a-module)) made them; everything else -- loading the object into
+the ORC JIT, deserializing the constants, calling the initializer -- happens on the R thread when a
+stub polls.
 Answers are loaded in the order they were requested, all of them, so that an answer without code
 finds its version already loaded. `rsh::rsh_fir_drain()` waits for every request to be answered.
+
+## How a closure gets into a module
+
+### The client's tiers
+
+`rsh::rsh_jit_enable(threshold)` replaces GNU-R's compile hook with `rsh_cmpfun`
+(`client/rsh/README.md`). GNU-R's JIT calls the hook on the first or second call of a closure
+whose body isn't bytecode. `rsh_cmpfun` compiles the closure to bytecode with GNU-R's compiler.
+It returns a closure whose body is a *counting body*: bytecode that runs
+`.Call(C_rsh_tier, state)` (`client/rsh/src/fir_stubs.cpp`). GNU-R copies that body onto the
+running closure. The state holds the bytecode, the formals, the baseline's code, the call counter,
+the request state, the closure's name, and the optimized body.
+
+With N the threshold, a closure moves through three tiers (`rsh::rsh_jit_tier(f)` returns the
+tier):
+
+1. *Interpreted*: calls 1 to N run the bytecode in GNU-R's interpreter.
+2. *Baseline*: from call N+1, the closure runs the baseline. With rcp, the baseline is the
+   bytecode that rcp compiled with recording (`Fir_bc_baseline_code`, the code that the bytecode
+   baselines of a module run, see [bytecode-baseline-feedback.md](bytecode-baseline-feedback.md)).
+   Without rcp, the baseline is the bytecode.
+3. *Optimized*: after call 2N, the client sends a request for the closure on the stub worker
+   thread (see [The client](#the-client)). Later calls poll for the answer. In `deterministic`
+   mode, call 2N+1 waits for the answer, so the closure runs optimized from call 2N+1. When the
+   answer is loaded, the client calls the module's initializer with the module's constant pool.
+   Then it sets the closure's body to an `Rsh_CodeTag` external pointer to the module's from-R
+   function. GNU-R's evaluator calls that pointer directly, and GNU-R's JIT skips it.
+
+If the client isn't connected (`rsh_fir_connect`), the closure stays in the baseline. If the
+server fails, the client sets the closure's body to the baseline's code, so the counting body
+costs nothing after that.
+
+### The `CompileFirClosure` RPC
+
+The request (`FirClosureRequest`, `proto/messages.proto`) holds:
+
+- `closure`: the closure with its bytecode body and its environment, serialized with R's
+  serialization;
+- `name`: the name of the closure's FIŘ function (the `name` option of `rsh_cmpfun`, else the
+  function's name in the call, else `f`);
+- `recording`: the raw recording of the baseline (see
+  [bytecode-baseline-feedback.md](bytecode-baseline-feedback.md#the-raw-recording)), absent
+  without rcp;
+- `threshold`: the client's threshold;
+- `cc_opt`: the C compiler's optimization level.
+
+The server (`CompileService#compileFirClosure`) does these steps:
+
+1. It reads the closure with `RDSReader`. If `Init` didn't run, it first makes a `GNURSession`
+   for the R at `R_HOME` (or the vendored R).
+2. It compiles the closure into a new module with `BC2FirClosureCompiler`. It uses the client's
+   bytecode and doesn't recompile it, because the recording's offsets index that bytecode.
+3. It translates the recording into feedback for the module (`BcRecordingFeedback`).
+4. It runs `Optimizations#defaultOptimizations(threshold)` on the module with that feedback. The
+   optimizations create lazy versions as usual. For example, `CopyBaseline` creates a copy of the
+   baseline, which speculates on the feedback when it's evaluated.
+5. It evaluates the function's versions that exist at this point (the copy), because the closure
+   is hot. Optimizing the copy runs `SpeculateDispatch`, which creates a version for each recorded
+   parameter type. Those versions stay lazy.
+6. It registers a `Fir2CSession` for the module in `FirModules`, and compiles the closure's
+   function with `Fir2CCompiler#compile`. The copy is compiled. The specialized versions become
+   stubs, which the client asks for with `CompileFirVersion`, as above.
+7. It compiles the C to an object file, and answers (`FirClosureResponse`) with the module's id,
+   the object file, the constant pool, and the C names of the function's initializer and from-R
+   function.
+
+### The threshold
+
+The client has one threshold (`Fir_jit_threshold`, default 10). `rsh_jit_enable(threshold)` and
+`rsh_fir_connect(..., threshold)` set it. The last call wins. The counting body uses it for the
+tiers. The client sends it in the request, and the server gives it to the optimizations, which
+use it as the minimum number of hits for speculation.
+
+### Known limits
+
+- Without rcp, the baseline records nothing, so the server gets no feedback and doesn't
+  speculate. rcp is only in the RCP variant of GNU-R, on Linux x86-64.
+- CI has no RCP build, so CI tests the tiers without feedback.
+- If a speculation fails after the closure is optimized, R signals an error. There is no
+  deoptimization back to the bytecode.
+- The server never removes a module from `FirModules`.
+- `rsh_compile` and the `Compile` RPC (the bytecode-to-C path) still exist, but the JIT doesn't
+  use them.
 
 ## Tests
 
@@ -218,7 +303,16 @@ finds its version already loaded. `rsh::rsh_fir_drain()` waits for every request
   the in-JVM test server (`FirTestServer`), in a second R process that has `rsh` loaded
   (`GNUR#rshInstance`), calling `main` three times (fallback, compiled version, what it calls
   compiled). It saves the module as the run left it (`module.fir` next to the output).
-  `InterpretQuery` does the same for the interpreter.
+  `InterpretQuery` does the same for the interpreter. When rcp is available, `EvalQuery`'s R
+  process also returns the raw recordings of the module's baselines (`Fir_serialized_feedback`),
+  and `EvalQuery` translates them with `BcRecordingFeedback`, the same code that the server uses.
+- `JitTieringTest` runs the tiers end to end. An R process with `rsh` enables the JIT with
+  threshold 3 and 5, connects to `FirTestServer` in deterministic mode, and calls a closure. The
+  test checks the tier after each group of calls, that the closure runs native code, and that the
+  server has one module for the closure. It doesn't use `GNUR#rshInstance`, because enabling
+  GNU-R's JIT would change what the eval tests run.
+- `ServerTests#testCompileFirClosure` sends `CompileFirClosure` a recording, and checks the
+  versions that the optimizations create from it.
 - `ManualFirServer` (test sources) serves one example for running `eval.R` by hand.
 
 Running these tests needs `rsh` installed in the vendored R (`make -C client/rsh install`), and it

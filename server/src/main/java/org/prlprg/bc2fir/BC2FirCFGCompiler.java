@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
@@ -203,6 +204,8 @@ public final class BC2FirCFGCompiler {
   private final List<Loop> loopStack = new ArrayList<>();
   private final List<ComplexAssign> complexAssignStack = new ArrayList<>();
   private final List<Call> callStack = new ArrayList<>();
+  private final Map<NamedVariable, FunctionParameter> parameters = new HashMap<>();
+  private @Nullable Set<NamedVariable> storedVariables;
 
   // endregion compiler data
 
@@ -212,8 +215,9 @@ public final class BC2FirCFGCompiler {
   /// If `bytecodes` is non-`null`, the GNU-R bytecode of every inner closure is recorded in it.
   ///
   /// If `origin` is non-`null`, `bc` is the bytecode it was recorded for, and the registers of the
-  /// instructions the copy-and-patch JIT records feedback for are recorded in it. It's `null` for
-  /// promise bodies, whose feedback the JIT records separately (and which we don't read).
+  /// instructions the copy-and-patch JIT records feedback for, and the `GETVAR`s that push a
+  /// parameter's argument, are recorded in it. It's `null` for promise bodies, whose feedback the
+  /// JIT records separately (and which we don't read).
   BC2FirCFGCompiler(
       @Nullable RSession r,
       CFGCursor cursor,
@@ -242,6 +246,7 @@ public final class BC2FirCFGCompiler {
       var parameter = scope().parameters().get(i);
       var parameterName = parameterNames.get(i);
       var parameterDefault = parameterValues.get(i);
+      parameters.put(parameterName, parameter);
       compileParameter(parameter, parameterName, parameterDefault);
     }
   }
@@ -669,6 +674,7 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Force(true), pop());
         // The JIT records the type of the value `GETVAR` leaves on the stack, i.e. the forced one.
         recordFeedbackRegister(top());
+        recordParameterRead(getVar(name));
         insert(intrinsic("checkMissing", top()));
         tryAddCheckpoint(true, stack);
       }
@@ -1333,6 +1339,43 @@ public final class BC2FirCFGCompiler {
     var read = (Read) argument;
     var register = read.variable();
     origin.recordFeedbackRegister(bcPos, register.name());
+  }
+
+  /// Record that the `GETVAR` being compiled pushes `variable`'s argument, if `variable` is a
+  /// parameter, no earlier `GETVAR` was recorded for it, and the bytecode never stores to it (see
+  /// [FunctionBcOrigin#parameterReads()]).
+  ///
+  /// Does nothing if we aren't recording bytecode origins.
+  private void recordParameterRead(NamedVariable variable) {
+    var parameter = parameters.get(variable);
+    if (origin == null
+        || parameter == null
+        || origin.parameterReads().containsValue(parameter.name())
+        || storedVariables().contains(variable)) {
+      return;
+    }
+    origin.recordParameterRead(bcPos, parameter.name());
+  }
+
+  /// The local variables the bytecode stores to: by assignment, complex assignment, or as a `for`
+  /// loop's element.
+  private Set<NamedVariable> storedVariables() {
+    if (storedVariables == null) {
+      storedVariables =
+          bc.code().stream()
+              .<Idx<RegSymSXP>>mapMulti(
+                  (instruction, out) -> {
+                    switch (instruction) {
+                      case SetVar(var name) -> out.accept(name);
+                      case EndAssign(var name) -> out.accept(name);
+                      case StartFor(_, var name, _) -> out.accept(name);
+                      default -> {}
+                    }
+                  })
+              .map(this::getVar)
+              .collect(Collectors.toSet());
+    }
+    return storedVariables;
   }
 
   // endregion compile instructions

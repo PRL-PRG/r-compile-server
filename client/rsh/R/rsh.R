@@ -67,8 +67,17 @@ init_client <- function(address="0.0.0.0", port=8980L) {
 
 #' Activate the Rsh JIT
 #'
+#' From now on, GNU-R's JIT compiles closures with [rsh_cmpfun()], which makes them move through
+#' the tiers [rsh_jit_tier()] reports: a closure runs its bytecode for `threshold` calls, then a
+#' baseline (the bytecode compiled by the copy-and-patch JIT, if available, which records
+#' feedback) for `threshold` more, then asks the compile server (see [rsh_fir_connect()]) to
+#' compile it, with that feedback, into native code, which it runs from then on.
+#'
+#' @param threshold how many calls a closure runs in a tier before it moves to the next one. The
+#'   last call of this or [rsh_fir_connect()] sets it.
 #' @export
-rsh_jit_enable <- function() {
+rsh_jit_enable <- function(threshold = 10L) {
+    .Call(C_set_jit_threshold, as.integer(threshold))
     rsh_override_cmpfun(rsh_cmpfun)
 }
 
@@ -114,12 +123,15 @@ rsh_compile <- function(f, options) {
   invisible(.Call(C_compile, f, options))
 }
 
-#' Compile given closure
+#' Compile given closure for the Rsh JIT
 #'
-#' It makes a copy the given closure and compiles it.
+#' It compiles the given closure to bytecode with GNU-R's compiler, and returns a copy whose body
+#' counts calls to move the closure through the JIT's tiers (see [rsh_jit_enable()]). This is the
+#' compile hook [rsh_jit_enable()] installs.
 #'
 #' @param f closure to be compiled
-#' @param options list of GNU R bytecode compiler options
+#' @param options list of GNU R bytecode compiler options, and `name`, the name the compile server
+#'   gives the closure's function (by default the one it's called by when it asks the server)
 #' @return compiled closure
 #' @export
 rsh_cmpfun <- function(f, options) {
@@ -128,19 +140,24 @@ rsh_cmpfun <- function(f, options) {
   }
   stopifnot(is.list(options))
 
-  if (!is.null(options$optimize)) {
-    options$bc_opt <- as.integer(options$optimize)
-    options$optimize <- NULL
-  }
+  compiled <- .gnur_cmpfun(f, options)
+  .Call(C_rsh_jit_closure, compiled, options$name, C_rsh_tier)
+}
 
-  # FIXME: this does not work, we need to find the closure in the an environment
-  options$name <- as.character(substitute(f))
-  options$inplace <- FALSE
-
-  rsh_compile(f, options)
+#' Get the Rsh JIT tier of a closure
+#'
+#' @param f closure
+#' @return `"interpreted"` if `f` didn't run `threshold` times since [rsh_cmpfun()] compiled it
+#'   (or it never did), `"baseline"` if it did, and `"optimized"` once it runs code compiled by the
+#'   compile server (see [rsh_jit_enable()])
+#' @export
+rsh_jit_tier <- function(f) {
+  .Call(C_rsh_jit_tier, f)
 }
 
 #' Check if the closure is natively compiled
+#'
+#' By [rsh_compile()], or by the compile server for the Rsh JIT.
 #'
 #' @param f closure to be checked
 #' @return TRUE if the closure is compiled, FALSE otherwise
@@ -171,19 +188,26 @@ rsh_clear_cache <- function() {
   .Call(C_clear_cache)
 }
 
-#' Connect the stubs in compiled FIR code to the compile server
+#' Connect the Rsh JIT and the stubs in compiled FIR code to the compile server
 #'
-#' A stub stands for a function version the server hasn't compiled yet. Once connected, a stub
-#' asks the server to compile its version the first time it's called (meanwhile running a
-#' fallback), and replaces itself with the compiled version once it arrives.
+#' Once connected, the JIT asks the server to compile closures that ran their baseline often
+#' enough (see [rsh_jit_enable()]). A stub stands for a function version the server hasn't
+#' compiled yet. Once connected, a stub asks the server to compile its version the first time
+#' it's called (meanwhile running a fallback), and replaces itself with the compiled version once
+#' it arrives.
 #'
 #' @param address IP address of the server
 #' @param port port of the server
-#' @param deterministic whether a stub's second call waits for the compiled version, so that
-#'   only its first call runs the fallback no matter how long compiling takes (for tests)
+#' @param deterministic whether a stub's second call waits for the compiled version, and a
+#'   closure's first call after it asked for its compiled code waits for it, so that which calls
+#'   run what doesn't depend on how long compiling takes (for tests)
+#' @param threshold if not `NULL`, the JIT threshold to set (see [rsh_jit_enable()])
 #' @export
-rsh_fir_connect <- function(address="0.0.0.0", port=8980L, deterministic=FALSE) {
-  invisible(.Call(C_fir_connect, address, as.integer(port), deterministic))
+rsh_fir_connect <- function(address="0.0.0.0", port=8980L, deterministic=FALSE, threshold=NULL) {
+  if (!is.null(threshold)) {
+    threshold <- as.integer(threshold)
+  }
+  invisible(.Call(C_fir_connect, address, as.integer(port), deterministic, threshold))
 }
 
 #' Wait until the compile server has answered every request FIR stubs made so far

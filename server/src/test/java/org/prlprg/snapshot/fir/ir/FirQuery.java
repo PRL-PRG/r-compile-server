@@ -10,17 +10,14 @@ import static org.prlprg.snapshot.bc2fir.BC2FirUtils.compile;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.WeakHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import junit.framework.AssertionFailedError;
-import org.jspecify.annotations.Nullable;
 import org.prlprg.bc2fir.BC2FirCFGCompilerUnsupportedException;
 import org.prlprg.bc2fir.BC2FirClosureCompilerUnsupportedException;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
@@ -101,18 +98,6 @@ public class FirQuery implements GenFirQuery {
     };
   }
 
-  /// The GNU-R bytecode that `module`'s functions were compiled from, if this query computed it
-  /// from an R example, otherwise `null`.
-  ///
-  /// The bytecode of an inner closure is only in it once the enclosing function's baseline is
-  /// evaluated.
-  public static @Nullable ModuleBcOriginMap bytecodesOf(Module module) {
-    return BYTECODES.get(module);
-  }
-
-  private static final Map<Module, ModuleBcOriginMap> BYTECODES =
-      Collections.synchronizedMap(new WeakHashMap<>());
-
   /// Whether each R example (by path) has something BC->FIŘ doesn't support, and what.
   private final Map<Path, Optional<RuntimeException>> unsupportedExamples = new HashMap<>();
 
@@ -148,10 +133,8 @@ public class FirQuery implements GenFirQuery {
     var env = new UserEnvSXP();
     env.set("main", SEXPs.closure(SEXPs.list(), SEXPs.bcode(bc), env));
 
-    var bytecodes = new ModuleBcOriginMap();
-    var module = compile(env, R.getSession(), strict, bytecodes);
-    BYTECODES.put(module, bytecodes);
-    return module;
+    // Records the bytecode, for `ModuleBcOriginMap.of`.
+    return compile(env, R.getSession(), strict, new ModuleBcOriginMap());
   }
 
   @Override

@@ -100,19 +100,31 @@ For tests
 ### Compilation Pipeline
 
 ```
-R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
+R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code      (bc2c, `Compile` RPC)
                      ↓              ↓
                   Cache Layer   Cache Layer
+
+Bytecode + rcp recording → FIŘ module → optimized FIŘ → C Code → Native Object Code
+                                         (lazy versions become stubs; `CompileFirClosure`, then
+                                          `CompileFirVersion` per stub)
 ```
+
+The rsh JIT uses the FIŘ path: a closure runs bytecode, then a baseline that records feedback, then
+the server's FIŘ module (see `./server/doc/lazy-versions.md`).
 
 ### Testing Strategy
 
 - **Snapshot integration tests**: Each test runs on example source code from `src/test/resources/org/prlprg/examples/`. It takes as input either the source itself and/or outputs of tests for earlier segments of the pipeline (e.g. the FIŘ to C test takes as input a FIŘ module encoding the example, which is produced by the FIŘ parser test for FIŘ examples and BC to FIŘ test for R examples). It produces output, which is either the next stage or end result of the pipeline, and saves it to a subdirectory of `src/test/snapshots/org/prlprg/snapshots/`.
   - The FIŘ→C eval tests run the compiled code in an R that has the `rsh` package loaded, connected to a compile server in the test JVM that compiles the versions the code's stubs ask for (see `./server/doc/lazy-versions.md`). So `rsh` must be installed in the vendored R (`make -C client/rsh install`), and reinstalled after changing its runtime; the tests check this.
+- **JIT tiering test**: `JitTieringTest` runs an R process with the rsh JIT enabled against the test server, and checks that a closure moves through the tiers (interpreted, baseline, optimized). It also needs `rsh` installed.
 - **Unit tests**: JUnit 5
 - **Property tests**: JQwik
 
 ## Miscellaneous
+
+### Repository map
+
+`./repo-map.md` has one line per file (per directory for generated, vendored, and data trees). Update it when you add, move, or delete a file.
 
 ### Protocol Buffers
 

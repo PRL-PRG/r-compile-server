@@ -1,5 +1,6 @@
 package org.prlprg.server;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
@@ -8,6 +9,7 @@ import io.grpc.stub.StreamObserver;
 import java.io.*;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -17,7 +19,16 @@ import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcOptLevel;
 import org.prlprg.bc2c.BC2CCompiler;
+import org.prlprg.bc2fir.BC2FirClosureCompiler;
+import org.prlprg.bc2fir.BcRecordingFeedback;
+import org.prlprg.bc2fir.ModuleBcOriginMap;
+import org.prlprg.fir.feedback.MockModuleFeedback;
+import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.opt.Optimizations;
 import org.prlprg.fir2c.Fir2CCompiler;
+import org.prlprg.fir2c.Fir2CSession;
+import org.prlprg.fir2c.Option;
+import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledPatch;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
@@ -28,6 +39,7 @@ import org.prlprg.session.GNURSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Pair;
 import org.prlprg.util.Triple;
 
@@ -78,11 +90,6 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         (ServerCallStreamObserver<Messages.CompileResponse>) plainResponseObserver;
     responseObserver.setCompression("gzip"); // Or for all responses? In that case, we just need to
     // add an interceptor.
-
-    if (session == null) {
-      responseObserver.onError(
-          Status.INTERNAL.withDescription("Session not initialized.").asRuntimeException());
-    }
 
     // Parse the request
     Messages.Function function = request.getFunction();
@@ -326,6 +333,104 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     responseObserver.onCompleted();
   }
 
+  /// Compile a closure that ran its bytecode often enough into a new FIŘ module, optimized with
+  /// what the bytecode recorded, and answer with the module's first piece (see
+  /// `server/doc/lazy-versions.md`).
+  @Override
+  public void compileFirClosure(
+      Messages.FirClosureRequest request,
+      StreamObserver<Messages.FirClosureResponse> responseObserver) {
+    logger.info(
+        "Received request to compile closure "
+            + request.getName()
+            + " to FIR"
+            + (request.hasRecording() ? " with a recording" : ""));
+
+    Messages.FirClosureResponse response;
+    try {
+      response = compileFirClosure(request);
+    } catch (Exception e) {
+      logger.log(Level.WARNING, "Failed to compile closure to FIR", e);
+      var msg = String.valueOf(e.getMessage());
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  "Cannot compile closure "
+                      + request.getName()
+                      + " to FIR; "
+                      // gRPC has a max header size of 8KB
+                      + msg.substring(0, Math.min(msg.length(), 7000)))
+              .asRuntimeException());
+      return;
+    }
+
+    responseObserver.onNext(response);
+    responseObserver.onCompleted();
+  }
+
+  private Messages.FirClosureResponse compileFirClosure(Messages.FirClosureRequest request)
+      throws Exception {
+    var rSession = session();
+    if (!(RDSReader.readByteString(rSession, request.getClosure()) instanceof CloSXP closure)) {
+      throw new IllegalArgumentException("Not a closure");
+    }
+    var name = request.getName().isEmpty() ? "f" : request.getName();
+
+    // The client's bytecode, not recompiled: the recording's offsets index it.
+    var module = new Module();
+    var bytecodes = new ModuleBcOriginMap();
+    var function = BC2FirClosureCompiler.compile(rSession, module, name, closure, bytecodes);
+
+    var feedback =
+        request.hasRecording()
+            ? BcRecordingFeedback.translate(
+                module,
+                bytecodes,
+                List.of(
+                    new BcRecordingFeedback.Recording(
+                        name, (VecSXP) RDSReader.readByteString(rSession, request.getRecording()))))
+            : null;
+    Optimizations.defaultOptimizations(request.getThreshold(), true)
+        .run(feedback == null ? new MockModuleFeedback(module) : feedback, module);
+    // The closure is hot, so its versions that exist now (the baseline's copy) are compiled, not
+    // stubs. Evaluating them optimizes them, which creates the versions that specialize on the
+    // feedback; those start as stubs.
+    for (var version : List.copyOf(function.versions())) {
+      if (version != function.baseline()) {
+        version.body();
+      }
+    }
+
+    var fir2cSession =
+        new Fir2CSession(
+            firModules.freshId(),
+            module,
+            rSession,
+            bytecodes,
+            ImmutableSet.of(Option.COMPILE_REFERENCED_FUNCTIONS));
+    CompiledModule compiled;
+    synchronized (fir2cSession) {
+      compiled = Fir2CCompiler.compile(fir2cSession, function);
+    }
+
+    var inputFile = File.createTempFile("fir_closure", ".c");
+    compiled.code().writeTo(inputFile.toPath());
+    var outputFile = File.createTempFile("fir_closure", ".o");
+    RshCompiler.getInstance(request.getCcOpt(), RuntimeVariant.FIR2C)
+        .createBuilder(inputFile.toPath(), outputFile.toPath())
+        .flag("-c")
+        .compile();
+
+    firModules.register(fir2cSession, request.getCcOpt());
+    return Messages.FirClosureResponse.newBuilder()
+        .setModule(fir2cSession.id())
+        .setCode(ByteString.copyFrom(Files.asByteSource(outputFile).read()))
+        .setConstants(RDSWriter.writeByteString(compiled.constantPool()))
+        .setInit(Fir2CCompiler.functionInitCName(fir2cSession, function))
+        .setFromR(Fir2CCompiler.functionFromRCName(fir2cSession, function))
+        .build();
+  }
+
   @Override
   public void init(
       Messages.InitRequest request, StreamObserver<Messages.InitResponse> responseObserver) {
@@ -347,18 +452,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     logger.info("Received package hashes: " + packages);
 
     // TODO: Lookup to see if we have this version of R installed or not.
-    // Hardcoded so far:
-    // TODO: detect where R is installed
-    var rHomeEnv = System.getenv("R_HOME");
-    if (rHomeEnv == null) {
-      rHomeEnv = "R";
+    synchronized (this) {
+      session = newSession(convertVersion(RVersion));
     }
-    var rHomePath = Path.of(rHomeEnv);
-    var rLibraryPath = rHomePath.resolve("library");
-    if (logger.isLoggable(Level.FINE)) {
-      logger.fine("Creating an R session using R from `" + rHomePath.toAbsolutePath() + "'");
-    }
-    session = new GNURSession(convertVersion(RVersion), rHomePath, rLibraryPath);
 
     // TODO: Look into our cache if we have the packages.
     // Request the packages for those we do not have hashes for.
@@ -389,6 +485,25 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     responseObserver.onCompleted();
   }
 
+  /// The R session, which [#init] creates, or one for the latest R version if it didn't run.
+  private synchronized GNURSession session() {
+    if (session == null) {
+      session = newSession(RVersion.LATEST_AWARE);
+    }
+    return session;
+  }
+
+  /// A session for the R at `R_HOME`, or the vendored R if it's unset.
+  private static GNURSession newSession(RVersion version) {
+    // TODO: detect where R is installed
+    var rHomeEnv = System.getenv("R_HOME");
+    var rHomePath = rHomeEnv == null ? RshCompiler.R_DIRECTORY : Path.of(rHomeEnv);
+    if (logger.isLoggable(Level.FINE)) {
+      logger.fine("Creating an R session using R from `" + rHomePath.toAbsolutePath() + "'");
+    }
+    return new GNURSession(version, rHomePath, rHomePath.resolve("library"));
+  }
+
   private RVersion convertVersion(Messages.Version version) {
     return new RVersion(version.getMajor(), version.getMinor(), version.getPatch());
   }
@@ -396,13 +511,12 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private Optional<Bc> compileBcClosure(ByteString body, BcOptLevel optimizationLevel) {
     SEXP closure = null;
     try {
-      assert session != null;
-      closure = RDSReader.readByteString(session, body);
+      closure = RDSReader.readByteString(session(), body);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
     if (closure instanceof CloSXP c) {
-      BCCompiler compiler = new BCCompiler(c, session);
+      BCCompiler compiler = new BCCompiler(c, session());
       compiler.setOptimizationLevel(optimizationLevel);
       return compiler.compile();
     } else {

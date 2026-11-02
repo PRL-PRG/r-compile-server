@@ -198,13 +198,42 @@ extern Fir_Kind Fir_kind_dots;
 extern Fir_Kind Fir_kind_missing;
 extern Fir_Kind Fir_kind_boolean;
 
-/// Scalar string of a serialized `MockModuleFeedback` containing the feedback recorded by every
-/// bytecode baseline whose constant pool is reachable from `pool` (which is a module's
-/// constant pool, i.e. the one its main function was initialized with).
+/// How many calls a closure or a stub runs before the JIT moves it to the next tier. The rsh
+/// package sets it (`rsh_jit_enable`, `rsh_fir_connect`); the last setter wins.
+extern int Fir_jit_threshold;
+void Fir_set_jit_threshold(int threshold);
+
+/// Fixed slots of a bytecode baseline's constant pool (mirrored by
+/// `Fir2CCompiler#emitBytecodeBaseline` on the server). The rsh JIT's counting body uses the same
+/// layout for slots other than `FIR_BC_BASELINE_ID`.
+enum {
+  /// The GNU-R bytecode.
+  FIR_BC_BASELINE_CODE = 0,
+  /// The formals (with default-argument expressions).
+  FIR_BC_BASELINE_FORMALS = 1,
+  /// The code `Fir_bc_baseline_code` returns, or `NULL` until it's first called.
+  FIR_BC_BASELINE_JIT = 2,
+  /// `c("Fir_bc_baseline_feedback", "<FIŘ function name>")`, which identifies a baseline's pool.
+  FIR_BC_BASELINE_ID = 3,
+  /// The call counter, a scalar integer the baseline increments.
+  FIR_BC_BASELINE_CALLS = 4,
+  FIR_BC_BASELINE_SIZE = 5,
+};
+
+/// The code a bytecode baseline evaluates: the bytecode compiled by the copy-and-patch JIT (rcp)
+/// with feedback recording if rcp is available, the bytecode itself otherwise. Compiled on the
+/// first call and cached in the pool.
+SEXP Fir_bc_baseline_code(SEXP pool);
+/// What the copy-and-patch JIT recorded for the code in `pool` (see `Fir_bc_baseline_code`),
+/// with `calls` as the number of calls: the list `server/doc/bytecode-baseline-feedback.md`
+/// describes. `R_NilValue` if rcp isn't available or the code wasn't compiled yet.
+SEXP Fir_bc_baseline_recording(SEXP pool, int calls);
+/// The recordings (`Fir_bc_baseline_recording`) of every bytecode baseline whose constant pool is
+/// reachable from `pool` (a module's constant pool, i.e. the one its main function was
+/// initialized with), as a list of `list(function = <FIŘ function name>, <recording...>)`.
 ///
 /// Baselines only record feedback when they're compiled by the copy-and-patch JIT, so this
-/// returns `R_NilValue` if it isn't available or no baseline ran. See
-/// `server/doc/bytecode-baseline-feedback.md`.
+/// returns `R_NilValue` if it isn't available or no baseline ran.
 SEXP Fir_serialized_feedback(SEXP pool);
 
 void Fir_print_signature(Fir_Signature signature);

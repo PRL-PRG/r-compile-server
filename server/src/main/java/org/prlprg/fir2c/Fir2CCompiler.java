@@ -12,7 +12,6 @@ import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.bc.BcLabel;
 import org.prlprg.bc2fir.FunctionBcOrigin;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.analyze.cfg.Liveness;
@@ -79,7 +78,6 @@ import org.prlprg.fir.ir.variable.*;
 import org.prlprg.gen2c.*;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Constants;
-import org.prlprg.rds.LabelMapping;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Lists;
@@ -150,8 +148,8 @@ public final class Fir2CCompiler {
   private static final String VAR_LOCAL_PROMISES = "local_promises";
   private static final String VAR_LOCAL_PROMISES_IDX = "local_promises_idx";
 
-  /// Constant pool slot of a bytecode baseline's feedback map (see
-  /// [FunctionEmitter#bcBaselineFeedbackMap(Abstraction, FunctionBcOrigin)()]).
+  /// Constant pool slot of what identifies a bytecode baseline's pool (see
+  /// [FunctionEmitter#bcBaselineId()]).
   ///
   /// Mirrored by `FIR_BC_BASELINE_FEEDBACK` in `runtime.c`.
   static final int FIR_BC_BASELINE_FEEDBACK = 3;
@@ -162,7 +160,7 @@ public final class Fir2CCompiler {
   /// Mirrored by `FIR_BC_BASELINE_CALLS` in `runtime.c`.
   static final int FIR_BC_BASELINE_CALLS = 4;
 
-  /// First element of a bytecode baseline's feedback map, which is how `Fir_serialized_feedback`
+  /// First element of [#FIR_BC_BASELINE_FEEDBACK], which is how `Fir_serialized_feedback`
   /// in `runtime.c` recognizes bytecode baseline pools while walking the module's constant pool.
   static final String FIR_BC_BASELINE_FEEDBACK_MAGIC = "Fir_bc_baseline_feedback";
 
@@ -1100,12 +1098,15 @@ public final class Fir2CCompiler {
 
       // Fixed pool layout, mirrored by `Fir_bc_baseline_call` in `runtime.c`:
       // 0 = the GNU-R bytecode, 1 = the formals (with default-argument expressions),
-      // 2 = space for the lazily JIT-compiled code, 3 = how to translate the feedback the JIT
-      // records into FIŘ feedback, 4 = space for the call counter.
+      // 2 = space for the lazily JIT-compiled code, 3 = what identifies the pool and its
+      // function's recording, 4 = space for the call counter.
       var bcIdx = pool.internUnique(SEXPs.bcode(bytecode.bc()));
       var formalsIdx = pool.internUnique(bytecode.formals());
       var jitIdx = pool.internSpace();
-      var feedbackIdx = pool.internUnique(bcBaselineFeedbackMap(baseline, bytecode));
+      // The translation of the baseline's recording refers to its registers and its inner
+      // closures' functions, which only exist once it's evaluated.
+      baseline.body();
+      var feedbackIdx = pool.internUnique(bcBaselineId());
       var callsIdx = pool.internSpace();
       assert bcIdx == 0
           && formalsIdx == 1
@@ -1131,52 +1132,11 @@ public final class Fir2CCompiler {
       return pool.toSexp();
     }
 
-    /// The table `Fir_serialized_feedback` in `runtime.c` uses to translate the feedback the
-    /// copy-and-patch JIT records for `baseline`'s bytecode into FIŘ feedback (the format is
-    /// documented in `server/doc/bytecode-baseline-feedback.md`).
-    ///
-    /// It's a 3-element list:
-    /// - `[0]` = [#FIR_BC_BASELINE_FEEDBACK_MAGIC] (which is how the runtime recognizes a bytecode
-    ///   baseline's pool) followed by the prefix of this version's printed feedback (its function
-    ///   name and signature).
-    /// - `[1]` = the GNU-R bytecode offsets of the recorded instructions, ascending. Those are
-    ///   what the JIT keys its recording by, and they're offsets into the encoded bytecode array
-    ///   (which counts the version number and every instruction's arguments), not instruction
-    ///   indices.
-    /// - `[2]` = the name of the register each offset's feedback describes, parallel to `[1]`.
-    private VecSXP bcBaselineFeedbackMap(Abstraction baseline, FunctionBcOrigin bytecode) {
-      var labels = LabelMapping.toGNUR(bytecode.bc().code());
-      var baselineRegisters =
-          baseline.streamRegisters().map(Register::name).collect(Collectors.toSet());
-
-      var offsets = new ArrayList<Integer>();
-      var registers = new ArrayList<String>();
-      bytecode.feedbackRegisters().entrySet().stream()
-          // The runtime prints registers in the order it reads them, so ordering by bytecode
-          // position makes the printed feedback deterministic.
-          .sorted(Map.Entry.comparingByKey())
-          .forEach(
-              e -> {
-                // Only registers the baseline still has can be referred to (the feedback is parsed
-                // against it). They all are unless the bytecode was recorded from a different
-                // compile of the same closure, e.g. `Fir2CQuery` re-runs bc2fir to recover the
-                // bytecode the FIŘ snapshot was compiled from.
-                if (!baselineRegisters.contains(e.getValue())) {
-                  return;
-                }
-                offsets.add(labels.extract(new BcLabel(e.getKey())));
-                registers.add(e.getValue());
-              });
-
-      var prefix =
-          Printer.toString(function.name())
-              + "< "
-              + Printer.toString(baseline.signature())
-              + " > = ";
-      return SEXPs.vec(
-          SEXPs.string(FIR_BC_BASELINE_FEEDBACK_MAGIC, prefix),
-          SEXPs.integer(offsets),
-          SEXPs.string(registers));
+    /// What identifies a bytecode baseline's pool to `Fir_serialized_feedback` in `runtime.c`:
+    /// [#FIR_BC_BASELINE_FEEDBACK_MAGIC] and the name of the baseline's function, which names its
+    /// recording. The server translates the recording ([org.prlprg.bc2fir.BcRecordingFeedback]).
+    private StrSXP bcBaselineId() {
+      return SEXPs.string(FIR_BC_BASELINE_FEEDBACK_MAGIC, function.name().name());
     }
 
     private final class VersionEmitter {
@@ -2497,17 +2457,29 @@ public final class Fir2CCompiler {
   }
 
   private String functionInitCName(Function function) {
+    return functionInitCName(session, function);
+  }
+
+  /// The C name of the initializer of `function`'s constants in `session`'s code: `(SEXP
+  /// constants) -> SEXP`, called once with the constant pool of the piece that defines it.
+  public static String functionInitCName(Fir2CSession session, Function function) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no initializer";
 
-    return cNamePrefix() + "fun_init_" + escapeForC(function.name().name());
+    return "Fir_" + session.prefix() + "fun_init_" + escapeForC(function.name().name());
   }
 
   private String functionFromRCName(Function function) {
+    return functionFromRCName(session, function);
+  }
+
+  /// The C name of what `function`'s closures' bodies call in `session`'s code: `(SEXP env, SEXP
+  /// constants) -> SEXP`.
+  public static String functionFromRCName(Fir2CSession session, Function function) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no from-R dispatch";
 
-    return cNamePrefix() + "fun_from_r_" + escapeForC(function.name().name());
+    return "Fir_" + session.prefix() + "fun_from_r_" + escapeForC(function.name().name());
   }
 
   private String functionDispatchCName(Function function) {

@@ -20,10 +20,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.prlprg.bc.BCCompiler;
+import org.prlprg.bc2fir.BC2FirClosureCompiler;
+import org.prlprg.bc2fir.BcRecordingFeedback;
+import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.LazyCopy;
@@ -31,10 +38,14 @@ import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir2c.Fir2CCompiler;
 import org.prlprg.fir2c.Fir2CSession;
 import org.prlprg.fir2c.Option;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.gnur.GNUR;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.VecSXP;
 
 @ExtendWith(GrpcCleanupExtension.class)
 public class ServerTests {
@@ -234,6 +245,127 @@ public class ServerTests {
                 blockingStub.compileFirVersion(
                     Messages.FirVersionRequest.newBuilder().setModule("nope").setStub(0).build()));
     assertEquals(Status.Code.NOT_FOUND, unknown.getStatus().getCode());
+  }
+
+  /// A closure the client's JIT sends once its bytecode ran often enough, with what the bytecode
+  /// recorded: the module is optimized with the recording, so it has a version that speculates on
+  /// the recorded type, which is a stub until the client calls it. Optimizing that version adds a
+  /// version for the recorded parameter type, which is a stub too.
+  @Test
+  void testCompileFirClosure(Resources resources) throws Exception {
+    assert server != null;
+    resources.register(server, Duration.ofSeconds(3));
+    assert channel != null;
+    resources.register(channel, Duration.ofSeconds(3));
+    assert blockingStub != null;
+
+    var R = GNUR.instance();
+    var source = (CloSXP) R.eval("function(x) x + 1");
+    var bc =
+        new BCCompiler(source, R.getSession())
+            .compile()
+            .orElseThrow(() -> new AssertionError("example didn't compile"));
+    var closure = SEXPs.closure(source.parameters(), SEXPs.bcode(bc), source.env());
+
+    // The offset the JIT records `x`'s `GETVAR` under, from a throwaway compile of the closure.
+    var bytecodes = new ModuleBcOriginMap();
+    var throwaway = new Module();
+    var baseline =
+        BC2FirClosureCompiler.compile(R.getSession(), throwaway, "addOne", closure, bytecodes)
+            .baseline();
+    var offsets =
+        BcRecordingFeedback.feedbackOffsets(
+            baseline, Objects.requireNonNull(bytecodes.get("addOne")));
+    assertEquals(1, offsets.size(), "only `x`'s `GETVAR` is recorded: " + offsets);
+    var offset = offsets.firstEntry().getKey();
+    var register = offsets.firstEntry().getValue();
+
+    // `x` was a real scalar in all 10 calls.
+    var recording =
+        recording(
+            10,
+            group(List.of(), List.of(), List.of(), "taken", "not_taken"),
+            group(List.of(offset), List.of(10), List.of(1 << 28), "counters", "types"),
+            SEXPs.vec(SEXPs.integer(), SEXPs.integer(), SEXPs.vec())
+                .withNames(List.of("bcids", "counters", "callees")));
+    var feedbackText =
+        BcRecordingFeedback.print(
+            throwaway, bytecodes, List.of(new BcRecordingFeedback.Recording("addOne", recording)));
+    assertEquals(
+        """
+        feedback {
+          addOne< %s > = 10x
+          [
+            reg %s :v1(R) (10x)
+            reg x :v1(R)[v1(R) 10x] (10x)
+          ]
+        }"""
+            .formatted(Printer.toString(baseline.signature()), register),
+        feedbackText);
+
+    var response =
+        blockingStub.compileFirClosure(
+            Messages.FirClosureRequest.newBuilder()
+                .setClosure(RDSWriter.writeByteString(closure))
+                .setName("addOne")
+                .setRecording(RDSWriter.writeByteString(recording))
+                .setThreshold(3)
+                .setCcOpt(0)
+                .build());
+    var entry = Objects.requireNonNull(firModules.get(response.getModule()), "module registered");
+    assertFalse(response.getCode().isEmpty(), "an object file");
+    assertEquals("Fir_" + response.getModule() + "_fun_init_addOne", response.getInit());
+    assertEquals("Fir_" + response.getModule() + "_fun_from_r_addOne", response.getFromR());
+
+    // `CopyBaseline`'s copy is evaluated: it assumes the recorded type, and optimizing it adds a
+    // version for the recorded parameter type, which is a stub until the client calls it.
+    var session = entry.session();
+    var function = Objects.requireNonNull(session.module().localFunction(Variable.named("addOne")));
+    var copy =
+        function.versions().stream()
+            .filter(v -> v != function.baseline() && v.isEvaluated())
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new AssertionError(
+                        "the baseline's copy must be compiled, not a stub: "
+                            + function.versions()));
+    var specialized =
+        function.versions().stream()
+            .filter(v -> Printer.toString(v.signature()).equals("v1(R) -+> V"))
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new AssertionError(
+                        "no version for the recorded parameter type: " + function.versions()));
+    assertFalse(specialized.isEvaluated(), "the specialized version must be unevaluated");
+    assertEquals(List.of(specialized), session.stubs(), "the specialized version is the only stub");
+    assertTrue(
+        copy.streamCfgs()
+            .flatMap(cfg -> cfg.bbs().stream())
+            .flatMap(bb -> bb.statements().stream())
+            .anyMatch(
+                stmt ->
+                    stmt.expression() instanceof Assume(AssumeType(var type))
+                        && type.equals(Type.BOXED_REAL)),
+        "the evaluated version must assume `x` is a real scalar:\n" + session.module());
+
+    // When the client calls the stub, the specialized version is evaluated.
+    blockingStub.compileFirVersion(
+        Messages.FirVersionRequest.newBuilder().setModule(session.id()).setStub(0).build());
+    assertTrue(specialized.isEvaluated());
+  }
+
+  private static VecSXP recording(int calls, SEXP branch, SEXP varCall, SEXP fun) {
+    return (VecSXP)
+        SEXPs.vec(SEXPs.integer(calls), branch, varCall, fun)
+            .withNames(List.of("calls", "branch", "var_call", "fun"));
+  }
+
+  private static SEXP group(
+      List<Integer> bcids, List<Integer> first, List<Integer> second, String... names) {
+    return SEXPs.vec(SEXPs.integer(bcids), SEXPs.integer(first), SEXPs.integer(second))
+        .withNames(List.of("bcids", names[0], names[1]));
   }
 
   @Test

@@ -36,7 +36,7 @@ public final class BC2FirClosureCompiler {
   ///
   /// If `bytecodes` is non-`null`, records the closure's GNU-R bytecode in it (and, when the
   /// baseline is evaluated, that of every inner closure, as well as the baseline's feedback
-  /// registers).
+  /// registers), and makes it [ModuleBcOriginMap#of(Module)] the module unless that's set.
   ///
   /// @throws IllegalArgumentException If `r` is `null` and `closure` has AST default arguments
   /// or an AST body.
@@ -69,6 +69,9 @@ public final class BC2FirClosureCompiler {
                           "Failed to compile AST body", closure));
     }
 
+    if (bytecodes != null) {
+      bytecodes.recordFor(module);
+    }
     var origin = bytecodes == null ? null : bytecodes.record(name, bc, closure.parameters());
 
     // The baseline's signature doesn't depend on the bytecode, so only the body is lazy.

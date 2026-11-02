@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.bc2fir.BcRecordingFeedback;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult;
 import org.prlprg.examples.SexpResult.Error;
@@ -21,8 +22,6 @@ import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
-import org.prlprg.sexp.NilSXP;
-import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SkipQueryException;
@@ -93,21 +92,19 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       }
       var res = v.get(0);
       var pc = PerformanceCounters.from(v.get(1));
-      var feedback =
-          switch (v.get(2)) {
-            case NilSXP _ -> null;
-            case StrSXP s when s.isSimpleScalar() -> {
-              var module =
-                  session != null
-                      ? session.module()
-                      : store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
-              var parseCtx = new ModuleFeedbackParseContext(module);
-              yield Parser.fromString(s.get(0), MockModuleFeedback.class, parseCtx);
-            }
-            default ->
-                throw new IllegalArgumentException(
-                    "Value third item must be NULL or serialized `MockModuleFeedback`");
-          };
+      var recordings = BcRecordingFeedback.Recording.listOf(v.get(2));
+      MockModuleFeedback feedback = null;
+      if (!recordings.isEmpty()) {
+        var module =
+            session != null
+                ? session.module()
+                : store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
+        var bytecodes =
+            Objects.requireNonNull(
+                session != null ? session.bytecodes() : Fir2CQuery.bytecodes(example, store),
+                "recorded feedback for a module without bytecode");
+        feedback = BcRecordingFeedback.translate(module, bytecodes, recordings);
+      }
       var outputLog = rawOutput.second();
       return new EvalOutput(new Ok(res), outputLog, feedback, pc, moduleAfter(session));
     } catch (EvalException e) {

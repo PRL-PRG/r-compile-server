@@ -69,6 +69,12 @@ Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type cons
 
 static const Fir_StubCompiler *stub_compiler = NULL;
 
+int Fir_jit_threshold = 10;
+
+void Fir_set_jit_threshold(int threshold) {
+  Fir_jit_threshold = threshold;
+}
+
 void Fir_set_stub_compiler(const Fir_StubCompiler *compiler) {
   stub_compiler = compiler;
 }
@@ -982,28 +988,9 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) 
   }
 }
 
-// Fixed slots of a bytecode baseline's constant pool
-// (mirrored by `Fir2CCompiler#emitBytecodeBaseline` on the server).
-enum {
-  FIR_BC_BASELINE_CODE = 0,
-  FIR_BC_BASELINE_FORMALS = 1,
-  FIR_BC_BASELINE_JIT = 2,
-  FIR_BC_BASELINE_FEEDBACK = 3,
-  FIR_BC_BASELINE_CALLS = 4,
-  FIR_BC_BASELINE_SIZE = 5,
-};
-
-// Elements of a bytecode baseline's feedback map, the pool's `FIR_BC_BASELINE_FEEDBACK` slot
-// (mirrored by `Fir2CCompiler#bcBaselineFeedbackMap` on the server).
-enum {
-  FIR_BC_FEEDBACK_HEADER = 0,
-  FIR_BC_FEEDBACK_BCIDS = 1,
-  FIR_BC_FEEDBACK_REGISTERS = 2,
-  FIR_BC_FEEDBACK_SIZE = 3,
-};
-
-// First string in the feedback map, which is how we recognize a bytecode baseline's pool.
-#define FIR_BC_FEEDBACK_MAGIC "Fir_bc_baseline_feedback"
+// First string in a bytecode baseline's `FIR_BC_BASELINE_ID` slot, which is how we recognize its
+// pool.
+#define FIR_BC_BASELINE_MAGIC "Fir_bc_baseline_feedback"
 
 /// Entry points of the rcp package (the copy-and-patch JIT), or `NULL`s if it can't be loaded.
 /// It can only be loaded in the RCP variant of GNU-R (`RCP=1 tools/build-gnur.sh`), whose `eval`
@@ -1051,9 +1038,7 @@ static SEXP Fir_set_rcp_recording(SEXP value) {
   return old;
 }
 
-/// The code a bytecode baseline evaluates: the copy-and-patch-JIT-compiled bytecode if rcp is
-/// available, the bytecode itself otherwise. Compiled and cached in the pool on first call.
-static SEXP Fir_bc_baseline_code(SEXP pool) {
+SEXP Fir_bc_baseline_code(SEXP pool) {
   SEXP code = Fir_const(pool, FIR_BC_BASELINE_JIT);
   if (code != R_NilValue) {
     return code;
@@ -1066,7 +1051,7 @@ static SEXP Fir_bc_baseline_code(SEXP pool) {
     // replacing the body with an external pointer to the JIT-compiled code
     // (which `eval` in the RCP variant of GNU-R runs in the environment it's evaluated in).
     SEXP closure = PROTECT(Rf_mkCLOSXP(Fir_const(pool, FIR_BC_BASELINE_FORMALS), code, R_GlobalEnv));
-    // Compile with feedback recording, which is what `Fir_serialized_feedback` reads. Set and
+    // Compile with feedback recording, which is what `Fir_bc_baseline_recording` reads. Set and
     // restore the option instead of setting it once, so we don't change how anything else in the
     // session gets compiled.
     SEXP old_recording = PROTECT(Fir_set_rcp_recording(Rf_ScalarLogical(TRUE)));
@@ -1136,130 +1121,8 @@ SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
   return out;
 }
 
-// Type codes the copy-and-patch JIT records for a value
-// (mirrored from `client/rcp/rcp/src/stencils/stencils_recording.c`; the ones below 26 are
-// `SEXPTYPE`s, except that unboxed scalars and attribute-less vectors get their own codes).
-enum {
-  FIR_RECORDED_CLOSXP = 3,
-  FIR_RECORDED_PROMSXP = 5,
-  FIR_RECORDED_SPECIALSXP = 7,
-  FIR_RECORDED_BUILTINSXP = 8,
-  FIR_RECORDED_LGLSXP_SCALAR = 11,
-  FIR_RECORDED_LGLSXP_VECTOR = 12,
-  FIR_RECORDED_DOTSXP = 17,
-  FIR_RECORDED_ANYSXP = 18,
-  FIR_RECORDED_INTSXP_SCALAR = 26,
-  FIR_RECORDED_INTSXP_VECTOR = 27,
-  FIR_RECORDED_REALSXP_SCALAR = 28,
-  FIR_RECORDED_REALSXP_VECTOR = 29,
-  FIR_RECORDED_STRSXP_SCALAR = 30,
-  FIR_RECORDED_STRSXP_VECTOR = 31,
-  FIR_RECORDED_COUNT = 32,
-};
-
-/// The FIŘ type of a value the JIT recorded `type` for (`Type#of` on the server), or `NULL` if
-/// it's not a definite value, so nothing more precise than the top type can be said about it.
-///
-/// The JIT records a `SEXPTYPE` for anything with attributes or that is ALTREP, so those get the
-/// top *value* type (`V`) instead of e.g. `v(I)`.
-static char const *Fir_recorded_type(int type) {
-  switch (type) {
-    case FIR_RECORDED_CLOSXP:
-    case FIR_RECORDED_SPECIALSXP:
-    case FIR_RECORDED_BUILTINSXP:
-      return "cls";
-    case FIR_RECORDED_DOTSXP:
-      return "dots";
-    case FIR_RECORDED_LGLSXP_SCALAR:
-      return "v1(L)";
-    case FIR_RECORDED_LGLSXP_VECTOR:
-      return "v(L)";
-    case FIR_RECORDED_INTSXP_SCALAR:
-      return "v1(I)";
-    case FIR_RECORDED_INTSXP_VECTOR:
-      return "v(I)";
-    case FIR_RECORDED_REALSXP_SCALAR:
-      return "v1(R)";
-    case FIR_RECORDED_REALSXP_VECTOR:
-      return "v(R)";
-    case FIR_RECORDED_STRSXP_SCALAR:
-      return "v1(S)";
-    case FIR_RECORDED_STRSXP_VECTOR:
-      return "v(S)";
-    // A promise isn't a value, and `ANYSXP` is never actually recorded, so neither has a FIŘ type.
-    case FIR_RECORDED_PROMSXP:
-    case FIR_RECORDED_ANYSXP:
-      return NULL;
-    default:
-      return "V";
-  }
-}
-
-/// The FIŘ type of every value the JIT recorded in `bitmap` (a set of `1 << type` bits), or `NULL`
-/// if it recorded nothing.
-///
-/// The bitmap doesn't say how often each type was recorded, so multiple types can only become
-/// their union, and it's the top value type (`V`) instead of something more precise like
-/// `v(I) | v(R)` because FIŘ types can't be built here.
-static char const *Fir_recorded_types(unsigned bitmap) {
-  if (bitmap == 0) {
-    return NULL;
-  }
-
-  char const *single = NULL;
-  for (int type = 0; type < FIR_RECORDED_COUNT; type++) {
-    if ((bitmap & (1U << type)) == 0) {
-      continue;
-    }
-    char const *name = Fir_recorded_type(type);
-    if (name == NULL) {
-      // Not definitely a value, so the only sound type is the top type.
-      return "*";
-    }
-    if (single == NULL) {
-      single = name;
-    } else if (strcmp(single, name) != 0) {
-      return "V";
-    }
-  }
-  return single;
-}
-
-/// Growable string in `R_alloc` memory, which is released when the enclosing `.Call` returns
-/// (including when it returns by raising an R error).
-typedef struct {
-  char *data;
-  size_t length;
-  size_t capacity;
-} Fir_StrBuf;
-
-static void Fir_str_buf_write(Fir_StrBuf *buf, char const *string) {
-  size_t length = strlen(string);
-  if (buf->length + length + 1 > buf->capacity) {
-    size_t capacity = buf->capacity == 0 ? 1024 : buf->capacity;
-    while (capacity < buf->length + length + 1) {
-      capacity *= 2;
-    }
-    char *data = R_alloc(capacity, sizeof(char));
-    if (buf->length != 0) {
-      memcpy(data, buf->data, buf->length);
-    }
-    buf->data = data;
-    buf->capacity = capacity;
-  }
-  memcpy(buf->data + buf->length, string, length);
-  buf->length += length;
-  buf->data[buf->length] = '\0';
-}
-
-static void Fir_str_buf_write_int(Fir_StrBuf *buf, int value) {
-  char digits[16];
-  snprintf(digits, sizeof(digits), "%d", value);
-  Fir_str_buf_write(buf, digits);
-}
-
-/// Growable set of SEXPs, in `R_alloc` memory like [Fir_StrBuf]. The SEXPs aren't protected, so
-/// they must be reachable from something that is.
+/// Growable set of SEXPs, in `R_alloc` memory, which is released when the enclosing `.Call`
+/// returns. The SEXPs aren't protected, so they must be reachable from something that is.
 typedef struct {
   SEXP *data;
   int length;
@@ -1302,171 +1165,105 @@ static void Fir_visit_vectors(SEXP sexp, Fir_SexpSet *visited) {
   }
 }
 
-/// If `pool` is a bytecode baseline's constant pool, store its feedback map in `*map` and return
-/// `true` (see `Fir2CCompiler#bcBaselineFeedbackMap` on the server).
-static bool Fir_bc_baseline_feedback_map(SEXP pool, SEXP *map) {
+/// If `pool` is a bytecode baseline's constant pool, return its FIŘ function name.
+static SEXP Fir_bc_baseline_name(SEXP pool) {
   if (TYPEOF(pool) != VECSXP || XLENGTH(pool) < FIR_BC_BASELINE_SIZE) {
-    return false;
+    return NULL;
   }
 
-  SEXP candidate = VECTOR_ELT(pool, FIR_BC_BASELINE_FEEDBACK);
-  if (TYPEOF(candidate) != VECSXP || XLENGTH(candidate) != FIR_BC_FEEDBACK_SIZE) {
-    return false;
+  SEXP id = VECTOR_ELT(pool, FIR_BC_BASELINE_ID);
+  if (TYPEOF(id) != STRSXP || XLENGTH(id) != 2
+      || strcmp(CHAR(STRING_ELT(id, 0)), FIR_BC_BASELINE_MAGIC) != 0) {
+    return NULL;
   }
-
-  SEXP header = VECTOR_ELT(candidate, FIR_BC_FEEDBACK_HEADER);
-  if (TYPEOF(header) != STRSXP || XLENGTH(header) != 2
-      || strcmp(CHAR(STRING_ELT(header, 0)), FIR_BC_FEEDBACK_MAGIC) != 0) {
-    return false;
-  }
-
-  *map = candidate;
-  return true;
+  return STRING_ELT(id, 1);
 }
 
-/// The index of `bcid` in `bcids` (an ascending integer vector), or -1 if it's absent.
-static R_xlen_t Fir_find_bcid(SEXP bcids, int bcid) {
-  int const *data = INTEGER(bcids);
-  R_xlen_t low = 0;
-  R_xlen_t high = XLENGTH(bcids) - 1;
-  while (low <= high) {
-    R_xlen_t middle = low + (high - low) / 2;
-    if (data[middle] == bcid) {
-      return middle;
-    } else if (data[middle] < bcid) {
-      low = middle + 1;
-    } else {
-      high = middle - 1;
-    }
+static SEXP Fir_named_list(int length, char const *const *names) {
+  SEXP list = PROTECT(Rf_allocVector(VECSXP, length));
+  SEXP names_sexp = PROTECT(Rf_allocVector(STRSXP, length));
+  for (int i = 0; i < length; i++) {
+    SET_STRING_ELT(names_sexp, i, Rf_mkChar(names[i]));
   }
-  return -1;
+  Rf_setAttrib(list, R_NamesSymbol, names_sexp);
+  UNPROTECT(2);
+  return list;
 }
 
-/// Write one version's `AbstractionFeedback` from what the JIT recorded for its bytecode.
-///
-/// `map` is the baseline's feedback map, and `recording` is the recording rcp exported for its
-/// JIT-compiled code (see `server/doc/bytecode-baseline-feedback.md`).
-static void Fir_write_baseline_feedback(Fir_StrBuf *out, SEXP pool, SEXP map, SEXP recording) {
-  SEXP branch = VECTOR_ELT(recording, 0);
-  SEXP var_call = VECTOR_ELT(recording, 1);
-  SEXP fun = VECTOR_ELT(recording, 2);
-  SEXP bcids = VECTOR_ELT(map, FIR_BC_FEEDBACK_BCIDS);
-  SEXP registers = VECTOR_ELT(map, FIR_BC_FEEDBACK_REGISTERS);
-  SEXP calls = VECTOR_ELT(pool, FIR_BC_BASELINE_CALLS);
+SEXP Fir_bc_baseline_recording(SEXP pool, int calls) {
+  SEXP (*export_recording)(SEXP) = Fir_rcp()->export_recording;
+  // Without the copy-and-patch JIT, the bytecode runs in GNU-R's interpreter, which records
+  // nothing. With it, the code is only compiled (with recording) once it runs.
+  SEXP code = VECTOR_ELT(pool, FIR_BC_BASELINE_JIT);
+  if (export_recording == NULL || TYPEOF(code) != EXTPTRSXP
+      || TYPEOF(Rf_getAttrib(code, Rf_install("recording"))) != VECSXP) {
+    return R_NilValue;
+  }
 
-  Fir_str_buf_write(out, "\n  ");
-  Fir_str_buf_write(out, CHAR(STRING_ELT(VECTOR_ELT(map, FIR_BC_FEEDBACK_HEADER), 1)));
-  Fir_str_buf_write_int(out, TYPEOF(calls) == INTSXP && XLENGTH(calls) == 1 ? INTEGER(calls)[0] : 0);
-  Fir_str_buf_write(out, "x\n  [");
+  SEXP exported = PROTECT(export_recording(code));
+  SEXP fun = VECTOR_ELT(exported, 2);
+  SEXP consts = VECTOR_ELT(fun, 2);
 
-  for (R_xlen_t i = 0; i < XLENGTH(bcids); i++) {
-    int bcid = INTEGER(bcids)[i];
-    char const *reg = CHAR(STRING_ELT(registers, i));
-
-    // Every instruction is in exactly one of the recording's groups, and which one determines
-    // what kind of feedback it recorded.
-    R_xlen_t j;
-    if ((j = Fir_find_bcid(VECTOR_ELT(var_call, 0), bcid)) != -1) {
-      // `GETVAR`/`CALL` record the type of the value they push.
-      int times = INTEGER(VECTOR_ELT(var_call, 1))[j];
-      if (times == 0) {
-        continue;
-      }
-      char const *type = Fir_recorded_types((unsigned)INTEGER(VECTOR_ELT(var_call, 2))[j]);
-
-      Fir_str_buf_write(out, "\n    reg ");
-      Fir_str_buf_write(out, reg);
-      if (type != NULL) {
-        Fir_str_buf_write(out, " :");
-        Fir_str_buf_write(out, type);
-      }
-      Fir_str_buf_write(out, " (");
-      Fir_str_buf_write_int(out, times);
-      Fir_str_buf_write(out, "x)");
-    } else if ((j = Fir_find_bcid(VECTOR_ELT(fun, 0), bcid)) != -1) {
-      // `GETFUN` records the function it loaded, if it always loaded the same one.
-      int times = INTEGER(VECTOR_ELT(fun, 1))[j];
-      if (times == 0) {
-        continue;
-      }
-      SEXP callee = VECTOR_ELT(VECTOR_ELT(fun, 2), j);
-      Fir_FunctionData *callee_data = NULL;
-
-      Fir_str_buf_write(out, "\n    reg ");
-      Fir_str_buf_write(out, reg);
-      Fir_str_buf_write(out, " -");
-      // A callee that isn't a compiled closure has no FIŘ function to record, so it's recorded
-      // like an ambiguous one: as feedback that can't be speculated on.
-      Fir_str_buf_write(out, Fir_is_compiled_closure(callee, &callee_data) ? callee_data->name : "_");
-      Fir_str_buf_write(out, " (");
-      Fir_str_buf_write_int(out, times);
-      Fir_str_buf_write(out, "x)");
-    } else if ((j = Fir_find_bcid(VECTOR_ELT(branch, 0), bcid)) != -1) {
-      // `BRIFNOT` counts each outcome, which is the condition's value if only one was taken.
-      int taken = INTEGER(VECTOR_ELT(branch, 1))[j];
-      int not_taken = INTEGER(VECTOR_ELT(branch, 2))[j];
-      if (taken + not_taken == 0) {
-        continue;
-      }
-
-      Fir_str_buf_write(out, "\n    reg ");
-      Fir_str_buf_write(out, reg);
-      Fir_str_buf_write(out, " =");
-      // `BRIFNOT` jumps iff the condition is false, so a jump that was never taken means the
-      // condition was always true.
-      Fir_str_buf_write(out, taken == 0 ? "TRUE" : not_taken == 0 ? "FALSE" : "_");
-      Fir_str_buf_write(out, " (");
-      Fir_str_buf_write_int(out, taken + not_taken);
-      Fir_str_buf_write(out, "x)");
+  // `GETFUN`'s recorded function becomes the FIŘ function name of a compiled closure, or `NULL`
+  // for anything else: the server can't tell what any other function is.
+  SEXP callees = PROTECT(Rf_allocVector(VECSXP, XLENGTH(consts)));
+  for (R_xlen_t i = 0; i < XLENGTH(consts); i++) {
+    Fir_FunctionData *data = NULL;
+    if (Fir_is_compiled_closure(VECTOR_ELT(consts, i), &data)) {
+      SET_VECTOR_ELT(callees, i, Rf_mkString(data->name));
     }
   }
 
-  Fir_str_buf_write(out, "\n  ]");
+  static char const *const fun_names[] = {"bcids", "counters", "callees"};
+  SEXP fun_out = PROTECT(Fir_named_list(3, fun_names));
+  SET_VECTOR_ELT(fun_out, 0, VECTOR_ELT(fun, 0));
+  SET_VECTOR_ELT(fun_out, 1, VECTOR_ELT(fun, 1));
+  SET_VECTOR_ELT(fun_out, 2, callees);
+
+  static char const *const names[] = {"calls", "branch", "var_call", "fun"};
+  SEXP recording = PROTECT(Fir_named_list(4, names));
+  SET_VECTOR_ELT(recording, 0, Rf_ScalarInteger(calls));
+  SET_VECTOR_ELT(recording, 1, VECTOR_ELT(exported, 0));
+  SET_VECTOR_ELT(recording, 2, VECTOR_ELT(exported, 1));
+  SET_VECTOR_ELT(recording, 3, fun_out);
+  UNPROTECT(4);
+  return recording;
 }
 
 SEXP Fir_serialized_feedback(SEXP pool) {
-  SEXP (*export_recording)(SEXP) = Fir_rcp()->export_recording;
-  if (export_recording == NULL) {
-    // Without the copy-and-patch JIT, baselines run the bytecode in GNU-R's interpreter, which
-    // records nothing.
-    return R_NilValue;
-  }
-
   Fir_SexpSet pools = {NULL, 0, 0};
   Fir_visit_vectors(pool, &pools);
 
-  Fir_StrBuf out = {NULL, 0, 0};
-  Fir_str_buf_write(&out, "feedback {");
-
-  bool any = false;
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, pools.length));
+  int count = 0;
   for (int i = 0; i < pools.length; i++) {
     SEXP baseline_pool = pools.data[i];
-    SEXP map = NULL;
-    if (!Fir_bc_baseline_feedback_map(baseline_pool, &map)) {
+    SEXP name = Fir_bc_baseline_name(baseline_pool);
+    if (name == NULL) {
       continue;
     }
 
-    // The JIT compiles a baseline's bytecode the first time it's called, so anything else means
-    // it was never called (or rcp wasn't loaded yet when it was).
-    SEXP code = VECTOR_ELT(baseline_pool, FIR_BC_BASELINE_JIT);
-    if (TYPEOF(code) != EXTPTRSXP
-        || TYPEOF(Rf_getAttrib(code, Rf_install("recording"))) != VECSXP) {
+    SEXP calls = VECTOR_ELT(baseline_pool, FIR_BC_BASELINE_CALLS);
+    SEXP recording = PROTECT(Fir_bc_baseline_recording(
+        baseline_pool, TYPEOF(calls) == INTSXP && XLENGTH(calls) == 1 ? INTEGER(calls)[0] : 0));
+    if (recording == R_NilValue) {
+      UNPROTECT(1);
       continue;
     }
 
-    SEXP recording = PROTECT(export_recording(code));
-    Fir_write_baseline_feedback(&out, baseline_pool, map, recording);
-    UNPROTECT(1);
-    any = true;
+    static char const *const names[] = {"function", "calls", "branch", "var_call", "fun"};
+    SEXP entry = PROTECT(Fir_named_list(5, names));
+    SET_VECTOR_ELT(entry, 0, Rf_ScalarString(name));
+    for (int j = 0; j < 4; j++) {
+      SET_VECTOR_ELT(entry, j + 1, VECTOR_ELT(recording, j));
+    }
+    SET_VECTOR_ELT(out, count++, entry);
+    UNPROTECT(2);
   }
 
-  if (!any) {
-    // No baseline ran, so we know nothing (as opposed to knowing that nothing was recorded).
-    return R_NilValue;
-  }
-
-  Fir_str_buf_write(&out, "\n}");
-  return Rf_mkString(out.data);
+  UNPROTECT(1);
+  // No baseline ran, so we know nothing (as opposed to knowing that nothing was recorded).
+  return count == 0 ? R_NilValue : Rf_xlengthgets(out, count);
 }
 
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env) {
