@@ -171,9 +171,9 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
   }
 
   @Override
-  public EvalOutput oracle(Example example, SnapshotStore store) {
+  public @Nullable EvalOutput oracle(Example example, SnapshotStore store) {
     return moduleQuery == moduleQuery.evalOracle()
-        ? Query.super.oracle(example, store)
+        ? null
         : store.load(example, new EvalQuery(moduleQuery.evalOracle()));
   }
 

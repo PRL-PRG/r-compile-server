@@ -85,12 +85,6 @@ public class BenchmarkQuery implements Query<BenchmarkOutput> {
   }
 
   @Override
-  public BenchmarkOutput oracle(Example example, SnapshotStore store) {
-    // We don't want to rerun the benchmarks, and this is discarded
-    return new BenchmarkOutput("<oracle>", null);
-  }
-
-  @Override
   public void verifyEqual(
       BenchmarkOutput expected, BenchmarkOutput actual, Example example, SnapshotStore store) {
     // Benchmarks don't have to be equal, so do nothing

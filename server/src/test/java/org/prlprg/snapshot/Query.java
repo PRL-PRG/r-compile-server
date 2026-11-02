@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.nio.file.Path;
 import java.util.Arrays;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.examples.Example;
 import org.prlprg.util.Streams;
 
@@ -96,13 +97,17 @@ public interface Query<T> {
     return data;
   }
 
-  /// Compute the expected data from the example.
+  /// Compute the expected data from the example, independently of
+  /// [#compute(Example, SnapshotStore)].
   ///
-  /// We check that actual data equals this. By default, this means we check for non-determinism
-  /// (the oracle's determinism isn't checked). For example, this is overridden by
-  /// [BCQuery] to use R's built-in bytecode compiler instead of ours.
-  default T oracle(Example example, SnapshotStore store) {
-    return compute(example, store);
+  /// We check that actual data equals this. For example, this is overridden by [BCQuery] to use
+  /// R's built-in bytecode compiler instead of ours.
+  ///
+  /// By default, `null`: there's no independent oracle, so only
+  /// [#verifyNoRegression(Object, Object, Example, SnapshotStore)] compares the actual data
+  /// against a previous run.
+  default @Nullable T oracle(Example example, SnapshotStore store) {
+    return null;
   }
 
   /// Assert the queries are equal.

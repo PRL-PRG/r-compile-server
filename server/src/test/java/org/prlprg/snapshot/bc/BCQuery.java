@@ -3,6 +3,7 @@ package org.prlprg.snapshot.bc;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcOptLevel;
@@ -35,9 +36,9 @@ public record BCQuery(BcOptLevel optimizationLevel) implements Query<Bc> {
   }
 
   @Override
-  public Bc oracle(Example example, SnapshotStore store) {
+  public @Nullable Bc oracle(Example example, SnapshotStore store) {
     if (optimizationLevel == BcOptLevel.FIR) {
-      return Query.super.oracle(example, store);
+      return null;
     }
 
     return genCompute(

@@ -21,8 +21,9 @@ public class SnapshotStore {
   /// `query` itself is always computed, but its dependencies are cached.
   ///
   /// `query` is then checked by:
-  /// - Asserting equality against [Query#oracle(Example, SnapshotStore)] (unless overridden,
-  ///   this compares against itself i.e. tests non-determinism).
+  /// - Asserting equality against [Query#oracle(Example, SnapshotStore)], if `query` has one.
+  ///   `query` isn't computed twice, so this doesn't test determinism; `DeterminismTest` does, for
+  ///   a few queries.
   /// - [Query#verifyExtra(Object, Example, SnapshotStore)].
   /// - If there's a snapshot from a previous run,
   ///   [Query#verifyNoRegression(Object, Object, Example, SnapshotStore)].
@@ -45,7 +46,7 @@ public class SnapshotStore {
     RegressionStatus[] regresses = {RegressionStatus.UNCHECKED};
     Throwable error = null;
     try {
-      verifySnapshot(example, query, snapshot, null, regresses);
+      verifySnapshot(example, query, snapshot, true, null, regresses);
       return actual;
     } catch (Exception | Error e) {
       error = e;
@@ -90,34 +91,63 @@ public class SnapshotStore {
         example,
         query,
         query.snapshot(actual, example, this),
+        false,
         context,
         new RegressionStatus[] {RegressionStatus.UNCHECKED});
   }
 
+  /// @param isComputed Whether `actual` was just computed from `query`, as opposed to given by the
+  ///     caller.
   private <T> void verifySnapshot(
       Example example,
       Query<T> query,
       T actual,
+      boolean isComputed,
       @Nullable String context,
       RegressionStatus[] regresses) {
     try {
-      // The oracle is only ever compared against, so it's its snapshot that's cached (which is
-      // what makes it safe to cache even if the query is transient).
-      T oracle = loadFromMemory(true, example, query);
-      if (oracle == null) {
-        oracle = query.snapshot(query.oracle(example, this), example, this);
-        saveToMemory(oracle, true, example, query);
-      }
+      var oracle = oracle(example, query, isComputed ? actual : null);
 
       query.verifyExtra(actual, example, this);
       verifyNoRegression(example, query, actual, regresses);
-      query.verifyEqual(oracle, actual, example, this);
+      if (oracle != null) {
+        query.verifyEqual(oracle, actual, example, this);
+      }
     } catch (Exception | Error e) {
       if (context != null) {
         e.addSuppressed(new RuntimeException("Context: " + context));
       }
       throw e;
     }
+  }
+
+  /// What to compare `query`'s actual data against: [Query#oracle(Example, SnapshotStore)], or if
+  /// it has none, `query` computed.
+  ///
+  /// If `computed` (the actual data) was just computed, it isn't computed again: then this is
+  /// `null`, and `computed` is what later actual data is compared against.
+  ///
+  /// The oracle is only ever compared against, so it's its snapshot that's cached (which is what
+  /// makes it safe to cache even if the query is transient).
+  private <T> @Nullable T oracle(Example example, Query<T> query, @Nullable T computed) {
+    T oracle = loadFromMemory(true, example, query);
+    if (oracle != null) {
+      return oracle;
+    }
+
+    var independent = query.oracle(example, this);
+    if (independent != null) {
+      oracle = query.snapshot(independent, example, this);
+    }
+    if (oracle == null && computed != null) {
+      saveToMemory(computed, true, example, query);
+      return null;
+    }
+    if (oracle == null) {
+      oracle = query.snapshot(query.compute(example, this), example, this);
+    }
+    saveToMemory(oracle, true, example, query);
+    return oracle;
   }
 
   private <T> void verifyNoRegression(
@@ -246,7 +276,8 @@ public class SnapshotStore {
 
   private <T> T compute(Example example, Query<T> query) {
     try {
-      return query.oracle(example, this);
+      var oracle = query.oracle(example, this);
+      return oracle != null ? oracle : query.compute(example, this);
     } catch (SkipQueryException e) {
       throw new SkipQueryException(query.name(), e);
     } catch (Exception | Error e) {
