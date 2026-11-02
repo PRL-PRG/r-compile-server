@@ -956,7 +956,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(push = 1)
-  record DdValMissOk(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record DdValMissOk(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.DDVAL_MISSOK;
