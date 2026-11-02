@@ -132,6 +132,7 @@ import org.prlprg.bc.BcInstr.VecSubset;
 import org.prlprg.bc.BcInstr.VecSubset2;
 import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.bc2fir.BC2FirCFGCompiler;
+import org.prlprg.primitive.Complex;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -318,7 +319,7 @@ public class BCCompiler {
       Set.of(
           "c", "+", "*", "/", ":", "-", "^", "(", "cos", "exp", "log", "log10", "log2", "seq.int",
           "seq_len", "sin", "sqrt", "rep", "tan", "==", "!=", "<", "<=", ">", ">=", "atan",
-          "choose", "round");
+          "choose", "round", "Re", "Im");
 
   /**
    * The set of functions that if encounted in loop body allow us to stop the search whether loop
@@ -2253,10 +2254,14 @@ public class BCCompiler {
                 buildArgs(call)
                     .flatMap(
                         args ->
-                            name.equals("c")
-                                ? ConstantFolding.c(args)
-                                : doConstantFoldCall(
-                                    name, args.stream().map(TaggedElem::value).toList())))
+                            switch (name) {
+                              // These depend on argument names.
+                              case "c" -> ConstantFolding.c(args);
+                              case "rep" -> ConstantFolding.rep(args);
+                              default ->
+                                  doConstantFoldCall(
+                                      name, args.stream().map(TaggedElem::value).toList());
+                            }))
         .flatMap(this::checkConst);
   }
 
@@ -2318,7 +2323,8 @@ public class BCCompiler {
       case "atan" -> ConstantFolding.atan(args);
       case "choose" -> ConstantFolding.choose(args);
       case "round" -> ConstantFolding.round(args);
-      case "rep" -> ConstantFolding.rep(args);
+      case "Re" -> ConstantFolding.complexPart(args, Complex::real);
+      case "Im" -> ConstantFolding.complexPart(args, Complex::imag);
       case "seq.int" -> ConstantFolding.seqInt(args);
       case "seq_len" -> ConstantFolding.seqLen(args);
       default -> Optional.empty();
