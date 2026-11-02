@@ -128,11 +128,15 @@ public final class ConstPool extends ForwardingList<SEXP> {
       this.values = new ArrayList<>();
     }
 
+    /// Start from an existing pool and keep it verbatim, so its indices stay valid.
+    ///
+    /// The pool may have entries that are `equals` in Java but distinct in R (`identical` keeps
+    /// `NA` and `NaN` apart, `equals` does not), so this doesn't deduplicate them.
     public Builder(Collection<? extends SEXP> consts) {
       this.index = new HashMap<>(consts.size());
-      this.values = new ArrayList<>(consts.size());
-      for (var e : consts) {
-        add(e);
+      this.values = new ArrayList<>(consts);
+      for (var i = 0; i < values.size(); i++) {
+        index.putIfAbsent(values.get(i), i);
       }
     }
 
