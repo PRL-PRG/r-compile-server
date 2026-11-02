@@ -30,7 +30,20 @@ public record Complex(double real, double imag) {
         (real * other.real + imag * other.imag) / D, (imag * other.real - real * other.imag) / D);
   }
 
+  /// Same as GNU-R's `mycpow` (`complex.c`).
   public Complex pow(Complex that) {
+    if (real == 0 && imag == 0) {
+      if (that.imag != 0) {
+        return new Complex(Double.NaN, Double.NaN);
+      }
+      // R_pow(0, y)
+      var y = that.real;
+      return fromReal(y == 0 ? 1 : y > 0 ? 0 : y < 0 ? Double.POSITIVE_INFINITY : y);
+    }
+    if (that.imag == 0 && that.real == (int) that.real && Math.abs((int) that.real) <= 65536) {
+      return powInt((int) that.real);
+    }
+
     double r = Math.hypot(this.real, this.imag);
     double i = Math.atan2(this.imag, this.real);
     double theta = i * that.real;
@@ -45,6 +58,31 @@ public record Complex(double real, double imag) {
     }
 
     return new Complex(rho * Math.cos(theta), rho * Math.sin(theta));
+  }
+
+  /// Same as GNU-R's `R_cpow_n` (`complex.c`): exponentiation by squaring.
+  private Complex powInt(int k) {
+    if (k == 0) {
+      return fromReal(1);
+    } else if (k == 1) {
+      return this;
+    } else if (k < 0) {
+      return fromReal(1).div(powInt(-k));
+    }
+
+    var z = fromReal(1);
+    var x = this;
+    while (k > 0) {
+      if ((k & 1) != 0) {
+        z = z.mul(x);
+      }
+      if (k == 1) {
+        break;
+      }
+      k >>= 1;
+      x = x.mul(x);
+    }
+    return z;
   }
 
   public Complex minus() {
