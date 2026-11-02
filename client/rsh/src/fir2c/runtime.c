@@ -83,14 +83,17 @@ void *Fir_stub_enter(Fir_Stub *stub) {
   if (stub->compiled != NULL) {
     return stub->compiled;
   }
-  if (stub_compiler == NULL || stub->state == FIR_STUB_FAILED) {
+  if (stub_compiler == NULL || stub->state == FIR_STUB_FAILED ||
+      stub->state == FIR_STUB_FALLBACK) {
     return NULL;
   }
 
   if (stub->state == FIR_STUB_UNREQUESTED) {
-    // Run the fallback while the server compiles.
-    stub->state = FIR_STUB_REQUESTED;
-    stub_compiler->request(stub);
+    // Run the fallback until the stub is hot, and while the server compiles.
+    if (++stub->calls >= Fir_jit_threshold) {
+      stub->state = FIR_STUB_REQUESTED;
+      stub_compiler->request(stub);
+    }
     return NULL;
   }
 
@@ -101,6 +104,11 @@ void *Fir_stub_enter(Fir_Stub *stub) {
 void Fir_stub_compiled(Fir_Stub *stub, void *compiled) {
   stub->compiled = compiled;
   stub->state = FIR_STUB_COMPILED;
+}
+
+void Fir_stub_fallback(Fir_Stub *stub) {
+  stub->compiled = NULL;
+  stub->state = FIR_STUB_FALLBACK;
 }
 
 static void Fir_assert_symbol(SEXP sym, const char *what) {

@@ -92,6 +92,7 @@ message FirVersionResponse {
   optional bytes code = 1;// An object file. Absent if the client already has everything
   optional bytes constants = 2;// The (serialized) constant pool to call `init` with
   string init = 3;// The function in `code` to call once it's loaded, which replaces the stubs
+  bool fallback = 4;// The version is the same as the stub's fallback: the stub keeps running it
 }
 
 message Environment {

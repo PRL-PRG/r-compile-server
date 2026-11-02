@@ -192,15 +192,16 @@ rsh_clear_cache <- function() {
 #'
 #' Once connected, the JIT asks the server to compile closures that ran their baseline often
 #' enough (see [rsh_jit_enable()]). A stub stands for a function version the server hasn't
-#' compiled yet. Once connected, a stub asks the server to compile its version the first time
-#' it's called (meanwhile running a fallback), and replaces itself with the compiled version once
-#' it arrives.
+#' compiled yet. Once connected, a stub asks the server to compile its version when it's called
+#' `threshold` times (meanwhile running a fallback), and replaces itself with the compiled version
+#' once it arrives, or keeps running the fallback if the server answers that the version is the
+#' same.
 #'
 #' @param address IP address of the server
 #' @param port port of the server
-#' @param deterministic whether a stub's second call waits for the compiled version, and a
-#'   closure's first call after it asked for its compiled code waits for it, so that which calls
-#'   run what doesn't depend on how long compiling takes (for tests)
+#' @param deterministic whether a stub's first call after it asked for its version waits for the
+#'   answer, and a closure's first call after it asked for its compiled code waits for it, so that
+#'   which calls run what doesn't depend on how long compiling takes (for tests)
 #' @param threshold if not `NULL`, the JIT threshold to set (see [rsh_jit_enable()])
 #' @export
 rsh_fir_connect <- function(address="0.0.0.0", port=8980L, deterministic=FALSE, threshold=NULL) {

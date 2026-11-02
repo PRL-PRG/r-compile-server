@@ -15,10 +15,13 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.abstraction.LazyBody;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
@@ -60,8 +63,14 @@ class Fir2CCompilerTest {
         "generated C should use the dedicated var assumption helper");
   }
 
-  /// `main` calls a version of `f` that's an unevaluated copy of its `v1(I)` version.
-  private static Module moduleWithLazyVersion() {
+  /// `main` calls a version of `f` that's an unevaluated copy of its `v1(I)` version, which
+  /// optimizing changes (once it's evaluated), so it isn't redundant.
+  static Module moduleWithLazyVersion() {
+    return moduleWithLazyVersion(new Annotate());
+  }
+
+  /// [#moduleWithLazyVersion()], with the copy's optimization `optimization`.
+  static Module moduleWithLazyVersion(Optimization optimization) {
     var module =
         ParseUtil.parseModule(
             """
@@ -86,20 +95,38 @@ class Fir2CCompilerTest {
     var f = Objects.requireNonNull(module.localFunction(Variable.named("f")));
     var source = f.versions().first();
     LazyCopy.create(
-        new NoOptimization(),
-        new MockModuleFeedback(module),
-        f,
-        source,
-        List.of(Type.BOXED_INTEGER));
+        optimization, new MockModuleFeedback(module), f, source, List.of(Type.BOXED_INTEGER));
     return module;
   }
 
-  private static final class NoOptimization extends Optimization {
+  /// Changes nothing.
+  static final class NoOptimization extends Optimization {
     @Override
     public boolean runWithoutRecording(
         Optimization topLevel, ModuleFeedback feedback, Function function) {
       return false;
     }
+  }
+
+  /// Changes every version that was evaluated lazily, once: adds a comment.
+  static final class Annotate extends Optimization {
+    @Override
+    public boolean runWithoutRecording(
+        Optimization topLevel, ModuleFeedback feedback, Function function) {
+      var changed = false;
+      for (var version : function.versions()) {
+        var lazyBody = version.lazyBody();
+        if (lazyBody != null
+            && lazyBody.evaluatedFingerprint() != null
+            && !version.comments().contains(COMMENT)) {
+          version.comments().add(COMMENT);
+          changed = true;
+        }
+      }
+      return changed;
+    }
+
+    private static final String COMMENT = " optimized";
   }
 
   @Test
@@ -144,7 +171,9 @@ class Fir2CCompilerTest {
         code.contains(".dispatch_impl = Fir_m_fun_dispatch_f_0, .from_r = Fir_m_fun_from_r_f_0"),
         "which are generation 0:\n" + code);
 
-    var patch = Fir2CCompiler.compileStub(session, 0);
+    var answer = Fir2CCompiler.compileStub(session, 0);
+    assertFalse(answer.fallback());
+    var patch = answer.patch();
     assertNotNull(patch);
     assertTrue(copy.isEvaluated(), "compiling the patch evaluates the version");
     var patchCode = patch.code().toString();
@@ -177,7 +206,8 @@ class Fir2CCompilerTest {
     assertFalse(patchCode.contains("Fir_fun_set_entries(Fir_m_fun_constants_main"), patchCode);
 
     assertNull(
-        Fir2CCompiler.compileStub(session, 0), "the client already has the compiled version");
+        Fir2CCompiler.compileStub(session, 0).patch(),
+        "the client already has the compiled version");
   }
 
   @Test
@@ -218,7 +248,7 @@ class Fir2CCompilerTest {
     entry.setJump(new Jump(new Return(), List.of(new Read(u))));
     copy.setReturnType(unboxedInt);
 
-    var patch = Objects.requireNonNull(Fir2CCompiler.compileStub(session, 0));
+    var patch = Objects.requireNonNull(Fir2CCompiler.compileStub(session, 0).patch());
     var patchCode = patch.code().toString();
     var compiled = Objects.requireNonNull(session.version(copy));
     assertFalse(compiled.isStub());
@@ -264,19 +294,28 @@ class Fir2CCompilerTest {
     var source = f.versions().last();
     var unboxedInt = Type.primitiveScalar(PrimitiveKind.INTEGER);
 
-    // Another lazy version, whose body (once evaluated) calls `copy` by its signature then.
+    // Another lazy version, whose body (once evaluated) calls `copy` by its signature then, and
+    // which optimizing changes.
     var caller =
         f.addVersion(
             List.of(new FunctionParameter("x", Type.BOXED_INTEGER)),
-            body -> {
-              var x = body.scope().parameters().getFirst();
-              var call =
-                  new Statement(
-                      new Call(new StaticFnCallee(f, false, copy.signature())),
-                      List.of(Constant.ELIDED_CLOSURE, new Read(x)));
-              var r = call.setAssignee(body.scope().freshName("r"), copy.returnType());
-              body.entry().appendStatement(call);
-              body.entry().setJump(new Jump(new Return(), List.of(new Read(r))));
+            new LazyBody.Initializer() {
+              @Override
+              public void evaluate(CFG body) {
+                var x = body.scope().parameters().getFirst();
+                var call =
+                    new Statement(
+                        new Call(new StaticFnCallee(f, false, copy.signature())),
+                        List.of(Constant.ELIDED_CLOSURE, new Read(x)));
+                var r = call.setAssignee(body.scope().freshName("r"), copy.returnType());
+                body.entry().appendStatement(call);
+                body.entry().setJump(new Jump(new Return(), List.of(new Read(r))));
+              }
+
+              @Override
+              public void afterEvaluated(Abstraction version) {
+                version.comments().add(" optimized");
+              }
             });
     var fallback = Objects.requireNonNull(caller.lazyBody()).initFallback().entry();
     var fallbackCall =
@@ -300,7 +339,7 @@ class Fir2CCompilerTest {
         Objects.requireNonNull(Objects.requireNonNull(session.version(caller)).stubId());
 
     // The client gets `copy` compiled, returning a boxed integer...
-    Objects.requireNonNull(Fir2CCompiler.compileStub(session, copyStub));
+    Objects.requireNonNull(Fir2CCompiler.compileStub(session, copyStub).patch());
     var compiledCopy = Objects.requireNonNull(session.version(copy));
     assertEquals(Repr.SEXP, compiledCopy.returnRepr());
     assertEquals(1, compiledCopy.implementation());
@@ -313,7 +352,7 @@ class Fir2CCompilerTest {
 
     // The next patch (for anything) brings the new implementation, with a new entry for its new
     // calling convention; the old entry converts, for the client's existing calls.
-    var patch = Objects.requireNonNull(Fir2CCompiler.compileStub(session, callerStub));
+    var patch = Objects.requireNonNull(Fir2CCompiler.compileStub(session, callerStub).patch());
     var patchCode = patch.code().toString();
     var updatedCopy = Objects.requireNonNull(session.version(copy));
     assertEquals(2, updatedCopy.implementation());
@@ -331,7 +370,7 @@ class Fir2CCompilerTest {
     assertFalse(patchCode.contains("Fir_ver_call_unbox_"), patchCode);
 
     assertNull(
-        Fir2CCompiler.compileStub(session, copyStub),
+        Fir2CCompiler.compileStub(session, copyStub).patch(),
         "the copy's stub was replaced before, so there's nothing to do for it");
   }
 

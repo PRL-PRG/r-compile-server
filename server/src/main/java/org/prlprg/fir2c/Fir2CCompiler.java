@@ -121,24 +121,38 @@ public final class Fir2CCompiler {
     return new Fir2CCompiler(session).run(function);
   }
 
-  /// Return a C file, constant pool, and the name of the function to call with it, which together
-  /// replace the stub `stubId` in `session`'s client with its version, compiled (evaluating it
-  /// first if necessary). Or `null` if the client already got the version, with an earlier patch.
+  /// What the server answers the stub `stubId` in `session`'s client: a patch (a C file, constant
+  /// pool, and the name of the function to call with it) that replaces the stub with its version,
+  /// compiled (evaluating it first if necessary).
   ///
   /// The patch also defines whatever the version calls that the client doesn't have: new versions
   /// (as stubs, if they're unevaluated), new functions, and the compiled versions of stubs whose
-  /// versions have been evaluated since. It doesn't redefine what the client has.
-  public static @Nullable CompiledPatch compileStub(Fir2CSession session, int stubId) {
+  /// versions have been evaluated since. It doesn't redefine what the client has. It reverts the
+  /// versions the client has compiled that are [redundant][#isRedundant(Abstraction)] now.
+  ///
+  /// If the version is redundant, the patch doesn't define it, and the answer tells the stub to
+  /// keep running its fallback. There's no patch if there's nothing else to do, nor if the client
+  /// already got the version, with an earlier patch.
+  public static StubAnswer compileStub(Fir2CSession session, int stubId) {
     var version = session.stub(stubId);
     var state = Objects.requireNonNull(session.version(version));
     if (!state.isStub()) {
-      return null;
+      return new StubAnswer(null, false);
     }
     // Evaluated explicitly (instead of by emitting it) so that the patch is planned around the
     // evaluated version, whose signature may be narrower than the stub's.
     version.body();
-    return new Fir2CCompiler(session).runPatch(version);
+    var compiler = new Fir2CCompiler(session);
+    var fallback = compiler.isRedundant(version);
+    return new StubAnswer(compiler.runPatch(version), fallback);
   }
+
+  /// See [#compileStub(Fir2CSession, int)].
+  ///
+  /// @param patch What the client loads, or `null` if there's nothing.
+  /// @param fallback Whether the stub keeps running its fallback, because its version is
+  ///     [redundant][#isRedundant(Abstraction)].
+  public record StubAnswer(@Nullable CompiledPatch patch, boolean fallback) {}
 
   private static final String VAR_ENV = "env";
   private static final String VAR_DATA = "data";
@@ -237,13 +251,15 @@ public final class Fir2CCompiler {
     return new CompiledModule(cUnit, mainEmitter.fnPool.toSexp());
   }
 
-  /// See [#compileStub(Fir2CSession, int)].
-  private CompiledPatch runPatch(Abstraction version) {
+  /// See [#compileStub(Fir2CSession, int)]. `null` if the patch would do nothing.
+  private @Nullable CompiledPatch runPatch(Abstraction version) {
     isPatch = true;
     cUnit.addInclude("runtime.h");
 
     var patch = new PatchEmitter();
-    referenceVersion(version, session.functionOf(version));
+    if (!isRedundant(version)) {
+      referenceVersion(version, session.functionOf(version));
+    }
 
     // The compiled version calls things the client may not have. Like `run`, but the client has
     // most of the module. Every other version the client has that's out of date (a stub whose
@@ -284,6 +300,10 @@ public final class Fir2CCompiler {
       for (var v : outOfDate) {
         referenceVersion(v, session.functionOf(v));
       }
+      session.versions().stream()
+          .filter(this::needsRevert)
+          .sorted(Comparator.comparing(v -> versionCallCName(session.functionOf(v), v)))
+          .forEach(patch::revert);
 
       // Every function whose versions changed (in the module, or in what the client has of
       // them) gets its entries regenerated, so that what it dispatches among is up to date. That
@@ -326,10 +346,22 @@ public final class Fir2CCompiler {
     return callees;
   }
 
-  /// After the client's current implementation of `version` is initialized: define the version's
-  /// entries this unit introduces, and assign every entry the implementation, or an adapter of it
-  /// for an older entry with a different return representation (see [Fir2CSession.Entry]).
+  /// After the client's current implementation of `version` is initialized: assign it to the
+  /// version's entries (see [#emitEntryAssignments(CCode, Function, Abstraction, String, Repr)]).
   private void emitEntryAssignments(CCode code, Function function, Abstraction version) {
+    emitEntryAssignments(
+        code,
+        function,
+        version,
+        versionImplCName(function, version),
+        version.returnType().kind().repr());
+  }
+
+  /// Define the version's entries this unit introduces, and assign every entry `implCName`, an
+  /// implementation of the version that returns `implReturnRepr`, or an adapter of it for an
+  /// entry with a different return representation (see [Fir2CSession.Entry]).
+  private void emitEntryAssignments(
+      CCode code, Function function, Abstraction version, String implCName, Repr implReturnRepr) {
     var state = Objects.requireNonNull(session.version(version));
     var cParams = versionCallCParams(version);
     for (var entry : session.takeUndefinedEntries(version)) {
@@ -338,9 +370,8 @@ public final class Fir2CCompiler {
       unitEntries.add(entryCName);
     }
 
-    var implCName = versionImplCName(function, version);
-    var implReturnRepr = version.returnType().kind().repr();
     debugComment(code, "# Assign what calls of %s %s call", function.name(), version.signature());
+    var adapters = new HashSet<String>();
     for (var entry : state.entries()) {
       var entryCName = versionEntryCName(function, entry.part());
       if (!unitEntries.contains(entryCName) && externEntries.add(entryCName)) {
@@ -349,25 +380,64 @@ public final class Fir2CCompiler {
       }
       var target = implCName;
       if (entry.returnRepr() != implReturnRepr) {
-        target = implCName + "_boxed";
-        var adapter = cUnit.addFunction(reprCType(entry.returnRepr()), target, cParams);
-        var adapterCode = adapter.add();
-        debugComment(
-            adapterCode,
-            "## Call %s version %s and box the result (for an older entry, which returns %s)",
-            function.name().name(),
-            version.signature(),
-            reprCType(entry.returnRepr()));
-        var arguments =
-            version.parameters().stream()
-                .map(p -> ", " + registerCName(p))
-                .collect(Collectors.joining());
-        adapterCode.stmt(
-            "return %s(R_EmptyEnv, %s(%s%s));",
-            boxCName(version.returnType(), entry.returnRepr()), implCName, VAR_ENV, arguments);
+        target = adapterCName(implCName, entry.returnRepr());
+        if (adapters.add(target)) {
+          emitReturnAdapter(
+              function, version, target, entry.returnRepr(), implCName, implReturnRepr);
+        }
       }
-      code.stmt("%s = %s;", versionEntryCName(function, entry.part()), target);
+      code.stmt("%s = %s;", entryCName, target);
     }
+  }
+
+  /// The adapter of the version implementation `implCName` that returns `returnRepr` (see
+  /// [#emitReturnAdapter(Function, Abstraction, String, Repr, String, Repr)]).
+  private static String adapterCName(String implCName, Repr returnRepr) {
+    return implCName + (returnRepr == Repr.SEXP ? "_boxed" : "_as_" + reprCType(returnRepr));
+  }
+
+  /// Define `adapterCName`, which calls `implCName` (an implementation of `version`) and converts
+  /// what it returns from `implReturnRepr` to `returnRepr`: boxes an unboxed scalar, or unboxes a
+  /// boxed one. It's `static`, since only this unit refers to it, and an implementation can be
+  /// adapted by more than one unit (a stub, each time the client goes back to it).
+  private void emitReturnAdapter(
+      Function function,
+      Abstraction version,
+      String adapterCName,
+      Repr returnRepr,
+      String implCName,
+      Repr implReturnRepr) {
+    var adapter =
+        cUnit.addFunction(
+            "static " + reprCType(returnRepr), adapterCName, versionCallCParams(version));
+    var adapterCode = adapter.add();
+    debugComment(
+        adapterCode,
+        "## Call %s version %s and convert the result (for an entry that returns %s)",
+        function.name().name(),
+        version.signature(),
+        reprCType(returnRepr));
+    var convert =
+        implReturnRepr == Repr.SEXP
+            ? unboxCName(scalarOf(returnRepr), Repr.SEXP)
+            : boxCName(scalarOf(implReturnRepr), returnRepr);
+    var arguments =
+        version.parameters().stream()
+            .map(p -> ", " + registerCName(p))
+            .collect(Collectors.joining());
+    adapterCode.stmt("return %s(R_EmptyEnv, %s(%s%s));", convert, implCName, VAR_ENV, arguments);
+  }
+
+  /// The unboxed scalar type whose representation is `repr`.
+  private static Type scalarOf(Repr repr) {
+    return Arrays.stream(PrimitiveKind.values())
+        .filter(k -> k.repr() == repr)
+        .findFirst()
+        .map(Type::primitiveScalar)
+        .orElseThrow(
+            () ->
+                new UnsupportedOperationException(
+                    "No unboxed scalar type whose C type is " + reprCType(repr)));
   }
 
   /// A call to `version` of `function`, which returns what the client's code for the version
@@ -460,6 +530,10 @@ public final class Fir2CCompiler {
     if (state == null || unitVersions.contains(version) || pendingReplacements.contains(version)) {
       return false;
     }
+    if (state.stubId() != null && isRedundant(version)) {
+      // Its stub is the implementation (see `needsRevert`).
+      return false;
+    }
     if (state.isStub()) {
       return version.isEvaluated();
     }
@@ -471,10 +545,33 @@ public final class Fir2CCompiler {
     return !fingerprint(version).equals(state.ir());
   }
 
-  /// [Fir2CSession#fingerprint(Abstraction)], computed once per unit (the IR doesn't change
-  /// while a unit is compiled).
+  /// Whether the client has `version` compiled, and has a stub for it, which it should go back
+  /// to because the version is [redundant][#isRedundant(Abstraction)].
+  private boolean needsRevert(Abstraction version) {
+    var state = session.version(version);
+    return state != null
+        && state.compiled()
+        && state.stubId() != null
+        && !unitVersions.contains(version)
+        && !pendingReplacements.contains(version)
+        && isRedundant(version);
+  }
+
+  /// Whether `version` is the same as its fallback: it isn't a baseline, and the optimizations
+  /// didn't change it since it was evaluated (it's the version it was copied from, adapted, which
+  /// is what the fallback calls and how). Compiling it would only inline the fallback's call.
+  private boolean isRedundant(Abstraction version) {
+    var lazyBody = version.lazyBody();
+    var evaluated = lazyBody == null ? null : lazyBody.evaluatedFingerprint();
+    return evaluated != null
+        && version != session.functionOf(version).baseline()
+        && evaluated.equals(fingerprint(version));
+  }
+
+  /// [Abstraction#fingerprint()], computed once per unit (the IR doesn't change while a unit is
+  /// compiled).
   private HashCode fingerprint(Abstraction version) {
-    return fingerprints.computeIfAbsent(version, Fir2CSession::fingerprint);
+    return fingerprints.computeIfAbsent(version, Abstraction::fingerprint);
   }
 
   /// Declare everything referenced but not defined in this unit `extern`.
@@ -524,6 +621,8 @@ public final class Fir2CCompiler {
     private final ConstantPool pool = new ConstantPool();
     /// Run at the end of the initializer, once everything is initialized.
     private final CCode replacements;
+    /// Whether the patch does anything.
+    private boolean changed = false;
 
     PatchEmitter() {
       initCFunction = cUnit.addFunction(INIT_C_RETURN, patchInitCName(index), INIT_C_PARAMS);
@@ -534,6 +633,7 @@ public final class Fir2CCompiler {
     /// Define `function`, which the client doesn't have, and initialize it before anything else
     /// (what's already in the initializer may refer to its constants).
     void addFunction(Function function) {
+      changed = true;
       var cpSxp = new FunctionEmitter(function).run();
       var initCode = initCFunction.addFirst();
       initCode.stmt("%s(%s);", functionInitCName(function), nestedPoolRef(pool, cpSxp));
@@ -546,6 +646,7 @@ public final class Fir2CCompiler {
         // A stub that's provided elsewhere (declared `extern`).
         return;
       }
+      changed = true;
       var initCode = initCFunction.add();
       initCode.stmt("%s(%s);", versionInitCName(function, version), nestedPoolRef(pool, cpSxp));
       emitEntryAssignments(initCode, function, version);
@@ -558,21 +659,23 @@ public final class Fir2CCompiler {
     void reimplement(Abstraction version) {
       var function = session.functionOf(version);
       var state = Objects.requireNonNull(session.version(version));
+      changed = true;
 
       var cpSxp = new FunctionEmitter(function).emitCompiledVersion(version);
       var initCode = initCFunction.add();
       initCode.stmt("%s(%s);", versionInitCName(function, version), nestedPoolRef(pool, cpSxp));
       emitEntryAssignments(initCode, function, version);
 
-      if (state.stubId() != null && state.implementation() == 1) {
-        // The stub's first replacement: tell the stub (and through it the client) the version
-        // arrived. Its entry is what its callers call, so the implementation itself is only for
-        // whoever still gets there through `Fir_stub_enter` (with the stub's convention).
+      if (state.stubId() != null) {
+        // Tell the stub (and through it the client) the version arrived. Its entry is what its
+        // callers call, so the implementation itself is only for whoever still gets there through
+        // `Fir_stub_enter` (with the stub's convention).
         var stubCName = versionStubCName(function, state);
         cUnit.addExternGlobalVariable(STUB_C_TYPE, stubCName);
         var compiledCName = versionImplCName(function, version);
-        if (version.returnType().kind().repr() != state.entries().getFirst().returnRepr()) {
-          compiledCName += "_boxed";
+        var stubReturnRepr = state.entries().getFirst().returnRepr();
+        if (version.returnType().kind().repr() != stubReturnRepr) {
+          compiledCName = adapterCName(compiledCName, stubReturnRepr);
         }
         debugComment(
             replacements, "# Replace stub of %s version %s", function.name(), version.signature());
@@ -580,10 +683,32 @@ public final class Fir2CCompiler {
       }
     }
 
+    /// Make `version`'s entries call its stub again, and the stub run its fallback from then on,
+    /// since the version is [redundant][#isRedundant(Abstraction)].
+    void revert(Abstraction version) {
+      changed = true;
+      var function = session.functionOf(version);
+      var state = Objects.requireNonNull(session.version(version));
+      var stubEntry = state.entries().getFirst();
+      var stubImplCName = versionImplCName(function, stubEntry.part(), 0);
+      cUnit.addExternFunction(
+          reprCType(stubEntry.returnRepr()), stubImplCName, versionCallCParams(version));
+      var stubCName = versionStubCName(function, state);
+      cUnit.addExternGlobalVariable(STUB_C_TYPE, stubCName);
+
+      var initCode = initCFunction.add();
+      debugComment(
+          initCode, "# Revert %s version %s to its stub", function.name(), version.signature());
+      emitEntryAssignments(initCode, function, version, stubImplCName, stubEntry.returnRepr());
+      replacements.stmt("Fir_stub_fallback(&%s);", stubCName);
+      session.revert(version);
+    }
+
     /// Regenerate `function`'s dispatch and from-R entries, since the versions they dispatch
     /// among (or their names) changed: the client has more or fewer versions of it now, or a
     /// stub was replaced by the compiled version.
     void regenerateEntries(Function function) {
+      changed = true;
       var entries = session.nextEntries(function);
       var entriesPool = new ConstantPool();
       var poolCName = entriesConstantsCName(function, entries);
@@ -602,7 +727,10 @@ public final class Fir2CCompiler {
           fromRImplCName(function, entries));
     }
 
-    CompiledPatch finish() {
+    @Nullable CompiledPatch finish() {
+      if (!changed) {
+        return null;
+      }
       var initCode = initCFunction.add();
       debugComment(initCode, "# Replace stubs and entries");
       initCode.stmt("%s", replacements.toString().stripTrailing());
@@ -1318,7 +1446,7 @@ public final class Fir2CCompiler {
         cUnit.addGlobalVariable(
             STUB_C_TYPE,
             stubCName,
-            "{.module = \"%s\", .id = %d, .compiled = NULL, .state = FIR_STUB_UNREQUESTED}"
+            "{.module = \"%s\", .id = %d, .compiled = NULL, .state = FIR_STUB_UNREQUESTED, .calls = 0}"
                 .formatted(sanitizeString(session.id()), stub.stubId()));
 
         var cCode = cFunction.add();
@@ -2542,6 +2670,18 @@ public final class Fir2CCompiler {
         + escapeForC(function.name().name())
         + "_"
         + versionImplCNamePart(function, version);
+  }
+
+  /// Implementation `index` of a version of `function` whose entry's part was `part` when it was
+  /// defined (a stub is implementation 0, with its version's first entry).
+  private String versionImplCName(Function function, String part, int index) {
+    return cNamePrefix()
+        + "ver_impl_"
+        + escapeForC(function.name().name())
+        + "_"
+        + part
+        + "_"
+        + index;
   }
 
   /// The version's part of its current implementation's C names: its current entry's part and

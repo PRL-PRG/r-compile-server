@@ -2,7 +2,6 @@ package org.prlprg.fir2c;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.hash.HashCode;
-import com.google.common.hash.Hashing;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -46,10 +45,12 @@ public final class Fir2CSession {
   /// @param implementations How many implementations of the version the client has, each a
   ///     function `Fir_ver_impl_..._<index>` with its own constants: a stub (running the
   ///     fallback) is one, and so is each compiled one (the first, and every update).
-  /// @param stubId If the client has a stub for the version, its id.
-  /// @param compiled Whether the client has the version compiled (else only its stub).
-  /// @param ir What the client's compiled implementation was compiled from (a fingerprint of the
-  ///     version's IR), to tell when the version changed since; `null` if it isn't compiled.
+  /// @param stubId If the client has a stub for the version, its id (its implementation 0).
+  /// @param compiled Whether the client runs the version compiled (else its stub, which it may
+  ///     have gone back to, see [Fir2CSession#revert(Abstraction)]).
+  /// @param ir What the client's compiled implementation was compiled from (the version's
+  ///     [fingerprint][Abstraction#fingerprint()]), to tell when the version changed since;
+  ///     `null` if it isn't compiled.
   public record VersionState(
       List<Entry> entries,
       int implementations,
@@ -70,7 +71,8 @@ public final class Fir2CSession {
       return entry().returnRepr();
     }
 
-    /// The index of the client's current implementation.
+    /// The index of the client's latest implementation: its current one, unless it went back to
+    /// its stub.
     public int implementation() {
       return implementations - 1;
     }
@@ -80,11 +82,6 @@ public final class Fir2CSession {
     public boolean isStub() {
       return stubId != null && !compiled;
     }
-  }
-
-  /// A fingerprint of `version`'s IR, to tell whether it changed (see [VersionState#ir()]).
-  public static HashCode fingerprint(Abstraction version) {
-    return Hashing.sha256().hashUnencodedChars(version.toString());
   }
 
   private final String id;
@@ -250,7 +247,7 @@ public final class Fir2CSession {
   VersionState addCompiled(Function function, Abstraction version, Supplier<String> defaultPart) {
     var old = versions.get(version);
     var returnRepr = version.returnType().kind().repr();
-    var ir = fingerprint(version);
+    var ir = version.fingerprint();
     VersionState state;
     if (old == null) {
       var entry = new Entry(part(function, version, defaultPart), returnRepr);
@@ -268,6 +265,20 @@ public final class Fir2CSession {
     versions.put(version, state);
     functions.put(version, function);
     return state;
+  }
+
+  /// Record that the client's implementation of `version`, which it has compiled, goes back to
+  /// its stub (which runs the fallback from then on).
+  ///
+  /// @throws IllegalStateException If the client doesn't have `version` compiled, or has no stub
+  ///     for it.
+  void revert(Abstraction version) {
+    var old = versions.get(version);
+    if (old == null || !old.compiled() || old.stubId() == null) {
+      throw new IllegalStateException("Client has no compiled version with a stub: " + version);
+    }
+    versions.put(
+        version, new VersionState(old.entries(), old.implementations(), old.stubId(), false, null));
   }
 
   /// Record that the client gets a stub for `version`, and return it.

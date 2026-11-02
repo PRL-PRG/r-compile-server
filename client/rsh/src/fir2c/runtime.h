@@ -153,10 +153,12 @@ typedef struct Fir_Stub {
   void *compiled;
   /// A `Fir_StubState`.
   int state;
+  /// How many times the stub was entered before it requested its version.
+  int calls;
 } Fir_Stub;
 
 typedef enum {
-  /// Never called.
+  /// Called fewer than `Fir_jit_threshold` times.
   FIR_STUB_UNREQUESTED = 0,
   /// The server was asked to compile the version, and the answer hasn't been loaded.
   FIR_STUB_REQUESTED = 1,
@@ -164,6 +166,9 @@ typedef enum {
   FIR_STUB_COMPILED = 2,
   /// The server couldn't compile the version, so the fallback is all there will ever be.
   FIR_STUB_FAILED = 3,
+  /// The version is the same as the fallback, so the stub runs the fallback and never requests.
+  /// The server can still replace it (`Fir_stub_compiled`) once the version changes.
+  FIR_STUB_FALLBACK = 4,
 } Fir_StubState;
 
 /// How stubs get their versions compiled. The runtime can't do it itself (it would need the
@@ -176,9 +181,9 @@ typedef struct Fir_StubCompiler {
   /// that of every other stub it replaces) via `Fir_stub_compiled`, or the state to
   /// `FIR_STUB_FAILED`. If `wait`, block until it has.
   void (*poll)(Fir_Stub *stub, bool wait);
-  /// Whether a stub's second call waits for the compiled version, so that which calls run the
-  /// fallback doesn't depend on how long compiling takes: the first call does, no other. For
-  /// tests.
+  /// Whether the call after a stub's request waits for the answer, so that which calls run the
+  /// fallback doesn't depend on how long compiling takes: the first `Fir_jit_threshold` do, no
+  /// other. For tests.
   bool deterministic;
 } Fir_StubCompiler;
 
@@ -187,10 +192,15 @@ typedef struct Fir_StubCompiler {
 void Fir_set_stub_compiler(const Fir_StubCompiler *compiler);
 /// The compiled version to call in place of `stub`'s fallback, or `NULL` to run the fallback.
 ///
-/// The first call asks the server for the version, and later ones load it once it has arrived.
+/// Call `Fir_jit_threshold` asks the server for the version, and later ones load it once it has
+/// arrived.
 void *Fir_stub_enter(Fir_Stub *stub);
 /// Make `stub` call `compiled` from now on. Called by the code the server sends, once loaded.
 void Fir_stub_compiled(Fir_Stub *stub, void *compiled);
+/// Make `stub` run its fallback from now on, without requesting (`FIR_STUB_FALLBACK`). Called by
+/// the code the server sends when the version it had compiled is the same as the fallback, and by
+/// the client when the server answers so.
+void Fir_stub_fallback(Fir_Stub *stub);
 
 extern Fir_Kind Fir_kind_any_value;
 extern Fir_Kind Fir_kind_closure;

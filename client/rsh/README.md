@@ -64,11 +64,14 @@ run a fallback until it has (see `../../server/doc/lazy-versions.md`). `src/fir_
 connects them to the server:
 
 ```r
-rsh::rsh_fir_connect("0.0.0.0", 8980L)  # from now on, a stub's first call asks for its version
+rsh::rsh_fir_connect("0.0.0.0", 8980L)  # from now on, a stub's call N asks for its version
 rsh::rsh_fir_drain()                    # wait until every request so far is answered
 ```
 
-Until `rsh_fir_connect` is called, stubs run their fallbacks forever. The `deterministic` argument
-makes a stub's second call wait for the compiled version, and a closure's call 2N+1 wait for its
-module (the server's tests use it). Stubs and closures share the worker thread and its queue, and
+Until `rsh_fir_connect` is called, stubs run their fallbacks forever. A stub counts its calls and
+requests its version at call N (the same threshold as the closures'). If the server answers that
+the version is the same as the fallback, the stub runs the fallback from then on and never asks
+again (`FIR_STUB_FALLBACK`); a later patch can still replace it, or put a compiled version back on
+its fallback. The `deterministic` argument makes a stub's call N+1 wait for the answer, and a
+closure's call 2N+1 wait for its module (the server's tests use it). Stubs and closures share the worker thread and its queue, and
 `rsh_fir_drain` waits for both.

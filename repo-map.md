@@ -630,6 +630,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../fir/opt/`, `.../fir/opt/specialize/` — One unit test class per optimization (`AbstractionOptimizationUnitTest`, `OptimizationUnitTest`).
 - `.../fir2c/BytecodeBaselineFeedbackTest.java` — Recording translation and baseline pool layout.
 - `.../fir2c/Fir2CCompilerTest.java` — FIŘ→C unit tests.
+- `.../fir2c/FallbackEquivalentVersionTest.java` — Redundant versions: the stub keeps its fallback, and compiled ones are reverted.
 - `.../parseprint/`, `.../primitive/`, `.../rds/`, `.../sexp/`, `.../util/` — Unit and property tests of utilities.
 - `.../server/FirTestServer.java` — The in-JVM compile server of the tests.
 - `.../server/ServerTests.java` — RPC tests (`Compile`, `CompileFirVersion`, `CompileFirClosure`).
@@ -637,7 +638,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../server/RshConstants.java` — Constants shared with `rsh`.
 - `.../session/`, `.../session/gnur/` — R session tests, and `GNUR`, the R processes that tests evaluate in.
 - `.../snapshot/` — Snapshot framework (`Query`, `SnapshotStore`, `DeterminismTest`).
-- `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `ManualFirServer` serves one example by hand).
+- `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand).
 - `server/src/test/resources/org/prlprg/examples/` — R and FIŘ example programs (data).
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
 - `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts, `order.txt`.

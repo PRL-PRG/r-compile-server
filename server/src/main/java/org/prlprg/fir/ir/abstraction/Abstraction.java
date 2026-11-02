@@ -1,6 +1,8 @@
 package org.prlprg.fir.ir.abstraction;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.hash.HashCode;
+import com.google.common.hash.Hashing;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -369,6 +371,11 @@ public final class Abstraction implements Comparable<Abstraction> {
   @Override
   public String toString() {
     return Printer.toString(this);
+  }
+
+  /// A hash of the version's text, to tell whether it changed.
+  public HashCode fingerprint() {
+    return Hashing.sha256().hashUnencodedChars(toString());
   }
 
   /// A version can be printed without any surrounding information, so this forwards to

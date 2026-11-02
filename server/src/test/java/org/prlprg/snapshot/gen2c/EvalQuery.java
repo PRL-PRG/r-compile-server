@@ -32,21 +32,30 @@ import org.prlprg.util.Paths;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
-public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOutput> {
+///
+/// @param stubThreshold How many calls a stub of a module with stubs runs its fallback before it
+///     requests its version (the client's `Fir_jit_threshold`).
+public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
+    implements Query<EvalOutput> {
   public static EvalQuery FIR_ORACLE = new EvalQuery(Fir2CQuery.DIRECT);
+
+  /// Stubs request their versions on their first call.
+  public EvalQuery(CompiledModuleQuery moduleQuery) {
+    this(moduleQuery, 1);
+  }
 
   private static final String EVAL_DRIVER =
       Files.readString(Paths.getResource(EvalQuery.class, "eval.R"));
 
   @Override
   public String name() {
-    return moduleQuery.name() + ".eval";
+    return moduleQuery.name() + ".eval" + (stubThreshold == 1 ? "" : ".threshold" + stubThreshold);
   }
 
   /// How many times a FIŘ module's `main` is called: enough for a version's stub to run its
-  /// fallback (the first call), then the compiled version (the second, which in the deterministic
-  /// mode the tests use waits for it), then what it calls compiled (the third). Not for BC2C
-  /// modules, whose tests count what one call does.
+  /// fallback (the first call, with [#stubThreshold()] 1), then the compiled version (the second,
+  /// which in the deterministic mode the tests use waits for it), then what it calls compiled (the
+  /// third). Not for BC2C modules, whose tests count what one call does.
   private static final int FIR_RUNS = 3;
 
   @Override
@@ -75,12 +84,13 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
 
     var runs = moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
     var source =
-        "path <- '%s'\nprefix <- '%s'\nfir_port <- %s\nruns <- %dL\n%s"
+        "path <- '%s'\nprefix <- '%s'\nfir_port <- %s\nruns <- %dL\nthreshold <- %dL\n%s"
             .formatted(
                 modulePath.toAbsolutePath(),
                 session == null ? "" : session.prefix(),
                 server == null ? "NULL" : server.port() + "L",
                 runs,
+                stubThreshold,
                 EVAL_DRIVER);
 
     try {

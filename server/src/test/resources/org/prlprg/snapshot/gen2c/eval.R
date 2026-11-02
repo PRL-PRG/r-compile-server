@@ -7,19 +7,20 @@ if (length(args) > 0) {
   path <- args[1]
 }
 # What `EvalQuery` defines before this (see it): the prefix of the module's C names, the port of
-# the compile server its stubs ask for their versions (`NULL` for a standalone module), and how
-# many times to call `main`.
+# the compile server its stubs ask for their versions (`NULL` for a standalone module), how many
+# times to call `main`, and optionally how many calls a stub runs before it requests its version.
 if (!exists("prefix")) prefix <- ""
 if (!exists("fir_port")) fir_port <- NULL
 if (!exists("runs")) runs <- 1L
 
 # A module with stubs needs the `rsh` package: the runtime (which the module doesn't bring, unlike
 # a standalone one, so that there's one copy) and the connection to the compile server (see
-# `server/doc/lazy-versions.md`). Deterministic, so that a version's first call runs the stub's
-# fallback and every later one the compiled version, however long compiling takes.
+# `server/doc/lazy-versions.md`). Deterministic, so that a version's first `threshold` calls run
+# the stub's fallback and every later one the compiled version, however long compiling takes.
+if (!exists("threshold")) threshold <- 1L
 if (!is.null(fir_port)) {
   loadNamespace("rsh")
-  rsh::rsh_fir_connect("127.0.0.1", fir_port, deterministic=TRUE)
+  rsh::rsh_fir_connect("127.0.0.1", fir_port, deterministic=TRUE, threshold=threshold)
 }
 
 # Global (not local) if it has stubs: the code the server sends to replace them refers to the

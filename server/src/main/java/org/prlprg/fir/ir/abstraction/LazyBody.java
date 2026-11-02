@@ -1,5 +1,6 @@
 package org.prlprg.fir.ir.abstraction;
 
+import com.google.common.hash.HashCode;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -46,6 +47,8 @@ public final class LazyBody {
   private @Nullable CFG body;
   private @Nullable CFG fallback;
   private @Nullable RuntimeException failure;
+  /// See [#evaluatedFingerprint()].
+  private @Nullable HashCode evaluatedFingerprint;
 
   /// An already-evaluated body that's empty.
   LazyBody(Abstraction scope) {
@@ -116,7 +119,15 @@ public final class LazyBody {
               this.initializer = null;
             });
 
+    evaluatedFingerprint = scope.fingerprint();
     initializer.afterEvaluated(scope);
+  }
+
+  /// The version's [fingerprint][Abstraction#fingerprint()] right after its body was computed,
+  /// before anything (e.g. the optimizations [Initializer#afterEvaluated(Abstraction)] runs)
+  /// changed it. `null` if it isn't evaluated, or was constructed evaluated.
+  public @Nullable HashCode evaluatedFingerprint() {
+    return evaluatedFingerprint;
   }
 
   /// The versions whose bodies evaluating this one reads (see [Initializer#sources()]). Empty if

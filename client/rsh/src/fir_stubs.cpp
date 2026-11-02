@@ -207,8 +207,11 @@ class FirStubClient {
       init(pool);
     }
 
-    // An answer without code means the version came with an earlier answer.
-    if (stub->compiled == nullptr) {
+    // An answer without code means the version came with an earlier answer, or (`fallback`) that
+    // it's the same as the fallback.
+    if (stub->compiled == nullptr && response.fallback()) {
+      Fir_stub_fallback(stub);
+    } else if (stub->compiled == nullptr) {
       stub->state = FIR_STUB_FAILED;
       Rf_warning("Compile server didn't send version %d of FIR module %s", stub->id,
                  stub->module);

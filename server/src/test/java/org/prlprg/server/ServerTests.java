@@ -228,15 +228,25 @@ public class ServerTests {
 
     var request =
         Messages.FirVersionRequest.newBuilder().setModule(session.id()).setStub(0).build();
+    var redundant = blockingStub.compileFirVersion(request);
+    var copy = session.stubs().getFirst();
+    assertTrue(copy.isEvaluated());
+    assertTrue(
+        redundant.getFallback() && !redundant.hasCode(),
+        "optimizing changed nothing, so the stub keeps its fallback");
+
+    // Once the version changes (say a later optimization run changes it), it's compiled.
+    copy.comments().add(" optimized");
     var response = blockingStub.compileFirVersion(request);
     assertTrue(response.hasCode() && !response.getCode().isEmpty(), "an object file");
     assertTrue(response.hasConstants());
     assertTrue(response.getInit().startsWith("Fir_" + session.id() + "_patch_init_"));
-    assertTrue(session.stubs().getFirst().isEvaluated());
+    assertFalse(response.getFallback());
 
     // Asking again: the client already has the version.
     var again = blockingStub.compileFirVersion(request);
     assertFalse(again.hasCode());
+    assertFalse(again.getFallback());
 
     var unknown =
         assertThrows(

@@ -116,9 +116,9 @@ version.
 the next top-level call runs its body. Feedback recorded while running a fallback is discarded,
 except the call itself and the parameters' (which the version keeps).
 
-This is the order of events in compiled code: a stub's calls run the fallback while the compiler
-evaluates and optimizes the version, and the next call after that (in the deterministic mode the
-tests use) runs it compiled. The interpreter can't do the evaluation in the middle of a top-level
+This is the order of events in compiled code with a stub threshold of 1 (what the eval tests use):
+a stub's calls run the fallback while the compiler evaluates and optimizes the version, and the
+next call after that (in the deterministic mode the tests use) runs it compiled. The interpreter can't do the evaluation in the middle of a top-level
 call: it runs the IR directly, and evaluating a version optimizes the module, which would change
 the instructions under it. So it *pins* the module (`Module#pin()`) for the duration of a
 top-level call, and the runs that evaluating a version triggers are deferred
@@ -140,9 +140,12 @@ missing), which the bytecode expects.
 
 The runtime (`client/rsh/src/fir2c/runtime.c`) doesn't know how to reach the server, so it takes a
 `Fir_StubCompiler` from whoever does (`Fir_set_stub_compiler`). Without one, stubs run their
-fallbacks forever. The first call of a stub sends a request for its version; later calls poll for
-the answer, and once it's loaded call the compiled version. In `deterministic` mode (for tests)
-the second call waits for the answer, so that exactly the first call runs the fallback.
+fallbacks forever. A stub counts its calls (`Fir_Stub.calls`), and call N (the
+[threshold](#the-threshold)) sends a request for its version; later calls poll for the answer, and
+once it's loaded call the compiled version. In `deterministic` mode (for tests) call N+1 waits for
+the answer, so that exactly the first N calls run the fallback. A stub whose version is
+[redundant](#redundant-versions) runs its fallback from then on and never requests again
+(`FIR_STUB_FALLBACK`).
 
 ### The compile server
 
@@ -182,8 +185,36 @@ An entry has a fixed calling convention, but optimizing a version can narrow wha
 an unboxed scalar). An implementation that returns something else than the version's current
 entry gives the version a new entry, which calls compiled from then on use, and the older entries
 are assigned an adapter that boxes the new implementation's result, for the client's existing
-calls. Calls compiled later also convert what an entry returns if the version's return type has
+calls (or unboxes it, for an entry that returns an unboxed scalar and an implementation that
+doesn't, which happens when a version goes back to its stub, see below). Calls compiled later also convert what an entry returns if the version's return type has
 narrowed since without the version being reimplemented (which doesn't happen in practice).
+
+#### Redundant versions
+
+A version is *redundant* if it isn't a baseline and the optimizations didn't change it since it
+was evaluated: its [fingerprint](../src/main/java/org/prlprg/fir/ir/abstraction/Abstraction.java)
+(a hash of its text) equals the one `LazyBody` records right after computing the body, before the
+optimizations run on it (`LazyBody#evaluatedFingerprint()`). Such a version is the version it was
+copied from, adapted, which is what its fallback calls and how, so compiling it would only inline
+the fallback's call. The server checks this with what it has of the module (`Fir2CCompiler`)
+rather than keeping it in the session, so it's always up to date:
+
+- When a stub asks for a redundant version, the patch doesn't define it, and the answer has
+  `fallback` set (`FirVersionResponse`). The patch still brings whatever else the client needs
+  (other out-of-date versions, stale functions); if there's nothing else, the answer has no code.
+  The client puts the stub in `FIR_STUB_FALLBACK`.
+- A stub of a redundant version isn't out of date, even though the version is evaluated: its stub
+  stays the client's implementation.
+- If a version the client has compiled becomes redundant, the next patch reverts it: it assigns the
+  version's entries the stub's implementation (`Fir_ver_impl_..._0`, with an unboxing adapter for
+  an entry that returns an unboxed scalar), and calls `Fir_stub_fallback`. The session marks the
+  version not compiled (`Fir2CSession#revert`). Only a version the client got as a stub can be
+  reverted; one it got compiled (evaluated before the client got it) has no stub.
+- If a redundant version stops being redundant, the next patch compiles it like any other stub
+  whose version was evaluated, and tells the stub (`Fir_stub_compiled`, which every new
+  implementation of a version with a stub calls).
+- Dispatch keeps redundant versions, so calling one costs one extra call (to the fallback's
+  callee).
 
 A function's dispatch function (what dispatch calls and `Fir_call_dynamic` call, and what
 identifies the function to `Fir_assume_function`) and its from-R function (what its closures'
@@ -206,7 +237,7 @@ thread, one at a time in the order stubs (and the JIT's closures, see
 the ORC JIT, deserializing the constants, calling the initializer -- happens on the R thread when a
 stub polls.
 Answers are loaded in the order they were requested, all of them, so that an answer without code
-finds its version already loaded. `rsh::rsh_fir_drain()` waits for every request to be answered.
+finds its version already loaded (or, with `fallback`, puts the stub on its fallback). `rsh::rsh_fir_drain()` waits for every request to be answered.
 
 ## How a closure gets into a module
 
@@ -277,8 +308,8 @@ The server (`CompileService#compileFirClosure`) does these steps:
 
 The client has one threshold (`Fir_jit_threshold`, default 10). `rsh_jit_enable(threshold)` and
 `rsh_fir_connect(..., threshold)` set it. The last call wins. The counting body uses it for the
-tiers. The client sends it in the request, and the server gives it to the optimizations, which
-use it as the minimum number of hits for speculation.
+tiers, and a stub requests its version at call N. The client sends it in the request, and the
+server gives it to the optimizations, which use it as the minimum number of hits for speculation.
 
 ### Known limits
 
@@ -301,8 +332,8 @@ use it as the minimum number of hits for speculation.
   (`Fir2CTest#test`, `FirAfterOpt2CTest#test`) snapshot the C of the forced module.
 - `EvalQuery` runs the *lazy* module instead (`Fir2CQuery#forEval`), with its stubs connected to
   the in-JVM test server (`FirTestServer`), in a second R process that has `rsh` loaded
-  (`GNUR#rshInstance`), calling `main` three times (fallback, compiled version, what it calls
-  compiled). It saves the module as the run left it (`module.fir` next to the output).
+  (`GNUR#rshInstance`), calling `main` three times with a stub threshold of 1 (fallback, compiled
+  version, what it calls compiled). It saves the module as the run left it (`module.fir` next to the output).
   `InterpretQuery` does the same for the interpreter. When rcp is available, `EvalQuery`'s R
   process also returns the raw recordings of the module's baselines (`Fir_serialized_feedback`),
   and `EvalQuery` translates them with `BcRecordingFeedback`, the same code that the server uses.
@@ -311,6 +342,11 @@ use it as the minimum number of hits for speculation.
   test checks the tier after each group of calls, that the closure runs native code, and that the
   server has one module for the closure. It doesn't use `GNUR#rshInstance`, because enabling
   GNU-R's JIT would change what the eval tests run.
+- `StubThresholdTest` runs one example with the stub threshold 2, and checks that the run leaves
+  fewer versions evaluated than with threshold 1.
+- `FallbackEquivalentVersionTest` checks [redundant versions](#redundant-versions): the answer for
+  one says `fallback` and has no patch, a version the optimizations change is compiled, and a
+  compiled version that becomes redundant is reverted (and compiled again when it changes).
 - `ServerTests#testCompileFirClosure` sends `CompileFirClosure` a recording, and checks the
   versions that the optimizations create from it.
 - `ManualFirServer` (test sources) serves one example for running `eval.R` by hand.

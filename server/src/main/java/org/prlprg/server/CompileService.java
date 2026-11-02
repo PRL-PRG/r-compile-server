@@ -29,7 +29,6 @@ import org.prlprg.fir2c.Fir2CCompiler;
 import org.prlprg.fir2c.Fir2CSession;
 import org.prlprg.fir2c.Option;
 import org.prlprg.gen2c.CompiledModule;
-import org.prlprg.gen2c.CompiledPatch;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.NativeClosure;
@@ -293,11 +292,13 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     var response = Messages.FirVersionResponse.newBuilder();
     try {
       var session = entry.session();
-      CompiledPatch patch;
+      Fir2CCompiler.StubAnswer answer;
       synchronized (session) {
-        patch = Fir2CCompiler.compileStub(session, request.getStub());
+        answer = Fir2CCompiler.compileStub(session, request.getStub());
       }
 
+      response.setFallback(answer.fallback());
+      var patch = answer.patch();
       if (patch != null) {
         var inputFile = File.createTempFile("fir_patch", ".c");
         patch.code().writeTo(inputFile.toPath());
