@@ -486,6 +486,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 
 - `AltRep.java` — Reads ALTREP objects from RDS.
 - `BaseAltrRep.java` — For all the altrep classes defined for base.
+- `CharsxpCodec.java` — Converts a `CHARSXP`'s bytes and encoding flags to and from a Java string, losslessly.
 - `Flags.java` — The bitflags describing a `SEXP` in RDS.
 - `GNURByteCodeDecoderFactory.java` — Decodes GNU-R's encoded bytecode into Bc.
 - `GNURByteCodeEncoderFactory.java` — Encodes Bc into GNU-R's encoded bytecode.
@@ -624,7 +625,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 ## server/src/test
 
 - `server/src/test/java/org/prlprg/` — `TestConfig` (environment variables of the tests), `TestOrderer`.
-- `.../bc/` — Bytecode compiler tests (`BCCompilerTest`, `ConstantFoldingTest`, ...).
+- `.../bc/` — Bytecode compiler tests (`BCCompilerTest`, `ConstantFoldingTest`, `ConstPoolTest`, ...).
 - `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples).
 - `.../fir/analyze/`, `.../fir/check/`, `.../fir/feedback/`, `.../fir/ir/` — Unit tests of FIŘ analyses, checkers, feedback, and IR.
 - `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises).
