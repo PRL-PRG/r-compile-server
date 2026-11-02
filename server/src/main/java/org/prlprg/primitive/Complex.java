@@ -82,7 +82,9 @@ public record Complex(double real, double imag) {
       var y = that.real;
       return fromReal(y == 0 ? 1 : y > 0 ? 0 : y < 0 ? Double.POSITIVE_INFINITY : y);
     }
-    if (that.imag == 0 && that.real == (int) that.real && Math.abs((int) that.real) <= 65536) {
+    if (that.imag == 0
+        && that.real == (int) that.real
+        && Math.abs((long) (int) that.real) <= 65536) {
       return powInt((int) that.real);
     }
     // GNU-R calls the C library's `cpow`, which (glibc's and macOS's both) is `cexp(y * clog(x))`.
