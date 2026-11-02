@@ -82,6 +82,12 @@ public class RshCompiler {
   }
 
   public static RshCompiler getInstance(int optimizationLevel, RuntimeVariant variant) {
+    return getInstance(optimizationLevel, variant, true);
+  }
+
+  /// @param debugInfo Whether to emit debug info (`-g`).
+  public static RshCompiler getInstance(
+      int optimizationLevel, RuntimeVariant variant, boolean debugInfo) {
     var flags = new ArrayList<>(COMMON_COMPILER_FLAGS);
 
     var rshInclude =
@@ -92,12 +98,16 @@ public class RshCompiler {
     flags.add("-I" + rshInclude);
 
     if (optimizationLevel == 0) {
-      flags.add("-g3");
-      flags.add("-ggdb");
+      if (debugInfo) {
+        flags.add("-g3");
+        flags.add("-ggdb");
+      }
       flags.add("-Wno-unused-function");
     } else {
       flags.add("-DNDEBUG");
-      flags.add("-g");
+      if (debugInfo) {
+        flags.add("-g");
+      }
     }
     flags.add("-O" + optimizationLevel);
 

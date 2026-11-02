@@ -90,10 +90,11 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     // So whoever runs the module can find what the server has of it.
     Files.writeString(path.resolve("id.txt"), moduleId(data));
 
-    // Compile for both `EvalQuery` and easier debugging outside of tests.
+    // Compile for both `EvalQuery` and easier debugging outside of tests. Without debug info,
+    // because nothing here reads it, and on macOS it costs a `dsymutil` run per module.
     var soPath = path.resolve("code.so");
     try {
-      var compiler = RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime());
+      var compiler = RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime(), false);
       var defines = List.of("-DRSH_TESTS", "-DRSH_PC");
       compiler
           .createBuilder(cPath, soPath)
