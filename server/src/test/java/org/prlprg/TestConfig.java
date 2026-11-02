@@ -24,6 +24,12 @@ public class TestConfig extends Config {
   public static final Pattern EXAMPLE_FILTER =
       Pattern.compile(INSTANCE.get("EXAMPLE_FILTER", ".*"));
 
+  /// Seconds that one evaluation in the test GNU-R process may take. After that, the process is
+  /// killed and the evaluation fails like an R crash, so one hung example doesn't hang the run.
+  ///
+  /// This is **120** by default.
+  public static final int R_EVAL_TIMEOUT = INSTANCE.get("R_EVAL_TIMEOUT", 120);
+
   /// A regex, matched against
   /// [org.prlprg.fir.opt.Optimizations#individualOptimizationNames()]. Selects the optimizations
   /// that `org.prlprg.snapshot.bench.OptimizationBenchmark` removes, one per benchmarked variant.

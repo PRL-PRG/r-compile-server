@@ -1,6 +1,8 @@
 package org.prlprg.session.gnur;
 
+import java.time.Duration;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.TestConfig;
 import org.prlprg.session.RSession;
 import org.prlprg.session.TestRSession;
 import org.prlprg.sexp.EnvSXP;
@@ -12,15 +14,22 @@ class RestartingGNURProcess implements GNUR {
   static @Nullable RestartingGNURProcess RSH_INSTANCE;
 
   private final TestRSession session;
+  private final Duration timeout;
   private @Nullable GNUR R;
 
   RestartingGNURProcess(TestRSession session) {
+    this(session, Duration.ofSeconds(TestConfig.R_EVAL_TIMEOUT));
+  }
+
+  /// `timeout` is how long each evaluation may take before the process is killed.
+  RestartingGNURProcess(TestRSession session, Duration timeout) {
     this.session = session;
+    this.timeout = timeout;
   }
 
   private void check() {
     if (R == null || !R.isAlive()) {
-      R = new SingleGNURProcess(session);
+      R = new SingleGNURProcess(session, timeout);
     }
   }
 

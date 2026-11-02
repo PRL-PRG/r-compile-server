@@ -9,8 +9,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -26,13 +30,21 @@ import org.prlprg.util.Pair;
 class SingleGNURProcess implements GNUR {
   private static final Logger logger = Logger.getLogger(SingleGNURProcess.class.getName());
 
+  /// Kills processes whose evaluation exceeds its timeout (see [#waitForCommand]).
+  private static final ScheduledExecutorService WATCHDOG =
+      Executors.newSingleThreadScheduledExecutor(
+          Thread.ofPlatform().name("GNU-R watchdog").daemon().factory());
+
   private final TestRSession session;
+  private final Duration timeout;
   private final Process process;
   private final PrintStream in;
   private final BufferedReader out;
 
-  SingleGNURProcess(TestRSession session) {
+  /// `timeout` is how long each evaluation may take before the process is killed.
+  SingleGNURProcess(TestRSession session, Duration timeout) {
     this.session = session;
+    this.timeout = timeout;
 
     // Start process
     try {
@@ -193,34 +205,57 @@ class SingleGNURProcess implements GNUR {
     return (EnvSXP) eval(source + "\nenvironment()");
   }
 
+  /// Reads output until the line with `requestId`.
+  ///
+  /// If that takes longer than [#timeout] (e.g. the code reads stdin, which consumes the request
+  /// ID, or loops forever), the watchdog kills the process, so `readLine` reaches EOF and this
+  /// throws [EvalException].
   private String waitForCommand(String requestId) {
     var output = new StringBuilder();
 
+    var timedOut = new AtomicBoolean();
+    var watchdog =
+        WATCHDOG.schedule(
+            () -> {
+              timedOut.set(true);
+              // Descendants too, since they can hold the output pipe open.
+              process.descendants().forEach(ProcessHandle::destroyForcibly);
+              process.destroyForcibly();
+            },
+            timeout.toMillis(),
+            TimeUnit.MILLISECONDS);
+
     IOException exception = null;
-    while (true) {
-      String line = null;
-      try {
-        line = out.readLine();
-      } catch (IOException e) {
-        exception = e;
-      }
-      if (line == null) {
-        break;
-      }
+    try {
+      while (true) {
+        String line = null;
+        try {
+          line = out.readLine();
+        } catch (IOException e) {
+          exception = e;
+        }
+        if (line == null) {
+          break;
+        }
 
-      // Output that doesn't end with a newline (e.g. `alarm()`'s "\a") shares the request ID's
-      // line.
-      if (line.endsWith(requestId)) {
-        return output.append(line, 0, line.length() - requestId.length()).toString();
-      }
+        // Output that doesn't end with a newline (e.g. `alarm()`'s "\a") shares the request ID's
+        // line.
+        if (line.endsWith(requestId)) {
+          return output.append(line, 0, line.length() - requestId.length()).toString();
+        }
 
-      output.append(line).append("\n");
+        output.append(line).append("\n");
+      }
+    } finally {
+      watchdog.cancel(false);
     }
 
     int exit;
     try {
       exit = process.waitFor();
-      if (exit == 0) {
+      if (timedOut.get()) {
+        throw EvalException.timedOut(timeout, exit, output.toString());
+      } else if (exit == 0) {
         throw new RuntimeException("R finished without printing request ID. Output:\n" + output);
       } else {
         throw new EvalException(exit, output.toString(), exception);
