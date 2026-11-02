@@ -93,13 +93,15 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     // Compile for both `EvalQuery` and easier debugging outside of tests.
     var soPath = path.resolve("code.so");
     try {
-      RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime())
+      var compiler = RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime());
+      var defines = List.of("-DRSH_TESTS", "-DRSH_PC");
+      compiler
           .createBuilder(cPath, soPath)
-          .inputs(isStandalone() ? RshCompiler.standaloneRuntimeSources(runtime()) : List.of())
+          .inputs(
+              isStandalone() ? StandaloneRuntime.objects(compiler, runtime(), defines) : List.of())
           .flag("-shared")
           .flag("-Wl,-undefined,dynamic_lookup")
-          .flag("-DRSH_TESTS")
-          .flag("-DRSH_PC")
+          .flags(defines)
           .compile();
     } catch (CCompilationException e) {
       throw new AssertionError("Failed to compile", e);
