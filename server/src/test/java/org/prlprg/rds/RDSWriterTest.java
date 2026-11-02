@@ -411,4 +411,29 @@ public class RDSWriterTest {
 
     assertEquals(output, real(6, 7));
   }
+
+  /// Strings that R keeps apart (undecodable native bytes, "bytes" strings) stay apart in Java and
+  /// round-trip; UTF-8 and Latin-1 spellings of the same text are equal, as in R.
+  @Test
+  public void testStringEncodings_withR() {
+    var R = GNUR.instance();
+
+    var strs =
+        """
+        c("\\xab", "\\xbb", "a\\xab\\xc3\\xa9", "\\u00e9", iconv("\\u00e9", "UTF-8", "latin1"),
+          `Encoding<-`("\\xc3\\xa9", "bytes"), `Encoding<-`("\\xab", "bytes"))""";
+    var read = (StrSXP) R.eval(strs);
+
+    assertEquals(read.get(3), read.get(4));
+    assertEquals(6, read.stream().distinct().count());
+
+    var output =
+        R.eval(
+            "identical(input, x <- "
+                + strs
+                + ") && identical(lapply(input[-5], charToRaw), lapply(x[-5], charToRaw))"
+                + " && identical(Encoding(input[-5]), Encoding(x[-5]))",
+            read);
+    assertEquals(SEXPs.TRUE, output);
+  }
 }

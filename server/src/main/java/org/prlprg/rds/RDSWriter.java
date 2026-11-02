@@ -2,7 +2,6 @@ package org.prlprg.rds;
 
 import com.google.protobuf.ByteString;
 import java.io.*;
-import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.DoubleStream;
@@ -239,13 +238,9 @@ public class RDSWriter implements Closeable {
    * CHARSXP, we need to write metadata like flags.
    */
   private void writeChars(String s) throws IOException {
+    var encoded = CharsxpCodec.encode(s);
     var flags =
-        new Flags(
-            RDSItemType.valueOf(SEXPType.CHAR.i),
-            new GPFlags(Charset.defaultCharset(), false),
-            false,
-            false,
-            false);
+        new Flags(RDSItemType.valueOf(SEXPType.CHAR.i), encoded.levels(), false, false, false);
     out.writeInt(flags.encode());
 
     // If the string is NA, we write -1 for the length and exit
@@ -255,9 +250,8 @@ public class RDSWriter implements Closeable {
     }
 
     // Otherwise, do a standard string write (length in bytes, then bytes)
-    var bytes = s.getBytes(Charset.defaultCharset());
-    out.writeInt(bytes.length);
-    out.writeBytes(bytes);
+    out.writeInt(encoded.bytes().length);
+    out.writeBytes(encoded.bytes());
   }
 
   /**

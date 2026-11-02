@@ -1,7 +1,5 @@
 package org.prlprg.rds;
 
-import static java.util.Objects.requireNonNull;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
 import com.google.protobuf.ByteString;
@@ -519,22 +517,7 @@ public class RDSReader implements Closeable {
     if (!flags.getType().isSexp(SEXPType.CHAR)) {
       throw new RDSException("Expected CHAR");
     }
-    var encoding = flags.getLevels().encoding();
-
-    var length = in.readInt();
-
-    String out;
-    if (length == -1) {
-      out = Constants.NA_STRING;
-    } else {
-      // Sometimes R strings have no defined encoding.
-      if (encoding == null) {
-        encoding = nativeEncoding;
-      }
-      out = in.readString(length, encoding);
-    }
-
-    return out;
+    return readChars(flags);
   }
 
   private StrSXP readStrs(Flags flags) throws IOException {
@@ -747,11 +730,11 @@ public class RDSReader implements Closeable {
   }
 
   private String readChars(Flags flags) throws IOException {
-    var len = in.readInt();
-    // charset should never be null for strings
-    var charset = requireNonNull(flags.getLevels().encoding());
-
-    return in.readString(len, charset);
+    var length = in.readInt();
+    if (length == -1) {
+      return Constants.NA_STRING;
+    }
+    return CharsxpCodec.decode(in.readBytes(length), flags.getLevels(), nativeEncoding);
   }
 
   private Flags readFlags() throws IOException {

@@ -127,8 +127,8 @@ final class Flags {
  *       environment, and bit 15 is used to indicate an active binding. Bit 15 is used for an
  *       environment to indicate if it participates in the global cache.
  *   <li><b>Bits 1, 2, 3, 5, and 6</b> are used for a {@code CHARSXP} (we use strings) to indicate
- *       its encoding. Relevant to us are bits 2, 3, and 6, which indicate Latin-1, UTF-8, and ASCII
- *       respectively.
+ *       its encoding. Relevant to us are bits 1, 2, 3, and 6, which indicate "bytes", Latin-1,
+ *       UTF-8, and ASCII respectively.
  *   <li><b>Bit 4</b> is turned on to mark S4 objects
  * </ul>
  *
@@ -136,7 +136,7 @@ final class Flags {
  */
 final class GPFlags {
   // HASHASH_MASK: 1;
-  // private static final int BYTES_MASK = 1 << 1;
+  private static final int BYTES_MASK = 1 << 1;
   private static final int LATIN1_MASK = 1 << 2;
   private static final int UTF8_MASK = 1 << 3;
   // S4_OBJECT_MASK: 1 << 4
@@ -162,6 +162,15 @@ final class GPFlags {
 
   GPFlags() {
     this.flags = 0;
+  }
+
+  /// The levels of a `CHARSXP` in the "bytes" encoding.
+  static GPFlags bytes() {
+    return new GPFlags(BYTES_MASK);
+  }
+
+  public boolean isBytes() {
+    return (flags & BYTES_MASK) != 0;
   }
 
   public int encode() {
