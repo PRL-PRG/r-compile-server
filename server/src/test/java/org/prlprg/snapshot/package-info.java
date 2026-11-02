@@ -27,5 +27,5 @@
 /// intentionally alters them: committing them separately leaves the baselines stale, and every
 /// later comparison reports a regression. Each refresh adds another copy to LFS storage, so
 /// don't refresh for cosmetic changes alone.
-@NullMarked
+@org.jspecify.annotations.NullMarked
 package org.prlprg.snapshot;
