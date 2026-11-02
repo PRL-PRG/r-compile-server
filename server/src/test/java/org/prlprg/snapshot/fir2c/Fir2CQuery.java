@@ -127,8 +127,9 @@ public record Fir2CQuery(
     var firMainFn = firModule.localFunction(Variable.named("main"));
     assertNotNull(firMainFn, "FIR module missing main function");
 
+    // No debug prints in what's run: they can make the output log gigabytes long.
     var options =
-        isOptimized
+        isOptimized || isLazy
             ? new Option[] {Option.COMPILE_REFERENCED_FUNCTIONS, Option.EMIT_DEBUG_COMMENTS}
             : Option.values();
 
