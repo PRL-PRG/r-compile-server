@@ -1,7 +1,6 @@
 package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -9,6 +8,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.primitive.Complex;
@@ -526,10 +526,12 @@ public final class ConstantFolding {
     return Optional.of(ans);
   }
 
-  public static Optional<SEXP> c(List<? extends SEXP> args) {
-    if (args.isEmpty()) {
+  public static Optional<SEXP> c(List<TaggedElem> elems) {
+    if (elems.isEmpty()) {
       return Optional.of(SEXPs.NULL);
     }
+
+    List<? extends SEXP> args = elems.stream().map(TaggedElem::value).toList();
 
     var type = args.getFirst().type();
 
@@ -579,19 +581,31 @@ public final class ConstantFolding {
           default -> Optional.empty();
         };
 
-    return vals.map(
-        x -> {
-          var names =
-              args.stream()
-                  .map(SEXP::names)
-                  .reduce(
-                      new ArrayList<>(),
-                      (acc, y) -> {
-                        acc.addAll(y);
-                        return acc;
-                      });
-          return x.withNames(names);
-        });
+    if (elems.stream().noneMatch(e -> e.hasTag() || !e.value().names().isEmpty())) {
+      return vals;
+    }
+    var names = elems.stream().flatMap(ConstantFolding::cNames).toList();
+    return vals.map(x -> x.withNames(names));
+  }
+
+  /// The names that `c` gives to the elements of one argument (GNU-R's `NewExtractNames`).
+  private static Stream<String> cNames(TaggedElem elem) {
+    var tag = elem.tag();
+    var value = (VectorSXP<?>) elem.value();
+    var names = value.names();
+    var n = value.size();
+    return IntStream.range(0, n)
+        .mapToObj(
+            i -> {
+              var name = names.isEmpty() ? "" : names.get(i);
+              if (tag.isEmpty()) {
+                return name;
+              } else if (!name.isEmpty()) {
+                return tag + "." + name;
+              } else {
+                return n == 1 ? tag : tag + (i + 1);
+              }
+            });
   }
 
   public static Optional<SEXP> colon(List<SEXP> args) {

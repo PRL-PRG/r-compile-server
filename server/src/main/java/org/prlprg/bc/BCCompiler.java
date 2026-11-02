@@ -2248,20 +2248,27 @@ public class BCCompiler {
   private Optional<SEXP> constantFoldCall(LangSXP call) {
     return call.funName()
         .filter(this::isFoldableFun)
-        .flatMap(name -> buildArgs(call).flatMap(args -> doConstantFoldCall(name, args)))
+        .flatMap(
+            name ->
+                buildArgs(call)
+                    .flatMap(
+                        args ->
+                            name.equals("c")
+                                ? ConstantFolding.c(args)
+                                : doConstantFoldCall(
+                                    name, args.stream().map(TaggedElem::value).toList())))
         .flatMap(this::checkConst);
   }
 
-  private Optional<List<SEXP>> buildArgs(LangSXP call) {
-    var argsBuilder = new ImmutableList.Builder<SEXP>();
+  private Optional<List<TaggedElem>> buildArgs(LangSXP call) {
+    var argsBuilder = new ImmutableList.Builder<TaggedElem>();
 
     for (var arg : call.args()) {
       if (missing(arg.value())) {
         return Optional.empty();
       }
 
-      var namedArg = arg.value().attributes() != null ? arg.namedValue() : arg.value();
-      var val = constantFold(namedArg);
+      var val = constantFold(arg.value());
 
       if (val.isPresent()) {
         var v = val.get();
@@ -2269,7 +2276,7 @@ public class BCCompiler {
           return Optional.empty();
         }
 
-        argsBuilder.add(v);
+        argsBuilder.add(new TaggedElem(arg.tag(), v));
       } else {
         return Optional.empty();
       }
@@ -2281,7 +2288,6 @@ public class BCCompiler {
   private Optional<SEXP> doConstantFoldCall(String funName, List<SEXP> args) {
     return switch (funName) {
       case "(" -> constantFoldParen(args);
-      case "c" -> ConstantFolding.c(args);
       case "+" -> {
         if (args.size() == 1) {
           yield ConstantFolding.plus(args);
