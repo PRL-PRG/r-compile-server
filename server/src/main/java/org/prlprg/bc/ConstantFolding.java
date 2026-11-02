@@ -60,6 +60,12 @@ public final class ConstantFolding {
   }
 
   public static Optional<SEXP> exp(List<SEXP> args) {
+    if (args.size() == 1 && args.getFirst() instanceof ComplexSXP z) {
+      // Where `exp(real)` overflows, `Complex#exp` doesn't match the C library's `cexp`.
+      return z.stream().anyMatch(x -> Double.isInfinite(Math.exp(x.real())))
+          ? Optional.empty()
+          : complexMath1(z, Complex::exp);
+    }
     return doubleMath1(args, Math::exp);
   }
 
@@ -550,6 +556,24 @@ public final class ConstantFolding {
     }
 
     return Optional.of(SEXPs.real(res));
+  }
+
+  /// GNU-R's `cmath1`.
+  private static Optional<SEXP> complexMath1(ComplexSXP z, Function<Complex, Complex> f) {
+    var res = new Complex[z.size()];
+    for (var i = 0; i < res.length; i++) {
+      var x = z.get(i);
+      if (x.isNaOrNaN()) {
+        // GNU-R maps `NA` to `NA` and `NaN` through `f`; skip both rather than tell them apart.
+        return Optional.empty();
+      }
+      res[i] = f.apply(x);
+      // Like in `doubleMath1`, a new `NaN` means a warning, so GNU-R doesn't fold.
+      if (res[i].isNaOrNaN()) {
+        return Optional.empty();
+      }
+    }
+    return Optional.of(SEXPs.complex(res));
   }
 
   private static Optional<SEXP> math1(Arithmetic.Operation op, List<SEXP> args) {
