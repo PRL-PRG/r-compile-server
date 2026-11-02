@@ -47,9 +47,9 @@ on:
 # same code paths as the smaller examples. `TestConfig` picks this up from the
 # environment, which the forked Surefire JVMs inherit.
 #
-# FIXME: `bench_awf_*|bench_shootout_*` are skipped because they OOM the forked Surefire JVM.
+# FIXME: `bench_awf_.*|bench_shootout_.*` are skipped because they OOM the forked Surefire JVM.
 env:
-  EXAMPLE_FILTER: "(?!stdlib_|bench_awf_*|bench_shootout_*).*"
+  EXAMPLE_FILTER: "(?!stdlib_|bench_awf_.*|bench_shootout_.*).*"
 
 # All the jobs run `./mvnw` rather than the runner's `mvn`: the build needs
 # Maven 4 (maven-compiler-plugin 4.x), while the runner images still ship Maven
