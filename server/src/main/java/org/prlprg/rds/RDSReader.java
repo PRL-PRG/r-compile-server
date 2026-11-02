@@ -501,9 +501,16 @@ public class RDSReader implements Closeable {
     if (!(x instanceof SymOrLangSXP fun)) {
       throw new RDSException("Expected symbol or language");
     }
-    if (!(readItem() instanceof ListSXP args)) {
+    // The arguments' first cell can be a LANGSXP: R parses `lhs |> f(args)` into
+    // `lcons(f, lcons(lhs, args))`.
+    var argsFlags = readFlags();
+    var argsType = argsFlags.getType();
+    if (!argsType.isSexp(SEXPType.NIL)
+        && !argsType.isSexp(SEXPType.LIST)
+        && !argsType.isSexp(SEXPType.LANG)) {
       throw new RDSException("Expected list");
     }
+    var args = (ListSXP) readList(argsFlags, SEXPType.LIST);
     return SEXPs.lang(fun, args, attributes);
   }
 
@@ -643,7 +650,9 @@ public class RDSReader implements Closeable {
     Attributes attributes = null;
 
     while (!flags.getType().isSexp(SEXPType.NIL)) {
-      if (!flags.getType().isSexp(listType)) {
+      // A pairlist cell can be a LANGSXP (see `readLang`).
+      if (!flags.getType().isSexp(listType)
+          && !(listType == SEXPType.LIST && flags.getType().isSexp(SEXPType.LANG))) {
         throw new RDSException(
             "Expected "
                 + listTypeDesc
