@@ -2501,14 +2501,14 @@ public final class Builtins {
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `attr` not yet fully implemented");
             }));
-    // v1: (V, S, miss, miss) --> V
+    // v1: (V, v1(S), miss, miss) --> V
     interpreter.registerExternal(
         "attr",
         sig(
             Type.ANY_VALUE_SEXP,
             Effects.NONE,
             Type.ANY_VALUE_SEXP,
-            Type.STRING,
+            Type.BOXED_STRING,
             Type.MISSING,
             Type.MISSING),
         ExternalVersion.strict(

@@ -942,7 +942,7 @@ fun inherits(x, what, which) {
 
 fun attr(x, which, exact, value) {
   (x:*@!, which:*@!, exact:*@!, value:*@!) -+> V { ... }
-  (x:V, which:S, exact:miss, value:miss) --> V { ... }
+  (x:V, which:v1(S), exact:miss, value:miss) --> V { ... }
 }
 
 fun `is.character`(x) {
