@@ -302,6 +302,11 @@ SEXP Fir_maybe_force(SEXP valueOrPromise);
 /// observe: the promise is already forced, or its body is one whose evaluation is invisible (see
 /// `Fir_code_is_pure_to_eval`). Returns the promise unchanged otherwise.
 SEXP Fir_safe_force(SEXP valueOrPromise);
+/// The argument of the parameter `symbol` in the frame `env` that `applyClosure` made for a
+/// from-R call: the missing argument if the parameter's argument was missing (even if
+/// `applyClosure` bound it to a promise of the parameter's default: FIŘ code computes the
+/// default itself), else the binding, safely forced.
+SEXP Fir_from_r_arg(SEXP env, SEXP symbol);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_fun(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);

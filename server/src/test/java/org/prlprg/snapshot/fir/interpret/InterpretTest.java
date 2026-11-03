@@ -13,7 +13,6 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshot.SkipQueryException;
@@ -70,9 +69,8 @@ class InterpretTest {
     }
   }
 
-  /// `sexp` with what differs between closures the interpreter and GNU-R make replaced: parameter
-  /// defaults (FIŘ computes them in the body, so its closures have none), the body, and the
-  /// `Rsh_ReflectivelyAccessed` binding the vendored R defines to record reflection.
+  /// `sexp` with what differs between closures the interpreter and GNU-R make replaced: the body,
+  /// and the `Rsh_ReflectivelyAccessed` binding the vendored R defines to record reflection.
   ///
   /// `envs` maps each environment already copied to its copy, because a closure's environment may
   /// bind the closure itself.
@@ -80,9 +78,7 @@ class InterpretTest {
     return switch (sexp) {
       case CloSXP c ->
           SEXPs.closure(
-              c.parameters().stream()
-                  .map(p -> new TaggedElem(p.tag(), SEXPs.MISSING_ARG))
-                  .collect(SEXPs.toList()),
+              c.parameters(),
               SEXPs.symbol("code"),
               (EnvSXP) withoutClosureDetails(c.env(), envs),
               c.attributes());

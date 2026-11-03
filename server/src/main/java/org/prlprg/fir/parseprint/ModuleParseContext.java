@@ -80,6 +80,8 @@ import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.TaggedElem;
 import org.prlprg.util.Characters;
 
 /// Parses [Module]s: the outermost FIŘ parse context.
@@ -175,9 +177,27 @@ public final class ModuleParseContext {
 
       s.assertAndSkip("fun ");
       var name = p.parse(NamedVariable.class);
-      var parameterNames = List.copyOf(p.parseList("(", ")", NamedVariable.class));
+      // Each parameter is a name, optionally `= <default>` (the GNU-R formal's default).
+      var formals =
+          p
+              .parseList(
+                  "(",
+                  ")",
+                  () -> {
+                    var parameterName = p.parse(NamedVariable.class);
+                    var defaultValue =
+                        s.trySkip('=') ? p.parse(Value.class).box() : SEXPs.MISSING_ARG;
+                    return new TaggedElem(parameterName.name(), defaultValue);
+                  },
+                  SkipWhitespace.ALL)
+              .stream()
+              .collect(SEXPs.toList());
+      var parameterNames = formals.names().stream().map(Variable::named).toList();
 
       var function = module.addFunction(name, parameterNames);
+      if (formals.values().stream().anyMatch(v -> v != SEXPs.MISSING_ARG)) {
+        function.setFormals(formals);
+      }
       function.comments().addAll(comments);
       function.userProperties().setStrict(strict);
       function.userProperties().setLiteSpecial(liteSpecial);

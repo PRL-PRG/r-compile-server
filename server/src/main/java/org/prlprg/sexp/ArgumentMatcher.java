@@ -14,9 +14,10 @@ import org.prlprg.util.Streams;
 /// https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Argument-matching).
 public class ArgumentMatcher {
   /// Returns a list of arguments as they would be passed to a function with the given formal
-  /// parameters by a call with the given actual arguments.
+  /// parameters by a call with the given actual arguments. A parameter no argument matches gets
+  /// the missing argument, not its default (GNU-R binds the default when it applies the closure).
   ///
-  /// @param formalParameters The formal parameters of the function, including default values.
+  /// @param formalParameters The formal parameters of the function; the values are ignored.
   /// @param unmatchedArguments The actual arguments passed to the call.
   /// @throws MatchException if matching fails: if there are arguments that match the same
   /// parameter with the same priority, or too many arguments.
@@ -44,14 +45,13 @@ public class ArgumentMatcher {
         .map(
             param -> {
               var paramName = param.tag();
-              var paramValue = param.value();
               var paramMatch = nameMatches.arguments.get(paramName);
 
               return paramName.equals("...")
                   ? nameMatches.dddIndices.stream()
                       .map(unmatchedArguments1::get)
                       .collect(SEXPs.toDots())
-                  : paramMatch != null ? unmatchedArguments1.value(paramMatch) : paramValue;
+                  : paramMatch != null ? unmatchedArguments1.value(paramMatch) : SEXPs.MISSING_ARG;
             })
         .collect(ImmutableList.toImmutableList());
   }

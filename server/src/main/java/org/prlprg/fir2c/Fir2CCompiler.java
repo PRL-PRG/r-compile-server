@@ -929,8 +929,7 @@ public final class Fir2CCompiler {
           cCode.stmt("%s = %s == R_MissingArg ? R_NilValue : %s;", argName, argName, argName);
         } else {
           var paramSym = nvSymbolRef(pool, paramName);
-          cCode.stmt(
-              "SEXP %s = Fir_safe_force(Rf_findVarInFrame(%s, %s));", argName, VAR_ENV, paramSym);
+          cCode.stmt("SEXP %s = Fir_from_r_arg(%s, %s);", argName, VAR_ENV, paramSym);
         }
 
         argsSplice.append(", ").append(argName);
@@ -1750,11 +1749,7 @@ public final class Fir2CCompiler {
 
                 var fromRCName = functionFromRCName(function);
 
-                var formalsSxp =
-                    function.parameterNames().stream()
-                        .map(nv -> new TaggedElem(nv.name(), SEXPs.MISSING_ARG))
-                        .collect(SEXPs.toList());
-                var formals = constantRef(pool, formalsSxp);
+                var formals = constantRef(pool, function.formals());
 
                 String cp;
                 if (session.hasFunction(function)) {

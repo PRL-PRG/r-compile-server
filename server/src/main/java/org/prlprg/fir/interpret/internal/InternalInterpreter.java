@@ -1851,13 +1851,7 @@ public final class InternalInterpreter implements Interpreter {
   /// called by the interpreter.
   public CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
     var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.symbol(function.name().name()));
-    // All FIŘ functions explicitly compute parameter defaults, so their formal parameters
-    // never have default values.
-    var rParams =
-        function.parameterNames().stream()
-            .map(paramName -> new TaggedElem(paramName.name(), SEXPs.MISSING_ARG))
-            .collect(SEXPs.toList());
-    var sexp = SEXPs.closure(rParams, codeStub, enclosingEnv);
+    var sexp = SEXPs.closure(function.formals(), codeStub, enclosingEnv);
     closures.put(sexp, function);
     return sexp;
   }

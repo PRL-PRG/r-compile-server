@@ -154,9 +154,10 @@ separates tokens.
     align: top,
     grammar(
       ($F$, $wseq(fn)$),
-      ($fn$, $#sem($wseq(prop, n: k)$) space kw("fun") f #sem($tt("(")seq(x)tt(")")$) tt("{")$,
+      ($fn$, $#sem($wseq(prop, n: k)$) space kw("fun") f #sem($tt("(")seq(frm)tt(")")$) tt("{")$,
              cont($wseq(ver, n: m) tt("}")$)),
       semrule($prop$, $tt("@strict") alt tt("@liteSpecial")$),
+      semrule($frm$, $x alt x tt("=") tt("<")sexp#h(0pt)tt(">")$),
       ($ver$, $tt("(")seq(prm)tt(")") arrow t tt("{") body tt("}")$,
               sem($tt("(")seq(prm)tt(")") arrow t tt("{") tt("...") tt("}")$)),
       ($prm$, $r tt(":") t alt r tt(":") t #sem($tt("@!")$)$),
@@ -180,7 +181,9 @@ separates tokens.
 ) <syn-module>
 
 A function has $m >= 1$ versions; the first is its _baseline_ and the rest are specializations,
-each with the same number of parameters as the function has parameter names. A version with body
+each with the same number of parameters as the function has parameter names. A parameter name may
+carry the default expression of the GNU-R formal it came from ($x tt("=") tt("<")sexp#h(0pt)tt(">")$);
+only the function's closures use it, as their formals. A version with body
 $tt("...")$ is a _stub_ (a declaration without code, e.g. a builtin). The entry block has no
 header: a version body starts directly with the entry block's instructions, followed by the
 labeled blocks. Block parameters ($L tt("(")r tt(":") t tt(")")$) are MLIR-style phis, and jump

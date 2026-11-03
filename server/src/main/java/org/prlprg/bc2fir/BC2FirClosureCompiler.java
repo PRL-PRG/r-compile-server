@@ -72,14 +72,18 @@ public final class BC2FirClosureCompiler {
     var origin = bytecodes == null ? null : bytecodes.record(name, bc, closure.parameters());
 
     // The baseline's signature doesn't depend on the bytecode, so only the body is lazy.
-    return module.addFunction(
-        Variable.named(name),
-        parameterNames,
-        body -> {
-          var cfgCompiler = new BC2FirCFGCompiler(r, new CFGCursor(body), bc, bytecodes, origin);
+    var function =
+        module.addFunction(
+            Variable.named(name),
+            parameterNames,
+            body -> {
+              var cfgCompiler =
+                  new BC2FirCFGCompiler(r, new CFGCursor(body), bc, bytecodes, origin);
 
-          cfgCompiler.compileClosureEntry(parameterNames, closure.parameters().values());
-          cfgCompiler.compileBc();
-        });
+              cfgCompiler.compileClosureEntry(parameterNames, closure.parameters().values());
+              cfgCompiler.compileBc();
+            });
+    function.setFormals(closure.parameters());
+    return function;
   }
 }

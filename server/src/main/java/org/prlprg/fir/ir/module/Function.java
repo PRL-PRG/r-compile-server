@@ -25,6 +25,9 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.TaggedElem;
 
 public final class Function {
   /// Versions that have been added to functions, so we can ensure the same version isn't added
@@ -39,6 +42,7 @@ public final class Function {
   private final Comments comments;
   private final NamedVariable name;
   private final List<NamedVariable> parameterNames;
+  private @Nullable ListSXP formals;
   private @Nullable Abstraction baseline;
   /// Stored by identity, in insertion order; [#versions()] derives the sorted (dispatch-order)
   /// view on demand.
@@ -115,6 +119,29 @@ public final class Function {
 
   public @Unmodifiable List<NamedVariable> parameterNames() {
     return parameterNames;
+  }
+
+  /// The GNU-R formals of the closures of this function: [#parameterNames()] with their default
+  /// expressions, or with the missing argument when the function has none (e.g. it didn't come
+  /// from a GNU-R closure). FIŘ code computes the defaults itself, so these are only for what
+  /// inspects the closure (`formals()`, `match.arg`, printing).
+  public ListSXP formals() {
+    return formals != null
+        ? formals
+        : parameterNames.stream()
+            .map(nv -> new TaggedElem(nv.name(), SEXPs.MISSING_ARG))
+            .collect(SEXPs.toList());
+  }
+
+  /// Set the default expressions of the parameters (see [#formals()]).
+  ///
+  /// @throws IllegalArgumentException If `formals` doesn't have one element per parameter name.
+  public void setFormals(ListSXP formals) {
+    if (formals.size() != parameterNames.size()) {
+      throw new IllegalArgumentException(
+          "Formals " + formals + " don't match parameter names " + parameterNames);
+    }
+    this.formals = formals;
   }
 
   /// Returns the function's baseline.

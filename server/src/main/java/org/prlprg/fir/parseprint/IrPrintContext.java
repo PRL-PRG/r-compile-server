@@ -45,6 +45,7 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -84,7 +85,19 @@ public final class IrPrintContext {
     w.write("fun ");
     p.print(function.name());
 
-    p.printAsList("(", ")", function.parameterNames());
+    w.write('(');
+    var formals = function.formals();
+    for (var i = 0; i < formals.size(); i++) {
+      if (i > 0) {
+        w.write(", ");
+      }
+      p.print(function.parameterNames().get(i));
+      if (formals.value(i) != SEXPs.MISSING_ARG) {
+        w.write(" = ");
+        p.print(new Value.Sexp(formals.value(i)));
+      }
+    }
+    w.write(')');
 
     w.write(" {");
     w.runIndented(
