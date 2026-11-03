@@ -68,7 +68,9 @@ import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.primitive.RMath;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
@@ -714,6 +716,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             if (w > widest) widest = w;
           }
 
+          // R formats reals differently than Java, so don't fold them into strings.
+          if (widest == 3 && sexps.stream().anyMatch(s -> s instanceof RealSXP)) yield null;
+
           // Count total elements
           int total = 0;
           for (var s : sexps) total += ((ListOrVectorSXP<?>) s).size();
@@ -751,10 +756,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
                   for (var s : sexps) {
                     switch (s) {
                       case LglSXP l -> {
-                        for (int j = 0; j < l.size(); j++) res[i++] = l.get(j).toInt();
+                        for (int j = 0; j < l.size(); j++)
+                          res[i++] = RMath.fromInt(l.get(j).toInt());
                       }
                       case IntSXP iv -> {
-                        for (int j = 0; j < iv.size(); j++) res[i++] = iv.get(j);
+                        for (int j = 0; j < iv.size(); j++) res[i++] = RMath.fromInt(iv.get(j));
                       }
                       case RealSXP rv -> {
                         for (int j = 0; j < rv.size(); j++) res[i++] = rv.get(j);
@@ -770,13 +776,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
                   for (var s : sexps) {
                     switch (s) {
                       case LglSXP l -> {
-                        for (int j = 0; j < l.size(); j++) res[i++] = l.get(j).toString();
+                        for (int j = 0; j < l.size(); j++)
+                          res[i++] =
+                              l.get(j) == Logical.NA ? Constants.NA_STRING : l.get(j).toString();
                       }
                       case IntSXP iv -> {
-                        for (int j = 0; j < iv.size(); j++) res[i++] = String.valueOf(iv.get(j));
-                      }
-                      case RealSXP rv -> {
-                        for (int j = 0; j < rv.size(); j++) res[i++] = String.valueOf(rv.get(j));
+                        for (int j = 0; j < iv.size(); j++)
+                          res[i++] =
+                              iv.get(j) == Constants.NA_INT
+                                  ? Constants.NA_STRING
+                                  : String.valueOf(iv.get(j));
                       }
                       case StrSXP sv -> {
                         for (int j = 0; j < sv.size(); j++) res[i++] = sv.get(j);
