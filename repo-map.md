@@ -627,7 +627,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 
 - `server/src/test/java/org/prlprg/` — `TestConfig` (environment variables of the tests), `TestOrderer`.
 - `.../bc/` — Bytecode compiler tests (`BCCompilerTest`, `ConstantFoldingTest`, `ConstPoolTest`, ...).
-- `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples).
+- `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples), and their per-test timeout (`ExampleTimeout`).
 - `.../fir/analyze/`, `.../fir/check/`, `.../fir/feedback/`, `.../fir/ir/` — Unit tests of FIŘ analyses, checkers, feedback, and IR.
 - `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises).
 - `.../fir/opt/`, `.../fir/opt/specialize/` — One unit test class per optimization (`AbstractionOptimizationUnitTest`, `OptimizationUnitTest`).

@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -140,6 +141,11 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
       enqueue(worklist, pending, order, cursor.cfg().entry(), entryState);
 
       while (!worklist.isEmpty()) {
+        // So an interrupt (e.g. a test timeout) stops an analysis that doesn't converge.
+        if (Thread.currentThread().isInterrupted()) {
+          throw new CancellationException("Abstract interpretation thread interrupted");
+        }
+
         var bb = worklist.pollFirstEntry().getValue();
         var state = pending.remove(bb);
 

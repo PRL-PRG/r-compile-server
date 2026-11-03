@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.Stack;
+import java.util.concurrent.CancellationException;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
@@ -342,7 +343,7 @@ public final class InternalInterpreter implements Interpreter {
       }
 
       return call(function, null, globalEnv, List.of(arguments));
-    } catch (InternalInterpretException e) {
+    } catch (InternalInterpretException | CancellationException e) {
       throw e;
     } catch (Throwable e) {
       throw fail("Unhandled interpreter crash", e);
@@ -526,7 +527,7 @@ public final class InternalInterpreter implements Interpreter {
 
       checkType(result, hijacked.returnType(), "return (from external)");
       return result;
-    } catch (InternalInterpretException e) {
+    } catch (InternalInterpretException | CancellationException e) {
       throw e;
     } catch (Throwable e) {
       throw fail("External call failed", e);
@@ -546,6 +547,10 @@ public final class InternalInterpreter implements Interpreter {
 
     var deopted = false;
     while (true) {
+      // So an interrupt (e.g. a test timeout) stops a program that loops forever.
+      if (Thread.currentThread().isInterrupted()) {
+        throw new CancellationException("Interpreter thread interrupted");
+      }
       var nextControl = cursor.iterateCurrentBb1(this::run, this::run);
 
       switch (nextControl) {

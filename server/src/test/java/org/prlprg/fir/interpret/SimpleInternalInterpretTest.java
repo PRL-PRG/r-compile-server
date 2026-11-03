@@ -1,6 +1,8 @@
 package org.prlprg.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
@@ -9,9 +11,12 @@ import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
+import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
@@ -227,5 +232,39 @@ class SimpleInternalInterpretTest {
 
     // Should throw exception
     assertThrows(InterpretException.class, () -> interpreter.call("test"));
+  }
+
+  /// A test timeout interrupts the test thread, and an infinite loop must not ignore that.
+  @Test
+  void testInterruptStopsInfiniteLoop() throws InterruptedException {
+    var loop =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> v1(I) {
+                goto LOOP();
+              LOOP():
+                goto LOOP();
+              }
+            }
+            """);
+    var thrown = new AtomicReference<Throwable>();
+    var thread =
+        new Thread(
+            () -> {
+              try {
+                new InternalInterpreter(loop).call("main");
+              } catch (Throwable e) {
+                thrown.set(e);
+              }
+            });
+
+    thread.start();
+    Thread.sleep(100);
+    thread.interrupt();
+    thread.join(10_000);
+
+    assertFalse(thread.isAlive());
+    assertInstanceOf(CancellationException.class, thrown.get(), () -> String.valueOf(thrown.get()));
   }
 }

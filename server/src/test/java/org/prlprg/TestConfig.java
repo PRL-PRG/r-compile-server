@@ -30,6 +30,13 @@ public class TestConfig extends Config {
   /// This is **120** by default.
   public static final int R_EVAL_TIMEOUT = INSTANCE.get("R_EVAL_TIMEOUT", 120);
 
+  /// Seconds that one example test (except a benchmark) may take. After that, it fails and the run
+  /// continues (see [org.prlprg.examples.ExampleTimeout]). `0` disables the limit, e.g. to debug.
+  ///
+  /// This is **300** by default: above [#R_EVAL_TIMEOUT], so a hung R evaluation fails through
+  /// that timeout (which restarts R) instead of this one (which abandons the thread talking to R).
+  public static final int EXAMPLE_TIMEOUT = INSTANCE.get("EXAMPLE_TIMEOUT", 300);
+
   /// A regex, matched against
   /// [org.prlprg.fir.opt.Optimizations#individualOptimizationNames()]. Selects the optimizations
   /// that `org.prlprg.snapshot.bench.OptimizationBenchmark` removes, one per benchmarked variant.

@@ -21,7 +21,7 @@ import org.prlprg.snapshot.SnapshotStoreParameterResolver;
 @Tag("examples")
 @ParameterizedTest(allowZeroInvocations = true)
 @ArgumentsSource(FirExampleProvider.class)
-@ExtendWith(SnapshotStoreParameterResolver.class)
+@ExtendWith({SnapshotStoreParameterResolver.class, ExampleTimeout.class})
 public @interface FirExampleTest {
   String option() default "";
 
