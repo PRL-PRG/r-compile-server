@@ -150,7 +150,7 @@ public class RDSReader implements Closeable {
             case BUILTIN -> readBuiltin();
             case SPECIAL -> readSpecial();
             case CPLX -> readComplex(flags);
-            case EXTPTR -> readExternalPtr();
+            case EXTPTR -> readExternalPtr(flags);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
       case RDSItemType.Special s ->
@@ -175,7 +175,7 @@ public class RDSReader implements Closeable {
     };
   }
 
-  private SEXP readExternalPtr() throws IOException {
+  private SEXP readExternalPtr(Flags flags) throws IOException {
     // R assigns the external pointer its reference index *before* it (de)serializes the prot and
     // tag (`HashAdd` then `WriteItem` in `WriteItem`, `AddReadRef` then `ReadItem` in `ReadItem`),
     // so claim the slot up-front: anything referenced while reading them would otherwise be off by
@@ -186,7 +186,7 @@ public class RDSReader implements Closeable {
     var prot = readItem();
     var tag = readItem();
 
-    var ptr = new ExtptrSxp(prot, tag);
+    var ptr = new ExtptrSxp(prot, tag, readAttributes(flags));
     refTable.set(index, ptr);
     return ptr;
   }

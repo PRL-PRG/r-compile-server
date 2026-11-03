@@ -436,4 +436,14 @@ public class RDSWriterTest {
             read);
     assertEquals(SEXPs.TRUE, output);
   }
+
+  @Test
+  public void testExtptrAttributes_withR() {
+    var R = GNUR.instance();
+
+    var extptr =
+        new ExtptrSxp(NULL, NULL, new Attributes.Builder().put("class", string("foo")).build());
+    var output = R.eval("typeof(input) == 'externalptr' && identical(class(input), 'foo')", extptr);
+    assertEquals(SEXPs.TRUE, output);
+  }
 }

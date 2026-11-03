@@ -212,4 +212,14 @@ public class RDSReaderTest {
     var sexp = R.eval("compiler::cmpfun(function(x) local(x))");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }
+
+  /// External pointers keep their attributes, e.g. the class of a `DLLInfo`'s `info`.
+  @Test
+  public void testExtptrAttributes() {
+    var R = GNUR.instance();
+
+    var sexp = R.eval("getLoadedDLLs()[['base']][['info']]");
+    assertThat(sexp).isInstanceOf(ExtptrSxp.class);
+    assertEquals(SEXPs.string("DLLInfoReference"), sexp.attributes().get("class"));
+  }
 }

@@ -373,7 +373,13 @@ public class SEXPPrintContext {
 
   @PrintMethod
   private void print(ExtptrSxp sexp, Printer p) {
-    handleDepth(p, () -> p.writer().write("<extptr>"));
+    handleDepth(
+        p,
+        () -> {
+          p.writer().write("<extptr");
+          printAttributes(sexp, p);
+          printGeneralEnd(p);
+        });
   }
 
   @PrintMethod

@@ -604,6 +604,7 @@ public class RDSWriter implements Closeable {
     refAdd(extptr);
     writeItem(extptr.prot());
     writeItem(extptr.tag());
+    writeAttributesIfPresent(extptr);
   }
 
   @Override
