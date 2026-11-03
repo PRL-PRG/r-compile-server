@@ -6,10 +6,11 @@ import static org.prlprg.fir.check.Checker.checkAll;
 import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.WeakHashMap;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
@@ -31,8 +32,13 @@ import org.prlprg.util.Paths;
 public record OptimizedFirQuery(Optimization optimization) implements GenFirQuery {
   /// The feedback each module this computed was optimized with, which is also what its unevaluated
   /// versions are optimized with when they're evaluated.
+  ///
+  /// Only for the modules of the last example, because tests use one example at a time. A weak map
+  /// doesn't free anything, because each feedback refers to its module.
   private static final Map<Module, MockModuleFeedback> FEEDBACKS =
-      Collections.synchronizedMap(new WeakHashMap<>());
+      Collections.synchronizedMap(new HashMap<>());
+
+  private static @Nullable Example feedbacksExample = null;
 
   /// The feedback `module`, which this query computed, is optimized with.
   ///
@@ -157,7 +163,13 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
       System.err.println("Using MOCK feedback");
     }
 
-    FEEDBACKS.put(module, feedback);
+    synchronized (FEEDBACKS) {
+      if (!example.equals(feedbacksExample)) {
+        FEEDBACKS.clear();
+        feedbacksExample = example;
+      }
+      FEEDBACKS.put(module, feedback);
+    }
     return module;
   }
 
