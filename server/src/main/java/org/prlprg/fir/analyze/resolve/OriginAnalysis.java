@@ -1242,16 +1242,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // - `null` = 0 possibilities
       // - `Optional.empty()` = infinite possibilities
       // - `Optional.of(arg)` = 1 possibility, `arg`
-      for (var entry : registerOrigins.entrySet()) {
-        var variable = entry.getKey();
-        var origin = entry.getValue();
-        var otherOrigin = other.registerOrigins.remove(variable);
-        //noinspection OptionalAssignedToNull
-        if (otherOrigin != null && !origin.equals(otherOrigin)) {
-          entry.setValue(Optional.empty());
-        }
-      }
-      registerOrigins.putAll(other.registerOrigins);
+      other.registerOrigins.forEach(
+          (register, otherOrigin) ->
+              registerOrigins.merge(
+                  register, otherOrigin, (a, b) -> a.equals(b) ? a : Optional.empty()));
 
       var canonical = canonicalPromises();
 
