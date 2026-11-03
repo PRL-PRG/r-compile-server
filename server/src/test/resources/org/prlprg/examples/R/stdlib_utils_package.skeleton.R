@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("no R objects specified or available")
 `package.skeleton` <- function (name = "anRpackage", list = character(), environment = .GlobalEnv, 
     path = ".", force = FALSE, code_files = character(), encoding = "unknown") 
 {

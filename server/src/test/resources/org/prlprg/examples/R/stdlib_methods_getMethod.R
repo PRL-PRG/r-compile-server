@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("must supply a function skeleton")
 `getMethod` <- function (f, signature = character(), where = topenv(parent.frame()), 
     optional = FALSE, mlist, fdef) 
 {

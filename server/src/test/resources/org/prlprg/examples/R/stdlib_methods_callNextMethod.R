@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("must supply a function skeleton")
 `callNextMethod` <- function (...) 
 {
     method <- nextMethod <- NULL
