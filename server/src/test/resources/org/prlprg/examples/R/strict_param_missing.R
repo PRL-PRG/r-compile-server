@@ -1,7 +1,6 @@
-# `f` forces `n` first, so `g` can pass `i - 1` to a strict version of `f`, which wraps the value
-# back into a promise. `missing` and the base closure `isTRUE` (whose builtin calls take the symbol
-# `x`, so GNU-R checks it for missingness) read that promise's expression. The warmup skips
-# `isTRUE`, which the FIŘ interpreter can't call.
+# `f` forces `n` first, so `g` passes `i - 1` to `f` strictly (by value). `missing(n)` and the base
+# closure `isTRUE` then read the parameter. The warmup skips `isTRUE`, which the FIŘ interpreter
+# can't call. (`value_promise_missing.fir` tests the wrapper promise that `StrictifyPromise` makes.)
 f <- function(n, test) {
   m <- n * 2
   if (test) c(missing(n), isTRUE(n), m) else c(missing(n), m)
