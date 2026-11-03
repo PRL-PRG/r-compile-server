@@ -527,6 +527,9 @@ public class BCCompiler {
                       // >> break() and next() calls
                       compile(fun),
                   () -> compileCallExprFun(call, fun, args));
+      // E.g. a closure, as in `as.call(list(f, x))`: GNU-R's `cmpCall` compiles any non-symbol
+      // function like a call.
+      default -> compileCallExprFun(call, call.fun(), args);
     }
 
     cb.setCurrentLoc(loc);
@@ -540,7 +543,7 @@ public class BCCompiler {
     tailCallReturn();
   }
 
-  private void compileCallExprFun(LangSXP call, LangSXP fun, ListSXP args) {
+  private void compileCallExprFun(LangSXP call, SEXP fun, ListSXP args) {
     usingCtx(ctx.nonTailContext(), () -> compile(fun));
     cb.addInstr(new CheckFun());
     compileArgs(args, false);

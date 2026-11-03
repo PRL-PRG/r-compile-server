@@ -33,6 +33,7 @@ import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.SymOrLangSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
@@ -139,7 +140,11 @@ public class SEXPPrintContext {
     handleDepth(
         p,
         () -> {
-          if (sexp.hasAttributes() || options.printDelimited()) {
+          // A call of a function that isn't a symbol or call (e.g. `<clo ...>(x)`) is delimited
+          // too, so the parser knows a delimited SEXP starts a call.
+          if (sexp.hasAttributes()
+              || options.printDelimited()
+              || !(sexp.fun() instanceof SymOrLangSXP)) {
             printGeneralStart(sexp.type(), p);
             runNotDelimited(
                 () -> {

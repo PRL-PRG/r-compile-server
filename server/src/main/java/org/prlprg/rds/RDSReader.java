@@ -467,16 +467,12 @@ public class RDSReader implements Closeable {
       ListSXP ansList = (ListSXP) ans;
 
       var fun = ansList.get(0).value();
-      if (!(fun instanceof SymOrLangSXP funSymOrLang)) {
-        throw new RDSException("Expected symbol or language, got: " + fun.type());
-      }
-
       ListSXP args = SEXPs.NULL;
       if (ansList.size() > 1) {
         args = ansList.fromIndex(1);
       }
 
-      ans = SEXPs.lang(funSymOrLang, args, attributes);
+      ans = SEXPs.lang(fun, args, attributes);
     }
 
     if (pos >= 0) {
@@ -507,10 +503,7 @@ public class RDSReader implements Closeable {
     // any tag that might be present.
     readTag(flags);
 
-    var x = readItem();
-    if (!(x instanceof SymOrLangSXP fun)) {
-      throw new RDSException("Expected symbol or language");
-    }
+    var fun = readItem();
     // The arguments' first cell can be a LANGSXP: R parses `lhs |> f(args)` into
     // `lcons(f, lcons(lhs, args))`.
     var argsFlags = readFlags();

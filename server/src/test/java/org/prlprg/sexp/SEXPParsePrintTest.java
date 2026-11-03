@@ -111,6 +111,10 @@ public class SEXPParsePrintTest {
     assertRoundTrip("<lang foo()>", true);
     assertRoundTrip("<lang `+`(1, 2)>", true);
     assertRoundTrip("<lang {\n  hello(\"world\");\n  foo(bar(baz))\n}>", true);
+
+    // A function that isn't a symbol or call is always delimited.
+    assertRoundTrip("<lang <builtin sum>(1, 2)>");
+    assertRoundTrip("<lang <builtin sum>()>", true);
   }
 
   @Test

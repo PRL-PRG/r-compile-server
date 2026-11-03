@@ -448,6 +448,15 @@ public class RDSWriterTest {
   }
 
   @Test
+  public void testCallOfClosure_withR() {
+    var R = GNUR.instance();
+
+    var call = R.eval("as.call(list(function(x) x + 1, 1))");
+    var output = R.eval("is.function(input[[1]]) && identical(eval(input), 2)", call);
+    assertEquals(SEXPs.TRUE, output);
+  }
+
+  @Test
   public void testS4_withR() {
     var R = GNUR.instance();
 

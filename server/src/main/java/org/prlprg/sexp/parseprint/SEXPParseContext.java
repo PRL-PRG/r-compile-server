@@ -466,9 +466,17 @@ public class SEXPParseContext {
 
   @ParseMethod
   private SymOrLangSXP parseSymOrLangSXP(Parser p) {
-    return p.scanner().nextCharIs('{')
-        ? parseBlockLangSXP(p)
-        : finishParsingSymOrNotBlockLangSXP(SEXPs.symbol(Names.read(p.scanner(), true)), p);
+    var s = p.scanner();
+    if (s.nextCharIs('{')) {
+      return parseBlockLangSXP(p);
+    } else if (s.nextCharIs('<')) {
+      // A call of a function that isn't a symbol or call, e.g. `<clo ...>(x)`.
+      var fun = p.parse(SEXP.class);
+      s.assertAndSkip('(');
+      return finishParsingSymOrNotBlockLangSXP(SEXPs.lang(fun, parseCallArgs(p)), p);
+    } else {
+      return finishParsingSymOrNotBlockLangSXP(SEXPs.symbol(Names.read(s, true)), p);
+    }
   }
 
   @ParseMethod
@@ -501,20 +509,25 @@ public class SEXPParseContext {
     var s = p.scanner();
 
     while (s.trySkip('(')) {
-      var args = new ArrayList<TaggedElem>();
-      if (!s.trySkip(')')) {
-        while (true) {
-          var arg = p.parse(TaggedElem.class);
-          args.add(arg);
-          if (s.trySkip(')')) {
-            break;
-          }
-          s.assertAndSkip(',');
-        }
-      }
-      result = SEXPs.lang(result, SEXPs.list(args));
+      result = SEXPs.lang(result, parseCallArgs(p));
     }
     return result;
+  }
+
+  /// Parse a call's arguments, after the opening parenthesis.
+  private ListSXP parseCallArgs(Parser p) {
+    var s = p.scanner();
+    var args = new ArrayList<TaggedElem>();
+    if (!s.trySkip(')')) {
+      while (true) {
+        args.add(p.parse(TaggedElem.class));
+        if (s.trySkip(')')) {
+          break;
+        }
+        s.assertAndSkip(',');
+      }
+    }
+    return SEXPs.list(args);
   }
 
   /**

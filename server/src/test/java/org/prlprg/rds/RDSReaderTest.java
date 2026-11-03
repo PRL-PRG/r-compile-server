@@ -233,6 +233,16 @@ public class RDSReaderTest {
     assertEquals(SEXPs.string("DLLInfoReference"), sexp.attributes().get("class"));
   }
 
+  /// A call's function can be any SEXP, e.g. a closure (as in an S4 generic's `skeleton`).
+  @Test
+  public void testCallOfClosure() {
+    var R = GNUR.instance();
+
+    var sexp = R.eval("as.call(list(function(x) x, 1))");
+    assertThat(sexp).isInstanceOf(LangSXP.class);
+    assertThat(((LangSXP) sexp).fun()).isInstanceOf(CloSXP.class);
+  }
+
   /// A non-vector S4 object keeps its slots.
   @Test
   public void testS4() {

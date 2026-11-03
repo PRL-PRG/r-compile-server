@@ -432,31 +432,31 @@ public final class SEXPs {
         parameters, body, environment, attributes == null ? Attributes.NONE : attributes);
   }
 
-  public static LangSXP lang(SymOrLangSXP fun) {
+  public static LangSXP lang(SEXP fun) {
     return lang(fun, NULL);
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, SEXP... args) {
+  public static LangSXP lang(SEXP fun, SEXP... args) {
     return lang(fun, list(args));
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, TaggedElem... args) {
+  public static LangSXP lang(SEXP fun, TaggedElem... args) {
     return lang(fun, list(args));
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, List<TaggedElem> args) {
+  public static LangSXP lang(SEXP fun, List<TaggedElem> args) {
     return lang(fun, list(args));
   }
 
-  public static LangSXP lang1(SymOrLangSXP fun, List<SEXP> args) {
+  public static LangSXP lang1(SEXP fun, List<SEXP> args) {
     return lang(fun, list1(args));
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, ListSXP args) {
+  public static LangSXP lang(SEXP fun, ListSXP args) {
     return lang(fun, args, Attributes.NONE);
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, ListSXP args, Attributes attributes) {
+  public static LangSXP lang(SEXP fun, ListSXP args, Attributes attributes) {
     return new LangSXPImpl(fun, args, attributes);
   }
 
