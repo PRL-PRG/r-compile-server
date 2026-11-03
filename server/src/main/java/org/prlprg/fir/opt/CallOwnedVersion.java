@@ -42,7 +42,8 @@ public final class CallOwnedVersion extends AbstractionOptimization {
   }
 
   private boolean run(Abstraction scope, Statement statement) {
-    if (!(statement.expression() instanceof Call(StaticFnCallee callee))) {
+    if (!(statement.expression() instanceof Call(StaticFnCallee callee))
+        || callee.function().userProperties().needsContext()) {
       return false;
     }
     var calleeFun = callee.function();

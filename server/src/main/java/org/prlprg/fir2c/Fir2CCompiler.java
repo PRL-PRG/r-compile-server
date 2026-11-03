@@ -816,12 +816,13 @@ public final class Fir2CCompiler {
       cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_FunctionData));");
       cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
       cCode.stmt(
-          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .dispatch_impl = %s, .from_r = %s, .formal_names = %s};",
+          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .dispatch_impl = %s, .from_r = %s, .formal_names = %s, .needs_context = %s};",
           functionName,
           function.canDispatch() ? functionDispatchCName(function) : "NULL",
           function.canDispatch() ? dispatchImplCName(function, entries) : "NULL",
           function.canDispatch() ? fromRImplCName(function, entries) : "NULL",
-          formalNames);
+          formalNames,
+          function.userProperties().needsContext());
       cCode.stmt("Fir_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
     }
 
@@ -887,15 +888,7 @@ public final class Fir2CCompiler {
       int numParams = function.parameterNames().size();
       var versions =
           function.versions().stream()
-              .filter(
-                  v ->
-                      v.parameters().size() == numParams
-                          && v.parameters().stream()
-                              .allMatch(
-                                  p ->
-                                      p.type().kind().repr() == Repr.SEXP
-                                          && p.type().ownership() == Ownership.SHARED)
-                          && v.signature().returnType().kind().repr() == Repr.SEXP)
+              .filter(v -> v.parameters().size() == numParams && isFromRSignature(v.signature()))
               .toList();
 
       CCode cCode;
@@ -2028,6 +2021,8 @@ public final class Fir2CCompiler {
                 } else if (calleeModule == BUILTINS
                     && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
                   yield emitBuiltinCall(callArgs, calleeFun);
+                } else if (calleeFun.userProperties().needsContext()) {
+                  yield emitInContextCall(call, closureOrCalleeArg, callArgs, calleeFun);
                 }
 
                 if (isDispatch) {
@@ -2126,6 +2121,35 @@ public final class Fir2CCompiler {
             };
           }
 
+          /// A call of a `@needsContext` function goes through `Rf_applyClosure` (which
+          /// `Fir_call_dynamic` does for such a callee), so it runs in a closure context. Its
+          /// from-R entry then selects the version, so the call must be one a call from R can
+          /// make.
+          private String emitInContextCall(
+              Call call, Argument closure, List<Argument> callArgs, Function calleeFun) {
+            if (!(call.callee() instanceof StaticFnCallee(var _, var isDispatch, var signature))
+                || closure.equals(Constant.ELIDED_CLOSURE)
+                || (!isDispatch && !isFromRSignature(signature))) {
+              throw new IllegalArgumentException(
+                  "A call of a function that needs a closure context must have the closure and be a dispatch or a call of a version that GNU-R can call: "
+                      + call);
+            }
+
+            var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
+            var names =
+                emitArray(
+                    "arg_names",
+                    "SEXP",
+                    Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
+            return "Fir_call_dynamic(%s, %s, %d, %s, %s)"
+                .formatted(
+                    emitArgument(closure),
+                    VAR_ENV,
+                    arguments.size(),
+                    arguments.pointer(),
+                    names.pointer());
+          }
+
           private String emitBuiltinCall(List<Argument> callArgs, Function calleeFun) {
             var builtinIndex = builtinIndex(calleeFun);
 
@@ -2141,7 +2165,8 @@ public final class Fir2CCompiler {
                       + calleeFun);
             }
 
-            return builtinIndex == null
+            // A `@readsContext` builtin's `.Internal` must run in the base closure's frame.
+            return builtinIndex == null || calleeFun.userProperties().readsContext()
                 ? "Fir_call_base(%s, %s, %d, %s, %s)"
                     .formatted(
                         baseSymbolRef(pool, calleeFun),
@@ -2956,6 +2981,14 @@ public final class Fir2CCompiler {
   /// `stopifnot` and `xor` are plain R. Those are base closures with no builtin index, so the
   /// generated code refers to them by symbol ([#baseSymbolRef(ConstantPool, Function)]) and
   /// resolves the base binding at runtime instead.
+  /// Whether a version with `signature` can be called from R (by the from-R entry): it takes and
+  /// returns shared `SEXP`s.
+  private static boolean isFromRSignature(Signature signature) {
+    return signature.parameterTypes().stream()
+            .allMatch(t -> t.kind().repr() == Repr.SEXP && t.ownership() == Ownership.SHARED)
+        && signature.returnType().kind().repr() == Repr.SEXP;
+  }
+
   private @Nullable Integer builtinIndex(Function builtin) {
     var entry = rSession.RFunTab().get(builtin.name().name());
     return entry == null ? null : entry.index();

@@ -3,6 +3,14 @@ package org.prlprg.bc2fir;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
+import org.prlprg.bc.BcInstr.BaseGuard;
+import org.prlprg.bc.BcInstr.CallSpecial;
+import org.prlprg.bc.BcInstr.GetBuiltin;
+import org.prlprg.bc.BcInstr.GetFun;
+import org.prlprg.bc.BcInstr.GetGlobFun;
+import org.prlprg.bc.BcInstr.GetIntlBuiltin;
+import org.prlprg.bc.BcInstr.MakeProm;
+import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
@@ -10,6 +18,9 @@ import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Streams;
 
@@ -84,6 +95,49 @@ public final class BC2FirClosureCompiler {
               cfgCompiler.compileBc();
             });
     function.setFormals(closure.parameters());
+    function
+        .userProperties()
+        .setNeedsContext(
+            needsContext(bc)
+                || closure.parameters().values().stream()
+                    .anyMatch(BC2FirClosureCompiler::needsContext));
     return function;
+  }
+
+  /// Whether the code calls a [GlobalModules#CONTEXT_READERS] function in its own frame: by name
+  /// in its instructions, or in its promises. Inner closures aren't scanned, because they have
+  /// their own frame (and get their own property when compiled).
+  private static boolean needsContext(Bc bc) {
+    var consts = bc.consts();
+    return bc.code().stream()
+        .anyMatch(
+            instr ->
+                switch (instr) {
+                  case GetFun(var name) -> isContextReader(consts.get(name));
+                  case GetGlobFun(var name) -> isContextReader(consts.get(name));
+                  case GetBuiltin(var name) -> isContextReader(consts.get(name));
+                  case GetIntlBuiltin(var name) -> isContextReader(consts.get(name));
+                  case CallSpecial(var ast) -> isContextReader(consts.get(ast).fun());
+                  case BaseGuard(var expr, var _) -> isContextReader(consts.get(expr).fun());
+                  case MakeProm(var code) -> needsContext(consts.get(code));
+                  default -> false;
+                });
+  }
+
+  /// [#needsContext(Bc)] of promise code or a default argument, which is bytecode or an AST.
+  private static boolean needsContext(SEXP code) {
+    return switch (code) {
+      case BCodeSXP bcSxp -> needsContext(bcSxp.bc());
+      case LangSXP call when call.funNameIs("function") -> false;
+      case LangSXP call ->
+          isContextReader(call.fun())
+              || needsContext(call.fun())
+              || call.args().values().stream().anyMatch(BC2FirClosureCompiler::needsContext);
+      default -> false;
+    };
+  }
+
+  private static boolean isContextReader(SEXP fun) {
+    return fun instanceof RegSymSXP sym && GlobalModules.CONTEXT_READERS.contains(sym.name());
   }
 }

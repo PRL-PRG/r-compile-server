@@ -84,7 +84,8 @@ public final class StrictifyPromise extends AbstractionOptimization {
     for (var bb : bbReverseDfsNoDeopts(scope.body())) {
       for (int callIdx = bb.statements().size() - 1; callIdx >= 0; callIdx--) {
         var stmt = bb.statements().get(callIdx);
-        if (!(stmt.expression() instanceof Call(StaticFnCallee callee))) {
+        if (!(stmt.expression() instanceof Call(StaticFnCallee callee))
+            || callee.function().userProperties().needsContext()) {
           continue;
         }
         // Call arguments follow the callee's own argument (index 0).

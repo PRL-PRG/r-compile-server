@@ -1,4 +1,3 @@
-#? [opt.fir2c.opt.eval]crashes("attempted reflection in environment-elided closure")
 f <- function(b) {
   if (b) {
     sys.parent()

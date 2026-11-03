@@ -118,6 +118,9 @@ typedef struct Fir_FunctionData {
   /// Regenerated and replaced like `dispatch_impl`.
   Fir_FromRFn from_r;
   SEXP formal_names;
+  /// Whether a call must run in a closure context for the callee's frame (`@needsContext`), so
+  /// `Fir_call_dynamic` calls it through `Rf_applyClosure`, not `dispatch`.
+  bool needs_context;
 } Fir_FunctionData;
 
 /// The `Fir_FunctionData` of the function whose constant pool is `constants`.

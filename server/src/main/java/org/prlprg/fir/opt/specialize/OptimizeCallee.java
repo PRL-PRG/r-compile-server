@@ -72,6 +72,10 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
       // We can't optimize dynamic calls
       return null;
     }
+    if (callee.function().userProperties().needsContext()) {
+      // The call goes through `Rf_applyClosure`, whose from-R entry selects the version.
+      return null;
+    }
     var calleeFun = callee.function();
     var argumentTypes =
         callArgs.stream().map(scope::typeOf).collect(ImmutableList.toImmutableList());

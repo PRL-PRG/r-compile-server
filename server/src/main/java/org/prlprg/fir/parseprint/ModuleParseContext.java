@@ -167,10 +167,14 @@ public final class ModuleParseContext {
 
       var strict = false;
       var liteSpecial = false;
+      var readsContext = false;
+      var needsContext = false;
       while (s.trySkip('@')) {
         switch (s.readIdentifierOrKeyword()) {
           case "strict" -> strict = true;
           case "liteSpecial" -> liteSpecial = true;
+          case "readsContext" -> readsContext = true;
+          case "needsContext" -> needsContext = true;
           case String unknown -> throw s.fail("unknown user property: @" + unknown);
         }
       }
@@ -201,6 +205,8 @@ public final class ModuleParseContext {
       function.comments().addAll(comments);
       function.userProperties().setStrict(strict);
       function.userProperties().setLiteSpecial(liteSpecial);
+      function.userProperties().setReadsContext(readsContext);
+      function.userProperties().setNeedsContext(needsContext);
 
       s.assertAndSkip('{');
       while (!s.nextCharIs('}')) {

@@ -942,7 +942,7 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) 
       Fir_FunctionData *data = NULL;
       // Currently, we don't fastcase 16+ arguments,
       // because we need some limit to implement the variadic call.
-      if (Fir_is_compiled_closure(callee, &data) && argc < 16) {
+      if (Fir_is_compiled_closure(callee, &data) && argc < 16 && !data->needs_context) {
         // Currently, we don't fastcase mismatched names or dots,
         // because we'd have to re-implement GNU-R's match algorithm.
         bool trivial_match = argc == LENGTH(data->formal_names);

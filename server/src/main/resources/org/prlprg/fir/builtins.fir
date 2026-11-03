@@ -953,3 +953,118 @@ fun `is.symbol`(x) {
 fun c(`...`) {
   (ddd:dots) --> V { ... }
 }
+
+# Functions that read the closure context of their caller (`R_GlobalContext`): a closure that
+# calls one gets `@needsContext` (see `BC2FirClosureCompiler`). The parameters aren't strict,
+# because e.g. `match.arg` reads its argument's expression. `eval`, `evalq`, `local`, and
+# `environment` also read it, but only return a wrong frame without it.
+
+@readsContext
+fun UseMethod(generic, object) {
+  (generic:*, object:*) -+> V { ... }
+}
+
+@readsContext
+fun NextMethod(generic, object, `...`) {
+  (generic:*, object:*, ddd:dots) -+> V { ... }
+}
+
+@readsContext
+fun standardGeneric(f, fdef) {
+  (f:*, fdef:*) -+> V { ... }
+}
+
+@readsContext
+fun Recall(`...`) {
+  (ddd:dots) -+> V { ... }
+}
+
+@readsContext
+fun Tailcall(FUN, `...`) {
+  (FUN:*, ddd:dots) -+> V { ... }
+}
+
+@readsContext
+fun Exec(expr, envir) {
+  (expr:*, envir:*) -+> V { ... }
+}
+
+@readsContext
+fun `sys.call`(which) {
+  (which:*) -+> V { ... }
+}
+
+@readsContext
+fun `sys.function`(which) {
+  (which:*) -+> V { ... }
+}
+
+@readsContext
+fun `sys.frame`(which) {
+  (which:*) -+> V { ... }
+}
+
+@readsContext
+fun `sys.nframe`() {
+  () -+> V { ... }
+}
+
+@readsContext
+fun `sys.calls`() {
+  () -+> V { ... }
+}
+
+@readsContext
+fun `sys.frames`() {
+  () -+> V { ... }
+}
+
+@readsContext
+fun `sys.parents`() {
+  () -+> V { ... }
+}
+
+@readsContext
+fun `sys.parent`(n) {
+  (n:*) -+> V { ... }
+}
+
+@readsContext
+fun `sys.on.exit`() {
+  () -+> V { ... }
+}
+
+@readsContext
+fun `sys.status`() {
+  () -+> V { ... }
+}
+
+@readsContext
+fun `parent.frame`(n) {
+  (n:*) -+> V { ... }
+}
+
+@readsContext
+fun nargs() {
+  () -+> V { ... }
+}
+
+@readsContext
+fun `on.exit`(expr, add, after) {
+  (expr:*, add:*, after:*) -+> V { ... }
+}
+
+@readsContext
+fun `match.arg`(arg, choices, `several.ok`) {
+  (arg:*, choices:*, severalOk:*) -+> V { ... }
+}
+
+@readsContext
+fun `match.call`(definition, call, `expand.dots`, envir) {
+  (definition:*, call:*, expandDots:*, envir:*) -+> V { ... }
+}
+
+@readsContext
+fun dynGet(x, ifnotfound, minframe, inherits) {
+  (x:*, ifnotfound:*, minframe:*, inherits:*) -+> V { ... }
+}

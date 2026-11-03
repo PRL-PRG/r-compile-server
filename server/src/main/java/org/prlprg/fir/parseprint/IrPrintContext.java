@@ -81,6 +81,12 @@ public final class IrPrintContext {
     if (function.userProperties().liteSpecial()) {
       w.write("@liteSpecial\n");
     }
+    if (function.userProperties().readsContext()) {
+      w.write("@readsContext\n");
+    }
+    if (function.userProperties().needsContext()) {
+      w.write("@needsContext\n");
+    }
 
     w.write("fun ");
     p.print(function.name());

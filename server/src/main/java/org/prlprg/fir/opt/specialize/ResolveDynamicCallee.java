@@ -87,7 +87,12 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
       return Result.UNCHANGED;
     }
     var staticFunction = staticFunctionAndClosureWithEnv.first();
-    var closureWithEnv = staticFunctionAndClosureWithEnv.second();
+    // The call of a function that needs a context goes through `Rf_applyClosure`, which needs the
+    // closure.
+    var closureWithEnv =
+        staticFunction.userProperties().needsContext()
+            ? calleeReg
+            : staticFunctionAndClosureWithEnv.second();
 
     var formalParameters = Lists.mapLazy(staticFunction.parameterNames(), NamedVariable::name);
     var realNames =

@@ -60,7 +60,8 @@ public class Unbox extends AbstractionOptimization {
         for (var stmt : List.copyOf(bb.statements())) {
           var assignee = stmt.assignee();
 
-          if (!(stmt.expression() instanceof Call(StaticFnCallee callee))) {
+          if (!(stmt.expression() instanceof Call(StaticFnCallee callee))
+              || callee.function().userProperties().needsContext()) {
             continue;
           }
 

@@ -1,9 +1,11 @@
 package org.prlprg.fir;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.ir.module.Function;
@@ -95,6 +97,14 @@ public final class GlobalModules {
       Objects.requireNonNull(INTRINSICS.localFunction(Variable.named("box")));
   public static final Function UNBOX_FUN =
       Objects.requireNonNull(INTRINSICS.localFunction(Variable.named("unbox")));
+
+  /// The names of the [#BUILTINS] that read the closure context of their caller
+  /// (`@readsContext`).
+  public static final @Unmodifiable Set<String> CONTEXT_READERS =
+      BUILTINS.localFunctions().stream()
+          .filter(f -> f.userProperties().readsContext())
+          .map(f -> f.name().name())
+          .collect(ImmutableSet.toImmutableSet());
 
   private static @Unmodifiable List<NamedVariable> funTabEntryParamNames(FunTabEntry entry) {
     // The formal names aren't always specified,

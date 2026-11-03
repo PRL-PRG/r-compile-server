@@ -36,6 +36,8 @@ A version may also be *unevaluated*: its body is computed when it's first access
 A function may be preceded by user properties:
 - `@strict`
 - `@liteSpecial` - the function may be called with literal AST arguments, but a non-reflective version takes them evaluated, like a builtin
+- `@readsContext` - the function (a builtin) reads the GNU-R closure context of its caller, e.g. `UseMethod`, `Recall`, `sys.function`, `match.arg`. The compiled code calls it through its base binding (`Fir_call_base`), never its `.Internal` directly
+- `@needsContext` - a call of the function must run inside a GNU-R closure context for the function's own frame. `bc2fir` sets it on a closure whose bytecode names a `@readsContext` function. FIŘ→C calls such a function through `Rf_applyClosure` (from every call shape: `dyn`, dispatch, and static), so the optimizer doesn't retarget its calls, and a static call of a version that a call from R can't select (an unboxed or owned parameter or return) is a compile error
 
 ### Function Signatures (`sig`)
 

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 
@@ -372,6 +373,47 @@ class Fir2CCompilerTest {
     assertNull(
         Fir2CCompiler.compileStub(session, copyStub).patch(),
         "the copy's stub was replaced before, so there's nothing to do for it");
+  }
+
+  /// `main` calls `f`, which needs a closure context, at `signature`.
+  private static String compileNeedsContextCall(String signature) {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                c: cls = clos f;
+                r: V = f@c<%s>(<int 1>);
+                return r;
+              }
+            }
+
+            @needsContext
+            fun f(x) {
+              (x:*) -+> V {
+                v: V = force? x;
+                return v;
+              }
+              (x:I) --> I {
+                return x;
+              }
+            }
+            """
+                .formatted(signature));
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    return Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+  }
+
+  @Test
+  void needsContextCallGoesThroughApplyClosure() {
+    var code = compileNeedsContextCall("* -+> V");
+    assertTrue(code.contains("Fir_call_dynamic(r_c, "), code);
+    assertTrue(code.contains(".needs_context = true"), code);
+  }
+
+  @Test
+  void needsContextCallOfUnboxedVersionThrows() {
+    assertThrows(IllegalArgumentException.class, () -> compileNeedsContextCall("I --> I"));
   }
 
   private static String compileMainToC() {
