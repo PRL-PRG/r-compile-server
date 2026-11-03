@@ -18,6 +18,7 @@ import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.primitive.RMath;
 import org.prlprg.sexp.BuiltinOrSpecialSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ComplexSXP;
@@ -93,7 +94,7 @@ public final class Builtins {
 
     // Binary math operators, to real
     registerBinaryMathToRealBuiltin(interpreter, "/", (a, b) -> a / b);
-    registerBinaryMathToRealBuiltin(interpreter, "^", Math::pow);
+    registerBinaryMathToRealBuiltin(interpreter, "^", RMath::pow);
 
     // Comparison operators
     registerBinaryComparisonBuiltin(interpreter, "<", (a, b) -> a < b, true);
@@ -343,7 +344,7 @@ public final class Builtins {
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
-              return new Value.Int((int) fn.applyAsDouble(a, b));
+              return new Value.Int(intArith(fn, a, b));
             }));
     // Scalar binary: (R, R) --> R
     interpreter.registerExternal(
@@ -361,7 +362,7 @@ public final class Builtins {
         sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var a = ((Value.Int) args.getFirst()).value();
+              var a = RMath.fromInt(((Value.Int) args.getFirst()).value());
               var b = ((Value.Real) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
@@ -372,7 +373,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
-              var b = ((Value.Int) args.get(1)).value();
+              var b = RMath.fromInt(((Value.Int) args.get(1)).value());
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
 
@@ -382,10 +383,8 @@ public final class Builtins {
           name,
           sig(Type.INTEGER, Effects.NONE, Type.INTEGER, Type.MISSING),
           ExternalVersion.strict(
-              (_, _, args, _) -> {
-                var a = ((Value.Int) args.getFirst()).value();
-                return new Value.Int((int) unaryFn.applyAsDouble(a));
-              }));
+              (_, _, args, _) ->
+                  new Value.Int(intArith1(unaryFn, ((Value.Int) args.getFirst()).value()))));
       interpreter.registerExternal(
           name,
           sig(Type.REAL, Effects.NONE, Type.REAL, Type.MISSING),
@@ -402,14 +401,15 @@ public final class Builtins {
       SEXP s1, SEXP s2, DoubleBinaryOperator fn, InternalInterpreter interpreter, String ctx) {
     // Try scalar first
     if (s1.asScalarInteger().isPresent() && s2.asScalarInteger().isPresent()) {
-      return SEXPs.integer(
-          (int) fn.applyAsDouble(s1.asScalarInteger().get(), s2.asScalarInteger().get()));
+      return SEXPs.integer(intArith(fn, s1.asScalarInteger().get(), s2.asScalarInteger().get()));
     } else if (s1.asScalarReal().isPresent() && s2.asScalarReal().isPresent()) {
       return SEXPs.real(fn.applyAsDouble(s1.asScalarReal().get(), s2.asScalarReal().get()));
     } else if (s1.asScalarInteger().isPresent() && s2.asScalarReal().isPresent()) {
-      return SEXPs.real(fn.applyAsDouble(s1.asScalarInteger().get(), s2.asScalarReal().get()));
+      return SEXPs.real(
+          fn.applyAsDouble(RMath.fromInt(s1.asScalarInteger().get()), s2.asScalarReal().get()));
     } else if (s1.asScalarReal().isPresent() && s2.asScalarInteger().isPresent()) {
-      return SEXPs.real(fn.applyAsDouble(s1.asScalarReal().get(), s2.asScalarInteger().get()));
+      return SEXPs.real(
+          fn.applyAsDouble(s1.asScalarReal().get(), RMath.fromInt(s2.asScalarInteger().get())));
     }
     // Vector operations
     switch (s1) {
@@ -417,12 +417,7 @@ public final class Builtins {
         int len = Math.max(i1.size(), i2.size());
         return SEXPs.integer(
             IntStream.range(0, len)
-                .map(
-                    i ->
-                        i1.get(i % i1.size()) == Constants.NA_INT
-                                || i2.get(i % i2.size()) == Constants.NA_INT
-                            ? Constants.NA_INT
-                            : (int) fn.applyAsDouble(i1.get(i % i1.size()), i2.get(i % i2.size())))
+                .map(i -> intArith(fn, i1.get(i % i1.size()), i2.get(i % i2.size())))
                 .toArray());
       }
       case RealSXP r1 when s2 instanceof RealSXP r2 -> {
@@ -437,12 +432,7 @@ public final class Builtins {
         return SEXPs.integer(
             IntStream.range(0, len)
                 .map(
-                    i ->
-                        l1.get(i % l1.size()) == Logical.NA || l2.get(i % l2.size()) == Logical.NA
-                            ? Constants.NA_INT
-                            : (int)
-                                fn.applyAsDouble(
-                                    l1.get(i % l1.size()).toInt(), l2.get(i % l2.size()).toInt()))
+                    i -> intArith(fn, l1.get(i % l1.size()).toInt(), l2.get(i % l2.size()).toInt()))
                 .toArray());
       }
       case IntSXP i1 when s2 instanceof RealSXP r2 -> {
@@ -451,23 +441,15 @@ public final class Builtins {
             IntStream.range(0, len)
                 .mapToDouble(
                     i ->
-                        i1.get(i % i1.size()) == Constants.NA_INT
-                            ? Double.NaN
-                            : fn.applyAsDouble(i1.get(i % i1.size()), r2.get(i % r2.size())))
+                        fn.applyAsDouble(
+                            RMath.fromInt(i1.get(i % i1.size())), r2.get(i % r2.size())))
                 .toArray());
       }
       case IntSXP i1 when s2 instanceof LglSXP l2 -> {
         int len = Math.max(i1.size(), l2.size());
         return SEXPs.integer(
             IntStream.range(0, len)
-                .map(
-                    i ->
-                        i1.get(i % i1.size()) == Constants.NA_INT
-                                || l2.get(i % l2.size()) == Logical.NA
-                            ? Constants.NA_INT
-                            : (int)
-                                fn.applyAsDouble(
-                                    i1.get(i % i1.size()), l2.get(i % l2.size()).toInt()))
+                .map(i -> intArith(fn, i1.get(i % i1.size()), l2.get(i % l2.size()).toInt()))
                 .toArray());
       }
       case RealSXP r1 when s2 instanceof IntSXP i2 -> {
@@ -476,9 +458,8 @@ public final class Builtins {
             IntStream.range(0, len)
                 .mapToDouble(
                     i ->
-                        i2.get(i % i2.size()) == Constants.NA_INT
-                            ? Double.NaN
-                            : fn.applyAsDouble(r1.get(i % r1.size()), i2.get(i % i2.size())))
+                        fn.applyAsDouble(
+                            r1.get(i % r1.size()), RMath.fromInt(i2.get(i % i2.size()))))
                 .toArray());
       }
       case RealSXP r1 when s2 instanceof LglSXP l2 -> {
@@ -487,24 +468,15 @@ public final class Builtins {
             IntStream.range(0, len)
                 .mapToDouble(
                     i ->
-                        l2.get(i % l2.size()) == Logical.NA
-                            ? Double.NaN
-                            : fn.applyAsDouble(
-                                r1.get(i % r1.size()), l2.get(i % l2.size()).toInt()))
+                        fn.applyAsDouble(
+                            r1.get(i % r1.size()), RMath.fromInt(l2.get(i % l2.size()).toInt())))
                 .toArray());
       }
       case LglSXP l1 when s2 instanceof IntSXP i2 -> {
         int len = Math.max(l1.size(), i2.size());
         return SEXPs.integer(
             IntStream.range(0, len)
-                .map(
-                    i ->
-                        l1.get(i % l1.size()) == Logical.NA
-                                || i2.get(i % i2.size()) == Constants.NA_INT
-                            ? Constants.NA_INT
-                            : (int)
-                                fn.applyAsDouble(
-                                    l1.get(i % l1.size()).toInt(), i2.get(i % i2.size())))
+                .map(i -> intArith(fn, l1.get(i % l1.size()).toInt(), i2.get(i % i2.size())))
                 .toArray());
       }
       case LglSXP l1 when s2 instanceof RealSXP r2 -> {
@@ -513,10 +485,8 @@ public final class Builtins {
             IntStream.range(0, len)
                 .mapToDouble(
                     i ->
-                        l1.get(i % l1.size()) == Logical.NA || r2.get(i % r2.size()).isNaN()
-                            ? Double.NaN
-                            : fn.applyAsDouble(
-                                l1.get(i % l1.size()).toInt(), r2.get(i % r2.size())))
+                        fn.applyAsDouble(
+                            RMath.fromInt(l1.get(i % l1.size()).toInt()), r2.get(i % r2.size())))
                 .toArray());
       }
       default -> {}
@@ -529,21 +499,14 @@ public final class Builtins {
       SEXP s, DoubleUnaryOperator fn, InternalInterpreter interpreter, String ctx) {
     // Try scalar first
     if (s.asScalarInteger().isPresent()) {
-      return SEXPs.integer((int) fn.applyAsDouble(s.asScalarInteger().get()));
+      return SEXPs.integer(intArith1(fn, s.asScalarInteger().get()));
     } else if (s.asScalarReal().isPresent()) {
       return SEXPs.real(fn.applyAsDouble(s.asScalarReal().get()));
     }
     // Vector operations
     return switch (s) {
       case IntSXP iv ->
-          SEXPs.integer(
-              IntStream.range(0, iv.size())
-                  .map(
-                      i ->
-                          iv.get(i) == Constants.NA_INT
-                              ? Constants.NA_INT
-                              : (int) fn.applyAsDouble(iv.get(i)))
-                  .toArray());
+          SEXPs.integer(IntStream.range(0, iv.size()).map(i -> intArith1(fn, iv.get(i))).toArray());
       case RealSXP rv ->
           SEXPs.real(
               IntStream.range(0, rv.size())
@@ -551,14 +514,27 @@ public final class Builtins {
                   .toArray());
       case LglSXP lv ->
           SEXPs.integer(
-              IntStream.range(0, lv.size())
-                  .map(i -> lv.get(i) == Logical.NA ? Constants.NA_INT : lv.get(i).toInt())
-                  .map(j -> (int) fn.applyAsDouble(j))
-                  .toArray());
+              IntStream.range(0, lv.size()).map(i -> intArith1(fn, lv.get(i).toInt())).toArray());
       default ->
           throw interpreter.failUnsupported(
               "`" + ctx + "` unary requires a logical or numeric arg");
     };
+  }
+
+  /// GNU-R's integer arithmetic: `NA` if an argument is `NA` or the result doesn't fit.
+  private static int intArith(DoubleBinaryOperator fn, int a, int b) {
+    return a == Constants.NA_INT || b == Constants.NA_INT
+        ? Constants.NA_INT
+        : intResult(fn.applyAsDouble(a, b));
+  }
+
+  /// [#intArith(DoubleBinaryOperator, int, int)] for a unary operation.
+  private static int intArith1(DoubleUnaryOperator fn, int a) {
+    return a == Constants.NA_INT ? Constants.NA_INT : intResult(fn.applyAsDouble(a));
+  }
+
+  private static int intResult(double result) {
+    return Math.abs(result) > Integer.MAX_VALUE ? Constants.NA_INT : (int) result;
   }
 
   private static void registerBinaryMathToRealBuiltin(
@@ -584,8 +560,8 @@ public final class Builtins {
         sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var a = ((Value.Int) args.getFirst()).value();
-              var b = ((Value.Int) args.get(1)).value();
+              var a = RMath.fromInt(((Value.Int) args.getFirst()).value());
+              var b = RMath.fromInt(((Value.Int) args.get(1)).value());
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
     // Scalar: (R, R) --> R
@@ -604,7 +580,7 @@ public final class Builtins {
         sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var a = ((Value.Int) args.getFirst()).value();
+              var a = RMath.fromInt(((Value.Int) args.getFirst()).value());
               var b = ((Value.Real) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
@@ -615,7 +591,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
-              var b = ((Value.Int) args.get(1)).value();
+              var b = RMath.fromInt(((Value.Int) args.get(1)).value());
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
   }
@@ -1874,8 +1850,10 @@ public final class Builtins {
             }));
   }
 
+  /// Registers a function of one number, which keeps `NA` and `NaN` like GNU-R's `math1`.
   private static void registerUnaryMath1ToRealBuiltin(
-      InternalInterpreter interpreter, String name, DoubleUnaryOperator fn) {
+      InternalInterpreter interpreter, String name, DoubleUnaryOperator f) {
+    DoubleUnaryOperator fn = x -> RMath.math1(f, x);
     // Generic: (*) -+> V
     interpreter.registerExternal(
         name,
@@ -1894,7 +1872,8 @@ public final class Builtins {
         sig(Type.REAL, Effects.NONE, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) ->
-                new Value.Real(fn.applyAsDouble(((Value.Int) args.getFirst()).value()))));
+                new Value.Real(
+                    fn.applyAsDouble(RMath.fromInt(((Value.Int) args.getFirst()).value())))));
     // (R) --> R
     interpreter.registerExternal(
         name,
@@ -1912,7 +1891,7 @@ public final class Builtins {
               return new Value.Sexp(
                   SEXPs.real(
                       IntStream.range(0, vec.size())
-                          .mapToDouble(i -> fn.applyAsDouble(vec.get(i)))
+                          .mapToDouble(i -> fn.applyAsDouble(RMath.fromInt(vec.get(i))))
                           .toArray()));
             }));
     // (v(R)) --> v(R)
@@ -1934,6 +1913,11 @@ public final class Builtins {
 
   // region log
 
+  /// `log(x, base)`, which is GNU-R's `math2` of `logbase`.
+  private static double log(double x, double base) {
+    return RMath.math2(RMath::logBase, x, base);
+  }
+
   private static void registerLog(InternalInterpreter interpreter) {
     // Generic: (*, *) -+> V
     interpreter.registerExternal(
@@ -1948,7 +1932,7 @@ public final class Builtins {
               }
               double x = sexpToDouble(s1, interpreter, "log");
               double base = sexpToDouble(s2, interpreter, "log");
-              return new Value.Sexp(SEXPs.real(Math.log(x) / Math.log(base)));
+              return new Value.Sexp(SEXPs.real(log(x, base)));
             }));
     // (I, R) --> R
     interpreter.registerExternal(
@@ -1956,9 +1940,9 @@ public final class Builtins {
         sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              double x = ((Value.Int) args.getFirst()).value();
-              double base = ((Value.Real) args.get(1)).value();
-              return new Value.Real(Math.log(x) / Math.log(base));
+              var x = RMath.fromInt(((Value.Int) args.getFirst()).value());
+              var base = ((Value.Real) args.get(1)).value();
+              return new Value.Real(log(x, base));
             }));
     // (R, R) --> R
     interpreter.registerExternal(
@@ -1966,9 +1950,9 @@ public final class Builtins {
         sig(Type.REAL, Effects.NONE, Type.REAL, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              double x = ((Value.Real) args.getFirst()).value();
-              double base = ((Value.Real) args.get(1)).value();
-              return new Value.Real(Math.log(x) / Math.log(base));
+              var x = ((Value.Real) args.getFirst()).value();
+              var base = ((Value.Real) args.get(1)).value();
+              return new Value.Real(log(x, base));
             }));
     // (v(I), v(R)) --> v(R)
     interpreter.registerExternal(
@@ -1987,8 +1971,7 @@ public final class Builtins {
                   SEXPs.real(
                       IntStream.range(0, len)
                           .mapToDouble(
-                              i ->
-                                  Math.log(xv.get(i % xv.size())) / Math.log(bv.get(i % bv.size())))
+                              i -> log(RMath.fromInt(xv.get(i % xv.size())), bv.get(i % bv.size())))
                           .toArray()));
             }));
     // (v(R), v(R)) --> v(R)
@@ -2007,9 +1990,7 @@ public final class Builtins {
               return new Value.Sexp(
                   SEXPs.real(
                       IntStream.range(0, len)
-                          .mapToDouble(
-                              i ->
-                                  Math.log(xv.get(i % xv.size())) / Math.log(bv.get(i % bv.size())))
+                          .mapToDouble(i -> log(xv.get(i % xv.size()), bv.get(i % bv.size())))
                           .toArray()));
             }));
   }
@@ -2617,10 +2598,10 @@ public final class Builtins {
         for (var te : dots) {
           switch (te.value()) {
             case LglSXP l -> {
-              for (int i = 0; i < l.size(); i++) res[idx++] = l.get(i).toInt();
+              for (int i = 0; i < l.size(); i++) res[idx++] = RMath.fromInt(l.get(i).toInt());
             }
             case IntSXP iv -> {
-              for (int i = 0; i < iv.size(); i++) res[idx++] = iv.get(i);
+              for (int i = 0; i < iv.size(); i++) res[idx++] = RMath.fromInt(iv.get(i));
             }
             case RealSXP rv -> {
               for (int i = 0; i < rv.size(); i++) res[idx++] = rv.get(i);
@@ -2637,13 +2618,18 @@ public final class Builtins {
         for (var te : dots) {
           switch (te.value()) {
             case LglSXP l -> {
-              for (int i = 0; i < l.size(); i++) res[idx++] = l.get(i).toString();
+              for (int i = 0; i < l.size(); i++)
+                res[idx++] = l.get(i) == Logical.NA ? Constants.NA_STRING : l.get(i).toString();
             }
             case IntSXP iv -> {
-              for (int i = 0; i < iv.size(); i++) res[idx++] = String.valueOf(iv.get(i));
+              for (int i = 0; i < iv.size(); i++)
+                res[idx++] =
+                    iv.get(i) == Constants.NA_INT ? Constants.NA_STRING : String.valueOf(iv.get(i));
             }
             case RealSXP rv -> {
-              for (int i = 0; i < rv.size(); i++) res[idx++] = String.valueOf(rv.get(i));
+              for (int i = 0; i < rv.size(); i++)
+                res[idx++] =
+                    Constants.isNaReal(rv.get(i)) ? Constants.NA_STRING : String.valueOf(rv.get(i));
             }
             case StrSXP sv -> {
               for (int i = 0; i < sv.size(); i++) res[idx++] = sv.get(i);
@@ -2928,22 +2914,18 @@ public final class Builtins {
   }
 
   private static double sexpToDouble(SEXP sexp, InternalInterpreter interpreter, String ctx) {
-    if (sexp.asScalarInteger().isPresent())
-      return sexp.asScalarInteger().get() == Constants.NA_INT
-          ? Double.NaN
-          : sexp.asScalarInteger().get();
+    if (sexp.asScalarInteger().isPresent()) return RMath.fromInt(sexp.asScalarInteger().get());
     if (sexp.asScalarReal().isPresent()) return sexp.asScalarReal().get();
-    if (sexp.asScalarLogical().isPresent()) return sexp.asScalarLogical().get().toInt();
+    if (sexp.asScalarLogical().isPresent())
+      return RMath.fromInt(sexp.asScalarLogical().get().toInt());
     throw interpreter.failUnsupported("Mock " + ctx + " only implemented for a numeric scalar");
   }
 
   private static @Nullable Double sexpToDoubleOpt(SEXP sexp) {
     if (sexp.asScalarReal().isPresent()) return sexp.asScalarReal().get();
-    if (sexp.asScalarInteger().isPresent())
-      return sexp.asScalarInteger().get() == Constants.NA_INT
-          ? Double.NaN
-          : (double) sexp.asScalarInteger().get();
-    if (sexp.asScalarLogical().isPresent()) return (double) sexp.asScalarLogical().get().toInt();
+    if (sexp.asScalarInteger().isPresent()) return RMath.fromInt(sexp.asScalarInteger().get());
+    if (sexp.asScalarLogical().isPresent())
+      return RMath.fromInt(sexp.asScalarLogical().get().toInt());
     return null;
   }
 

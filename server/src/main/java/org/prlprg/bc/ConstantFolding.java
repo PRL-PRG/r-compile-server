@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
+import org.prlprg.primitive.RMath;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Arithmetic;
 
@@ -28,11 +29,6 @@ import org.prlprg.util.Arithmetic;
  * place without making Compiler too big.
  */
 public final class ConstantFolding {
-  private static final double LN_2 = Math.log(2);
-
-  /// Enough to scale any subnormal `double` into the normal range.
-  private static final int SUBNORMAL_SHIFT = 54;
-
   /// The longest `rep` result to compute. Longer ones are far too long to be constants anyway.
   private static final int MAX_REP_LENGTH = 1 << 16;
 
@@ -75,24 +71,24 @@ public final class ConstantFolding {
   /// they're as accurate as `log10`/`log2` instead of a ratio of logarithms.
   public static Optional<SEXP> log(List<SEXP> args) {
     return switch (args.size()) {
-      case 1 -> doubleMath1(args, ConstantFolding::rLog);
+      case 1 -> doubleMath1(args, RMath::log);
       case 2 -> {
         if (!(args.get(1) instanceof NumericSXP<?> baseV) || baseV.size() != 1) {
           yield Optional.empty();
         }
         var base = baseV.asReal(0);
-        yield doubleMath1(args.subList(0, 1), x -> logBase(x, base));
+        yield doubleMath1(args.subList(0, 1), x -> RMath.logBase(x, base));
       }
       default -> Optional.empty();
     };
   }
 
   public static Optional<SEXP> log10(List<SEXP> args) {
-    return doubleMath1(args, x -> logBase(x, 10));
+    return doubleMath1(args, x -> RMath.logBase(x, 10));
   }
 
   public static Optional<SEXP> log2(List<SEXP> args) {
-    return doubleMath1(args, x -> logBase(x, 2));
+    return doubleMath1(args, x -> RMath.logBase(x, 2));
   }
 
   public static Optional<SEXP> sin(List<SEXP> args) {
@@ -124,40 +120,6 @@ public final class ConstantFolding {
       ans[i] = i + 1;
     }
     return Optional.of(SEXPs.integer(ans));
-  }
-
-  /// GNU-R's `R_log`: negative arguments are `NaN` (with a warning) and zero is `-Inf`.
-  private static double rLog(double x) {
-    return x > 0 ? Math.log(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
-  }
-
-  /// GNU-R's `logbase`.
-  private static double logBase(double x, double base) {
-    if (base == 10) {
-      return x > 0 ? Math.log10(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
-    }
-    if (base == 2) {
-      return x > 0 ? log2(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
-    }
-    return rLog(x) / rLog(base);
-  }
-
-  /// Base-2 logarithm of a positive number, to the same precision as C's `log2`.
-  ///
-  /// [DoubleMath#log2(double)] is `log(x) / log(2)`, which is off by an ulp for e.g. `10`.
-  /// Splitting off the binary exponent first leaves [Math#log1p] a much smaller argument, and
-  /// makes exact powers of two exact.
-  private static double log2(double x) {
-    var normalized = x;
-    var normalizingExponent = 0;
-    if (Math.getExponent(x) < Double.MIN_EXPONENT) {
-      normalized = Math.scalb(x, SUBNORMAL_SHIFT);
-      normalizingExponent = -SUBNORMAL_SHIFT;
-    }
-
-    var exponent = Math.getExponent(normalized);
-    var mantissa = Math.scalb(normalized, -exponent);
-    return exponent + normalizingExponent + Math.log1p(mantissa - 1) / LN_2;
   }
 
   public static Optional<SEXP> minus(List<SEXP> args) {

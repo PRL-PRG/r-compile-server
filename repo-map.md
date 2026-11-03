@@ -481,6 +481,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `IsTypeCheck.java` — Possible runtime type to be tested by GNU-R `is`.
 - `Logical.java` — R logical: TRUE, FALSE, or NA.
 - `Names.java` — Special symbols, and utilities for symbol string quoting and validating.
+- `RMath.java` — Real arithmetic as GNU-R computes it (`log`, `logbase`, `R_pow`), keeping `NA` and `NaN`.
 
 ### `rds/` — Deserialize (and later serialize) SEXPs.
 
