@@ -100,6 +100,9 @@ class LazyVersionOptimizationTest {
     assertTrue(copy.isEvaluated(), "the callee was evaluated to inline it");
     var printed = Printer.toString(mainVersion(module));
     assertFalse(printed.contains("f<"), "and inlined:\n" + printed);
+    // Like every optimization, `Inline` may leave what only the strict CFG check rejects (here a
+    // phi on the block after the inlined body, which has one predecessor) for `Cleanup`.
+    Cleanup.cleanup(module);
     assertTrue(checkAll(module));
   }
 
