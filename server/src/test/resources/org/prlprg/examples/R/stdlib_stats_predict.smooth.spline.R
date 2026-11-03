@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("'x' and 'y' lengths differ")
 `predict.smooth.spline` <- function (object, x, deriv = 0, ...) 
 {
     if (missing(x)) {

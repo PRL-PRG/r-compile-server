@@ -2,6 +2,7 @@ package org.prlprg.examples;
 
 import java.nio.file.Path;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -20,6 +21,15 @@ public record Example(Path rpath, String text, ExampleOptions options) {
 
   public Path absolutePath() {
     return Paths.getResource(Example.class, type()).resolve(rpath);
+  }
+
+  /// The package of a `#? stdlib` example, or `null` if it isn't one.
+  ///
+  /// A `stdlib_<pkg>_<fn>` example defines a copy of `pkg`'s function `fn`, then runs `fn`'s
+  /// help-page examples. The copy refers to `pkg`'s internals, so its tests evaluate `main` in an
+  /// environment whose parent is `pkg`'s namespace (see `eval.R`).
+  public @Nullable String stdlibPackage() {
+    return hasOption("", "stdlib") ? name().split("_", 3)[1] : null;
   }
 
   public boolean hasOption(String filter, String name) {

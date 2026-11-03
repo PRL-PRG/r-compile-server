@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("invalid multibyte string")
 `validUTF8` <- function (x) 
 .Internal(validUTF8(x))
 

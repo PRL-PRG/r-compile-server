@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("2 < 2 is not TRUE")
 `stopifnot` <- function (..., exprs, exprObject, local = TRUE) 
 {
     n <- ...length()

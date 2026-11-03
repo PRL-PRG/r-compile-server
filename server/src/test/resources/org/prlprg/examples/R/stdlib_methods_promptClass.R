@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("no definition of class")
 `promptClass` <- function (clName, filename = NULL, type = "class", keywords = "classes", 
     where = topenv(parent.frame()), generatorName = clName) 
 {

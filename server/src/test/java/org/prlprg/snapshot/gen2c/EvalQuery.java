@@ -83,14 +83,23 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
                 .session();
 
     var runs = moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
+    var stdlibPackage = example.stdlibPackage();
     var source =
-        "path <- '%s'\nprefix <- '%s'\nfir_port <- %s\nruns <- %dL\nthreshold <- %dL\n%s"
+        """
+        path <- '%s'
+        prefix <- '%s'
+        fir_port <- %s
+        runs <- %dL
+        threshold <- %dL
+        stdlib_pkg <- %s
+        %s"""
             .formatted(
                 modulePath.toAbsolutePath(),
                 session == null ? "" : session.prefix(),
                 server == null ? "NULL" : server.port() + "L",
                 runs,
                 stubThreshold,
+                stdlibPackage == null ? "NULL" : "'" + stdlibPackage + "'",
                 EVAL_DRIVER);
 
     try {

@@ -163,13 +163,14 @@ public class RDSReader implements Closeable {
             case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
             case REFSXP -> readRef(flags);
             case NAMESPACESXP -> readNamespace();
+            case PACKAGESXP -> readPackage();
             case BCREPDEF, BCREPREF ->
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
             case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
             case PERSISTSXP -> readPersist(flags);
             case ALTREPSXP -> readAltRep(flags);
-            case GENERICREFSXP, PACKAGESXP, CLASSREFSXP ->
+            case GENERICREFSXP, CLASSREFSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
@@ -275,6 +276,16 @@ public class RDSReader implements Closeable {
     refTable.add(namespace);
 
     return namespace;
+  }
+
+  /// A package environment (an environment named `package:...`). R reads it as the attached
+  /// package of that name, or the global environment if it can't attach one. A session doesn't know
+  /// what's attached, so this reads it as the global environment.
+  private SEXP readPackage() throws IOException {
+    readStringVec();
+    var env = rsession.globalEnv();
+    refTable.add(env);
+    return env;
   }
 
   // Note that this method is not used to StringSXPs.

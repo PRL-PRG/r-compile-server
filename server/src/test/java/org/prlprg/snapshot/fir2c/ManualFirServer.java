@@ -26,6 +26,10 @@ public final class ManualFirServer {
         "prefix <- '" + org.prlprg.util.Files.readString(path.resolve("id.txt")) + "_'");
     System.out.println("fir_port <- " + server.port() + "L");
     System.out.println("runs <- 3L");
+    var stdlibPackage = example.stdlibPackage();
+    if (stdlibPackage != null) {
+      System.out.println("stdlib_pkg <- '" + stdlibPackage + "'");
+    }
     System.out.flush();
     Thread.sleep(Long.MAX_VALUE);
   }

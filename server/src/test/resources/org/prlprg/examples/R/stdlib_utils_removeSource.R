@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("length(attributes(fn)) > 0 is not TRUE")
 `removeSource` <- function (fn) 
 {
     recurse <- function(part) {

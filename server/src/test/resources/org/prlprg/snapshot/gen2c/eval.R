@@ -8,10 +8,12 @@ if (length(args) > 0) {
 }
 # What `EvalQuery` defines before this (see it): the prefix of the module's C names, the port of
 # the compile server its stubs ask for their versions (`NULL` for a standalone module), how many
-# times to call `main`, and optionally how many calls a stub runs before it requests its version.
+# times to call `main`, the package of a `#? stdlib` example (`NULL` for other examples), and
+# optionally how many calls a stub runs before it requests its version.
 if (!exists("prefix")) prefix <- ""
 if (!exists("fir_port")) fir_port <- NULL
 if (!exists("runs")) runs <- 1L
+if (!exists("stdlib_pkg")) stdlib_pkg <- NULL
 
 # A module with stubs needs the `rsh` package: the runtime (which the module doesn't bring, unlike
 # a standalone one, so that there's one copy) and the connection to the compile server (see
@@ -34,11 +36,21 @@ invisible(try(.Call("Rsh_initialize_runtime"), silent=TRUE))
 # Simulate closure compile from the compile client
 # (BC->C tests name the compiled function `Fir_...`)
 invisible(.Call(paste0("Fir_", prefix, "fun_init_main"), constantPool))
-# Define `main` in `globalenv()` so it doesn't capture the sourcing environment.
+# Define `main` in `globalenv()` so it doesn't capture the sourcing environment. A `#? stdlib`
+# example's copy of a package function refers to the package's internals, so define its `main` in
+# a child of the package's namespace instead. `topenv()` stops at the child, because of its name,
+# so `setClass()` and the like write to it. The methods package records the classes it defines
+# there as ".GlobalEnv"'s.
+main_env <- globalenv()
+if (!is.null(stdlib_pkg)) {
+  main_env <- new.env(parent = asNamespace(stdlib_pkg))
+  attr(main_env, "name") <- paste0("package:stdlib-", stdlib_pkg)
+  assign(".packageName", ".GlobalEnv", main_env)
+}
 main <-
   eval(
     bquote(function() .Call(.(paste0("Fir_", prefix, "fun_from_r_main")), environment(), .(constantPool))),
-    globalenv())
+    main_env)
 
 # Call the compiled closure
 for (i in seq_len(runs)) {

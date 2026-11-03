@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("no applicable method for 'plot'")
 `plot` <- function (x, y, ...) 
 UseMethod("plot")
 

@@ -63,7 +63,8 @@ public sealed interface SexpResult {
   /// Like [#check(Example)], but also finds options filtered to `queryName` (e.g.
   /// `#? [opt.fir2c.opt.eval]crashes` for a crash that only happens in optimized code).
   ///
-  /// `crashes` may have a scalar string argument; if so, the crash message must contain it.
+  /// `crashes` may have a scalar string argument; if so, the crash message must contain it, unless
+  /// the crash is only that something is unsupported.
   default void check(Example example, String queryName) {
     var crashesOption = example.options().get(queryName, "crashes");
     var expectCrash = crashesOption != null;
@@ -72,7 +73,8 @@ public sealed interface SexpResult {
           fail("Expected **crash**, got success.\nReturned: " + value);
       case Error(var message, var isSimplyUnsupported) when !expectCrash && !isSimplyUnsupported ->
           fail("Expected success, got crash.\n" + message);
-      case Error(var message, var _) when expectCrash && !crashesOption.args().isEmpty() -> {
+      case Error(var message, var isSimplyUnsupported)
+          when expectCrash && !isSimplyUnsupported && !crashesOption.args().isEmpty() -> {
         var expectedInMessage =
             crashesOption
                 .expectOneArg()

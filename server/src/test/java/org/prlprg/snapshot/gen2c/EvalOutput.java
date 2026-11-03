@@ -62,9 +62,10 @@ public record EvalOutput(
         .replaceAll("0x...");
   }
 
+  /// The output without echoed input or addresses, which differ between processes.
   public String behaviorOutputLog() {
     return Pattern.compile("(\\n|^)[>*+#?].*$", Pattern.MULTILINE)
-        .matcher(withoutTempFiles())
+        .matcher(outputLogWithoutAddresses())
         .replaceAll("");
   }
 
