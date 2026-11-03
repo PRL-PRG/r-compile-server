@@ -23,11 +23,17 @@ base_env <- as.environment(base_env)
 base_env$pi <- pi
 base_env$T <- T
 base_env$F <- F
+base_env$letters <- letters
 
-# TODO: Fix RDS error in one of the symbols
-# for now we only add globals that we reference
-latest_base_env <- base_env
-latest_base_env$letters <- letters
+# The functions, plus every other base binding (constants like `LETTERS` and `.Machine`) except
+# environments and the session-dependent `.Last.value`.
+latest_base_env <- as.environment(as.list(base_env, all.names = TRUE))
+for (x in basevars) {
+  value <- get(x)
+  if (!is.function(value) && !is.environment(value) && x != ".Last.value") {
+    assign(x, value, latest_base_env)
+  }
+}
 
 cat("saving ", length(basevars), " base variables\n")
 saveRDS(basevars, "basevars.RDS", version = 2)
