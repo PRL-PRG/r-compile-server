@@ -2095,16 +2095,6 @@ public final class Builtins {
               int len = sexp instanceof ListOrVectorSXP<?> v ? v.size() : 1;
               return new Value.Sexp(SEXPs.integer(IntStream.rangeClosed(1, len).toArray()));
             }));
-    // v1: (V) --> I  (returns length, used as loop bound)
-    interpreter.registerExternal(
-        "seq_along",
-        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE_SEXP),
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var sexp = args.getFirst().box();
-              int len = sexp instanceof ListOrVectorSXP<?> v ? v.size() : 1;
-              return new Value.Int(len);
-            }));
   }
 
   private static void registerSeqLen(InternalInterpreter interpreter) {
@@ -2120,15 +2110,10 @@ public final class Builtins {
               int n = sexpToInt(sexp, interpreter, "seq_len");
               return new Value.Sexp(SEXPs.integer(IntStream.rangeClosed(1, n).toArray()));
             }));
-    // v1: (I) --> I
+    // v1: (v1(I)) -~> v(I)
     interpreter.registerExternal(
         "seq_len",
-        sig(Type.INTEGER, Effects.NONE, Type.INTEGER),
-        ExternalVersion.strict((_, _, args, _) -> args.getFirst()));
-    // v2: (v(I)) --> v(I)
-    interpreter.registerExternal(
-        "seq_len",
-        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.SHARED_INTEGER_VECTOR),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.IMPURE, Type.BOXED_INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var vec = (IntSXP) args.getFirst().box();

@@ -533,13 +533,12 @@ fun missing(x) {
 
 fun seq_along(`along.with`) {
   (alongWith:*@!) -+> v(I) { ... }
-  (alongWith:V) --> I { ... }
 }
 
 fun seq_len(`length.out`) {
   (lengthOut:*@!) -+> v(I) { ... }
-  (lengthOut:v(I)) --> v(I) { ... }
-  (lengthOut:I) --> I { ... }
+  # Impure: GNU-R errors on a negative or `NA` length.
+  (lengthOut:v1(I)) -~> v(I) { ... }
 }
 
 fun abs(x) {
