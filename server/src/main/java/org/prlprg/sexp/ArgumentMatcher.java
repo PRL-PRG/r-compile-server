@@ -133,7 +133,7 @@ public class ArgumentMatcher {
         continue;
       }
 
-      if (unmatchedFormals.hasNext()) {
+      if (argName.isEmpty() && unmatchedFormals.hasNext()) {
         var paramName = unmatchedFormals.next();
         arguments.put(paramName, i);
       } else if (dddIndex != -1) {

@@ -62,6 +62,28 @@ class ArgumentMatcherTest {
   }
 
   @Test
+  void positionalMatchingSkipsUnmatchedNamedArguments() {
+    var formals = List.of("bibtype", "textVersion", "...", "key");
+    var actuals = List.of("bibtype", "title", "");
+
+    var results = ArgumentMatcher.matchArgumentNames(formals, actuals);
+
+    assertEquals(Map.of("bibtype", 0, "textVersion", 2), results.arguments());
+    assertEquals(List.of("title"), results.dddNames());
+    assertEquals(List.of(1), results.dddIndices());
+  }
+
+  @Test
+  void unmatchedNamedArgumentWithoutDotsThrows() {
+    var formals = List.of("alpha", "beta");
+    var actuals = List.of("", "gamma");
+
+    assertThrows(
+        ArgumentMatcher.MatchException.class,
+        () -> ArgumentMatcher.matchArgumentNames(formals, actuals));
+  }
+
+  @Test
   void dotsCollectsAllRemainingArguments() {
     var formals = List.of("alpha", "...");
     var actuals = List.of("alpha", "named", "");

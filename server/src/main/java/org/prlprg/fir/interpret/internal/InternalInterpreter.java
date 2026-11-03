@@ -429,7 +429,7 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     if (abstraction.isStub()) {
-      throw failUnsupported("Can't call unregistered stub");
+      throw failUnsupported("Can't call unregistered stub: " + function.name());
     }
 
     var fallback = abstraction.isEvaluated() ? null : abstraction.fallback();
