@@ -156,6 +156,8 @@ public final class Fir2CCompiler {
 
   private static final String VAR_ENV = "env";
   private static final String VAR_DATA = "data";
+  /// The slot of a promise's constant pool that holds its source expression.
+  private static final int PROMISE_EXPR_INDEX = 1;
   private static final String VAR_CAPTURES = "captures";
   private static final String VAR_POOL = "pool";
   private static final String VAR_SIGNATURE = "signature";
@@ -1527,15 +1529,18 @@ public final class Fir2CCompiler {
           cCode.stmt(
               "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s, .escaped = %s};",
               evalCName, valueType, reflect, escaped);
+
+          // The source expression, which `Fir_mk_promise` puts in the promise.
+          var exprIdx =
+              pool.internUnique(promise.expr() != null ? promise.expr() : SEXPs.UNBOUND_VALUE);
+          assert exprIdx == PROMISE_EXPR_INDEX;
         }
 
         private void emitFromR() {
           var cCode = fromRCFunction.add();
           // If the promise escaped its creating frame, record the escape or crash (if local).
           cCode.stmt("Fir_check_promise_escaped(%s);", VAR_DATA);
-          cCode.stmt(
-              "void **captures = ((Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(%s)))->captures;",
-              VAR_DATA);
+          cCode.stmt("void **captures = Fir_prom_local(%s)->captures;", VAR_DATA);
           var evalCName = promiseEvalCName(promise);
           cCode.stmt("return %s(%s, captures);", evalCName, VAR_ENV);
         }
@@ -1800,6 +1805,9 @@ public final class Fir2CCompiler {
                 var env = isStatic ? "R_GlobalEnv" : VAR_ENV;
                 yield "Fir_mk_closure(%s, %s, %s, %s)".formatted(fromRCName, formals, cp, env);
               }
+              case Promise promise when promise.wrappedValue() != null ->
+                  "Fir_mk_value_promise(%s)"
+                      .formatted(registerPlace(Objects.requireNonNull(promise.wrappedValue())));
               case Promise promise -> {
                 // Compile the promise
 
@@ -1867,12 +1875,14 @@ public final class Fir2CCompiler {
                 var captures = captureArray.pointer();
 
                 // Track the created promise so it's marked escaped when this frame exits.
-                yield "Fir_track_promise(Fir_mk_promise(%s, %s, %s, %s), &%s, %s)"
+                yield "Fir_track_promise(Fir_mk_promise(%s, %s, %s, %s, Fir_const(%s, %d)), &%s, %s)"
                     .formatted(
                         fromRCName,
                         cp,
                         captures,
                         VAR_ENV,
+                        cp,
+                        PROMISE_EXPR_INDEX,
                         VAR_LOCAL_PROMISES,
                         VAR_LOCAL_PROMISES_IDX);
               }

@@ -242,6 +242,8 @@ as _strict_: the version forces it on every path.
             $#sem($kw("clos") f$) alt #sem($kw("clos-static") f$)$,
             syn($kw("prom")tt("<")t space fx#h(0pt)tt(">")tt("{") body tt("}")$),
             sem($kw("prom-")tt("<")t space fx#h(0pt)tt(">")tt("{") body tt("}")$),
+            sem($kw("prom")tt("<")t space fx#h(0pt)tt(">")tt("[<")sexp#h(0pt)tt(">]")tt("{") body tt("}")$),
+            sem($kw("prom-")tt("<")t space fx#h(0pt)tt(">")tt("[<")sexp#h(0pt)tt(">]")tt("{") body tt("}")$),
             $kw("force") a alt #sem($kw("force?") a$)$,
             $kw("dup") a$,
             $a kw("as") t$,

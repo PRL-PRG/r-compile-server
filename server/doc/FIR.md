@@ -177,8 +177,10 @@ Every call to a known function carries a signature. For a static call, the funct
 ### Promise Creation
 
 ```fir
-prom<t fx>{ body }    # A promise
-prom-<t fx>{ body }   # A local promise
+prom<t fx>{ body }            # A promise
+prom-<t fx>{ body }           # A local promise
+prom<t fx>[<sexp>]{ body }    # A promise with a source expression
+prom-<t fx>[<sexp>]{ body }   # A local promise with a source expression
 ```
 
 Example:
@@ -188,6 +190,8 @@ prom<v1(I) ->{ return <int 42>; }
 ```
 
 `t` must be a value type of SEXP kind with shared ownership. A promise body is a CFG in the enclosing version's register namespace. Registers defined inside a promise are only visible inside it. A promise may only read registers defined outside it if it is **local** (`prom-`): a local promise is speculated not to escape the stack frame it's created in, and crashes at run time if it escapes and is forced afterwards.
+
+The optional constant in brackets is the R source expression of the promise (for example `[<lang f(x)>]`). `bc2fir` sets it from the promise bytecode, and the optimizations keep it. GNU-R code that reads a promise's expression (`substitute`, `missing`, `match.call`, `deparse`) sees it. Such a read of a promise without an expression raises the R error "the source expression of this promise is not available". One exception: a promise without an expression whose body only returns a register defined outside it (the wrapper that `StrictifyPromise` makes) is created already evaluated, with the value as its expression, like the argument promises of `do.call`.
 
 ### Closures
 

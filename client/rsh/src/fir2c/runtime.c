@@ -148,15 +148,15 @@ bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fi
   if (TYPEOF(value) != PROMSXP) {
     return false;
   }
-  SEXP body = PREXPR(value);
+  SEXP body = PRCODE(value);
   if (TYPEOF(body) != EXTPTRSXP || !IS_RSH_CODE(body)) {
     return false;
   }
   SEXP data = R_ExternalPtrProtected(body);
-  SEXP cp = CAR0(data);
+  SEXP cp = Fir_prom_cp(data);
   ASSERT(Fir_const(cp, 0) != R_NilValue, "Promise data not set");
   *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(cp, 0));
-  *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(data));
+  *local_data = Fir_prom_local(data);
   return true;
 }
 
@@ -311,20 +311,26 @@ void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_F
   data->from_r = from_r;
 }
 
-SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env) {
+SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env, SEXP expr) {
   ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
 
-  SEXP local_data_sexp = PROTECT(Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData)));
-  Fir_PromiseLocalData *local_data = STDVEC_DATAPTR(local_data_sexp);
-  *local_data = (Fir_PromiseLocalData) {.captures = captures, .escaped = false};
-
-  SEXP data = PROTECT(Rf_cons(cp, local_data_sexp));
+  SEXP data = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(data, 0, expr);
+  SET_VECTOR_ELT(data, 1, cp);
+  SEXP local_data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData));
+  SET_VECTOR_ELT(data, 2, local_data_sexp);
+  *(Fir_PromiseLocalData *)STDVEC_DATAPTR(local_data_sexp) =
+      (Fir_PromiseLocalData) {.captures = captures, .escaped = false};
 
   SEXP ext = PROTECT(R_MakeExternalPtr((void *)evalFromR, Rsh_CodeTag, data));
-  SEXP promise = PROTECT(Rf_mkPROMISE(ext, env));
-  UNPROTECT(4); // local_data_sexp + data + ext + promise
+  SEXP promise = Rf_mkPROMISE(ext, env);
+  UNPROTECT(2); // data + ext
 
   return promise;
+}
+
+SEXP Fir_mk_value_promise(SEXP value) {
+  return R_mkEVPROMISE(value, value);
 }
 
 SEXP Fir_track_promise(SEXP promise, SEXP *tracked_list, PROTECT_INDEX idx) {
@@ -365,9 +371,8 @@ static void Fir_handle_escape(Fir_PromiseGlobalData *global_data, Fir_PromiseLoc
 
 void Fir_check_promise_escaped(SEXP data) {
   Fir_PromiseGlobalData *global_data =
-      (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(CAR0(data), 0));
-  Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(data));
-  Fir_handle_escape(global_data, local_data);
+      (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(Fir_prom_cp(data), 0));
+  Fir_handle_escape(global_data, Fir_prom_local(data));
 }
 
 SEXP Fir_cast(SEXP value, Fir_Type type) {

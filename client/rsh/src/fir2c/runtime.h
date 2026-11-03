@@ -285,14 +285,27 @@ SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
 /// Replace the dispatch and from-R entries of the function whose constant pool is `constants`
 /// (see `Fir_FunctionData`).
 void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_FromRFn from_r);
-SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env);
+/// A compiled promise is a `PROMSXP` whose `PRCODE` is an external pointer with tag `Rsh_CodeTag`,
+/// address `evalFromR`, and protected data `[expr, cp, local_data]` (a `VECSXP`):
+/// - `expr`: the source expression, or `R_UnboundValue` if unknown. GNU-R's `R_PromiseExpr`
+///   (`PREXPR`) returns it, and raises an error when it is `R_UnboundValue`. So read the code with
+///   `PRCODE`, never `PREXPR`.
+/// - `cp`: the constant pool of the `prom` instruction (slot 0 is the `Fir_PromiseGlobalData`).
+/// - `local_data`: a `RAWSXP` holding this instance's `Fir_PromiseLocalData`.
+SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env, SEXP expr);
+#define Fir_prom_expr(data) VECTOR_ELT((data), 0)
+#define Fir_prom_cp(data) VECTOR_ELT((data), 1)
+#define Fir_prom_local(data) ((Fir_PromiseLocalData *)STDVEC_DATAPTR(VECTOR_ELT((data), 2)))
+/// An evaluated (GNU-R) promise whose expression and value are `value`, like the promises
+/// `do.call` makes for its arguments.
+SEXP Fir_mk_value_promise(SEXP value);
 /// Prepend `promise` to `tracked_list` (a pairlist of promises created in the current frame),
 /// re-protecting it at `idx`, and return `promise`. Used to remember which promises to mark
 /// escaped when the frame exits.
 SEXP Fir_track_promise(SEXP promise, SEXP *tracked_list, PROTECT_INDEX idx);
 /// Mark every promise in `tracked_list` as escaped (its creating frame has exited).
 void Fir_mark_promises_escaped(SEXP tracked_list);
-/// Given a compiled promise's data (the `cons(cp, local_data)` in its external pointer), if it
+/// Given a compiled promise's data (see `Fir_mk_promise`), if it
 /// escaped its creating frame, record the escape or crash (if it was speculated local). Called
 /// before forcing, including when R itself forces the promise.
 void Fir_check_promise_escaped(SEXP data);
