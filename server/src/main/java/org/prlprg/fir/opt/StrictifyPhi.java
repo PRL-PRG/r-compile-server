@@ -160,7 +160,7 @@ public final class StrictifyPhi extends AbstractionOptimization {
     private @Nullable Argument trivialPromiseValue(Argument arg, BB pred) {
       if (!(arg instanceof Read(var reg))
           || !(reg instanceof AssigneeOf assignee)
-          || !(assignee.statement().expression() instanceof Promise(_, _, var code, _))) {
+          || !(assignee.statement().expression() instanceof Promise(_, _, var code, _, _))) {
         return null;
       }
 

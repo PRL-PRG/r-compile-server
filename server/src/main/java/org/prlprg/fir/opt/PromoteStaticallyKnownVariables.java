@@ -314,7 +314,7 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
         CfgHierarchy hierarchy) {
       var promiseStatement = hierarchy.parentPromise(promiseCfg);
       if (promiseStatement == null
-          || !(promiseStatement.expression() instanceof Promise(_, _, _, var isLocal))
+          || !(promiseStatement.expression() instanceof Promise(_, _, _, var isLocal, _))
           || !isLocal) {
         return false;
       }
@@ -489,7 +489,7 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
           statement.replaceWith(new Statement(statement.comments(), new Noop(), List.of()));
           yield resolved;
         }
-        case Promise(_, _, var code, _) -> {
+        case Promise(_, _, var code, _, _) -> {
           rewritePromiseBody(code, variable, current);
           yield current;
         }

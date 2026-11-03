@@ -46,7 +46,7 @@ public final class Loads implements Analysis {
           case Load(var loadType, var variable)
               when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN ->
               loads.put(variable, statement);
-          case Promise(_, _, var code, _) -> run(code);
+          case Promise(_, _, var code, _, _) -> run(code);
           default -> {}
         }
 

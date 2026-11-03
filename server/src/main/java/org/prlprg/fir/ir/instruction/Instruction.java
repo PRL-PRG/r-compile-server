@@ -233,7 +233,7 @@ public abstract sealed class Instruction permits Statement, Jump {
       args.get(i).removeUse(new Use(this, i));
     }
 
-    if (this instanceof Statement s && s.expression() instanceof Promise(_, _, var code, _)) {
+    if (this instanceof Statement s && s.expression() instanceof Promise(_, _, var code, _, _)) {
       dropUsesIn(code);
     }
   }

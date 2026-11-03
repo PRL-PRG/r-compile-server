@@ -220,7 +220,7 @@ public class CFGChecker extends Checker {
         for (var bb : cfg.bbs()) {
           for (var i = 0; i < bb.statements().size(); i++) {
             var stmt = bb.statements().get(i);
-            if (!(stmt.expression() instanceof Promise(_, _, var code, _))) {
+            if (!(stmt.expression() instanceof Promise(_, _, var code, _, _))) {
               continue;
             }
 
@@ -242,7 +242,7 @@ public class CFGChecker extends Checker {
         for (var bb : cfg.bbs()) {
           for (var i = 0; i < bb.statements().size(); i++) {
             var stmt = bb.statements().get(i);
-            if (!(stmt.expression() instanceof Promise(_, _, var code, _))) {
+            if (!(stmt.expression() instanceof Promise(_, _, var code, _, _))) {
               continue;
             }
             var otherStmt = seenCfgs.put(code, stmt);

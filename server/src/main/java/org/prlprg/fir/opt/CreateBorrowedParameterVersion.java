@@ -201,7 +201,7 @@ public final class CreateBorrowedParameterVersion extends AbstractionOptimizatio
 
     for (var bb : cfg.bbs()) {
       for (var statement : bb.statements()) {
-        if (statement.expression() instanceof Promise(_, _, var code, var local)) {
+        if (statement.expression() instanceof Promise(_, _, var code, var local, _)) {
           collectEscapingCfgs(code, isEscaping || !local, escapingCfgs);
         }
       }

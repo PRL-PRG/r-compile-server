@@ -116,7 +116,7 @@ public final class StrictifyPromise extends AbstractionOptimization {
 
           // Must be a non-effectful Promise
           if (!(promiseDefStmt.expression()
-                  instanceof Promise(var valueType, var effects, var code, _))
+                  instanceof Promise(var valueType, var effects, var code, _, _))
               || effects.impure()) {
             continue;
           }
@@ -220,6 +220,8 @@ public final class StrictifyPromise extends AbstractionOptimization {
                   }
                   var valueParam = copy.parameters().get(index);
 
+                  // No source expression, so the backends create it evaluated (see
+                  // `Promise#wrappedValue`).
                   var promWrapper = new Promise(valueType, Effects.NONE, new CFG(copy));
                   promWrapper
                       .code()

@@ -65,7 +65,7 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
     @Override
     protected void run(Statement statement) {
       switch (statement.expression()) {
-        case Promise(var _, var _, var code, _) -> runSubAnalysis(code, state()::merge);
+        case Promise(var _, var _, var code, _, _) -> runSubAnalysis(code, state()::merge);
         case MkEnv _ -> {
           var range = allEnvs.computeIfAbsent(statement, EnvRange::new);
           state().push(range);

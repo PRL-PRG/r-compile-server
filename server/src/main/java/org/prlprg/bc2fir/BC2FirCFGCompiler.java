@@ -1208,9 +1208,13 @@ public final class BC2FirCFGCompiler {
 
   private Argument compilePromise(SEXP codeSexp) {
     Bc bc;
+    // The source expression: a promise bytecode's first constant (see `BCCompiler`), or the AST.
+    SEXP expr;
     if (codeSexp instanceof BCodeSXP bcSxp) {
       bc = bcSxp.bc();
+      expr = bc.consts().getFirst();
     } else {
+      expr = codeSexp;
       if (r == null) {
         throw failUnsupported("No RSession, and promise has non-bytecode body: " + codeSexp);
       }
@@ -1225,7 +1229,8 @@ public final class BC2FirCFGCompiler {
     var cfg = new CFG(scope());
     new BC2FirCFGCompiler(r, new CFGCursor(cfg), bc, bytecodes, null).compileBc();
 
-    return insertAndReturn("_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg));
+    return insertAndReturn(
+        "_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg, false, expr));
   }
 
   /// End the previously-compiled for loop instruction (the latest

@@ -32,7 +32,7 @@ public record SpecializeLocalPromise(int threshold) implements SpecializeOptimiz
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(statement.expression()
-            instanceof Promise(var valueType, var effects, var code, var local))
+            instanceof Promise(var valueType, var effects, var code, var local, var promExpr))
         || local) {
       return Result.UNCHANGED;
     }
@@ -43,6 +43,6 @@ public record SpecializeLocalPromise(int threshold) implements SpecializeOptimiz
       return Result.UNCHANGED;
     }
 
-    return new Result.SetExpression(new Promise(valueType, effects, code, true));
+    return new Result.SetExpression(new Promise(valueType, effects, code, true, promExpr));
   }
 }

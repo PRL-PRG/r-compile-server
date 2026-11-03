@@ -377,7 +377,7 @@ public final class IrPrintContext {
         p.print(args.get(1));
       }
       case Assume(var assumption) -> printAssume(p, assumption, args);
-      case Promise(var valueType, var effects, var code, var local) -> {
+      case Promise(var valueType, var effects, var code, var local, var expr) -> {
         w.write("prom");
         if (local) {
           w.write('-');
@@ -386,7 +386,13 @@ public final class IrPrintContext {
         p.print(valueType);
         w.write(' ');
         p.print(effects);
-        w.write(">{\n");
+        w.write('>');
+        if (expr != null) {
+          w.write('[');
+          p.print(new Value.Sexp(expr));
+          w.write(']');
+        }
+        w.write("{\n");
         p.print(code);
         w.write("\n}");
       }

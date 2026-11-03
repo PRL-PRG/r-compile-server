@@ -102,7 +102,7 @@ public record ElideEnv() implements SpecializeOptimization {
       // forced -- which the DFS doesn't walk into, and which may not even happen within the range.
       // So a promise that stores has to block elision just like a store here would.
       if (instruction instanceof Statement stmt
-          && stmt.expression() instanceof Promise(_, _, var code, _)
+          && stmt.expression() instanceof Promise(_, _, var code, _, _)
           && needsMaterializedEnv(code, inferEffects, ignoreReflection)) {
         return false;
       }
@@ -121,7 +121,7 @@ public record ElideEnv() implements SpecializeOptimization {
             stmt ->
                 switch (stmt.expression()) {
                   case Store _ -> true;
-                  case Promise(_, _, var nested, _) ->
+                  case Promise(_, _, var nested, _, _) ->
                       needsMaterializedEnv(nested, inferEffects, ignoreReflection);
                   // `MkEnv` shadows this environment for the rest of the promise, but stores
                   // before it (and super-stores after) still reach here, so don't try to be

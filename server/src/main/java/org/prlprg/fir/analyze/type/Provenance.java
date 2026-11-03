@@ -77,7 +77,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     protected void run(Statement statement) {
       var assignee = statement.assignee();
 
-      if (statement.expression() instanceof Promise(_, _, var code, _)) {
+      if (statement.expression() instanceof Promise(_, _, var code, _, _)) {
         runSubAnalysis(code, state()::mergePromise);
       } else {
         for (var argument : statement.args()) {

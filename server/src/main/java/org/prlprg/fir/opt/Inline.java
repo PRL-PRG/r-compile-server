@@ -162,7 +162,7 @@ public final class Inline extends AbstractionOptimization {
                 // Call arguments follow the callee's own argument (index 0).
                 stmt.args().subList(1, stmt.argCount()));
         // Inline within the promise
-        case Promise(_, _, var code, _) -> run(code);
+        case Promise(_, _, var code, _, _) -> run(code);
         default -> {}
       }
     }
@@ -184,7 +184,7 @@ public final class Inline extends AbstractionOptimization {
       // `Promise` statement.
       if (!(promiseReg instanceof AssigneeOf promiseAssignee)
           || !(promiseAssignee.statement().expression()
-              instanceof Promise(var valueType, var effects, var code, _))
+              instanceof Promise(var valueType, var effects, var code, _, var promExpr))
           || effects.reflect()) {
         return;
       }
@@ -255,7 +255,8 @@ public final class Inline extends AbstractionOptimization {
             // Non-force use: wrap the inlined value in a trivial promise.
             var newPromiseCfg = new CFG(scope);
             newPromiseCfg.entry().setJump(new Jump(new Return(), List.of(new Read(returnDest))));
-            var newPromiseStmt = new Statement(new Promise(valueType, effects, newPromiseCfg));
+            var newPromiseStmt =
+                new Statement(new Promise(valueType, effects, newPromiseCfg, false, promExpr));
             var newPromiseAssignee =
                 newPromiseStmt.setAssignee(
                     scope.freshName(Register.DEFAULT_NAME), Type.promise(valueType, effects));

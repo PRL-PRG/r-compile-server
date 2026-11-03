@@ -80,6 +80,7 @@ import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.util.Characters;
@@ -704,13 +705,18 @@ public final class ModuleParseContext {
                   var valueType = p.parse(Type.class);
                   var effects = p.parse(Effects.class);
                   s.assertAndSkip('>');
+                  SEXP expr = null;
+                  if (s.trySkip('[')) {
+                    expr = p.parse(SEXP.class);
+                    s.assertAndSkip(']');
+                  }
                   s.assertAndSkip('{');
                   var promiseCfg = new CFG(cfg.scope());
                   var promiseCtx = withCfg(promiseCfg);
                   promiseCtx.parseInto(p.withContext(promiseCtx));
                   s.assertAndSkip('}');
                   return new ParsedExpr(
-                      new Promise(valueType, effects, promiseCfg, local), List.of());
+                      new Promise(valueType, effects, promiseCfg, local, expr), List.of());
                 }
               case "st":
                 {

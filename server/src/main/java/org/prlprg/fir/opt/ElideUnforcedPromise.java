@@ -37,7 +37,7 @@ public final class ElideUnforcedPromise extends AbstractionOptimization {
         var stmt = bb.statements().get(i);
         var assignee = stmt.assignee();
         if (!(stmt.expression()
-            instanceof Promise(var valueType, var effects, var code, var local))) {
+            instanceof Promise(var valueType, var effects, var code, var local, var promExpr))) {
           continue;
         }
 
@@ -56,7 +56,7 @@ public final class ElideUnforcedPromise extends AbstractionOptimization {
 
           var newCode = new CFG(scope);
           newCode.entry().setJump(new Jump(new Deopt(0), List.of()));
-          var newPromise = new Promise(valueType, Effects.NONE, newCode);
+          var newPromise = new Promise(valueType, Effects.NONE, newCode, false, promExpr);
           stmt.setExpression(newPromise);
           changed = true;
           continue;

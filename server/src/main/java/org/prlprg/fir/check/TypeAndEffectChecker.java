@@ -388,7 +388,7 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case MkEnv _, Noop _, PopEnv _ -> {}
-          case Promise(var expectedInnerType, var expectedEffects, var promiseCode, _) -> {
+          case Promise(var expectedInnerType, var expectedEffects, var promiseCode, _, _) -> {
             checkWellFormed(expectedInnerType);
             if (!expectedInnerType.isValue()) {
               report(

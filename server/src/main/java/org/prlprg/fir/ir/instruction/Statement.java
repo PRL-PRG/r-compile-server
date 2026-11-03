@@ -47,8 +47,8 @@ public final class Statement extends Instruction {
   /// [org.prlprg.fir.ir.cfg.CFG] no longer reachable from the
   /// [org.prlprg.fir.ir.abstraction.Abstraction].
   public void setExpression(Expression expression) {
-    if (this.expression instanceof Promise(_, _, var oldCode, _)
-        && !(expression instanceof Promise(_, _, var newCode, _) && newCode == oldCode)) {
+    if (this.expression instanceof Promise(_, _, var oldCode, _, _)
+        && !(expression instanceof Promise(_, _, var newCode, _, _) && newCode == oldCode)) {
       dropUsesIn(oldCode);
     }
 

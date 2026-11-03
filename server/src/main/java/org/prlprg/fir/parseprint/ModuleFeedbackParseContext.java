@@ -202,7 +202,7 @@ public final class ModuleFeedbackParseContext {
           break;
         }
         // A `/` means there's a deeper position, so this one must be an enclosing promise.
-        if (!(statement.expression() instanceof Promise(_, _, var code, _))) {
+        if (!(statement.expression() instanceof Promise(_, _, var code, _, _))) {
           throw s.fail("an enclosing scope position must be a promise, but got: " + statement);
         }
         cfg = code;
