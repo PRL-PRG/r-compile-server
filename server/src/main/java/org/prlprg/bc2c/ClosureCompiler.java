@@ -128,6 +128,9 @@ class ClosureCompiler {
   }
 
   private void beforeCompile() {
+    // GNU-R reads a compiled body's source expression (`body()`, a promise's `PREXPR`) from
+    // constant 0, as for bytecode (`bytecodeExpr` in `eval.c`).
+    getConstant(new ConstPool.Idx<>(0, SEXP.class));
     analyseCode();
   }
 
