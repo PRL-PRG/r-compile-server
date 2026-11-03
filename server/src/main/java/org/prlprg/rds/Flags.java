@@ -139,7 +139,7 @@ final class GPFlags {
   private static final int BYTES_MASK = 1 << 1;
   private static final int LATIN1_MASK = 1 << 2;
   private static final int UTF8_MASK = 1 << 3;
-  // S4_OBJECT_MASK: 1 << 4
+  private static final int S4_OBJECT_MASK = 1 << 4;
   // CACHED_MASK = 1 << 5;
   private static final int ASCII_MASK = 1 << 6;
   private static final int LOCKED_MASK = 1 << 14;
@@ -167,6 +167,11 @@ final class GPFlags {
   /// The levels of a `CHARSXP` in the "bytes" encoding.
   static GPFlags bytes() {
     return new GPFlags(BYTES_MASK);
+  }
+
+  /// The levels of an S4 object. GNU-R reads an object's S4 bit from its levels.
+  static GPFlags s4() {
+    return new GPFlags(S4_OBJECT_MASK);
   }
 
   public boolean isBytes() {

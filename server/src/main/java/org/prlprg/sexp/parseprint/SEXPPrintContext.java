@@ -27,6 +27,7 @@ import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.S4SXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
@@ -377,6 +378,17 @@ public class SEXPPrintContext {
         p,
         () -> {
           p.writer().write("<extptr");
+          printAttributes(sexp, p);
+          printGeneralEnd(p);
+        });
+  }
+
+  @PrintMethod
+  private void print(S4SXP sexp, Printer p) {
+    handleDepth(
+        p,
+        () -> {
+          p.writer().write("<s4");
           printAttributes(sexp, p);
           printGeneralEnd(p);
         });

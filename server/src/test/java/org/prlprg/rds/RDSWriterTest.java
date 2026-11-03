@@ -447,6 +447,17 @@ public class RDSWriterTest {
     assertEquals(SEXPs.TRUE, output);
   }
 
+  @Test
+  public void testS4_withR() {
+    var R = GNUR.instance();
+
+    var s4 =
+        new S4SXP(
+            new Attributes.Builder().put("x", integer(1)).put("class", string("foo")).build());
+    var output = R.eval("typeof(input) == 'S4' && isS4(input) && identical(input@x, 1L)", s4);
+    assertEquals(SEXPs.TRUE, output);
+  }
+
   /// `NA` and `-NaN` keep their bits, unlike with [java.io.DataOutputStream#writeDouble].
   @Test
   public void testNaNBits_withR() {

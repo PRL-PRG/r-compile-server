@@ -232,4 +232,16 @@ public class RDSReaderTest {
     assertThat(sexp).isInstanceOf(ExtptrSxp.class);
     assertEquals(SEXPs.string("DLLInfoReference"), sexp.attributes().get("class"));
   }
+
+  /// A non-vector S4 object keeps its slots.
+  @Test
+  public void testS4() {
+    var R = GNUR.instance();
+
+    var sexp = R.eval("methods::getClass('numeric')");
+    assertThat(sexp).isInstanceOf(S4SXP.class);
+    assertEquals(
+        SEXPs.string("numeric"),
+        sexp.attributes().get("className").withAttributes(Attributes.NONE));
+  }
 }

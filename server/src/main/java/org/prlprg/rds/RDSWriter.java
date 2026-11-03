@@ -119,6 +119,7 @@ public class RDSWriter implements Closeable {
           case VectorSXP<?> vec -> writeVectorSXP(vec);
           case BCodeSXP bc -> writeByteCode(bc);
           case ExtptrSxp extptr -> writeExtptrSXP(extptr);
+          case S4SXP s4 -> writeAttributesIfPresent(s4);
           default -> throw new RDSException("Unsupported SEXP type: " + s.type());
         }
       }
@@ -205,7 +206,9 @@ public class RDSWriter implements Closeable {
     // Otherwise, write flags based on the RDSType of s
     // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
     //  representation of this in our environments
-    return new Flags(rdsType(s), new GPFlags(), s.isObject(), s.hasAttributes(), hasTag(s));
+    // Only `S4SXP` keeps its S4 bit: other SEXPs don't record it.
+    var levels = s instanceof S4SXP ? GPFlags.s4() : new GPFlags();
+    return new Flags(rdsType(s), levels, s.isObject(), s.hasAttributes(), hasTag(s));
   }
 
   /**

@@ -550,6 +550,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `RawSXP.java` — Raw (byte) vector SEXP.
 - `RealSXP.java` — Real vector SEXP.
 - `RegSymSXP.java` — Symbol which isn't "unbound value" or "missing arg".
+- `S4SXP.java` — Non-vector S4 object (`OBJSXP`); its slots are its attributes.
 - `SEXP.java` — R runtime object.
 - `SEXPOrEnvType.java` — Since EnvType implies ENV, a union of both enums that can be encoded in a single identifier.
 - `SEXPType.java` — SEXP type returned by R `typeof`.

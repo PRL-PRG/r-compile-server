@@ -151,6 +151,7 @@ public class RDSReader implements Closeable {
             case SPECIAL -> readSpecial();
             case CPLX -> readComplex(flags);
             case EXTPTR -> readExternalPtr(flags);
+            case S4 -> new S4SXP(readAttributes(flags));
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
       case RDSItemType.Special s ->
