@@ -136,12 +136,17 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
       return this;
     }
 
+    // The static ancestor and its ancestors (e.g. base, the environment of builtin closures) are
+    // references, so they're kept as-is.
     var printCtx = new SEXPPrintContext(SEXPPrintOptions.FULL);
-    printCtx.setRef(staticAncestor, 0);
-    var serialized = Printer.use(p -> p.print(this), printCtx);
-
     var parseCtx = new SEXPParseContext();
-    parseCtx.setRef(0, staticAncestor);
+    var ref = 0;
+    for (var env = staticAncestor; !(env instanceof EmptyEnvSXP); env = env.parent()) {
+      printCtx.setRef(env, ref);
+      parseCtx.setRef(ref, env);
+      ref++;
+    }
+    var serialized = Printer.use(p -> p.print(this), printCtx);
     return new Parser(serialized).withContext(parseCtx).parse(EnvSXP.class);
   }
 
