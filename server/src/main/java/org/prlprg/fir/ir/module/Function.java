@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.WeakHashMap;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -32,7 +33,10 @@ import org.prlprg.sexp.TaggedElem;
 public final class Function {
   /// Versions that have been added to functions, so we can ensure the same version isn't added
   /// to multiple.
-  private static final Set<Abstraction> PAIRED_VERSIONS = new HashSet<>();
+  ///
+  /// Weak, so that it doesn't keep every module ever made alive.
+  private static final Set<Abstraction> PAIRED_VERSIONS =
+      Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
   // Backlink
   private final Module owner;
