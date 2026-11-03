@@ -5,20 +5,15 @@
 ### Clone the repository
 
 ```sh
-git clone --recursive git@github.com:PRL-PRG/r-compile-server.git
+git clone git@github.com:PRL-PRG/r-compile-server.git
+# or: git clone https://github.com/PRL-PRG/r-compile-server.git
+cd r-compile-server
+git submodule update --init --depth 1
 ```
 
-or
-
-```sh
-git clone --recursive https://github.com/PRL-PRG/r-compile-server.git
-```
-
-This shall clone also the submodules. If you forgot to clone the submodules, you can run
-
-```sh
-git submodule update --init --recursive
-```
+The `R` submodule is a fork of GNU-R. `--depth 1` skips its history since 1997, which is about
+400 MiB. (`git clone --recurse-submodules --shallow-submodules` doesn't help as much, because the
+pinned commit isn't a branch tip.) To fetch the history later, run `git -C R fetch --unshallow`.
 
 Install [git LFS](https://git-lfs.com) and run `make setup-git` (below) before committing. The
 stdlib test snapshots are stored in LFS, and aren't downloaded unless you ask for them (see
@@ -64,7 +59,7 @@ If the dev container is too slow, you can also setup on the host machine. To do 
     - e.g. if using IntelliJ on macOS, openJDK 26, set `JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-26/Contents/Home`
     - In the devcontainer, `JAVA_HOME=/usr/lib/jvm/jdk`
 - **Problem:** some R symbols are not visible when JIT-compiling.
-  - **Solution:** make sure that `R` is up-to-date with `git submodule update --init --recursive` and check if it is the right branch, `RSH-4-5-2`. 
+  - **Solution:** make sure that `R` is up-to-date with `git submodule update --init --depth 1` and check if it is the right branch, `RSH-4-5-2`. 
 
 If you have a different issue than the above, [report it on GitHub](https://github.com/PRL-PRG/r-compile-server/issues/new/choose).
 

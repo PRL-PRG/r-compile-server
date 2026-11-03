@@ -112,7 +112,7 @@ echo "Building in $R_DIR"
 
 if [[ ! -f ${R_DIR}/.git ]]; then
   echo "-> update submodules"
-  git submodule update --init
+  git submodule update --init --depth 1
 fi
 
 cd "$R_DIR"
