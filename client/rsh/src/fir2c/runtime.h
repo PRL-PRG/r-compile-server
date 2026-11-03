@@ -312,8 +312,11 @@ SEXP Fir_load_fun(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);
 void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
-void Fir_push_env(SEXP *env, Fir_MkEnvType type);
-void Fir_pop_env(SEXP *env);
+/// Returns whether it pushed a new environment (and protected it). Returns false when the
+/// environment is the one R made for the current from-R call, which `Fir_pop_env` must not pop.
+bool Fir_push_env(SEXP *env, Fir_MkEnvType type);
+/// `pushed` is what the matching `Fir_push_env` returned.
+void Fir_pop_env(SEXP *env, bool pushed);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);

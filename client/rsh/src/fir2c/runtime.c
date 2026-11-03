@@ -439,12 +439,14 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed) {
 // ???: GNU-R expose methods to update R_GlobalContext->sysparent,
 // if necessary (it may only when the env is pushed from R, `Fir_env_push_suppressed`)
 
-void Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type) {
+// `Fir_pop_env` takes what the push returned instead of reading the globals: a non-local exit
+// (`UseMethod`, a caught error) skips `Fir_unset_env_pushed_from_r`, so they can be stale at a pop.
+bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
 
   if (Fir_env_pushed_from_r == *env_ptr && !Fir_env_push_suppressed) {
     Fir_env_push_suppressed = true;
-    return;
+    return false;
   }
 
   SEXP new_env =
@@ -459,12 +461,13 @@ void Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type) {
   }
   *env_ptr = new_env;
   PROTECT(*env_ptr);
+  return true;
 }
 
-void Fir_pop_env(SEXP *env_ptr) {
+void Fir_pop_env(SEXP *env_ptr, bool pushed) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "pop_env requires a pointer to an environment");
 
-  if (Fir_env_pushed_from_r == *env_ptr && Fir_env_push_suppressed) {
+  if (!pushed) {
     Fir_env_push_suppressed = false;
     return;
   }
@@ -1113,7 +1116,7 @@ SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
     INTEGER(calls)[0]++;
   }
 
-  Fir_push_env(&env, FIR_MKENV_REGULAR);
+  bool pushed = Fir_push_env(&env, FIR_MKENV_REGULAR);
 
   SEXP formal = Fir_const(pool, FIR_BC_BASELINE_FORMALS);
   for (int i = 0; i < argc; ++i, formal = CDR(formal)) {
@@ -1135,7 +1138,7 @@ SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
 
   SEXP out = Rf_eval(Fir_bc_baseline_code(pool), env);
 
-  Fir_pop_env(&env);
+  Fir_pop_env(&env, pushed);
   return out;
 }
 

@@ -161,6 +161,7 @@ public final class Fir2CCompiler {
   private static final String VAR_SIGNATURE = "signature";
   private static final String VAR_LOCAL_PROMISES = "local_promises";
   private static final String VAR_LOCAL_PROMISES_IDX = "local_promises_idx";
+  private static final String VAR_ENV_PUSHED = "env_pushed";
 
   /// Constant pool slot of what identifies a bytecode baseline's pool (see
   /// [FunctionEmitter#bcBaselineId()]).
@@ -1585,6 +1586,9 @@ public final class Fir2CCompiler {
         /// them escaped when the frame exits.
         private final boolean createsPromises;
 
+        /// Whether this CFG has any `MkEnv` or `PopEnv`, so it needs [#VAR_ENV_PUSHED].
+        private final boolean hasEnvOps;
+
         CfgEmitter(
             CFG cfg,
             Type returnType,
@@ -1605,6 +1609,11 @@ public final class Fir2CCompiler {
               cfg.bbs().stream()
                   .flatMap(bb -> bb.statements().stream())
                   .anyMatch(s -> s.expression() instanceof Promise);
+          hasEnvOps =
+              cfg.bbs().stream()
+                  .flatMap(bb -> bb.statements().stream())
+                  .anyMatch(
+                      s -> s.expression() instanceof MkEnv || s.expression() instanceof PopEnv);
         }
 
         VecSXP run() {
@@ -1617,6 +1626,8 @@ public final class Fir2CCompiler {
           emitLocalDeclarations();
 
           emitPromiseTrackingSetup();
+
+          emitEnvPushedDeclaration();
 
           for (var bb : cfg.bbs()) {
             new BBEmitter(bb, cFunction.add()).run();
@@ -1640,6 +1651,14 @@ public final class Fir2CCompiler {
           sec.stmt("SEXP %s = R_NilValue;", VAR_LOCAL_PROMISES);
           sec.stmt("PROTECT_INDEX %s;", VAR_LOCAL_PROMISES_IDX);
           sec.stmt("PROTECT_WITH_INDEX(%s, &%s);", VAR_LOCAL_PROMISES, VAR_LOCAL_PROMISES_IDX);
+        }
+
+        /// Declares the bit stack of what each active `MkEnv` returned (the top is bit 0), which
+        /// its `PopEnv` passes to `Fir_pop_env`. `MkEnv`s nest within a frame after inlining.
+        private void emitEnvPushedDeclaration() {
+          if (hasEnvOps) {
+            cFunction.add().stmt("uint64_t %s = 0;", VAR_ENV_PUSHED);
+          }
         }
 
         private void emitConstants() {
@@ -1897,7 +1916,9 @@ public final class Fir2CCompiler {
                         "Rf_findFun(%s, R_BaseEnv)".formatted(nvSymbolRef(pool, variable));
                   };
               case MkEnv(var type) -> {
-                cCode.stmt("Fir_push_env(&%s, %s);", VAR_ENV, emitMkEnvType(type));
+                cCode.stmt(
+                    "%s = (%s << 1) | Fir_push_env(&%s, %s);",
+                    VAR_ENV_PUSHED, VAR_ENV_PUSHED, VAR_ENV, emitMkEnvType(type));
                 debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
                 yield null;
               }
@@ -1920,7 +1941,8 @@ public final class Fir2CCompiler {
               }
               case Noop() -> null;
               case PopEnv() -> {
-                cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
+                cCode.stmt("Fir_pop_env(&%s, %s & 1);", VAR_ENV, VAR_ENV_PUSHED);
+                cCode.stmt("%s >>= 1;", VAR_ENV_PUSHED);
                 yield null;
               }
               case ReflectiveLoad(var variable) ->
