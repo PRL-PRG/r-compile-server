@@ -39,6 +39,12 @@ public final class Constants {
   /** String representations of false values. (cf. StringFalse and falsenames in util.c) */
   public static final Set<String> FALSE_NAMES = Set.of("F", "False", "FALSE", "false");
 
+  /// Whether `d` is GNU-R's `NA` (`R_IsNA`): a `NaN` whose low word is 1954. Arithmetic may set
+  /// the quiet bit, so the high word can differ from [#NA_REAL]'s.
+  public static boolean isNaReal(double d) {
+    return Double.isNaN(d) && (Double.doubleToRawLongBits(d) & 0xFFFFFFFFL) == 1954;
+  }
+
   /** Check if a string is the NA string. */
   @SuppressWarnings("StringEquality")
   public static boolean isNaString(String s) {

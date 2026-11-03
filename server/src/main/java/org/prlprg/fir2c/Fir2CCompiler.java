@@ -2958,7 +2958,7 @@ public final class Fir2CCompiler {
     return switch (constant) {
       case Value.Sexp(var sexp) -> constantRef(pool, sexp);
       case Value.Int(var i) -> i == Constants.NA_INT ? "NA_INTEGER" : Integer.toString(i);
-      case Value.Real(var d) -> Double.isNaN(d) ? "NA_REAL" : Double.toString(d);
+      case Value.Real(var d) -> realRef(d);
       case Value.Str(var s) -> Printer.use(p -> p.writer().writeQuoted('"', s));
       case Value.Lgl(var l) ->
           switch (l) {
@@ -2968,6 +2968,22 @@ public final class Fir2CCompiler {
           };
       case Value.Bool(var b) -> Boolean.toString(b);
     };
+  }
+
+  /// A C expression with the exact bits of `d`.
+  private static String realRef(double d) {
+    var bits = Double.doubleToRawLongBits(d);
+    if (bits == Double.doubleToRawLongBits(Constants.NA_REAL)) {
+      return "NA_REAL";
+    } else if (Double.isNaN(d)) {
+      return bits == 0x7FF8000000000000L
+          ? "R_NaN"
+          : "((union { unsigned long long u; double d; }){.u = 0x%sULL}).d"
+              .formatted(Long.toHexString(bits));
+    } else if (Double.isInfinite(d)) {
+      return d > 0 ? "R_PosInf" : "R_NegInf";
+    }
+    return Double.toString(d);
   }
 
   private static String constantRef(ConstantPool pool, SEXP sexp) {

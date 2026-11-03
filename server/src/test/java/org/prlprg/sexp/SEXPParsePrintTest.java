@@ -51,6 +51,23 @@ public class SEXPParsePrintTest {
   }
 
   @Test
+  public void testNaNBits() {
+    assertParsesToBits("NA_REAL", 0x7FF00000000007A2L);
+    assertParsesToBits("+NaN", 0x7FF8000000000000L);
+    assertParsesToBits("-NaN", 0xFFF8000000000000L);
+    assertParsesToBits("+NaN(0x7ff0000000000001)", 0x7FF0000000000001L);
+    assertParsesToBits("-NaN(0xfff8000000000123)", 0xFFF8000000000123L);
+    assertParsesToBits("<real 1.0, -NaN, NA_REAL>", 0xFFF8000000000000L, 1);
+    assertRoundTrip("+NaN(0x7ff0000000000001)");
+    assertRoundTrip("<real 1.0, -NaN, NA_REAL>");
+    assertRoundTrip("<real +NaN>", true);
+
+    // An `NA` with the quiet bit set is still `NA` to GNU-R.
+    assertEquals(
+        "NA_REAL", Printer.toString(SEXPs.real(Double.longBitsToDouble(0x7FF80000000007A2L))));
+  }
+
+  @Test
   public void testVector() {
     assertRoundTrip("<int 1, 2, 3>");
     assertRoundTrip("<real 1.0, 2.0, 3.0>");
@@ -153,6 +170,19 @@ public class SEXPParsePrintTest {
     } catch (ParseException e) {
       fail("Failed to parse '" + input + "'", e);
     }
+  }
+
+  /// Parse the string into a real vector and assert its first element has the raw `bits`, then
+  /// round-trip the string.
+  private void assertParsesToBits(String input, long bits) {
+    assertParsesToBits(input, bits, 0);
+    assertRoundTrip(input);
+  }
+
+  private void assertParsesToBits(String input, long bits, int index) {
+    var real = (RealSXP) Parser.fromString(input, SEXP.class);
+    assertEquals(
+        Long.toHexString(bits), Long.toHexString(Double.doubleToRawLongBits(real.get(index))));
   }
 
   /// Parse the string into an [SEXP], print it, and assert that the original and printed

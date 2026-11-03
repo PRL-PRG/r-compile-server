@@ -477,10 +477,16 @@ public class SEXPPrintContext {
 
     @PrintMethod
     private void print(Double real, Printer p) {
-      if (Double.isNaN(real)) {
-        // Technically only one NaN is NA, but Java only has one NaN.
-        // See [Constants#NA_REAL]'s docs.
+      if (Constants.isNaReal(real)) {
         p.writer().write("NA_REAL");
+      } else if (Double.isNaN(real)) {
+        // Starts with `+` or `-` so it parses as a number. Other `NaN`s print their bits.
+        var bits = Double.doubleToRawLongBits(real);
+        var w = p.writer();
+        w.write(bits < 0 ? "-NaN" : "+NaN");
+        if (bits != SEXPParseContext.NAN_BITS && bits != SEXPParseContext.NEGATIVE_NAN_BITS) {
+          w.write("(0x" + Long.toHexString(bits) + ")");
+        }
       } else if (Double.isInfinite(real) && real > 0) {
         // Ensure the first character is a number, `+`, or `-` to make parsing easier.
         // Specifically, print positive infinity as `+Infinity`.

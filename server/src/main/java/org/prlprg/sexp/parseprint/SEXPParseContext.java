@@ -9,6 +9,7 @@ import org.prlprg.bc.Bc;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Scanner;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
@@ -84,6 +85,35 @@ public class SEXPParseContext {
     refs.put(ref, sexp);
   }
 
+  /// The bits of `+NaN` and `-NaN` (the canonical `NaN`, and it with the sign bit set).
+  static final long NAN_BITS = 0x7FF8000000000000L;
+
+  static final long NEGATIVE_NAN_BITS = 0xFFF8000000000000L;
+
+  /// Parse the optional `(0x<bits>)` after `+NaN` or `-NaN` (`decimal`).
+  private static double finishParsingNaN(String decimal, Scanner s) {
+    long bits =
+        s.runWithWhitespacePolicy(
+            SkipWhitespace.NONE,
+            () -> {
+              if (!s.trySkip("(0x")) {
+                return decimal.startsWith("-") ? NEGATIVE_NAN_BITS : NAN_BITS;
+              }
+              var hex = s.readWhile(c -> Character.digit(c, 16) >= 0);
+              s.assertAndSkip(')');
+              try {
+                return Long.parseUnsignedLong(hex, 16);
+              } catch (NumberFormatException e) {
+                throw s.fail("64-bit hex NaN bits", hex);
+              }
+            });
+    var dbl = Double.longBitsToDouble(bits);
+    if (!Double.isNaN(dbl) || (bits < 0) != decimal.startsWith("-")) {
+      throw s.fail("NaN bits with the printed sign", Long.toHexString(bits));
+    }
+    return dbl;
+  }
+
   @ParseMethod
   private SEXP parseSEXP(Parser p) {
     var s = p.scanner();
@@ -126,7 +156,8 @@ public class SEXPParseContext {
           throw s.fail("integer is too large to parse: " + decimal);
         }
       } else {
-        var dbl = Double.parseDouble(decimal);
+        var dbl =
+            decimal.endsWith("NaN") ? finishParsingNaN(decimal, s) : Double.parseDouble(decimal);
         if (s.trySkip('+') || s.nextCharIs('-')) {
           var imag = s.readDouble();
           s.assertAndSkip('i');

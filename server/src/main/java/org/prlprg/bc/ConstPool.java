@@ -11,6 +11,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
+import org.prlprg.primitive.Constants;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.IntSXP;
@@ -178,9 +179,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
 
     private static void addNaKinds(Object x, List<Boolean> out) {
       switch (x) {
-        // GNU-R's `R_IsNA`.
-        case Double d when Double.isNaN(d) ->
-            out.add((Double.doubleToRawLongBits(d) & 0xFFFFFFFFL) == 1954);
+        case Double d when Double.isNaN(d) -> out.add(Constants.isNaReal(d));
         case Complex(var re, var im) -> {
           addNaKinds(re, out);
           addNaKinds(im, out);
