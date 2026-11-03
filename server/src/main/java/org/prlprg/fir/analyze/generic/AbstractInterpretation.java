@@ -1,9 +1,13 @@
 package org.prlprg.fir.analyze.generic;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -123,16 +127,21 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
     }
 
     public final void run(S entryState) {
-      var worklist = new ArrayList<Pair<BB, S>>();
+      // Blocks run in reverse postorder, and a block's pending entry states are merged before it
+      // runs. So outside of loops, a block runs once, after all its predecessors. Otherwise (e.g.
+      // depth-first), each branch before a block can double how often the block runs, until the
+      // states saturate.
+      var order = reversePostorder(cursor.cfg());
+      var worklist = new TreeMap<Integer, BB>();
+      var pending = new HashMap<BB, S>();
 
       // Can add `entryState` in-place, because it won't be mutated (at least during the call),
-      // and we don't assign `worklist` entries to `state` or put into `states` without copying.
-      worklist.add(Pair.of(cursor.cfg().entry(), entryState));
+      // and we copy `pending` entries before we merge into them or put them into `states`.
+      enqueue(worklist, pending, order, cursor.cfg().entry(), entryState);
 
       while (!worklist.isEmpty()) {
-        var next = worklist.removeLast();
-        var bb = next.first();
-        var state = next.second();
+        var bb = worklist.pollFirstEntry().getValue();
+        var state = pending.remove(bb);
 
         var stored = states.get(bb);
         if (Objects.equals(stored, state)) {
@@ -167,15 +176,27 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
         // Add successors to worklist (may need to update their entry states and recurse)
         for (var targetBb : bb.jump().targetBBs()) {
-          // Can add `state` in-place, because it won't be mutated again by this point,
-          // and we don't assign `worklist` entries to `state` or put into `states` without copying.
-          worklist.add(Pair.of(targetBb, state));
+          // Can add `state` in-place, because it won't be mutated again by this point.
+          enqueue(worklist, pending, order, targetBb, state);
         }
       }
 
       ran = true;
       // Indicates that this isn't running.
       state = null;
+    }
+
+    private void enqueue(
+        TreeMap<Integer, BB> worklist, Map<BB, S> pending, Map<BB, Integer> order, BB bb, S state) {
+      worklist.put(order.get(bb), bb);
+      pending.merge(
+          bb,
+          state,
+          (prev, next) -> {
+            var merged = prev.copy();
+            merged.merge(next);
+            return merged;
+          });
     }
 
     private S run(BB bb) {
@@ -275,6 +296,33 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
     protected final boolean isRunning() {
       return state != null;
     }
+  }
+
+  /// Each block reachable from `cfg`'s entry, mapped to its index in reverse postorder.
+  private static Map<BB, Integer> reversePostorder(CFG cfg) {
+    var postorder = new ArrayList<BB>();
+    var visited = new HashSet<BB>();
+    var stack = new ArrayDeque<Pair<BB, Iterator<BB>>>();
+    visited.add(cfg.entry());
+    stack.push(Pair.of(cfg.entry(), cfg.entry().successors().iterator()));
+    while (!stack.isEmpty()) {
+      var top = stack.peek();
+      if (top.second().hasNext()) {
+        var successor = top.second().next();
+        if (visited.add(successor)) {
+          stack.push(Pair.of(successor, successor.successors().iterator()));
+        }
+      } else {
+        stack.pop();
+        postorder.add(top.first());
+      }
+    }
+
+    var order = new HashMap<BB, Integer>();
+    for (var i = 0; i < postorder.size(); i++) {
+      order.put(postorder.get(postorder.size() - 1 - i), i);
+    }
+    return order;
   }
 
   public interface State<Self extends State<Self>> {
