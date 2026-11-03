@@ -446,4 +446,17 @@ public class RDSWriterTest {
     var output = R.eval("typeof(input) == 'externalptr' && identical(class(input), 'foo')", extptr);
     assertEquals(SEXPs.TRUE, output);
   }
+
+  /// `NA` and `-NaN` keep their bits, unlike with [java.io.DataOutputStream#writeDouble].
+  @Test
+  public void testNaNBits_withR() {
+    var R = GNUR.instance();
+
+    var na = ((RealSXP) R.eval("NA_real_")).get(0);
+    var negNaN = Double.longBitsToDouble(Double.doubleToRawLongBits(NaN) | Long.MIN_VALUE);
+    var reals = real(Constants.NA_REAL, na, NaN, negNaN);
+    var output =
+        R.eval("identical(input, c(NA_real_, NA_real_, NaN, -NaN), single.NA = FALSE)", reals);
+    assertEquals(SEXPs.TRUE, output);
+  }
 }
