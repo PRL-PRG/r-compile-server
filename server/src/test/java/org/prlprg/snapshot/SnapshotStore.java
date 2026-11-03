@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import org.jspecify.annotations.Nullable;
 import org.opentest4j.TestAbortedException;
 import org.prlprg.TestConfig;
@@ -14,9 +15,17 @@ import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 
 /// Stores and manages snapshots for every [Example]/[Query] combination, in memory and on disk.
+///
+/// Memory only holds the snapshots of the last example used: tests use one example at a time, and
+/// the snapshots of every example don't fit. Other snapshots are loaded from disk.
 public class SnapshotStore {
   private final HashMap<Query<?>, HashMap<Example, SnapshotInMemory<?>>> snapshotsInMemory =
       new HashMap<>();
+  private @Nullable Example exampleInMemory = null;
+
+  /// The snapshots this run saved to disk. They are loaded even if [TestConfig#IGNORE_SNAPSHOTS]
+  /// matches their query, because it only ignores the snapshots of previous runs.
+  private final HashSet<Path> savedThisRun = new HashSet<>();
 
   public SnapshotStore() {}
 
@@ -290,6 +299,7 @@ public class SnapshotStore {
   }
 
   private <T> @Nullable T loadFromMemory(boolean isOracle, Example example, Query<T> query) {
+    useMemoryFor(example);
     var querySnapshots = snapshotsInMemory.get(query);
     if (querySnapshots == null) {
       return null;
@@ -308,17 +318,26 @@ public class SnapshotStore {
   }
 
   private <T> void saveToMemory(T snapshot, boolean isOracle, Example example, Query<T> query) {
+    useMemoryFor(example);
     snapshotsInMemory
         .computeIfAbsent(query, _ -> new HashMap<>())
         .put(example, new SnapshotInMemory<>(snapshot, isOracle));
   }
 
+  /// Forget the snapshots in memory if they aren't `example`'s.
+  private void useMemoryFor(Example example) {
+    if (!example.equals(exampleInMemory)) {
+      snapshotsInMemory.clear();
+      exampleInMemory = example;
+    }
+  }
+
   private <T> @Nullable T loadFromDisk(Example example, Query<T> query) {
-    if (TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches()) {
+    var path = snapshotPath(example, query);
+    if (TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches()
+        && !savedThisRun.contains(path)) {
       return null;
     }
-
-    var path = snapshotPath(example, query);
     if (!isOnDisk(path)) {
       return null;
     }
@@ -380,6 +399,7 @@ public class SnapshotStore {
 
     try {
       query.serialize(snapshot, path, example, this);
+      savedThisRun.add(path);
     } catch (Exception e) {
       // Ensure future loads don't fail because of partially-saved data
       if (Files.exists(path)) {
