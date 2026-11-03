@@ -238,6 +238,7 @@ public class Specialize extends AbstractionOptimization {
           case Result.Replace(var newExpression, var newArgs) -> {
             var oldAssignee = statement.assignee();
             var newStmt = new Statement(statement.comments(), newExpression, newArgs);
+            newStmt.setSource(statement.source());
             if (oldAssignee != null) {
               var newAssignee = newStmt.setAssignee(oldAssignee.name(), oldAssignee.type());
               oldAssignee.substUsesWith(new Read(newAssignee));

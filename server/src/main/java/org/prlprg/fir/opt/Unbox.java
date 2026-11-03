@@ -91,6 +91,7 @@ public class Unbox extends AbstractionOptimization {
             // A fresh statement holds the (now scalar) call result, on its own use-set.
             var newCallStmt =
                 new Statement(stmt.comments(), new Call(newCallee), List.copyOf(stmt.args()));
+            newCallStmt.setSource(stmt.source());
             var scalar =
                 newCallStmt.setAssignee(
                     abstraction.freshName(assignee.name()), unboxed(calleeReturnType));

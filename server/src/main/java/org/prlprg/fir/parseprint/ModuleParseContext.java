@@ -80,6 +80,7 @@ import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.TaggedElem;
@@ -518,6 +519,12 @@ public final class ModuleParseContext {
           }
 
           var statement = new Statement(comments, parsed.expression(), parsed.args());
+          if (s.trySkip("in")) {
+            if (!(p.parse(SEXP.class) instanceof LangSXP source)) {
+              throw s.fail("the source after `in` must be a call (`<lang ...>`)");
+            }
+            statement.setSource(source);
+          }
           if (assigneeName != null) {
             if (assigneeType == null) {
               throw s.fail(

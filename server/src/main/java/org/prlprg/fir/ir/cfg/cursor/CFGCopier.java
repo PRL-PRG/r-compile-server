@@ -151,6 +151,7 @@ public final class CFGCopier {
     } else {
       newStmt = new Statement(oldStmt.comments().copy(), expr, List.copyOf(oldStmt.args()));
     }
+    newStmt.setSource(oldStmt.source());
     if (oldStmt.assignee() != null) {
       newStmt.setAssignee(newScope.freshName(oldStmt.assignee().name()), oldStmt.assignee().type());
     }

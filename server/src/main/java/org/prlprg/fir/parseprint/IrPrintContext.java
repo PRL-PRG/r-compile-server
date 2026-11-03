@@ -241,6 +241,11 @@ public final class IrPrintContext {
       p.writer().write(" = ");
     }
     printExpression(p, statement);
+    var source = statement.source();
+    if (source != null) {
+      p.writer().write(" in ");
+      p.print(new Value.Sexp(source));
+    }
   }
 
   @PrintMethod

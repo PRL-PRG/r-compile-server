@@ -13,12 +13,14 @@ import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.LangSXP;
 
 /// An [Instruction] that evaluates an [Expression], optionally assigning the result to a register
 /// ([#assignee]).
 public final class Statement extends Instruction {
   private Expression expression;
   private @Nullable AssigneeOf assignee;
+  private @Nullable LangSXP source;
 
   public Statement(Comments comments, Expression expression, List<Argument> args) {
     super(comments, args);
@@ -53,6 +55,16 @@ public final class Statement extends Instruction {
     }
 
     this.expression = expression;
+  }
+
+  /// The R call this statement was compiled from, or `null`. The C backend passes it as the
+  /// `call` of a builtin or dynamic call, so errors, `sys.call()`, and dispatch see the source.
+  public @Nullable LangSXP source() {
+    return source;
+  }
+
+  public void setSource(@Nullable LangSXP source) {
+    this.source = source;
   }
 
   /// The register this statement's result is assigned to, or `null` if the result is discarded.
@@ -119,6 +131,7 @@ public final class Statement extends Instruction {
       newArgs.add(copyArguments.apply(i, arg(i)));
     }
     var copy = new Statement(comments(), expression, newArgs);
+    copy.source = source;
     if (assignee != null) {
       copy.setAssignee(assignee.name(), assignee.type());
     }
