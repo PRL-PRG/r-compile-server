@@ -96,8 +96,7 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
 
     var formalParameters = Lists.mapLazy(staticFunction.parameterNames(), NamedVariable::name);
     var realNames =
-        Stream.concat(
-                names.stream().map(OptionalNamedVariable::toString), Stream.generate(() -> ""))
+        Stream.concat(names.stream().map(OptionalNamedVariable::name), Stream.generate(() -> ""))
             .limit(callArguments.size())
             .toList();
     MatchResults staticArgumentPositions;
