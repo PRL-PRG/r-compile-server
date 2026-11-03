@@ -763,14 +763,14 @@ fun lgamma(x) {
   (x:R) --> R { ... }
 }
 
+# `gamma` to `tanpi` have no unboxed versions: the `fir2c` runtime has no helper for them (see
+# `DEFINE_MATH1_BUILTINS`).
 fun gamma(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
   (x:v(R)) --> v(R) { ... }
   (x:v1(I)) --> v1(R) { ... }
   (x:v1(R)) --> v1(R) { ... }
-  (x:I) --> R { ... }
-  (x:R) --> R { ... }
 }
 
 fun digamma(x) {
@@ -779,8 +779,6 @@ fun digamma(x) {
   (x:v(R)) --> v(R) { ... }
   (x:v1(I)) --> v1(R) { ... }
   (x:v1(R)) --> v1(R) { ... }
-  (x:I) --> R { ... }
-  (x:R) --> R { ... }
 }
 
 fun trigamma(x) {
@@ -789,8 +787,6 @@ fun trigamma(x) {
   (x:v(R)) --> v(R) { ... }
   (x:v1(I)) --> v1(R) { ... }
   (x:v1(R)) --> v1(R) { ... }
-  (x:I) --> R { ... }
-  (x:R) --> R { ... }
 }
 
 fun cospi(x) {
@@ -799,8 +795,6 @@ fun cospi(x) {
   (x:v(R)) --> v(R) { ... }
   (x:v1(I)) --> v1(R) { ... }
   (x:v1(R)) --> v1(R) { ... }
-  (x:I) --> R { ... }
-  (x:R) --> R { ... }
 }
 
 fun sinpi(x) {
@@ -809,8 +803,6 @@ fun sinpi(x) {
   (x:v(R)) --> v(R) { ... }
   (x:v1(I)) --> v1(R) { ... }
   (x:v1(R)) --> v1(R) { ... }
-  (x:I) --> R { ... }
-  (x:R) --> R { ... }
 }
 
 fun tanpi(x) {
@@ -819,8 +811,6 @@ fun tanpi(x) {
   (x:v(R)) --> v(R) { ... }
   (x:v1(I)) --> v1(R) { ... }
   (x:v1(R)) --> v1(R) { ... }
-  (x:I) --> R { ... }
-  (x:R) --> R { ... }
 }
 # ---
 

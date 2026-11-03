@@ -172,12 +172,12 @@ public final class Builtins {
     registerUnaryMath1ToRealBuiltin(interpreter, "asinh", x -> Math.log(x + Math.sqrt(x * x + 1)));
     registerUnaryMath1ToRealBuiltin(interpreter, "atanh", x -> 0.5 * Math.log((1 + x) / (1 - x)));
     registerUnaryMath1ToRealBuiltin(interpreter, "lgamma", x -> Math.log(Math.abs(gamma(x))));
-    registerUnaryMath1ToRealBuiltin(interpreter, "gamma", Builtins::gamma);
-    registerUnaryMath1ToRealBuiltin(interpreter, "digamma", Builtins::digamma);
-    registerUnaryMath1ToRealBuiltin(interpreter, "trigamma", Builtins::trigamma);
-    registerUnaryMath1ToRealBuiltin(interpreter, "cospi", x -> Math.cos(x * Math.PI));
-    registerUnaryMath1ToRealBuiltin(interpreter, "sinpi", x -> Math.sin(x * Math.PI));
-    registerUnaryMath1ToRealBuiltin(interpreter, "tanpi", x -> Math.tan(x * Math.PI));
+    registerUnaryMath1ToRealBuiltin(interpreter, "gamma", Builtins::gamma, false);
+    registerUnaryMath1ToRealBuiltin(interpreter, "digamma", Builtins::digamma, false);
+    registerUnaryMath1ToRealBuiltin(interpreter, "trigamma", Builtins::trigamma, false);
+    registerUnaryMath1ToRealBuiltin(interpreter, "cospi", x -> Math.cos(x * Math.PI), false);
+    registerUnaryMath1ToRealBuiltin(interpreter, "sinpi", x -> Math.sin(x * Math.PI), false);
+    registerUnaryMath1ToRealBuiltin(interpreter, "tanpi", x -> Math.tan(x * Math.PI), false);
 
     // log
     registerLog(interpreter);
@@ -1855,6 +1855,16 @@ public final class Builtins {
   /// Registers a function of one number, which keeps `NA` and `NaN` like GNU-R's `math1`.
   private static void registerUnaryMath1ToRealBuiltin(
       InternalInterpreter interpreter, String name, DoubleUnaryOperator f) {
+    registerUnaryMath1ToRealBuiltin(interpreter, name, f, true);
+  }
+
+  /// [#registerUnaryMath1ToRealBuiltin(InternalInterpreter, String, DoubleUnaryOperator)], and
+  /// the unboxed `(I) --> R` and `(R) --> R` versions only if `hasScalarVersions`.
+  private static void registerUnaryMath1ToRealBuiltin(
+      InternalInterpreter interpreter,
+      String name,
+      DoubleUnaryOperator f,
+      boolean hasScalarVersions) {
     DoubleUnaryOperator fn = x -> RMath.math1(f, x);
     // Generic: (*) -+> V
     interpreter.registerExternal(
@@ -1868,21 +1878,23 @@ public final class Builtins {
               double d = sexpToDouble(sexp, interpreter, name);
               return new Value.Sexp(SEXPs.real(fn.applyAsDouble(d)));
             }));
-    // (I) --> R
-    interpreter.registerExternal(
-        name,
-        sig(Type.REAL, Effects.NONE, Type.INTEGER),
-        ExternalVersion.strict(
-            (_, _, args, _) ->
-                new Value.Real(
-                    fn.applyAsDouble(RMath.fromInt(((Value.Int) args.getFirst()).value())))));
-    // (R) --> R
-    interpreter.registerExternal(
-        name,
-        sig(Type.REAL, Effects.NONE, Type.REAL),
-        ExternalVersion.strict(
-            (_, _, args, _) ->
-                new Value.Real(fn.applyAsDouble(((Value.Real) args.getFirst()).value()))));
+    if (hasScalarVersions) {
+      // (I) --> R
+      interpreter.registerExternal(
+          name,
+          sig(Type.REAL, Effects.NONE, Type.INTEGER),
+          ExternalVersion.strict(
+              (_, _, args, _) ->
+                  new Value.Real(
+                      fn.applyAsDouble(RMath.fromInt(((Value.Int) args.getFirst()).value())))));
+      // (R) --> R
+      interpreter.registerExternal(
+          name,
+          sig(Type.REAL, Effects.NONE, Type.REAL),
+          ExternalVersion.strict(
+              (_, _, args, _) ->
+                  new Value.Real(fn.applyAsDouble(((Value.Real) args.getFirst()).value()))));
+    }
     // (v(I)) --> v(R)
     interpreter.registerExternal(
         name,
