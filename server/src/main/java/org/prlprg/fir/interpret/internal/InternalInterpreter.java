@@ -7,6 +7,7 @@ import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -138,8 +139,10 @@ public final class InternalInterpreter implements Interpreter {
   /// org.prlprg.sexp.BCodeSXP]'s
   /// constant pool. The bytecode calls into our code with the pool entry.
   ///
-  /// Here, it's easier to create stub [SEXP]s and map them with this.
-  private final Map<SEXP, PromiseCode> promises = new HashMap<>();
+  /// Here, it's easier to create stub [SEXP]s and map them with this. Keyed by identity, because
+  /// [PromSXP] equality is structural, and two promises with the same expression and environment
+  /// are different promises.
+  private final Map<SEXP, PromiseCode> promises = new IdentityHashMap<>();
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
   /// Maps each user-created environment (from [MkEnv]) to the `mkenv` [Statement] that created it.
@@ -1304,7 +1307,8 @@ public final class InternalInterpreter implements Interpreter {
     return valueSexp;
   }
 
-  /// Force if promise, load if variable, and evaluate children.
+  /// Force if promise, and evaluate children. A symbol is a value (e.g. from `substitute` or
+  /// `quote`), so it isn't looked up.
   ///
   /// @throws UnsupportedOperationException if given `LangSXP`; evaluation of those isn't
   /// implemented.
@@ -1319,7 +1323,6 @@ public final class InternalInterpreter implements Interpreter {
   private SEXP eval(SEXP valueSexp) {
     return switch (valueSexp) {
       case PromSXP promSxp -> eval(force(promSxp));
-      case RegSymSXP symSxp -> eval(load(Variable.named(symSxp.name())));
       case ListSXP listSxp ->
           listSxp.stream()
               .map(te -> new TaggedElem(te.tag(), eval(te.value())))
@@ -1857,11 +1860,22 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
+  ///
+  /// The [PromSXP]'s code is the promise's source expression, or the wrapped value (see
+  /// [Promise#wrappedValue()]), or else a stub that [#isPromiseCodeStub(SEXP)] recognizes.
   public PromSXP promiseStub(@Nullable Register assignee, Promise promExpr) {
-    var codeStub =
-        SEXPs.lang(
-            SEXPs.symbol(".Interpret"),
-            SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
+    var wrapped = promExpr.wrappedValue();
+    SEXP codeStub;
+    if (promExpr.expr() != null) {
+      codeStub = promExpr.expr();
+    } else if (wrapped != null && run(new Read(wrapped)) instanceof Value.Sexp(var value)) {
+      codeStub = value;
+    } else {
+      codeStub =
+          SEXPs.lang(
+              SEXPs.symbol(".Interpret"),
+              SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
+    }
     var frame = topFrame();
     var sexp = SEXPs.promise(codeStub, frame.environment());
     var promCode =
@@ -1869,6 +1883,16 @@ public final class InternalInterpreter implements Interpreter {
     promises.put(sexp, promCode);
     frame.addPromise(promCode);
     return sexp;
+  }
+
+  /// Whether `code` is the code of a [PromSXP] that [#promiseStub] made for a promise without a
+  /// source expression.
+  public static boolean isPromiseCodeStub(SEXP code) {
+    return code instanceof LangSXP lang
+        && lang.fun() instanceof RegSymSXP fun
+        && fun.name().equals(".Interpret")
+        && lang.args().size() == 1
+        && lang.args().get(0).value() instanceof LangSXP;
   }
 
   /// Records that the promise created at `promCode`'s position escaped, in its version's feedback

@@ -30,6 +30,7 @@ import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.RegSymSXP;
@@ -2689,9 +2690,16 @@ public final class Builtins {
           var env = runtime.currentEnvironment();
           runtime.recordReflectiveEnv(env);
 
-          // Substitute the symbol with its binding (if any); otherwise return the symbol itself.
-          var bound = env.getLocal(symbol.name()).orElse(null);
-          return new Value.Sexp(bound != null ? bound : symbol);
+          // Substitute the symbol with its binding (if any), and a promise with its expression
+          // (repeatedly, like GNU-R); otherwise return the symbol itself.
+          SEXP result = env.getLocal(symbol.name()).orElse(symbol);
+          while (result instanceof PromSXP promise) {
+            if (InternalInterpreter.isPromiseCodeStub(promise.expr())) {
+              throw interpreter.fail("the source expression of this promise is not available");
+            }
+            result = promise.expr();
+          }
+          return new Value.Sexp(result);
         });
   }
 
