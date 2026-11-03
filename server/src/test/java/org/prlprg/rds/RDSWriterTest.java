@@ -479,4 +479,25 @@ public class RDSWriterTest {
         R.eval("identical(input, c(NA_real_, NA_real_, NaN, -NaN), single.NA = FALSE)", reals);
     assertEquals(SEXPs.TRUE, output);
   }
+
+  /// A FIŘ promise's data holds `R_UnboundValue` when its expression is unknown.
+  @Test
+  public void testVecWithUnboundValue() throws Exception {
+    var R = GNUR.instance();
+
+    var list = vec(UNBOUND_VALUE, integer(1));
+    var output = new ByteArrayOutputStream();
+    RDSWriter.writeStream(output, list);
+    var sexp = RDSReader.readStream(R.getSession(), new ByteArrayInputStream(output.toByteArray()));
+
+    if (sexp instanceof VecSXP readList) {
+      assertEquals(2, readList.size());
+      assertEquals(UNBOUND_VALUE, readList.get(0));
+      assertEquals(integer(1), readList.get(1));
+    } else {
+      fail("Expected VecSXP");
+    }
+
+    assertEquals(SEXPs.TRUE, R.eval("is.list(input) && length(input) == 2", list));
+  }
 }
