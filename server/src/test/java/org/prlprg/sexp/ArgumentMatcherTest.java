@@ -74,6 +74,16 @@ class ArgumentMatcherTest {
   }
 
   @Test
+  void positionalOnlyFormalsTakeNamedArguments() {
+    var formals = List.of(".0", ".1");
+    var actuals = List.of("", "value");
+
+    var results = ArgumentMatcher.matchArgumentNames(formals, actuals);
+
+    assertEquals(Map.of(".0", 0, ".1", 1), results.arguments());
+  }
+
+  @Test
   void unmatchedNamedArgumentWithoutDotsThrows() {
     var formals = List.of("alpha", "beta");
     var actuals = List.of("", "gamma");

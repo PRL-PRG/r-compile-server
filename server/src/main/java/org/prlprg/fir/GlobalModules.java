@@ -13,6 +13,7 @@ import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.FunTabEntry;
 import org.prlprg.session.GNURSession;
+import org.prlprg.sexp.ArgumentMatcher;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SpecialSXP;
@@ -102,7 +103,7 @@ public final class GlobalModules {
     return numArgs == -1
         ? List.of(NamedVariable.DOTS)
         : IntStream.range(0, numArgs)
-            .mapToObj(i -> Variable.named("." + i))
+            .mapToObj(i -> Variable.named(ArgumentMatcher.positionalOnlyName(i)))
             .collect(ImmutableList.toImmutableList());
   }
 
