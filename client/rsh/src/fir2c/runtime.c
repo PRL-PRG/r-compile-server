@@ -911,7 +911,7 @@ SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) 
     op = R_Primitive("if");
   }
 
-  SEXP call = PROTECT(Rf_lcons(op, arglist));
+  SEXP call = PROTECT(Rf_lcons(Rf_install(fun.name), arglist));
   protect_count++;
 
   SEXP result = fun.cfun(call, op, arglist, env);
