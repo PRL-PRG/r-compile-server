@@ -158,6 +158,7 @@ import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -1124,7 +1125,8 @@ public final class BC2FirCFGCompiler {
         // In practice, there has always a label after this instruction,
         // but take note in case we get bytecode where this doesn't hold.
       }
-      case Log(var _) -> pushInsertThenCp(builtin("log", pop(), new Constant(SEXPs.real(Math.E))));
+      // GNU-R's group dispatch needs the argument count to match the source call `log(x)`.
+      case Log(var _) -> pushInsertThenCp(builtin("log", pop(), new Constant(SEXPs.MISSING_ARG)));
       case LogBase(var _) -> pushInsertThenCp(mkBinop("log"));
       case Math1(var _, var funId) -> pushInsertThenCp(mkUnop(MATH1_FUNS.get(funId)));
       case DotCall(var _, var numArgs) -> {
@@ -1183,10 +1185,14 @@ public final class BC2FirCFGCompiler {
             expr.args().values().stream()
                 .map(v -> (Argument) new Constant(v))
                 .collect(ImmutableList.toImmutableList());
-        pushInsert(
-            new Built(
-                new org.prlprg.fir.ir.expression.Call(new DynamicCallee(argNames)),
-                prependArg(base, args)));
+        var fallback =
+            insertAndReturn(
+                inferDescriptiveName(Register.DEFAULT_NAME),
+                new Built(
+                    new org.prlprg.fir.ir.expression.Call(new DynamicCallee(argNames)),
+                    prependArg(base, args)));
+        ((AssigneeOf) ((Read) fallback).variable()).statement().setSource(expr);
+        push(fallback);
         setJump(goto_(afterBb));
 
         moveTo(safeBb);
@@ -1517,13 +1523,13 @@ public final class BC2FirCFGCompiler {
   /// Insert a statement that executes a built operation (expression + arguments) and discards the
   /// result.
   private void insert(Built built) {
-    cursor.insert(new Statement(built.expression(), built.args()));
+    cursor.insert(newStatement(built.expression(), built.args()));
   }
 
   /// Insert a statement that executes the expression with the given arguments and discards the
   /// result.
   private void insert(Expression expression, Argument... args) {
-    cursor.insert(new Statement(expression, List.of(args)));
+    cursor.insert(newStatement(expression, List.of(args)));
   }
 
   /// Insert a statement that executes a built operation (expression + arguments), assigns its
@@ -1539,12 +1545,26 @@ public final class BC2FirCFGCompiler {
   }
 
   private Argument insertAndReturn(String name, Expression expression, List<Argument> args) {
-    var statement = new Statement(expression, args);
+    var statement = newStatement(expression, args);
     cursor.insert(statement);
     var type = inferType.of(statement);
     var assignee =
         statement.setAssignee(scope().freshName(name), type == null ? Type.ANY_SEXP : type);
     return new Read(assignee);
+  }
+
+  /// A statement for the expression. A non-intrinsic call gets the current instruction's source
+  /// call, if it has one.
+  private Statement newStatement(Expression expression, List<Argument> args) {
+    var statement = new Statement(expression, args);
+    if (expression instanceof org.prlprg.fir.ir.expression.Call(var callee)
+        && !(callee instanceof StaticFnCallee s && s.function().owner() == INTRINSICS)
+        && bcPos < bc.code().size()
+        && bc.code().get(bcPos) instanceof BcInstr.HasAst h
+        && h.ast() != null) {
+      statement.setSource(get(h.ast()));
+    }
+    return statement;
   }
 
   /// Insert a jump, then move to the next block (given to `computeJump`).
