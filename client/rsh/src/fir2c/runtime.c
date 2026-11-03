@@ -2713,6 +2713,9 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2edouble, value_fx_none_ret_bool, SEXP value
 DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2elogical, value_fx_none_ret_bool, SEXP value) {
   return TYPEOF(value) == LGLSXP;
 }
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2enull, value_fx_none_ret_bool, SEXP value) {
+  return value == R_NilValue;
+}
 DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2ecomplex, value_fx_none_ret_bool, SEXP value) {
   return TYPEOF(value) == CPLXSXP;
 }

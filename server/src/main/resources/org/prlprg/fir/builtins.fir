@@ -905,6 +905,11 @@ fun `is.logical`(x) {
   (x:V) --> B { ... }
 }
 
+fun `is.null`(x) {
+  (x:*@!) -+> v1(L) { ... }
+  (x:V) --> B { ... }
+}
+
 fun `is.complex`(x) {
   (x:*@!) -+> v1(L) { ... }
   (x:V) --> B { ... }

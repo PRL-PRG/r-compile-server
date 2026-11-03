@@ -29,6 +29,7 @@ import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.RegSymSXP;
@@ -226,6 +227,7 @@ public final class Builtins {
     registerIsTypeBuiltin(interpreter, "is.integer", sexp -> sexp instanceof IntSXP, false);
     registerIsTypeBuiltin(interpreter, "is.double", sexp -> sexp instanceof RealSXP, false);
     registerIsTypeBuiltin(interpreter, "is.logical", sexp -> sexp instanceof LglSXP, false);
+    registerIsTypeBuiltin(interpreter, "is.null", sexp -> sexp instanceof NilSXP, false);
     registerIsTypeBuiltin(interpreter, "is.complex", sexp -> sexp instanceof ComplexSXP, false);
     registerIsTypeBuiltin(interpreter, "is.raw", sexp -> sexp instanceof RawSXP, false);
     registerIsTypeBuiltin(

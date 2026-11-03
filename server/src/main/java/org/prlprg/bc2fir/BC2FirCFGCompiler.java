@@ -836,7 +836,7 @@ public final class BC2FirCFGCompiler {
         var target = pop();
         pushInsertThenCp(builtin("$<-", target, memberArg, rhs));
       }
-      case IsNull() -> pushInsertCond(builtin("==", pop(), new Constant(SEXPs.NULL)));
+      case IsNull() -> pushInsertCond(builtin("is.null", pop()));
       case IsLogical() -> pushInsertCond(builtin("is.logical", pop()));
       case IsInteger() -> pushInsertCond(builtin("is.integer", pop()));
       case IsDouble() -> pushInsertCond(builtin("is.double", pop()));
