@@ -213,6 +213,16 @@ public class RDSReaderTest {
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }
 
+  /// Namespace versions can contain `-`, like nlme's.
+  @Test
+  public void testNamespaceVersionWithHyphen() {
+    var R = GNUR.instance();
+
+    var sexp = R.eval("environment(nlme::lme)");
+    assertThat(sexp).isInstanceOf(NamespaceEnvSXP.class);
+    assertThat(((NamespaceEnvSXP) sexp).version()).contains("-");
+  }
+
   /// External pointers keep their attributes, e.g. the class of a `DLLInfo`'s `info`.
   @Test
   public void testExtptrAttributes() {
