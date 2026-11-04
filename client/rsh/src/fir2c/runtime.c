@@ -332,8 +332,8 @@ static struct {
   double elided;
 } Fir_stats;
 
-// GNU-R's copy counter. It's `attribute_hidden`, so it's only there if the platform exports
-// hidden symbols anyway (macOS does, Linux doesn't).
+// GNU-R's copy counter. The vendored R exports it; another R may not (it's `attribute_hidden`
+// upstream, and absent without `R_PROFILING`), so it's looked up at runtime.
 static unsigned long (*Fir_stats_gnur_get_dups)(void) = NULL;
 static void (*Fir_stats_gnur_reset_dups)(void) = NULL;
 
