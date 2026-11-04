@@ -106,7 +106,7 @@ public final class SpeculateDispatch extends AbstractionOptimization {
     candidates.forEach(
         newParameterTypes -> {
           changed[0] = true;
-          LazyCopy.create(topLevel, feedback.module(), function, version, newParameterTypes);
+          LazyCopy.create(topLevel, this, feedback.module(), function, version, newParameterTypes);
         });
     return changed[0];
   }

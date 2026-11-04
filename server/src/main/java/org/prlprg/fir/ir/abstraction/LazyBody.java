@@ -30,6 +30,12 @@ public final class LazyBody {
     default List<Abstraction> sources() {
       return List.of();
     }
+
+    /// What created the version, e.g. the name of the optimization that copied it, for
+    /// diagnostics. `null` if unknown.
+    default @Nullable String creator() {
+      return null;
+    }
   }
 
   private enum State {
@@ -49,12 +55,14 @@ public final class LazyBody {
   private @Nullable RuntimeException failure;
   /// See [#evaluatedFingerprint()].
   private @Nullable HashCode evaluatedFingerprint;
+  private final @Nullable String creator;
 
   /// An already-evaluated body that's empty.
   LazyBody(Abstraction scope) {
     this.scope = scope;
     state = State.EVALUATED;
     body = new CFG(scope);
+    creator = null;
   }
 
   /// A body that's evaluated when first accessed.
@@ -62,6 +70,12 @@ public final class LazyBody {
     this.scope = scope;
     this.initializer = initializer;
     state = State.UNEVALUATED;
+    creator = initializer.creator();
+  }
+
+  /// What created the version (see [Initializer#creator()]), kept after it's evaluated.
+  public @Nullable String creator() {
+    return creator;
   }
 
   public boolean isEvaluated() {

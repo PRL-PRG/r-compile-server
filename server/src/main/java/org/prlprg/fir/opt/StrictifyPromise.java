@@ -211,6 +211,7 @@ public final class StrictifyPromise extends AbstractionOptimization {
                   .collect(Collectors.toMap(Inlineable::argIndex, Inlineable::valueType));
           LazyCopy.create(
               topLevel,
+              this,
               feedback.module(),
               calleeFun,
               oldVersion,

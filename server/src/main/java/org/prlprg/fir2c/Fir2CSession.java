@@ -116,6 +116,7 @@ public final class Fir2CSession {
 
   private int promises = 0;
   private int patches = 0;
+  private final List<Request> requests = new ArrayList<>();
 
   /// @param id What stubs name this module to the server, so it can find this session. Also
   ///     prefixes every C name, so the client can have more than one module (for tests: one per
@@ -325,6 +326,20 @@ public final class Fir2CSession {
         return part + "_" + i;
       }
     }
+  }
+
+  // --- Requests -------------------------------------------------------------------------------
+
+  /// A request of a stub for its version, and whether the answer had a patch.
+  public record Request(int stubId, boolean patched) {}
+
+  void recordRequest(int stubId, boolean patched) {
+    requests.add(new Request(stubId, patched));
+  }
+
+  /// Every request the server answered, in order.
+  public List<Request> requests() {
+    return List.copyOf(requests);
   }
 
   // --- Counters -------------------------------------------------------------------------------

@@ -96,7 +96,12 @@ class Fir2CCompilerTest {
     var f = Objects.requireNonNull(module.localFunction(Variable.named("f")));
     var source = f.versions().first();
     LazyCopy.create(
-        optimization, new MockModuleFeedback(module), f, source, List.of(Type.BOXED_INTEGER));
+        optimization,
+        optimization,
+        new MockModuleFeedback(module),
+        f,
+        source,
+        List.of(Type.BOXED_INTEGER));
     return module;
   }
 

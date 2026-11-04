@@ -59,7 +59,8 @@ class LazyCopyTest {
     var topLevel = new CountingOptimization();
     var feedback = new MockModuleFeedback(module);
 
-    var copy = LazyCopy.create(topLevel, feedback, f, source, List.of(Type.BOXED_INTEGER));
+    var copy =
+        LazyCopy.create(topLevel, topLevel, feedback, f, source, List.of(Type.BOXED_INTEGER));
 
     assertFalse(copy.isEvaluated());
     assertEquals(source.returnType(), copy.returnType(), "the signature isn't lazy");
@@ -90,6 +91,7 @@ class LazyCopyTest {
     // Created outside of a run, so its run id has changed by the time the copy is evaluated.
     var copy =
         LazyCopy.create(
+            topLevel,
             topLevel,
             feedback,
             f,
@@ -123,6 +125,7 @@ class LazyCopyTest {
             var copy =
                 LazyCopy.create(
                     topLevel,
+                    topLevel,
                     feedback1,
                     function,
                     source,
@@ -146,6 +149,7 @@ class LazyCopyTest {
     var feedback = new MockModuleFeedback(module);
     for (var i = 0; i < 3; i++) {
       LazyCopy.create(
+          topLevel,
           topLevel,
           feedback,
           f,

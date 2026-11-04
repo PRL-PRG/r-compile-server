@@ -63,6 +63,7 @@ class LazyVersionOptimizationTest {
     var copy =
         LazyCopy.create(
             new NoOptimization(),
+            new NoOptimization(),
             new MockModuleFeedback(module),
             f,
             source,

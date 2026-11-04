@@ -135,6 +135,12 @@ public final class Fir2CCompiler {
   /// keep running its fallback. There's no patch if there's nothing else to do, nor if the client
   /// already got the version, with an earlier patch.
   public static StubAnswer compileStub(Fir2CSession session, int stubId) {
+    var answer = answerStub(session, stubId);
+    session.recordRequest(stubId, answer.patch() != null);
+    return answer;
+  }
+
+  private static StubAnswer answerStub(Fir2CSession session, int stubId) {
     var version = session.stub(stubId);
     var state = Objects.requireNonNull(session.version(version));
     if (!state.isStub()) {

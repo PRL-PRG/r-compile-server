@@ -72,8 +72,11 @@ public final class LazyCopy {
   }
 
   /// Add to `function` a lazy copy of `source` except with `newParameterTypes`, and return it.
+  ///
+  /// `creator` is the optimization that calls this (see [LazyBody#creator()]).
   public static Abstraction create(
       Optimization topLevel,
+      Optimization creator,
       ModuleFeedback feedback,
       Function function,
       Abstraction source,
@@ -86,7 +89,7 @@ public final class LazyCopy {
                     new FunctionParameter(
                         parameter.name(), type, parameter.strict() && !type.isValue()))
             .collect(ImmutableList.toImmutableList());
-    return create(topLevel, feedback, function, source, newParameters, Adapter.NONE);
+    return create(topLevel, creator, feedback, function, source, newParameters, Adapter.NONE);
   }
 
   /// Add to `function` a lazy copy of `source` except with `newParameters` (and what `adapter`
@@ -102,6 +105,7 @@ public final class LazyCopy {
   /// @throws IllegalArgumentException If any parameter in `newParameters` is already owned.
   public static Abstraction create(
       Optimization topLevel,
+      Optimization creator,
       ModuleFeedback feedback,
       Function function,
       Abstraction source,
@@ -163,6 +167,11 @@ public final class LazyCopy {
               @Override
               public List<Abstraction> sources() {
                 return List.of(source);
+              }
+
+              @Override
+              public String creator() {
+                return creator.name();
               }
             });
     copy.setReturnType(returnType);

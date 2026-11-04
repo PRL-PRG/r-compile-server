@@ -71,6 +71,7 @@ class FallbackEquivalentVersionTest {
     var copy =
         LazyCopy.create(
             optimizations,
+            optimizations,
             feedback,
             f,
             source,
@@ -93,6 +94,7 @@ class FallbackEquivalentVersionTest {
     var copy =
         LazyCopy.create(
             Optimizations.defaultOptimizations(),
+            new NoOptimization(),
             new MockModuleFeedback(module),
             f,
             f.baseline(),
@@ -113,6 +115,7 @@ class FallbackEquivalentVersionTest {
     var copy = f.versions().first();
     var other =
         LazyCopy.create(
+            new NoOptimization(),
             new NoOptimization(),
             new MockModuleFeedback(module),
             f,
@@ -169,6 +172,7 @@ class FallbackEquivalentVersionTest {
     var copy = f.versions().first();
     var other =
         LazyCopy.create(
+            new NoOptimization(),
             new NoOptimization(),
             new MockModuleFeedback(module),
             f,

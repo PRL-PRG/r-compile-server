@@ -68,6 +68,7 @@ reseed <- function() {
 # closures it defines are the module's functions (the earlier runs run main's stub, whose fallback
 # runs the bytecode, which defines GNU-R closures). The call runs `runs` times in its environment.
 if (!exists("bench_call")) bench_call <- NULL
+bench <- NULL
 if (is.null(bench_call)) {
   for (i in seq_len(runs)) {
     reseed()
@@ -79,7 +80,13 @@ if (is.null(bench_call)) {
     bench_env <- new.env(parent = main_env)
     invisible(.Call(paste0("Fir_", prefix, "fun_from_r_main"), bench_env, constantPool))
   }
-  for (i in seq_len(runs)) eval(bench_call, bench_env)
+  # Per run: its wall time, and the call counts of the versions in a stats build (else `NULL`).
+  bench <- list(times = numeric(runs), calls = vector("list", runs))
+  for (i in seq_len(runs)) {
+    bench$times[[i]] <- system.time(eval(bench_call, bench_env))[["elapsed"]]
+    calls <- tryCatch(.Call("Fir_stats_versions_get"), error = \(e) NULL)
+    if (!is.null(calls)) bench$calls[[i]] <- calls[startsWith(names(calls), prefix)]
+  }
   res <- NULL
 }
 
@@ -97,4 +104,4 @@ if (!is.null(fir_port)) {
 
 dyn.unload(paste0(path, "/code.so"))
 
-list(res, pc, feedback)
+list(res, pc, feedback, bench)

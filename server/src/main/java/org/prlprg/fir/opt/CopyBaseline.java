@@ -21,6 +21,7 @@ public final class CopyBaseline extends Optimization {
 
     LazyCopy.create(
         topLevel,
+        this,
         feedback,
         function,
         function.baseline(),

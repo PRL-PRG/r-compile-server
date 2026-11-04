@@ -202,14 +202,17 @@ public class ServerTests {
             """);
     var f = Objects.requireNonNull(module.localFunction(Variable.named("f")));
     var source = f.versions().first();
-    LazyCopy.create(
+    var noOptimization =
         new Optimization() {
           @Override
           public boolean runWithoutRecording(
               Optimization topLevel, ModuleFeedback feedback, Function function) {
             return false;
           }
-        },
+        };
+    LazyCopy.create(
+        noOptimization,
+        noOptimization,
         new MockModuleFeedback(module),
         f,
         source,

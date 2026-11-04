@@ -74,7 +74,7 @@ public final class CreateBestVersion extends AbstractionOptimization {
     }
 
     // Create a new version with the exact parameter types
-    LazyCopy.create(topLevel, feedback.module(), calleeFun, bestVersion, argumentTypes);
+    LazyCopy.create(topLevel, this, feedback.module(), calleeFun, bestVersion, argumentTypes);
     return true;
   }
 }

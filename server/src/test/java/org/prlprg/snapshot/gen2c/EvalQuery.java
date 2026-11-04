@@ -100,8 +100,8 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
 
   /// What one run of a module by `eval.R` did.
   ///
-  /// @param value What `eval.R` returned (`list(res, pc, feedback)`), or `null` if R raised
-  ///     `error`.
+  /// @param value What `eval.R` returned (`list(res, pc, feedback, bench)`), or `null` if R
+  ///     raised `error`.
   /// @param session What the compile server has of the module, or `null` if the module isn't
   ///     connected. The server no longer has the module, so the session doesn't change any more,
   ///     unless R raised an error before every request was answered.
@@ -167,9 +167,9 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
 
     try {
       var rawOutput = R.capturingEval(source);
-      if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 3) {
+      if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 4) {
         throw new IllegalArgumentException(
-            "Value first item must be a vector of size 3, got: " + rawOutput.first());
+            "Value first item must be a vector of size 4, got: " + rawOutput.first());
       }
       return new Run(v, rawOutput.second(), null, session);
     } catch (EvalException e) {

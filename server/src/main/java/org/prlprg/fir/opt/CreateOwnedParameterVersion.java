@@ -69,7 +69,7 @@ public final class CreateOwnedParameterVersion extends AbstractionOptimization {
       return false;
     }
 
-    LazyCopy.create(topLevel, feedback.module(), function, version, newParameterTypes);
+    LazyCopy.create(topLevel, this, feedback.module(), function, version, newParameterTypes);
     return true;
   }
 

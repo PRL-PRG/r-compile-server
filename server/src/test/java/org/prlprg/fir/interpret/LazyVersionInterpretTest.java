@@ -61,7 +61,13 @@ class LazyVersionInterpretTest {
     var feedback = new MockModuleFeedback(module);
     // The copy takes exactly what `main` passes, so it's what `main`'s call dispatches to.
     var copy =
-        LazyCopy.create(new NoOptimization(), feedback, f, source, List.of(Type.BOXED_INTEGER));
+        LazyCopy.create(
+            new NoOptimization(),
+            new NoOptimization(),
+            feedback,
+            f,
+            source,
+            List.of(Type.BOXED_INTEGER));
     assertEquals(
         copy,
         f.guess(
@@ -111,7 +117,13 @@ class LazyVersionInterpretTest {
     var source = f.versions().first();
     var feedback = new MockModuleFeedback(module);
     var copy =
-        LazyCopy.create(new NoOptimization(), feedback, f, source, List.of(Type.BOXED_INTEGER));
+        LazyCopy.create(
+            new NoOptimization(),
+            new NoOptimization(),
+            feedback,
+            f,
+            source,
+            List.of(Type.BOXED_INTEGER));
 
     var interpreter = new InternalInterpreter(module, feedback);
     registerBuiltins(interpreter);

@@ -51,6 +51,12 @@ public class TestConfig extends Config {
               ? ".*"
               : INSTANCE.get("BENCHMARK_OPTIMIZATIONS", ".*"));
 
+  /// How many times `org.prlprg.snapshot.bench.VersionBenchmark` runs the benchmark call.
+  ///
+  /// This is **30** by default: more than twice the stub threshold (10), so the steady state and
+  /// every link of a version chain show.
+  public static final int BENCHMARK_VERSION_RUNS = INSTANCE.get("BENCHMARK_VERSION_RUNS", 30);
+
   /// `org.prlprg.snapshot.bench.SynergyBenchmark` removes every pair among this many
   /// optimizations, the ones whose single removal slows the example down the most.
   ///

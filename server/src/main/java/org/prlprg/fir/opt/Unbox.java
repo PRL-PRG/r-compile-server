@@ -258,6 +258,7 @@ public class Unbox extends AbstractionOptimization {
     var boxedReturnType = boxedVersion.returnType();
     LazyCopy.create(
         topLevel,
+        this,
         feedback.module(),
         function,
         boxedVersion,
