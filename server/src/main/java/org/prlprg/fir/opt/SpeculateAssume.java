@@ -22,6 +22,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Promisity;
@@ -43,7 +44,8 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// \[1\] Specifically, every checkpoint in the register's own CFG that its definition dominates
 /// and that isn't dominated by another such checkpoint. There's usually only one, although we
-/// handle the case where there's multiple.
+/// handle the case where there's multiple. A checkpoint is skipped if its success block dominates
+/// no use of the register, since the assumption would replace nothing.
 ///
 /// By default, this optimization doesn't run on baseline versions, since if we deoptimize from
 /// baseline we don't have anywhere to go that isn't FIŘ.
@@ -66,6 +68,18 @@ public final class SpeculateAssume extends AbstractionOptimization {
     return bb.jump().expression() instanceof Checkpoint checkpoint
         ? checkpoint.success().get()
         : null;
+  }
+
+  /// Whether an assumption at the start of `bb` would replace any use of `register` (what
+  /// [DomineeSubstituter] substitutes).
+  private static boolean dominatesAnyUse(DominatorTree domTree, BB bb, Register register) {
+    return register.uses().stream()
+        .map(Use::instruction)
+        .anyMatch(
+            use -> {
+              var useBb = use.parentBB();
+              return useBb != null && domTree.dominates(bb, -1, useBb, use.indexInBB());
+            });
   }
 
   @Override
@@ -212,14 +226,20 @@ public final class SpeculateAssume extends AbstractionOptimization {
 
       // Filter out checkpoints where the assumptions would be strictly redundant,
       // because they're dominated by another checkpoint we'll insert assumptions at.
+      //
+      // Then filter out checkpoints whose success block dominates no use of the register: the
+      // assumption would refine nothing, but could still fail. E.g. a branch condition is only used
+      // by its `if`, before the checkpoints in both branches, so assuming it's `FALSE` would only
+      // deoptimize whenever the `true` branch runs.
       var immediateCheckpointBbs =
           availableCheckpointBbs.stream()
               .filter(
                   bb ->
                       availableCheckpointBbs.stream()
                           .noneMatch(other -> other != bb && domTree.dominates(other, bb)))
+              .filter(
+                  bb -> dominatesAnyUse(domTree, Objects.requireNonNull(successOf(bb)), register))
               .toList();
-      assert !immediateCheckpointBbs.isEmpty();
 
       for (var cpBb : immediateCheckpointBbs) {
         var successBb = Objects.requireNonNull(successOf(cpBb));

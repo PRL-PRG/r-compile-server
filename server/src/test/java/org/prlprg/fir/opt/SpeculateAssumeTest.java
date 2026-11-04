@@ -2,13 +2,15 @@ package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.function.BiConsumer;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
@@ -154,9 +156,92 @@ class SpeculateAssumeTest {
             + Printer.toString(module));
   }
 
+  @Test
+  void branchConditionUsedOnlyByItsIf_notAssumed() {
+    // `bench_awf_mandelbrot`: the condition's only use is the `if`, before the checkpoints in both
+    // branches. Assuming it's `FALSE` there refines nothing, and deoptimizes whenever `L0` runs.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V { ... }
+              () -+> V {
+                c: B = blackBox< --> B >();
+                if c then L0() else L1();
+              L0():
+                check L2() else D0();
+              L1():
+                check L3() else D1();
+              L2():
+                return <int 1>;
+              L3():
+                return <int 2>;
+              D0():
+                deopt 0 [];
+              D1():
+                deopt 1 [];
+              }
+            }
+
+            fun blackBox() {
+              () --> B { ... }
+            }
+            """);
+
+    assertFalse(
+        runConstant(module, "c", new Value.Bool(false)),
+        "an assumption that replaces no use shouldn't be inserted:\n" + Printer.toString(module));
+  }
+
+  @Test
+  void constantUsedAfterTheCheckpoint_isAssumed() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V { ... }
+              () -+> V {
+                c: B = blackBox< --> B >();
+                check L0() else D0();
+              L0():
+                if c then L1() else L2();
+              L1():
+                return <int 1>;
+              L2():
+                return <int 2>;
+              D0():
+                deopt 0 [];
+              }
+            }
+
+            fun blackBox() {
+              () --> B { ... }
+            }
+            """);
+
+    assertTrue(runConstant(module, "c", new Value.Bool(false)));
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("c ?= FALSE"), "the assume should be inserted:\n" + printed);
+    assertTrue(printed.contains("if FALSE then"), "the `if` should read the constant:\n" + printed);
+  }
+
   /// Record `type` for the register named `registerName`, often enough to pass the threshold, then
   /// run [SpeculateAssume] on `module`'s non-baseline `main` version.
   private static boolean run(Module module, String registerName, String type) {
+    return run(
+        module,
+        registerName,
+        (feedback, register) -> feedback.recordType(register, Parser.fromString(type, Type.class)));
+  }
+
+  /// Like [#run(Module, String, String)], but record `constant` instead of a type.
+  private static boolean runConstant(Module module, String registerName, Value constant) {
+    return run(
+        module, registerName, (feedback, register) -> feedback.recordConstant(register, constant));
+  }
+
+  private static boolean run(
+      Module module, String registerName, BiConsumer<AbstractionFeedback, Register> record) {
     var function = module.localFunction(Variable.named("main"));
     assertNotNull(function);
     var version =
@@ -165,12 +250,6 @@ class SpeculateAssumeTest {
             .findFirst()
             .orElseThrow();
 
-    var feedback = feedbackFor(module, version, registerName, type);
-    return new SpeculateAssume(THRESHOLD).run(function, feedback, version);
-  }
-
-  private static AbstractionFeedback feedbackFor(
-      Module module, Abstraction version, String registerName, String type) {
     var feedback = new MockModuleFeedback(module).get(version);
     var register =
         version
@@ -178,8 +257,8 @@ class SpeculateAssumeTest {
             .filter(r -> r.name().equals(registerName))
             .findFirst()
             .orElseThrow(() -> new AssertionError("no register named " + registerName));
-    feedback.recordType(register, Parser.fromString(type, Type.class));
+    record.accept(feedback, register);
     feedback.setTimes(register, THRESHOLD * 10);
-    return feedback;
+    return new SpeculateAssume(THRESHOLD).run(function, feedback, version);
   }
 }
