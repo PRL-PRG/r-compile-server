@@ -298,6 +298,10 @@ bool Fir_value_matches(SEXP value, Fir_Type type) {
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
   ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for closure");
+  // See `Fir_push_env`.
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
 
   SEXP ext = PROTECT(R_MakeExternalPtr((void *)dispatchFromR, Rsh_CodeTag, cp));
   SEXP closure = PROTECT(Rf_mkCLOSXP(formals, ext, env));
@@ -314,6 +318,10 @@ void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_F
 
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env, SEXP expr) {
   ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
+  // See `Fir_push_env`.
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
 
   SEXP data = PROTECT(Rf_allocVector(VECSXP, 3));
   SET_VECTOR_ELT(data, 0, expr);
@@ -447,21 +455,36 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed) {
 
 // `Fir_pop_env` takes what the push returned instead of reading the globals: a non-local exit
 // (`UseMethod`, a caught error) skips `Fir_unset_env_pushed_from_r`, so they can be stale at a pop.
-bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type) {
+//
+// Every elided frame is the singleton `Rsh_ElidedEnv`, and its `ENCLOS` is the parent of the
+// innermost one. The push saves the previous parent in `*saved` and the pop restores it, so a frame
+// reads its own parent again after an elided callee returns. A promise or closure made in an elided
+// frame captures the parent instead: the frame has no bindings, and the singleton's parent changes.
+bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
+  ASSERT(saved || type != FIR_MKENV_ELIDED, "elided push_env requires a slot to save the parent");
+  if (saved) {
+    *saved = NULL;
+  }
 
   if (Fir_env_pushed_from_r == *env_ptr && !Fir_env_push_suppressed) {
     Fir_env_push_suppressed = true;
     return false;
   }
 
-  SEXP new_env =
-    type == FIR_MKENV_ELIDED
-      ? Rsh_ElidedEnv
-      : Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
-  if (type == FIR_MKENV_ELIDED && *env_ptr != Rsh_ElidedEnv) {
-    SET_ENCLOS(Rsh_ElidedEnv, *env_ptr);
+  if (type == FIR_MKENV_ELIDED) {
+    // Nested in an elided frame, the parent stays: `Rsh_ElidedEnv` marks it.
+    *saved = Rsh_ElidedEnv;
+    if (*env_ptr != Rsh_ElidedEnv) {
+      *saved = ENCLOS(Rsh_ElidedEnv);
+      SET_ENCLOS(Rsh_ElidedEnv, *env_ptr);
+      *env_ptr = Rsh_ElidedEnv;
+    }
+    PROTECT(*saved);
+    return true;
   }
+
+  SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
   if (type == FIR_MKENV_NON_REFLECTIVE) {
     Rf_defineVar(Rsh_ReflectivelyAccessed, R_LogicalNAValue, new_env);
   }
@@ -470,11 +493,21 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type) {
   return true;
 }
 
-void Fir_pop_env(SEXP *env_ptr, bool pushed) {
+void Fir_pop_env(SEXP *env_ptr, bool pushed, SEXP saved) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "pop_env requires a pointer to an environment");
 
   if (!pushed) {
     Fir_env_push_suppressed = false;
+    return;
+  }
+
+  if (*env_ptr == Rsh_ElidedEnv) {
+    UNPROTECT(1);
+    if (saved != Rsh_ElidedEnv) {
+      *env_ptr = ENCLOS(Rsh_ElidedEnv);
+      // Before the first push, the parent is `R_NilValue`, which `SET_ENCLOS` rejects.
+      SET_ENCLOS(Rsh_ElidedEnv, saved == R_NilValue ? R_EmptyEnv : saved);
+    }
     return;
   }
 
@@ -1191,7 +1224,7 @@ SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
     INTEGER(calls)[0]++;
   }
 
-  bool pushed = Fir_push_env(&env, FIR_MKENV_REGULAR);
+  bool pushed = Fir_push_env(&env, FIR_MKENV_REGULAR, NULL);
 
   SEXP formal = Fir_const(pool, FIR_BC_BASELINE_FORMALS);
   for (int i = 0; i < argc; ++i, formal = CDR(formal)) {
@@ -1213,7 +1246,7 @@ SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
 
   SEXP out = Rf_eval(Fir_bc_baseline_code(pool), env);
 
-  Fir_pop_env(&env, pushed);
+  Fir_pop_env(&env, pushed, NULL);
   return out;
 }
 

@@ -164,6 +164,8 @@ public final class Fir2CCompiler {
   private static final String VAR_LOCAL_PROMISES = "local_promises";
   private static final String VAR_LOCAL_PROMISES_IDX = "local_promises_idx";
   private static final String VAR_ENV_PUSHED = "env_pushed";
+  private static final String VAR_ENV_SAVED = "env_saved";
+  private static final String VAR_ENV_DEPTH = "env_depth";
   /// The environment a version's C function receives, before its `MkEnv` replaces [#VAR_ENV].
   private static final String VAR_ENV_CLOSURE = "env_closure";
 
@@ -1587,8 +1589,12 @@ public final class Fir2CCompiler {
         /// them escaped when the frame exits.
         private final boolean createsPromises;
 
-        /// Whether this CFG has any `MkEnv` or `PopEnv`, so it needs [#VAR_ENV_PUSHED].
+        /// Whether this CFG has any `MkEnv` or `PopEnv`, so it needs [#VAR_ENV_PUSHED],
+        /// [#VAR_ENV_SAVED], and [#VAR_ENV_DEPTH].
         private final boolean hasEnvOps;
+
+        /// The number of `MkEnv`s in this CFG, which bounds how many are active at once.
+        private final long numMkEnvs;
 
         /// Whether this CFG's deopt branches materialize its environment (see
         /// [BBEmitter#emitMaterializeEnv()]), so it needs [#VAR_ENV_CLOSURE].
@@ -1619,6 +1625,11 @@ public final class Fir2CCompiler {
                   .flatMap(bb -> bb.statements().stream())
                   .anyMatch(
                       s -> s.expression() instanceof MkEnv || s.expression() instanceof PopEnv);
+          numMkEnvs =
+              cfg.bbs().stream()
+                  .flatMap(bb -> bb.statements().stream())
+                  .filter(s -> s.expression() instanceof MkEnv)
+                  .count();
           materializesEnv =
               hasEnvOps
                   && cfg.bbs().stream().anyMatch(bb -> bb.jump().expression() instanceof Deopt);
@@ -1662,10 +1673,14 @@ public final class Fir2CCompiler {
         }
 
         /// Declares the bit stack of what each active `MkEnv` returned (the top is bit 0), which
-        /// its `PopEnv` passes to `Fir_pop_env`. `MkEnv`s nest within a frame after inlining.
+        /// its `PopEnv` passes to `Fir_pop_env`, and the stack of slots where `Fir_push_env`
+        /// saves what `Fir_pop_env` restores. `MkEnv`s nest within a frame after inlining.
         private void emitEnvPushedDeclaration() {
           if (hasEnvOps) {
-            cFunction.add().stmt("uint64_t %s = 0;", VAR_ENV_PUSHED);
+            var sec = cFunction.add();
+            sec.stmt("uint64_t %s = 0;", VAR_ENV_PUSHED);
+            sec.stmt("SEXP %s[%d];", VAR_ENV_SAVED, Math.max(numMkEnvs, 1));
+            sec.stmt("int %s = 0;", VAR_ENV_DEPTH);
           }
           if (materializesEnv) {
             cFunction.add().stmt("SEXP %s = %s;", VAR_ENV_CLOSURE, VAR_ENV);
@@ -1944,8 +1959,13 @@ public final class Fir2CCompiler {
                   };
               case MkEnv(var type) -> {
                 cCode.stmt(
-                    "%s = (%s << 1) | Fir_push_env(&%s, %s);",
-                    VAR_ENV_PUSHED, VAR_ENV_PUSHED, VAR_ENV, emitMkEnvType(type));
+                    "%s = (%s << 1) | Fir_push_env(&%s, %s, &%s[%s++]);",
+                    VAR_ENV_PUSHED,
+                    VAR_ENV_PUSHED,
+                    VAR_ENV,
+                    emitMkEnvType(type),
+                    VAR_ENV_SAVED,
+                    VAR_ENV_DEPTH);
                 debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
                 yield null;
               }
@@ -1968,7 +1988,9 @@ public final class Fir2CCompiler {
               }
               case Noop() -> null;
               case PopEnv() -> {
-                cCode.stmt("Fir_pop_env(&%s, %s & 1);", VAR_ENV, VAR_ENV_PUSHED);
+                cCode.stmt(
+                    "Fir_pop_env(&%s, %s & 1, %s[--%s]);",
+                    VAR_ENV, VAR_ENV_PUSHED, VAR_ENV_SAVED, VAR_ENV_DEPTH);
                 cCode.stmt("%s >>= 1;", VAR_ENV_PUSHED);
                 yield null;
               }
