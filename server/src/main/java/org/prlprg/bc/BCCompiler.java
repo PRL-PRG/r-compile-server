@@ -1957,9 +1957,6 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarSubset(LangSXP call) {
-    // We can't skip if `optimizationLevel == BcOptLevel.FIR`,
-    // because the `GetterCall` compiles a symbol index into a load.
-
     if (anyDots(call.args()) || call.args().size() != 2) {
       return false;
     }
@@ -1983,10 +1980,6 @@ public class BCCompiler {
   }
 
   private boolean inlineSquareBracketSubSet(boolean doubleBracket, LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR) {
-      return false;
-    }
-
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
       // inline cmpGetterDispatch from the R compiler
 
@@ -2035,9 +2028,6 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarAssign(FlattenLHS flhs, LangSXP call) {
-    // We can't skip if `optimizationLevel == BcOptLevel.FIR`,
-    // because the `GetterCall` compiles a symbol index into a load.
-
     var place = flhs.temp();
     if (anyDots(place.args()) || place.args().size() != 2) {
       return false;
@@ -2058,10 +2048,6 @@ public class BCCompiler {
   }
 
   private boolean inlineSquareBracketAssign(boolean doubleSquare, FlattenLHS flhs, LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR) {
-      return false;
-    }
-
     var place = flhs.temp();
 
     if (dotsOrMissing(place.args()) || place.args().hasTags() || place.args().size() < 2) {
@@ -2113,10 +2099,6 @@ public class BCCompiler {
   }
 
   private boolean inlineSubset(boolean doubleSquare, LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR) {
-      return inlineSpecial(call);
-    }
-
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
       if (anyDots(call.args()) || call.args().isEmpty()) {
         return inlineSpecial(call);

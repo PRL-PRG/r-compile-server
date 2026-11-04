@@ -629,6 +629,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `server/src/test/java/org/prlprg/` — `TestConfig` (environment variables of the tests), `TestOrderer`.
 - `.../bc/` — Bytecode compiler tests (`BCCompilerTest`, `ConstantFoldingTest`, `ConstPoolTest`, ...).
 - `.../bc2fir/NeedsContextTest.java` — Which closures `bc2fir` marks `@needsContext` and `@needsPromises`, and the properties' parse/print round trip.
+- `.../bc2fir/GnurBytecodeTest.java` — `bc2fir` compiles the inlined subscripts of GNU-R compiler bytecode (what the rsh JIT sends) into static calls.
 - `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples), and their per-test timeout (`ExampleTimeout`).
 - `.../fir/analyze/`, `.../fir/check/`, `.../fir/feedback/`, `.../fir/ir/` — Unit tests of FIŘ analyses, checkers, feedback, and IR.
 - `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises).
@@ -652,6 +653,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
 - `.../examples/R/elided_env_parent_{after_call,promise}.R` — Regressions for the parent of an elided frame in the fir2c runtime: after an elided callee with another parent returns, and in a promise that such a callee forces.
+- `.../examples/R/{complex_assign,subset}_language.R` — Regressions for a lite special called with values in the fir2c runtime: a call or symbol vector, index, or value must not be evaluated again.
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
 - `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts (`bench.R`, `optbench.R`, `synergy.R`, `ownership.R`, `promisebench.R`, which also counts `OwnershipBenchmark`'s copies), `order.txt`.
 - `server/src/test/resources/org/prlprg/gen2c/`, `bc2c/` — Build files and data for compiled-C tests.

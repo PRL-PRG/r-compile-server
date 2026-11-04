@@ -1204,9 +1204,96 @@ public final class BC2FirCFGCompiler {
 
         moveTo(safeBb);
       }
+      // Inlined subscripts. GNU-R dispatches on an object vector in the start instruction (and then
+      // jumps to its label), otherwise the next instruction runs the default subscript on the
+      // evaluated arguments. The builtin's baseline does both, so the start instruction is a no-op
+      // and the label is only reached by falling through.
+      case BcInstr.StartSubsetN _,
+          BcInstr.StartSubset2N _,
+          BcInstr.StartSubassignN _,
+          BcInstr.StartSubassign2N _ -> {}
+      case BcInstr.VecSubset _ -> compileSubset("[", 1);
+      case BcInstr.MatSubset _ -> compileSubset("[", 2);
+      case BcInstr.SubsetN(var _, var n) -> compileSubset("[", n);
+      case BcInstr.VecSubset2 _ -> compileSubset("[[", 1);
+      case BcInstr.MatSubset2 _ -> compileSubset("[[", 2);
+      case BcInstr.Subset2N(var _, var n) -> compileSubset("[[", n);
+      case BcInstr.VecSubassign _ -> compileSubassign("[<-", 1);
+      case BcInstr.MatSubassign _ -> compileSubassign("[<-", 2);
+      case BcInstr.SubassignN(var _, var n) -> compileSubassign("[<-", n);
+      case BcInstr.VecSubassign2 _ -> compileSubassign("[[<-", 1);
+      case BcInstr.MatSubassign2 _ -> compileSubassign("[[<-", 2);
+      case BcInstr.Subassign2N(var _, var n) -> compileSubassign("[[<-", n);
+      // The default-dispatch forms build the call's arguments with `PUSHARG`s etc., like a builtin
+      // call. The vector (and the value) stay on the stack until the call, like in GNU-R.
+      case BcInstr.StartSubset(var ast, var _) -> startDfltSubscript("[", ast, top());
+      case BcInstr.StartSubset2(var ast, var _) -> startDfltSubscript("[[", ast, top());
+      case BcInstr.StartSubassign(var ast, var _) ->
+          startDfltSubscript("[<-", ast, stack.get(stack.size() - 2));
+      case BcInstr.StartSubassign2(var ast, var _) ->
+          startDfltSubscript("[[<-", ast, stack.get(stack.size() - 2));
+      case BcInstr.DfltSubset(), BcInstr.DfltSubset2() -> {
+        var call = popCall();
+        pop();
+        compileCall(call);
+      }
+      case BcInstr.DfltSubassign(), BcInstr.DfltSubassign2() -> {
+        var rhs = pop();
+        pop();
+        pushCallArg(rhs);
+        setNameOfLastCallArg("value");
+        compileCall();
+      }
       case IncLnk(), DecLnk(), DeclnkN(var _), IncLnkStk(), DecLnkStk() -> {}
       default -> throw failUnsupported(instr.getClass().getSimpleName());
     }
+  }
+
+  /// Compile `VECSUBSET`, `MATSUBSET`, or `SUBSET_N` (or their `[[` versions): pop `n` indices and
+  /// the vector, and push the subscript's result.
+  private void compileSubset(String builtinName, int n) {
+    var indices = popN(n);
+    var vector = pop();
+    pushCall(new Builtin(builtinName));
+    pushCallArg(vector);
+    indices.forEach(this::pushCallArg);
+    compileCall();
+  }
+
+  /// Compile `VECSUBASSIGN`, `MATSUBASSIGN`, or `SUBASSIGN_N` (or their `[[<-` versions): pop `n`
+  /// indices, the value, and the vector, and push the assigned vector.
+  private void compileSubassign(String builtinName, int n) {
+    var indices = popN(n);
+    var rhs = pop();
+    var vector = pop();
+    pushCall(new Builtin(builtinName));
+    pushCallArg(vector);
+    indices.forEach(this::pushCallArg);
+    pushCallArg(rhs);
+    setNameOfLastCallArg("value");
+    compileCall();
+  }
+
+  /// Compile `STARTSUBSET`, `STARTSUBASSIGN`, or their `[[` versions: begin a call of the builtin
+  /// whose first argument is `vector`, with the tag of the source's first argument.
+  private void startDfltSubscript(String builtinName, Idx<LangSXP> ast, Argument vector) {
+    var source = get(ast);
+    pushCall(new Builtin(builtinName));
+    topCall().source = source;
+    pushCallArg(vector);
+    var tag = source.args().names().getFirst();
+    if (!tag.isEmpty()) {
+      setNameOfLastCallArg(tag);
+    }
+  }
+
+  /// Pop the top `n` values, in the order they were pushed.
+  private List<Argument> popN(int n) {
+    var values = List.copyOf(stack.subList(stack.size() - n, stack.size()));
+    for (var i = 0; i < n; i++) {
+      pop();
+    }
+    return values;
   }
 
   private Built mkUnop(String builtinName) {
@@ -1276,7 +1363,13 @@ public final class BC2FirCFGCompiler {
             .map(arg -> arg.name == null ? "" : arg.name)
             .map(OptionalNamedVariable::ofString)
             .collect(ImmutableList.toImmutableList());
-    var args = call.args.stream().map(arg -> arg.node).collect(ImmutableList.toImmutableList());
+    var quote =
+        call.fun instanceof Call.Fun.Builtin(var builtin)
+            && builtin.function().userProperties().liteSpecial();
+    var args =
+        call.args.stream()
+            .map(arg -> quote ? quoteLanguage(arg.node) : arg.node)
+            .collect(ImmutableList.toImmutableList());
     Built callInstr =
         switch (call.fun) {
           case Call.Fun.Dynamic(var fun) ->
@@ -1288,6 +1381,9 @@ public final class BC2FirCFGCompiler {
             var parameterNames = Lists.mapLazy(builtinFun.parameterNames(), NamedVariable::name);
             var argNames = Lists.mapLazy(names, OptionalNamedVariable::name);
             try {
+              if (quote && !isPositional(builtin.name, argNames)) {
+                throw new IllegalArgumentException("subscript arguments aren't positional");
+              }
               var matches = ArgumentMatcher.matchArgumentNames(parameterNames, argNames);
               var arguments =
                   parameterNames.stream()
@@ -1341,6 +1437,28 @@ public final class BC2FirCFGCompiler {
           }
         };
     pushInsertThenCp(callInstr);
+    if (call.source != null) {
+      ((AssigneeOf) ((Read) top()).variable()).statement().setSource(call.source);
+    }
+  }
+
+  /// Whether matching the arguments of a call of the subscript builtin `name` keeps their order.
+  /// The primitive takes its arguments by position, except `drop`, `exact`, and the last `value`,
+  /// and `[<-` takes the value after the indices that match its `...`.
+  private static boolean isPositional(String name, List<String> argNames) {
+    var tags = name.endsWith("<-") ? Set.of("value") : Set.of("drop", "exact");
+    return argNames.stream().allMatch(n -> n.isEmpty() || tags.contains(n))
+        && (!name.equals("[<-") || argNames.stream().filter(String::isEmpty).count() <= 2);
+  }
+
+  /// A lite special evaluates its arguments, so a constant whose evaluation isn't itself (a symbol
+  /// or a call) is passed quoted. The other arguments are values: registers, and constants that
+  /// evaluate to themselves.
+  private static Argument quoteLanguage(Argument argument) {
+    return argument instanceof Constant(Value.Sexp(var sexp))
+            && (sexp instanceof RegSymSXP || sexp instanceof LangSXP)
+        ? new Constant(SEXPs.lang(SEXPs.symbol("quote"), sexp))
+        : argument;
   }
 
   /// Record that the feedback the copy-and-patch JIT records for the bytecode instruction being
@@ -2023,6 +2141,8 @@ public final class BC2FirCFGCompiler {
   private static class Call {
     private final Fun fun;
     private final List<Arg> args = new ArrayList<>();
+    /// The call's source, if the instruction that compiles it doesn't have it.
+    private @Nullable LangSXP source;
 
     public Call(Fun fun) {
       this.fun = fun;
