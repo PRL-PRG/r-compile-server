@@ -2,6 +2,7 @@ package org.prlprg.fir.interpret.internal;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
@@ -16,6 +17,7 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.RMath;
@@ -39,6 +41,7 @@ import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
+import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
 
 /// Java implementations of GNU-R builtins for [InternalInterpreter] (specifically
@@ -145,6 +148,9 @@ public final class Builtins {
 
     // rep
     registerRep(interpreter);
+
+    // vector
+    registerVector(interpreter);
 
     // sum
     registerSum(interpreter);
@@ -1177,7 +1183,8 @@ public final class Builtins {
             Type.ANY_SEXP,
             Type.ANY_SEXP),
         ExternalVersion.strict(
-            (_, _, args, _) -> {
+            (_, _, strictArgs, _) -> {
+              var args = specialArgs(interpreter, strictArgs);
               if (args.size() != 4) {
                 throw interpreter.fail("`" + name + "` generic takes 4 arguments");
               }
@@ -1289,6 +1296,44 @@ public final class Builtins {
     }
   }
 
+  /// A copy of `vector` for a generic sub-assignment of `value` to write into. Like GNU-R, it
+  /// coerces an atomic vector up to `value`'s type (logical < integer < real < string).
+  private static ListOrVectorSXP<?> subAssignTarget(
+      InternalInterpreter interpreter, String name, ListOrVectorSXP<?> vector, SEXP value) {
+    if (vector instanceof VecSXP) {
+      return vector.copy();
+    }
+    var vectorRank = atomicRank(vector);
+    var valueRank = atomicRank(value);
+    if (valueRank == -1) {
+      throw interpreter.failUnsupported(
+          "Mock `" + name + "` only assigns an atomic value into an atomic vector");
+    }
+    if (vectorRank == -1 || valueRank <= vectorRank) {
+      return vector.copy();
+    }
+    if (vector.hasAttributes()) {
+      throw interpreter.failUnsupported(
+          "Mock `" + name + "` doesn't coerce a vector with attributes");
+    }
+    return (ListOrVectorSXP<?>) concatToType(SEXPs.dots(vector), valueRank, interpreter);
+  }
+
+  /// The element that a generic sub-assignment of `value` stores into a list: `[[<-` stores
+  /// `value`, `[<-` the element of a length-1 `value`.
+  private static Value listElement(InternalInterpreter interpreter, String name, SEXP value) {
+    if (value instanceof NilSXP) {
+      throw interpreter.failUnsupported("Mock `" + name + "` doesn't delete list elements");
+    }
+    if (name.equals("[[<-")) {
+      return new Value.Sexp(value);
+    }
+    if (!(value instanceof ListOrVectorSXP<?> values) || values.size() != 1) {
+      throw interpreter.failUnsupported("Mock `" + name + "` only assigns a length-1 value");
+    }
+    return new Value.Sexp(interpreter.subscriptLoad(values, 0).box());
+  }
+
   /// The subscript `indices` as integers, coercing a real vector the way GNU-R coerces a real
   /// subscript (which is what the real-index versions are defined to do).
   private static IntSXP toIntegerIndices(
@@ -1338,56 +1383,35 @@ public final class Builtins {
   // region sub-assignment operators
 
   private static void registerSubAssign(InternalInterpreter interpreter, String name, int numArgs) {
-    // Generic
-    if (numArgs == 4) {
-      // [<-: (*, *, *, *) -+> V
-      interpreter.registerExternal(
-          name,
-          sig(
-              Type.ANY_VALUE_SEXP,
-              Effects.REFLECT,
-              Type.ANY_SEXP,
-              Type.ANY_SEXP,
-              Type.ANY_SEXP,
-              Type.ANY_SEXP),
-          ExternalVersion.strict(
-              (_, _, args, _) -> {
-                if (args.size() != 4) {
-                  throw interpreter.fail("`" + name + "` generic takes 4 arguments");
-                }
-                if (!(args.getFirst() instanceof Value.Sexp(var sexp)
-                    && sexp instanceof ListOrVectorSXP<?> vector)) {
-                  throw interpreter.failUnsupported(
-                      "Mock `" + name + "` not implemented for non-vector objects");
-                }
-                int idx = sexpToInt(args.get(1).box(), interpreter, name);
-                var value = sexpToValueOfType(args.get(2).box(), vector.type(), interpreter, name);
-                var result = vector.copy();
-                interpreter.subscriptStore(result, idx - 1, value);
-                return new Value.Sexp(result);
-              }));
-    } else {
-      // [[<-: (*, *, *) -+> V
-      interpreter.registerExternal(
-          name,
-          sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.ANY_SEXP, Type.ANY_SEXP),
-          ExternalVersion.strict(
-              (_, _, args, _) -> {
-                if (args.size() != 3) {
-                  throw interpreter.fail("`" + name + "` generic takes 3 arguments");
-                }
-                if (!(args.getFirst() instanceof Value.Sexp(var sexp)
-                    && sexp instanceof ListOrVectorSXP<?> vector)) {
-                  throw interpreter.failUnsupported(
-                      "Mock `" + name + "` not implemented for non-vector objects");
-                }
-                int idx = sexpToInt(args.get(1).box(), interpreter, name);
-                var value = sexpToValueOfType(args.get(2).box(), vector.type(), interpreter, name);
-                var result = vector.copy();
-                interpreter.subscriptStore(result, idx - 1, value);
-                return new Value.Sexp(result);
-              }));
-    }
+    // Generic: (*, *, *, *) -+> V for `[<-`, (*, *, *) -+> V for `[[<-`
+    var genericParams = new Type[numArgs];
+    Arrays.fill(genericParams, Type.ANY_SEXP);
+    interpreter.registerExternal(
+        name,
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, genericParams),
+        ExternalVersion.strict(
+            (_, _, strictArgs, _) -> {
+              var args = specialArgs(interpreter, strictArgs);
+              if (args.size() != numArgs) {
+                throw interpreter.fail("`" + name + "` generic takes " + numArgs + " arguments");
+              }
+              if (!(args.getFirst() instanceof Value.Sexp(var sexp)
+                  && sexp instanceof ListOrVectorSXP<?> vector)) {
+                throw interpreter.failUnsupported(
+                    "Mock `" + name + "` not implemented for non-vector objects");
+              }
+              int idx = sexpToInt(args.get(1).box(), interpreter, name);
+              var value = args.get(2).box();
+              var result = subAssignTarget(interpreter, name, vector, value);
+              checkInRange(interpreter, name, result, idx);
+              interpreter.subscriptStore(
+                  result,
+                  idx - 1,
+                  result instanceof VecSXP
+                      ? listElement(interpreter, name, value)
+                      : sexpToValueOfType(value, result.type(), interpreter, name));
+              return new Value.Sexp(result);
+            }));
 
     Type[] vecTypes = {
       Type.SHARED_LOGICAL_VECTOR,
@@ -1521,7 +1545,8 @@ public final class Builtins {
         "rep",
         sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.DOTS),
         ExternalVersion.strict(
-            (_, _, args, _) -> {
+            (_, _, strictArgs, _) -> {
+              var args = specialArgs(interpreter, strictArgs);
               if (args.size() != 2) {
                 throw interpreter.fail("`rep` generic takes 2 arguments");
               }
@@ -1706,6 +1731,46 @@ public final class Builtins {
       }
       default -> throw interpreter.failUnsupported("rep not implemented for this vector type");
     }
+  }
+
+  // endregion
+
+  // region vector
+
+  /// `vector(mode, length)`: a vector of `length` `FALSE`s, `0`s, `""`s or `NULL`s. A missing
+  /// argument takes the base closure's default (`mode = "logical"`, `length = 0L`).
+  private static void registerVector(InternalInterpreter interpreter) {
+    // (*, *) -+> V
+    interpreter.registerExternal(
+        "vector",
+        SIG_GENERIC_2,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var modeArg = args.get(0).box();
+              var lengthArg = args.get(1).box();
+              var mode =
+                  modeArg == SEXPs.MISSING_ARG
+                      ? "logical"
+                      : modeArg
+                          .asScalarString()
+                          .orElseThrow(() -> interpreter.fail("`vector` mode must be a string"));
+              var length =
+                  lengthArg == SEXPs.MISSING_ARG ? 0 : sexpToInt(lengthArg, interpreter, "vector");
+              if (length < 0 || length == Constants.NA_INT) {
+                throw interpreter.fail("`vector`: invalid 'length' argument");
+              }
+              return new Value.Sexp(
+                  switch (mode) {
+                    case "logical" -> SEXPs.logical(Collections.nCopies(length, Logical.FALSE));
+                    case "integer" -> SEXPs.integer(new int[length]);
+                    case "numeric", "double" -> SEXPs.real(new double[length]);
+                    case "character" -> SEXPs.string(Collections.nCopies(length, ""));
+                    case "list" -> SEXPs.vec(Collections.<SEXP>nCopies(length, SEXPs.NULL));
+                    default ->
+                        throw interpreter.failUnsupported(
+                            "Mock `vector` not implemented for mode " + mode);
+                  });
+            }));
   }
 
   // endregion
@@ -2591,24 +2656,31 @@ public final class Builtins {
               }
 
               // Determine the widest element type
-              int widest = 0; // 0=lgl, 1=int, 2=real, 3=str
+              int widest = 0;
               for (var te : dots) {
-                int w =
-                    switch (te.value()) {
-                      case LglSXP _ -> 0;
-                      case IntSXP _ -> 1;
-                      case RealSXP _ -> 2;
-                      case StrSXP _ -> 3;
-                      default ->
-                          throw interpreter.failUnsupported(
-                              "Mock `c` doesn't support non-primitive arguments");
-                    };
+                int w = atomicRank(te.value());
+                if (w == -1) {
+                  throw interpreter.failUnsupported(
+                      "Mock `c` doesn't support non-primitive arguments");
+                }
                 if (w > widest) widest = w;
               }
 
               // Collect all values into the widest type
               return new Value.Sexp(concatToType(dots, widest, interpreter));
             }));
+  }
+
+  /// The rank of `sexp`'s type in GNU-R's coercion order (`concatToType`'s `targetType`):
+  /// 0 = logical, 1 = integer, 2 = real, 3 = string, or -1 if it's none of them.
+  private static int atomicRank(SEXP sexp) {
+    return switch (sexp) {
+      case LglSXP _ -> 0;
+      case IntSXP _ -> 1;
+      case RealSXP _ -> 2;
+      case StrSXP _ -> 3;
+      default -> -1;
+    };
   }
 
   private static SEXP concatToType(
@@ -2962,6 +3034,36 @@ public final class Builtins {
   // endregion
 
   // region helper methods
+
+  /// The [strict][ExternalVersion#strict] arguments of a GNU-R special, evaluated the way the
+  /// special evaluates them. A special receives unevaluated code (`bc2fir` passes the source
+  /// arguments of `CALLSPECIAL` as constants), so a symbol, also one inside `...`, is looked up in
+  /// the caller's environment, and its value forced.
+  ///
+  /// A symbol that reaches the special as a value is looked up too, as in GNU-R.
+  private static List<Value> specialArgs(InternalInterpreter interpreter, List<Value> args) {
+    return args.stream()
+        .map(
+            arg ->
+                arg instanceof Value.Sexp(var sexp)
+                    ? new Value.Sexp(evalSpecialArg(interpreter, sexp))
+                    : arg)
+        .toList();
+  }
+
+  private static SEXP evalSpecialArg(InternalInterpreter interpreter, SEXP arg) {
+    return switch (arg) {
+      case RegSymSXP symbol when symbol.isEllipsis() ->
+          throw interpreter.failUnsupported("Mock special with a `...` argument");
+      case RegSymSXP symbol ->
+          interpreter.eval(new Value.Sexp(interpreter.load(Variable.named(symbol.name())))).box();
+      case DotsListSXP dots ->
+          dots.stream()
+              .map(te -> new TaggedElem(te.tag(), evalSpecialArg(interpreter, te.value())))
+              .collect(SEXPs.toDots());
+      default -> arg;
+    };
+  }
 
   private static Value sexpToValueOfType(
       SEXP sexp, SEXPType type, InternalInterpreter interpreter, String ctx) {
