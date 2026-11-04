@@ -457,6 +457,16 @@ void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinke
 /// reference to it.
 void Fir_setter_begin_value(Fir_Setter *s, SEXP lhs, int nlinked, SEXP *linked);
 SEXP Fir_setter_end(Fir_Setter *s, SEXP result);
+/// `Fir_dup(value)` for `d = dup value; ...; st x = d`, where `value` is (an assumption of) `lhs =
+/// ld x`, and the code between reads neither `x` nor a register of the old value (see
+/// `Fir2CCompiler`). It returns `value` itself, as GNU-R's `STARTASSIGN` doesn't copy, if `x`'s
+/// binding still holds it, isn't in an assignment, and is its only reference once the `linked`
+/// registers count. Then everything that reads the value reads it through `d`, the same as if it
+/// were a copy.
+SEXP Fir_assign_dup(SEXP symbol, SEXP env, SEXP lhs, SEXP value, int nlinked, SEXP *linked);
+/// `Fir_assign_dup` for a variable that FIŘ keeps in a register: `value` itself if nothing counts
+/// a reference to it.
+SEXP Fir_value_dup(SEXP value, int nlinked, SEXP *linked);
 /// `Fir_call_dynamic` in the protocol `s` began; `args[0]` is replaced by `s->value`.
 SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, SEXP *args,
                      SEXP *names);

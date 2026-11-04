@@ -1359,26 +1359,43 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SE
   }
 }
 
-void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinked, SEXP *linked) {
-  s->active = false;
-  if (TYPEOF(env) != ENVSXP || env == Rsh_ElidedEnv || env == R_BaseEnv || env == R_BaseNamespace) {
-    return;
+// Whether `symbol` has a plain binding in `env`'s own frame that still holds `lhs`, the value an
+// `ld` read. Sets `loc` to it.
+static bool Fir_assign_binding(SEXP symbol, SEXP env, SEXP lhs, R_varloc_t *loc) {
+  if (TYPEOF(env) != ENVSXP || env == Rsh_ElidedEnv || env == R_BaseEnv ||
+      env == R_BaseNamespace || TYPEOF(lhs) == SYMSXP) {
+    return false;
   }
-  // Only a plain binding in `env`'s own frame that still holds what the `ld` read. Otherwise the
-  // call copies, as outside the protocol.
-  R_varloc_t loc = R_findVarLocInFrame(env, symbol);
-  SEXP cell = loc.cell;
-  if (cell == NULL || TYPEOF(cell) != LISTSXP || IS_ACTIVE_BINDING(cell) ||
-      BINDING_IS_LOCKED(cell) || CAR(cell) != lhs || TYPEOF(lhs) == SYMSXP) {
-    return;
-  }
+  *loc = R_findVarLocInFrame(env, symbol);
+  SEXP cell = loc->cell;
+  return cell != NULL && TYPEOF(cell) == LISTSXP && !IS_ACTIVE_BINDING(cell) &&
+         !BINDING_IS_LOCKED(cell) && CAR(cell) == lhs;
+}
 
-  // GNU-R's `INCLNK_stack_commit`: the registers that outlive the call count as references.
+// GNU-R's `INCLNK_stack_commit` (`delta` 1) and `DECLNK_stack` (`delta` -1) for registers.
+static void Fir_link(int nlinked, SEXP *linked, int delta) {
   for (int i = 0; i < nlinked; i++) {
     if (linked[i] != NULL) {
-      INCREMENT_REFCNT(linked[i]);
+      if (delta > 0) {
+        INCREMENT_REFCNT(linked[i]);
+      } else {
+        DECREMENT_REFCNT(linked[i]);
+      }
     }
   }
+}
+
+void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinked, SEXP *linked) {
+  s->active = false;
+  // Otherwise the call copies, as outside the protocol.
+  R_varloc_t loc;
+  if (!Fir_assign_binding(symbol, env, lhs, &loc)) {
+    return;
+  }
+  SEXP cell = loc.cell;
+
+  // The registers that outlive the call count as references.
+  Fir_link(nlinked, linked, 1);
 
   // GNU-R's `STARTASSIGN`. `EnsureLocal` forces a promise, and rebinds a copy if it's shared.
   SEXP value = lhs;
@@ -1409,11 +1426,7 @@ void Fir_setter_begin_value(Fir_Setter *s, SEXP lhs, int nlinked, SEXP *linked) 
     return;
   }
 
-  for (int i = 0; i < nlinked; i++) {
-    if (linked[i] != NULL) {
-      INCREMENT_REFCNT(linked[i]);
-    }
-  }
+  Fir_link(nlinked, linked, 1);
   // With the variable in a register, any counted reference is one GNU-R's binding would share.
   if (MAYBE_REFERENCED(value)) {
     value = Rf_shallow_duplicate(value);
@@ -1425,16 +1438,39 @@ void Fir_setter_begin_value(Fir_Setter *s, SEXP lhs, int nlinked, SEXP *linked) 
   };
 }
 
+SEXP Fir_assign_dup(SEXP symbol, SEXP env, SEXP lhs, SEXP value, int nlinked, SEXP *linked) {
+  R_varloc_t loc;
+  if (value == lhs && TYPEOF(value) != PROMSXP && !ALTREP(value) &&
+      Fir_assign_binding(symbol, env, lhs, &loc) && !ASSIGNMENT_PENDING(loc.cell)) {
+    Fir_link(nlinked, linked, 1);
+    bool shared = MAYBE_SHARED(value);
+    Fir_link(nlinked, linked, -1);
+    if (!shared) {
+      return value;
+    }
+  }
+  return Fir_dup(value);
+}
+
+SEXP Fir_value_dup(SEXP value, int nlinked, SEXP *linked) {
+  if (value != R_NilValue && TYPEOF(value) != SYMSXP && TYPEOF(value) != PROMSXP &&
+      !ALTREP(value)) {
+    Fir_link(nlinked, linked, 1);
+    bool referenced = MAYBE_REFERENCED(value);
+    Fir_link(nlinked, linked, -1);
+    if (!referenced) {
+      return value;
+    }
+  }
+  return Fir_dup(value);
+}
+
 SEXP Fir_setter_end(Fir_Setter *s, SEXP result) {
   if (s->active) {
     if (s->cell != NULL) {
       SET_ASSIGNMENT_PENDING(s->cell, FALSE);
     }
-    for (int i = 0; i < s->nlinked; i++) {
-      if (s->linked[i] != NULL) {
-        DECREMENT_REFCNT(s->linked[i]);
-      }
-    }
+    Fir_link(s->nlinked, s->linked, -1);
     UNPROTECT(s->cell == NULL ? 1 : 2); // (cell +) value
   }
   return result;

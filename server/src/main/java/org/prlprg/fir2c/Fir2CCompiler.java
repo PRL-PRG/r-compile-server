@@ -2001,6 +2001,8 @@ public final class Fir2CCompiler {
               // A `consume` argument guarantees the vector isn't read again, so this can move it
               // instead of copying (see `org.prlprg.fir.opt.ConsumeDeadDup`).
               case Dup _ when args.getFirst() instanceof Consume -> emitArgument(args.getFirst());
+              case Dup _ when matchAssignDup(statement) instanceof SetterPattern dup ->
+                  emitAssignDup(statement, dup);
               case Dup _ -> "Fir_dup(%s)".formatted(emitArgument(args.getFirst()));
               case Force(var isMaybe) ->
                   (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)")
@@ -2431,6 +2433,17 @@ public final class Fir2CCompiler {
                         use -> use.instruction().args().get(use.index()) instanceof Consume)) {
               return null;
             }
+            var pattern = assignedValue(arg);
+            return pattern == null
+                    || pattern.variable() == null
+                    || storesNext(statement, result, pattern.variable())
+                ? pattern
+                : null;
+          }
+
+          /// The `l` and chain of an `l'` (see `#matchSetter`), or `null` if `l` is a load the
+          /// protocol doesn't handle (`<<-`, `...`).
+          private static @Nullable SetterPattern assignedValue(Register arg) {
             var chain = new LinkedHashSet<Register>();
             var lhs = arg;
             chain.add(lhs);
@@ -2444,18 +2457,102 @@ public final class Fir2CCompiler {
               chain.add(lhs);
             }
             if (!(lhs instanceof AssigneeOf ao
-                && ao.statement().expression() instanceof Load(var loadType, var variable)
-                && loadType == LoadType.LOCAL_VAR
-                && !variable.equals(NamedVariable.DOTS)
-                && !variable.isDdNum())) {
-              // Another load reads a binding the protocol doesn't handle (`<<-`).
-              return lhs instanceof AssigneeOf def && def.statement().expression() instanceof Load
-                  ? null
-                  : new SetterPattern(null, arg, Collections.unmodifiableSet(chain));
+                && ao.statement().expression() instanceof Load load)) {
+              return new SetterPattern(null, arg, Collections.unmodifiableSet(chain));
             }
-            return storesNext(statement, result, variable)
-                ? new SetterPattern(variable, lhs, Collections.unmodifiableSet(chain))
+            return load.type() == LoadType.LOCAL_VAR
+                    && !load.variable().equals(NamedVariable.DOTS)
+                    && !load.variable().isDdNum()
+                ? new SetterPattern(load.variable(), lhs, Collections.unmodifiableSet(chain))
                 : null;
+          }
+
+          /// Whether `statement` is `d = dup l'` of a value GNU-R's assignment protocol wouldn't
+          /// copy (see `Fir_assign_dup` in `runtime.h`). `l'` is as in `#matchSetter`. If `l = ld
+          /// x`, `st x = d` must follow in the same block, and the statements between must
+          /// neither run R code, nor read `x`, nor use a register of the chain from `l'` to `l`.
+          private @Nullable SetterPattern matchAssignDup(Statement statement) {
+            if (cfg != root
+                || statement.assignee() == null
+                || !(statement.arg(0) instanceof Read(var arg))) {
+              return null;
+            }
+            var pattern = assignedValue(arg);
+            if (pattern == null || pattern.variable() == null) {
+              return pattern;
+            }
+            var statements = bb.statements();
+            for (var stmt :
+                statements.subList(statements.indexOf(statement) + 1, statements.size())) {
+              if (stmt.expression() instanceof Store(var storeType, var stored)
+                  && storeType == Store.StoreType.LOCAL_VAR
+                  && stored.equals(pattern.variable())) {
+                return stmt.arg(0) instanceof Read(var storedValue)
+                        && storedValue == statement.assignee()
+                    ? pattern
+                    : null;
+              }
+              var pure =
+                  switch (stmt.expression()) {
+                    case Assume _, Cast _, SubscriptRead _, SubscriptWrite _ -> true;
+                    case Load(var loadType, var loaded) ->
+                        loadType == LoadType.LOCAL_VAR && !loaded.equals(pattern.variable());
+                    case Call(StaticFnCallee(var _, var _, var signature)) ->
+                        signature.effects() == Effects.NONE;
+                    default -> false;
+                  };
+              if (!pure
+                  || stmt.args().stream()
+                      .map(Argument::variable)
+                      .anyMatch(pattern.chain()::contains)) {
+                return null;
+              }
+            }
+            return null;
+          }
+
+          private String emitAssignDup(Statement statement, SetterPattern dup) {
+            var linked = emitLinkedArray(linkedRegisters(statement));
+            var value = emitArgument(statement.arg(0));
+            return dup.variable() == null
+                ? "Fir_value_dup(%s, %d, %s)".formatted(value, linked.size(), linked.pointer())
+                : "Fir_assign_dup(%s, %s, %s, %s, %d, %s)"
+                    .formatted(
+                        nvSymbolRef(pool, dup.variable()),
+                        VAR_ENV,
+                        registerPlace(dup.lhs()),
+                        value,
+                        linked.size(),
+                        linked.pointer());
+          }
+
+          /// The registers GNU-R would have on its stack after `statement`: the ones live after
+          /// it, the ones the promises live after it capture, and the version's parameters (a
+          /// caller may hold an argument in a register, which nothing counts).
+          private LinkedHashSet<Register> linkedRegisters(Statement statement) {
+            var linked = new LinkedHashSet<>(liveness.liveAfter(statement));
+            linked.remove(statement.assignee());
+            for (var register : List.copyOf(linked)) {
+              if (register instanceof AssigneeOf ao
+                  && ao.statement().expression() instanceof Promise p) {
+                linked.addAll(Objects.requireNonNull(captures.get(p.code())));
+              }
+            }
+            linked.addAll(version.parameters());
+            return linked;
+          }
+
+          private Array emitLinkedArray(Set<Register> linked) {
+            return emitArray(
+                "linked",
+                "SEXP",
+                linked.stream()
+                    .filter(
+                        r ->
+                            registerRepr(r) == Repr.SEXP
+                                && (locals.contains(r) || version.isParameter(r)))
+                    .map(CfgEmitter.this::registerPlace)
+                    .toList());
           }
 
           /// Whether `st variable = r`, where `r` is `result` or an assumption or cast of it,
@@ -2494,20 +2591,11 @@ public final class Fir2CCompiler {
           /// Emit the `Fir_setter_begin` for the call `statement` that matches `setter`, and return
           /// the name of its `Fir_Setter`.
           ///
-          /// The linked registers are those GNU-R would have on its stack during the call: the
-          /// ones live after it, the ones the promises live after it capture, its other
-          /// arguments, and the version's parameters (a caller may hold an argument in a
-          /// register, which nothing counts). Except a register of `l'` that only deopt branches
-          /// use after the call: the bytecode they continue in has the value the call modified.
+          /// The linked registers are `#linkedRegisters` and the call's other arguments. Except a
+          /// register of `l'` that only deopt branches use after the call: the bytecode they
+          /// continue in has the value the call modified.
           private String emitSetterBegin(Statement statement, SetterPattern setter) {
-            var linked = new LinkedHashSet<>(liveness.liveAfter(statement));
-            linked.remove(statement.assignee());
-            for (var register : List.copyOf(linked)) {
-              if (register instanceof AssigneeOf ao
-                  && ao.statement().expression() instanceof Promise p) {
-                linked.addAll(Objects.requireNonNull(captures.get(p.code())));
-              }
-            }
+            var linked = linkedRegisters(statement);
             linked.removeIf(
                 register ->
                     setter.chain().contains(register)
@@ -2518,18 +2606,7 @@ public final class Fir2CCompiler {
                 .map(Argument::variable)
                 .filter(Objects::nonNull)
                 .forEach(linked::add);
-            linked.addAll(version.parameters());
-            var linkedArray =
-                emitArray(
-                    "linked",
-                    "SEXP",
-                    linked.stream()
-                        .filter(
-                            r ->
-                                registerRepr(r) == Repr.SEXP
-                                    && (locals.contains(r) || version.isParameter(r)))
-                        .map(CfgEmitter.this::registerPlace)
-                        .toList());
+            var linkedArray = emitLinkedArray(linked);
 
             var disambiguator = tempArrayDisambiguators.getOrDefault("setter", 0);
             tempArrayDisambiguators.put("setter", disambiguator + 1);

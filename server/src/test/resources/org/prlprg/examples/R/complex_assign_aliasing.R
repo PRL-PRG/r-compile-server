@@ -24,6 +24,41 @@ alias_registers_in_loop <- function(n) {
   }
   y
 }
+# Like `bench_ai_awf_sieve`, whose store the optimizer turns into a `dup` and a vector write.
+alias_dup <- function(n) {
+  x <- rep(TRUE, n)
+  y <- x
+  j <- 1
+  while (j <= n) {
+    x[j] <- FALSE
+    j <- j + 1
+  }
+  c(x, y)
+}
+alias_dup_in_loop <- function(n) {
+  x <- rep(TRUE, n)
+  y <- 0
+  j <- 1
+  while (j <= n) {
+    x[j] <- FALSE
+    if (j == 1) y <- x
+    j <- j + 1
+  }
+  c(x, y)
+}
+
+# Like `bench_ai_awf_permute`'s `swap`.
+swap <- function(v, i, j) {
+  t <- v[i]
+  v[i] <- v[j]
+  v[j] <- t
+  v
+}
+alias_swap <- function(n) {
+  x <- c(1L, 2L, n)
+  r <- swap(x, 1, 3)
+  c(x, r)
+}
 
 modify_param <- function(v) {
   v[1] <- 20
@@ -113,6 +148,9 @@ all_cases <- function() {
   list(
     alias_registers(3),
     alias_registers_in_loop(3),
+    alias_dup(3),
+    alias_dup_in_loop(3),
+    alias_swap(3L),
     alias_local(),
     alias_param(),
     keep_param(c(1, 2)),
@@ -131,6 +169,9 @@ all_cases <- function() {
 for (i in 1:12) {
   alias_registers(3)
   alias_registers_in_loop(3)
+  alias_dup(3)
+  alias_dup_in_loop(3)
+  alias_swap(3L)
 }
 for (i in 1:12) {
   r <- all_cases()
