@@ -1946,8 +1946,47 @@ public final class Builtins {
                 throw interpreter.fail("`log` generic takes 2 sexp-scalar numbers");
               }
               double x = sexpToDouble(s1, interpreter, "log");
-              double base = sexpToDouble(s2, interpreter, "log");
+              double base =
+                  s2.equals(SEXPs.MISSING_ARG) ? Math.E : sexpToDouble(s2, interpreter, "log");
               return new Value.Sexp(SEXPs.real(log(x, base)));
+            }));
+    // (I, miss) --> R, (R, miss) --> R
+    interpreter.registerExternal(
+        "log",
+        sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) ->
+                new Value.Real(log(RMath.fromInt(((Value.Int) args.getFirst()).value()), Math.E))));
+    interpreter.registerExternal(
+        "log",
+        sig(Type.REAL, Effects.NONE, Type.REAL, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) ->
+                new Value.Real(log(((Value.Real) args.getFirst()).value(), Math.E))));
+    // (v(I), miss) --> v(R), (v(R), miss) --> v(R)
+    interpreter.registerExternal(
+        "log",
+        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_INTEGER_VECTOR, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var xv = (IntSXP) args.getFirst().box();
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, xv.size())
+                          .mapToDouble(i -> log(RMath.fromInt(xv.get(i)), Math.E))
+                          .toArray()));
+            }));
+    interpreter.registerExternal(
+        "log",
+        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_REAL_VECTOR, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var xv = (RealSXP) args.getFirst().box();
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, xv.size())
+                          .mapToDouble(i -> log(xv.get(i), Math.E))
+                          .toArray()));
             }));
     // (I, R) --> R
     interpreter.registerExternal(

@@ -578,6 +578,10 @@ fun log(x, base) {
   (x:v(R), base:v(R)) --> v(R) { ... }
   (x:I, base:R) --> R { ... }
   (x:R, base:R) --> R { ... }
+  (x:v(I), base:miss) --> v(R) { ... }
+  (x:v(R), base:miss) --> v(R) { ... }
+  (x:I, base:miss) --> R { ... }
+  (x:R, base:miss) --> R { ... }
 }
 
 # === MATH1_FUNS ===

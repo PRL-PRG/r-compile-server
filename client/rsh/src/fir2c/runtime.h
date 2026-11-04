@@ -352,10 +352,13 @@ SEXP Fir_subscript_write_logical(SEXP vector, int index, Rboolean value);
 SEXP Fir_subscript_write_string(SEXP vector, int index, char* value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
-SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names);
+/// `call` is the source call of the FIŘ statement, or `NULL`. The callee gets it as its `call` (for
+/// errors, `sys.call()`, and dispatch). If it is `NULL`, or it has a `...` that `env` does not bind,
+/// the callee gets a call built from the arguments.
+SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 /// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
-SEXP Fir_call_base(SEXP symbol, SEXP env, int argc, SEXP *args, SEXP *names);
-SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names);
+SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
+SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 /// Run a baseline version that is the function's original GNU-R bytecode.
 SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
@@ -478,9 +481,11 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_int_scalar_int_fx_none_ret_bool
 DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_real_scalar_real_fx_none_ret_bool, double a, double b);
 DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_string_scalar_string_fx_none_ret_bool, char* a, char* b);
 
-// log: I,R→R, R,R→R
+// log: I,R→R, R,R→R, I,miss→R, R,miss→R
 DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_int_scalar_real_fx_none_ret_scalar_real, int value, double base);
 DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_scalar_real_fx_none_ret_scalar_real, double value, double base);
+DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_int_missing_fx_none_ret_scalar_real, int value, SEXP base);
+DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_missing_fx_none_ret_scalar_real, double value, SEXP base);
 // abs: I→I, R→R
 DEFINE_OVERRIDDEN_BUILTIN(int, abs, scalar_int_fx_none_ret_scalar_int, int value);
 DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, double value);

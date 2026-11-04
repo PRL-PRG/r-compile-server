@@ -172,6 +172,8 @@ dyn r(a1, a2, ...)                   # Dynamic call of a closure only known at r
 dyn r[name1, , name3](a1, a2, a3)    # Dynamic call with (some) named arguments
 ```
 
+A call can end with its **source call**: `log%< *@!,*@! -+> V >(x, <missing>) in <lang log(x)>`. This is the R call that `bc2fir` compiled the statement from (any statement can have one, but `bc2fir` sets it only on calls that are not intrinsics). The type checker, the optimizer, and the interpreter ignore it, and optimizations that replace a statement keep it. Fir2C passes it as the `call` argument of `Fir_call_builtin`, `Fir_call_base`, and `Fir_call_dynamic`, so GNU-R errors, `conditionCall`, `sys.call()`, `match.call()`, and group dispatch see the source call and not a call built from the matched arguments. Without a source call, the runtime builds the call from the arguments.
+
 Every call to a known function carries a signature. For a static call, the function must have a version whose parameters are at least as permissive as the signature's and whose strictness, effects, and return type are at least as restrictive. A dispatch call additionally requires the function to be *dispatchable* (its baseline's parameter and return types are all SEXP kinds) and the signature to return an SEXP kind.
 
 ### Promise Creation

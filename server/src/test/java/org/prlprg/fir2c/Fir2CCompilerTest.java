@@ -404,6 +404,31 @@ class Fir2CCompilerTest {
     return Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
   }
 
+  /// A builtin or dynamic call passes its source call to the runtime as `call`, or `NULL` if it has
+  /// none.
+  @Test
+  void callPassesSourceCall() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(f) {
+              (f:V) -+> V {
+                r: V = log%< *@!,*@! -+> V >(<str "a">, <missing>) in <lang log("a")>;
+                r1: V = dyn f(r) in <lang f(log("a"))>;
+                r2: V = log%< *@!,*@! -+> V >(r1, <missing>);
+                return r2;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    var code = Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+    assertTrue(
+        code.matches("(?s).*Fir_call_builtin\\(\\d+, Fir_const\\(pool, \\d+\\), env, 2, .*"), code);
+    assertTrue(
+        code.matches("(?s).*Fir_call_dynamic\\(r_f, Fir_const\\(pool, \\d+\\), env, 1, .*"), code);
+    assertTrue(code.matches("(?s).*Fir_call_builtin\\(\\d+, NULL, env, 2, .*"), code);
+  }
+
   @Test
   void needsContextCallGoesThroughApplyClosure() {
     var code = compileNeedsContextCall("* -+> V");

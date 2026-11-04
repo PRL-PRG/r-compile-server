@@ -14,7 +14,7 @@ import org.prlprg.sexp.LangSXP;
 class StatementSourceTest {
   private static final @Language("FIR") String MODULE =
       """
-      fun main() {
+      fun main(f) {
         (f:V) -+> V {
           r: V = log%< *@!,*@! -+> V >(<str "a">, <missing>) in <lang log("a")>;
           r1: V = dyn f(r) in <lang f(log("a"))>;

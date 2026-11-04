@@ -2012,6 +2012,8 @@ public final class Fir2CCompiler {
             var call = (Call) statement.expression();
             var closureOrCalleeArg = statement.arg(0);
             var callArgs = statement.args().subList(1, statement.args().size());
+            var sourceCall = statement.source();
+            var source = sourceCall == null ? "NULL" : constantRef(pool, sourceCall);
             return switch (call.callee()) {
               case StaticFnCallee(var calleeFunRef, var isDispatch, var signature) -> {
                 var calleeFun = calleeFunRef.get();
@@ -2030,9 +2032,9 @@ public final class Fir2CCompiler {
                       "Builtin with closure environment is unimplemented");
                 } else if (calleeModule == BUILTINS
                     && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
-                  yield emitBuiltinCall(callArgs, calleeFun);
+                  yield emitBuiltinCall(source, callArgs, calleeFun);
                 } else if (calleeFun.userProperties().needsContext()) {
-                  yield emitInContextCall(call, closureOrCalleeArg, callArgs, calleeFun);
+                  yield emitInContextCall(source, call, closureOrCalleeArg, callArgs, calleeFun);
                 }
 
                 if (isDispatch) {
@@ -2120,9 +2122,10 @@ public final class Fir2CCompiler {
               case DynamicCallee(var argumentNames) -> {
                 var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
                 var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
-                yield "Fir_call_dynamic(%s, %s, %d, %s, %s)"
+                yield "Fir_call_dynamic(%s, %s, %s, %d, %s, %s)"
                     .formatted(
                         emitArgument(closureOrCalleeArg),
+                        source,
                         VAR_ENV,
                         arguments.size(),
                         arguments.pointer(),
@@ -2136,7 +2139,11 @@ public final class Fir2CCompiler {
           /// from-R entry then selects the version, so the call must be one a call from R can
           /// make.
           private String emitInContextCall(
-              Call call, Argument closure, List<Argument> callArgs, Function calleeFun) {
+              String source,
+              Call call,
+              Argument closure,
+              List<Argument> callArgs,
+              Function calleeFun) {
             if (!(call.callee() instanceof StaticFnCallee(var _, var isDispatch, var signature))
                 || closure.equals(Constant.ELIDED_CLOSURE)
                 || (!isDispatch && !isFromRSignature(signature))) {
@@ -2151,16 +2158,19 @@ public final class Fir2CCompiler {
                     "arg_names",
                     "SEXP",
                     Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
-            return "Fir_call_dynamic(%s, %s, %d, %s, %s)"
+            return "Fir_call_dynamic(%s, %s, %s, %d, %s, %s)"
                 .formatted(
                     emitArgument(closure),
+                    source,
                     VAR_ENV,
                     arguments.size(),
                     arguments.pointer(),
                     names.pointer());
           }
 
-          private String emitBuiltinCall(List<Argument> callArgs, Function calleeFun) {
+          /// `source` is the C expression of the call's source (`NULL` if it has none).
+          private String emitBuiltinCall(
+              String source, List<Argument> callArgs, Function calleeFun) {
             var builtinIndex = builtinIndex(calleeFun);
 
             var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
@@ -2177,16 +2187,18 @@ public final class Fir2CCompiler {
 
             // A `@readsContext` builtin's `.Internal` must run in the base closure's frame.
             return builtinIndex == null || calleeFun.userProperties().readsContext()
-                ? "Fir_call_base(%s, %s, %d, %s, %s)"
+                ? "Fir_call_base(%s, %s, %s, %d, %s, %s)"
                     .formatted(
                         baseSymbolRef(pool, calleeFun),
+                        source,
                         VAR_ENV,
                         arguments.size(),
                         arguments.pointer(),
                         names.pointer())
-                : "Fir_call_builtin(%d, %s, %d, %s, %s)"
+                : "Fir_call_builtin(%d, %s, %s, %d, %s, %s)"
                     .formatted(
                         builtinIndex,
+                        source,
                         VAR_ENV,
                         arguments.size(),
                         arguments.pointer(),

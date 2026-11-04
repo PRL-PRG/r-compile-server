@@ -210,7 +210,8 @@ as _strict_: the version forces it on every path.
     column-gutter: 2em,
     align: top,
     grammar(
-      ($s$, $e alt #syn($r tt(":") t tt("=") e$)$),
+      ($s$, $e alt #syn($r tt(":") t tt("=") e$)$,
+            #sem($s kw("in") tt("<")sexp#h(0pt)tt(">")$)),
       semrule($j$, $kw("goto") tg$,
                    $kw("if") a kw("then") tg kw("else") tg$,
                    $kw("check") tg kw("else") tg$,
@@ -255,7 +256,9 @@ as _strict_: the version forces it on every path.
 ) <syn-body>
 
 A statement is an expression, optionally assigned to a register that is defined and typed right
-there ($r tt(":") t tt("=") e$). Every block ends with exactly one jump $j$. Arguments $a$ are the
+there ($r tt(":") t tt("=") e$). A statement can end with its source call
+($kw("in") tt("<")sexp#h(0pt)tt(">")$, a `<lang ...>`): the R call that `bc2fir` compiled it from.
+The source does not change the meaning of the statement (see `FIR.md`). Every block ends with exactly one jump $j$. Arguments $a$ are the
 only sub-expressions: an expression can't nest another expression, only a constant, a register
 read, or $kw("consume") r$, which reads an owned vector for the last time and moves it out.
 Unboxed constants have unboxed types: $i$ is an $tt("I")$, $d$ an $tt("R")$, a string an

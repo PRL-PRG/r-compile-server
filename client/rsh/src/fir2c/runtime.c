@@ -848,7 +848,27 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
   return list;
 }
 
-SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) {
+// The source `call` if the callee can use it, else `NULL` (the caller then builds a call from the
+// arguments). GNU-R re-expands a `...` in the source from `env` (`promiseArgs`), so a source with
+// `...` is only right if `env` binds `...`. An elided frame binds nothing.
+static SEXP Fir_source_call(SEXP call, SEXP env) {
+  if (call == NULL) {
+    return NULL;
+  }
+  for (SEXP arg = CDR(call); arg != R_NilValue; arg = CDR(arg)) {
+    if (CAR(arg) == R_DotsSymbol) {
+      return env != Rsh_ElidedEnv && Rf_findVarInFrame(env, R_DotsSymbol) != R_UnboundValue
+        ? call
+        : NULL;
+    }
+  }
+  return call;
+}
+
+// `matched`: FIŘ matched the arguments to the parameters in `builtins.fir`, so a trailing missing
+// one was not supplied (a dynamic call passes the source's arguments as they are).
+static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                               bool matched) {
   FUNTAB fun = R_FunTab[blt_idx];
 
   // An `.Internal`-only entry has no primitive of its own: what R code calls `fun.name` -- and so
@@ -859,7 +879,7 @@ SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) 
   // internal's arity. Send those through the closure instead.
   if (fun.arity != -1 && fun.arity != argc && R_Primitive(fun.name) == R_NilValue) {
     SEXP closure = Rf_findFun(Rf_install(fun.name), R_BaseEnv);
-    return Fir_call_dynamic(closure, env, argc, args, names);
+    return Fir_call_dynamic(closure, call, env, argc, args, names);
   }
 
   ASSERT(
@@ -903,6 +923,14 @@ SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) 
     }
   }
 
+  if (!fun.eval && matched) {
+    // Drop a special's unsupplied trailing parameters, so its argument count matches the source
+    // call's (GNU-R's group dispatch compares them: `log(x)` has one argument).
+    while (argc > 0 && args[argc - 1] == R_MissingArg) {
+      argc--;
+    }
+  }
+
   int visibility = (blt_idx / 100) % 10;
   R_Visible = (Rboolean)(visibility != 1);
 
@@ -919,8 +947,11 @@ SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) 
     op = R_Primitive("if");
   }
 
-  SEXP call = PROTECT(Rf_lcons(Rf_install(fun.name), arglist));
-  protect_count++;
+  call = Fir_source_call(call, env);
+  if (call == NULL) {
+    call = PROTECT(Rf_lcons(Rf_install(fun.name), arglist));
+    protect_count++;
+  }
 
   SEXP result = fun.cfun(call, op, arglist, env);
 
@@ -933,15 +964,19 @@ SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) 
   return result;
 }
 
-SEXP Fir_call_base(SEXP symbol, SEXP env, int argc, SEXP *args, SEXP *names) {
-  return Fir_call_dynamic(Fir_base_function(symbol), env, argc, args, names);
+SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names) {
+  return Fir_call_primitive(blt_idx, call, env, argc, args, names, true);
 }
 
-SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) {
+SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names) {
+  return Fir_call_dynamic(Fir_base_function(symbol), call, env, argc, args, names);
+}
+
+SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names) {
   switch (TYPEOF(callee)) {
     case BUILTINSXP:
     case SPECIALSXP:
-      return Fir_call_builtin(PRIMOFFSET(callee), env, argc, args, names);
+      return Fir_call_primitive(PRIMOFFSET(callee), call, env, argc, args, names, false);
     case CLOSXP: {
       // Try to fastcase compiled closures.
       Fir_FunctionData *data = NULL;
@@ -1001,8 +1036,11 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) 
       int protect_count = 0;
       SEXP arglist = Fir_build_arglist(argc, args, names, false, &protect_count);
 
-      SEXP call = PROTECT(Rf_lcons(callee, arglist));
-      protect_count++;
+      call = Fir_source_call(call, env);
+      if (call == NULL) {
+        call = PROTECT(Rf_lcons(callee, arglist));
+        protect_count++;
+      }
 
       SEXP result = Rf_applyClosure(call, callee, arglist, env, R_NilValue, TRUE);
 
@@ -2016,6 +2054,14 @@ DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_int_scalar_real_fx_none_ret_scalar
 // R,R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_scalar_real_fx_none_ret_scalar_real, double value, double base) {
   return R_logbase(value, base);
+}
+// I,miss→R
+DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_int_missing_fx_none_ret_scalar_real, int value, SEXP base) {
+  return R_log((double)value);
+}
+// R,miss→R
+DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_missing_fx_none_ret_scalar_real, double value, SEXP base) {
+  return R_log(value);
 }
 
 // === abs ===
