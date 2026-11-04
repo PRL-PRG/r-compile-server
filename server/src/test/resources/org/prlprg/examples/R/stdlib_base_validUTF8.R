@@ -1,5 +1,4 @@
 #? stdlib
-#? crashes("invalid multibyte string")
 `validUTF8` <- function (x) 
 .Internal(validUTF8(x))
 
@@ -19,7 +18,9 @@ validEnc(x) # typically the last, x[10], is invalid
 G <- x ; Encoding(G[!validEnc(G)]) <- "unknown"
 try( substr(x, 1,1) ) # gives 'invalid multibyte string' error in a UTF-8 locale
 try( substr(G, 1,1) ) # works in a UTF-8 locale
-nchar(G) # fine, too
+# `try` because whether `G[10]` is a valid multibyte string depends on the C library: glibc
+# accepts 5-byte sequences, macOS rejects them.
+try( nchar(G) )
 ## but it is not "more valid" typically:
 all.equal(validEnc(x),
           validEnc(G)) # typically TRUE

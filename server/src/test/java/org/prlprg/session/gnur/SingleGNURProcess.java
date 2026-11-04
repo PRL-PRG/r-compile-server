@@ -158,9 +158,12 @@ class SingleGNURProcess implements GNUR {
         w.println(source);
       }
 
+      // An error must kill R, which is how [EvalException] detects it, so clear any
+      // `options(error = ...)` an earlier eval in this process left behind (e.g. an example of
+      // `traceback`). With one set, R survives the error and `targetFile` stays empty.
       var code =
           format(
-              "saveRDS(eval(parse(file='%s'), envir=new.env(parent=globalenv())), '%s', version=2, compress=FALSE)",
+              "options(error=NULL); saveRDS(eval(parse(file='%s'), envir=new.env(parent=globalenv())), '%s', version=2, compress=FALSE)",
               sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
 
       output = run(code);
