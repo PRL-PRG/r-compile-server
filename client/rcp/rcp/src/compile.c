@@ -757,6 +757,15 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 		break;
 	}
 
+	// The stencil compiler assumes a hole's symbol has a nonzero address, so a
+	// zero value may be miscompiled. That applies to the value itself, not to
+	// what is patched: a PC-relative jump to the code right after it is patched
+	// with displacement 0 and is fine.
+	if (ptr == 0)
+		warning("Zero integer passed as an argument to BC instruction. Relocation "
+				"type: %d. Stencil: %s. Hole: %d. ",
+				hole->kind, stencil->name, hole_id);
+
 	ptr += hole->addend;
 	if (hole->is_pc_relative)
 		ptr -= (ptrdiff_t)&loc[hole->offset];
@@ -768,10 +777,6 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 			  "not fit into %hu bytes). Relocation type: %d. Stencil: %s. Hole: "
 			  "%d. Try to set memory model to large.\n",
 			  (void *)ptr, hole->size, hole->kind, stencil->name, hole_id);
-	if (ptr == 0)
-		warning("Zero integer passed as an argument to BC instruction. Relocation "
-				"type: %d. Stencil: %s. Hole: %d. ",
-				hole->kind, stencil->name, hole_id);
 
 	memcpy(&dst[hole->offset], &ptr, hole->size);
 }
