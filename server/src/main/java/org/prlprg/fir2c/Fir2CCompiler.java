@@ -1089,6 +1089,7 @@ public final class Fir2CCompiler {
           for (var line : cases.get(j)) {
             cCode.stmt(3, "%s", line);
           }
+          cCode.stmt(3, "break;");
         }
         cCode.stmt(2, "default:");
         cCode.stmt(3, "break;");
