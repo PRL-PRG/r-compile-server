@@ -6,6 +6,7 @@ import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
 import com.google.common.collect.Streams;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -68,8 +69,12 @@ public final class CfgReachability implements CfgAnalysis {
 
   private void run() {
     for (var bb : cfg.bbs()) {
-      mayPrecede.put(bb, Streams.stream(bbReverseDfs(bb)).collect(Collectors.toSet()));
-      maySucceed.put(bb, Streams.stream(bbDfs(bb)).collect(Collectors.toSet()));
+      // Linked, because optimizations iterate these (e.g. to copy a statement into each block).
+      mayPrecede.put(
+          bb,
+          Streams.stream(bbReverseDfs(bb)).collect(Collectors.toCollection(LinkedHashSet::new)));
+      maySucceed.put(
+          bb, Streams.stream(bbDfs(bb)).collect(Collectors.toCollection(LinkedHashSet::new)));
     }
   }
 }

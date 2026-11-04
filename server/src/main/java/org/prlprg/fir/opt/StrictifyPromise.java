@@ -8,6 +8,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
@@ -252,7 +253,9 @@ public final class StrictifyPromise extends AbstractionOptimization {
             inlineables.stream()
                 // high to low index to avoid index shifting
                 .sorted(Comparator.comparingInt(Inlineable::defStmtIndex).reversed())
-                .collect(Collectors.groupingBy(Inlineable::defBb));
+                .collect(
+                    Collectors.groupingBy(
+                        Inlineable::defBb, LinkedHashMap::new, Collectors.toList()));
         for (var entry : bbInlineables.entrySet()) {
           var inlineableBb = entry.getKey();
           for (var il : entry.getValue()) {

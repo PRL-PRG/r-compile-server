@@ -3,7 +3,6 @@ package org.prlprg.fir.opt;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -123,7 +122,7 @@ public final class Cleanup extends AbstractionOptimization {
     }
 
     void removeUnreachableBlocks(CFG cfg) {
-      var unreachable = new HashSet<>(cfg.bbs());
+      var unreachable = new LinkedHashSet<>(cfg.bbs());
       var worklist = new ArrayList<BB>();
 
       // Start from entry block
