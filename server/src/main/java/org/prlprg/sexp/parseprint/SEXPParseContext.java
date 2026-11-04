@@ -90,6 +90,28 @@ public class SEXPParseContext {
 
   static final long NEGATIVE_NAN_BITS = 0xFFF8000000000000L;
 
+  /// Parse an integer, real, or complex literal.
+  private static SEXP parseNumber(Scanner s) {
+    var decimal = s.readDecimalString();
+    if (!decimal.contains(".")
+        && !decimal.contains("Infinity")
+        && !decimal.contains("NaN")
+        && !s.nextCharSatisfies(c -> c == '+' || c == '-' || c == 'i' || c == 'e' || c == 'E')) {
+      try {
+        return SEXPs.integer(Integer.parseInt(decimal));
+      } catch (NumberFormatException e) {
+        throw s.fail("integer is too large to parse: " + decimal);
+      }
+    }
+    var dbl = decimal.endsWith("NaN") ? finishParsingNaN(decimal, s) : Double.parseDouble(decimal);
+    if (s.trySkip('+') || s.nextCharIs('-')) {
+      var imag = s.readDouble();
+      s.assertAndSkip('i');
+      return SEXPs.complex(dbl, imag);
+    }
+    return s.trySkip('i') ? SEXPs.complex(0, dbl) : SEXPs.real(dbl);
+  }
+
   /// Parse the optional `(0x<bits>)` after `+NaN` or `-NaN` (`decimal`).
   private static double finishParsingNaN(String decimal, Scanner s) {
     long bits =
@@ -145,30 +167,8 @@ public class SEXPParseContext {
     } else if (s.trySkip("<unbound>")) {
       return SEXPs.UNBOUND_VALUE;
     } else if (s.nextCharSatisfies(Character::isDigit) || s.nextCharIs('+') || s.nextCharIs('-')) {
-      var decimal = s.readDecimalString();
-      if (!decimal.contains(".")
-          && !decimal.contains("Infinity")
-          && !decimal.contains("NaN")
-          && !s.nextCharSatisfies(c -> c == '+' || c == '-' || c == 'i' || c == 'e' || c == 'E')) {
-        try {
-          return SEXPs.integer(Integer.parseInt(decimal));
-        } catch (NumberFormatException e) {
-          throw s.fail("integer is too large to parse: " + decimal);
-        }
-      } else {
-        var dbl =
-            decimal.endsWith("NaN") ? finishParsingNaN(decimal, s) : Double.parseDouble(decimal);
-        if (s.trySkip('+') || s.nextCharIs('-')) {
-          var imag = s.readDouble();
-          s.assertAndSkip('i');
-          return SEXPs.complex(dbl, imag);
-        }
-        if (s.trySkip('i')) {
-          return SEXPs.complex(0, dbl);
-        } else {
-          return SEXPs.real(dbl);
-        }
-      }
+      // A number's suffix follows it directly: `2.0 in` is a real, not a complex `2.0i`.
+      return s.runWithWhitespacePolicy(SkipWhitespace.NONE, () -> parseNumber(s));
     } else if (s.nextCharIs('"')) {
       var str = s.readQuoted('"');
       if (s.nextCharsAre("...")) {
