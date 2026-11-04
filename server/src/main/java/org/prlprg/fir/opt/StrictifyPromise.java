@@ -62,6 +62,11 @@ import org.prlprg.util.Streams;
 /// - Time-invariant ([#isTimeInvariant]), or passed to a strict parameter that the callee forces
 ///   before it can disturb what the promise reads ([#forcesUndisturbed])
 ///
+/// Skips a callee that is `@needsContext` or `@needsPromises`: a version that takes a value wraps
+// it
+/// in a promise without the caller's expression, so e.g. `substitute` or `missing` there sees the
+/// value.
+///
 /// Furthermore, only inlines if there's a compatible version with the new signature, or one can
 /// be created from the old version (in which case creates it)
 public final class StrictifyPromise extends AbstractionOptimization {
@@ -85,7 +90,8 @@ public final class StrictifyPromise extends AbstractionOptimization {
       for (int callIdx = bb.statements().size() - 1; callIdx >= 0; callIdx--) {
         var stmt = bb.statements().get(callIdx);
         if (!(stmt.expression() instanceof Call(StaticFnCallee callee))
-            || callee.function().userProperties().needsContext()) {
+            || callee.function().userProperties().needsContext()
+            || callee.function().userProperties().needsPromises()) {
           continue;
         }
         // Call arguments follow the callee's own argument (index 0).

@@ -18,7 +18,8 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXPs;
 
 /// Tests that [BC2FirClosureCompiler] sets `@needsContext` on exactly the closures that call a
-/// `@readsContext` builtin in their own frame.
+/// `@readsContext` builtin in their own frame, and `@needsPromises` on exactly the closures that
+/// call a `@readsPromise` builtin.
 class NeedsContextTest {
   @Test
   void useMethod() {
@@ -58,9 +59,29 @@ class NeedsContextTest {
   }
 
   @Test
+  void substituteNeedsPromises() {
+    var function = compile(new Module(), "function(x) { x; deparse(substitute(x)) }");
+    assertTrue(function.userProperties().needsPromises());
+    assertFalse(needsContext(function));
+  }
+
+  @Test
+  void missingNeedsPromises() {
+    assertTrue(compile(new Module(), "function(x) missing(x)").userProperties().needsPromises());
+  }
+
+  @Test
+  void passOnDoesNotNeedPromises() {
+    // `g` gets a normal promise for `x`.
+    assertFalse(compile(new Module(), "function(x) g(x)").userProperties().needsPromises());
+  }
+
+  @Test
   void builtinsDeclareReaders() {
     assertTrue(GlobalModules.CONTEXT_READERS.contains("UseMethod"));
     assertTrue(GlobalModules.CONTEXT_READERS.contains("match.arg"));
+    assertTrue(
+        GlobalModules.PROMISE_READERS.containsAll(java.util.Set.of("substitute", "missing")));
     assertTrue(
         GlobalModules.BUILTINS
             .localFunction(Variable.named("sys.function"))
@@ -81,10 +102,22 @@ class NeedsContextTest {
         fun g(x) {
           (x:*) -+> V { ... }
         }
+
+        @readsPromise
+        fun h(x) {
+          (x:*) -+> V { ... }
+        }
+
+        @needsPromises
+        fun i(x) {
+          (x:*) -+> V { ... }
+        }
         """;
     var printed = Printer.toString(ParseUtil.parseModule(text));
     assertTrue(printed.contains("@readsContext\nfun f"), printed);
     assertTrue(printed.contains("@needsContext\nfun g"), printed);
+    assertTrue(printed.contains("@readsPromise\nfun h"), printed);
+    assertTrue(printed.contains("@needsPromises\nfun i"), printed);
     assertEquals(printed, Printer.toString(ParseUtil.parseModule(printed)));
   }
 

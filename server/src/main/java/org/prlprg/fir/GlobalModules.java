@@ -106,6 +106,14 @@ public final class GlobalModules {
           .map(f -> f.name().name())
           .collect(ImmutableSet.toImmutableSet());
 
+  /// The names of the [#BUILTINS] that read the promise bound to an argument symbol
+  /// (`@readsPromise`).
+  public static final @Unmodifiable Set<String> PROMISE_READERS =
+      BUILTINS.localFunctions().stream()
+          .filter(f -> f.userProperties().readsPromise())
+          .map(f -> f.name().name())
+          .collect(ImmutableSet.toImmutableSet());
+
   private static @Unmodifiable List<NamedVariable> funTabEntryParamNames(FunTabEntry entry) {
     // The formal names aren't always specified,
     // but the amount (and whether they're variadic) are in `FUNTAB`

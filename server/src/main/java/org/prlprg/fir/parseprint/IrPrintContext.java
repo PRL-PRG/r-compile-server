@@ -87,6 +87,12 @@ public final class IrPrintContext {
     if (function.userProperties().needsContext()) {
       w.write("@needsContext\n");
     }
+    if (function.userProperties().readsPromise()) {
+      w.write("@readsPromise\n");
+    }
+    if (function.userProperties().needsPromises()) {
+      w.write("@needsPromises\n");
+    }
 
     w.write("fun ");
     p.print(function.name());

@@ -38,6 +38,8 @@ A function may be preceded by user properties:
 - `@liteSpecial` - the function may be called with literal AST arguments, but a non-reflective version takes them evaluated, like a builtin
 - `@readsContext` - the function (a builtin) reads the GNU-R closure context of its caller, e.g. `UseMethod`, `Recall`, `sys.function`, `match.arg`. The compiled code calls it through its base binding (`Fir_call_base`), never its `.Internal` directly
 - `@needsContext` - a call of the function must run inside a GNU-R closure context for the function's own frame. `bc2fir` sets it on a closure whose bytecode names a `@readsContext` function. FIŘ→C calls such a function through `Rf_applyClosure` (from every call shape: `dyn`, dispatch, and static), so the optimizer doesn't retarget its calls, and a static call of a version that a call from R can't select (an unboxed or owned parameter or return) is a compile error
+- `@readsPromise` - the function (a builtin) reads the promise bound to an argument symbol in its caller's frame, not only its value: its expression (`substitute`) or whether it's missing (`missing`)
+- `@needsPromises` - the function's parameters must stay the caller's GNU-R promises. `bc2fir` sets it on a closure whose bytecode names a `@readsPromise` function, with the same scan as `@needsContext`. `StrictifyPromise` doesn't strictify calls of it (the version it makes wraps each value in a promise without the caller's expression). A function that only passes a parameter on to another function doesn't get it, because that function gets a normal promise
 
 ### Function Signatures (`sig`)
 

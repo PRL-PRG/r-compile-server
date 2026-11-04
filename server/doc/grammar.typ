@@ -156,7 +156,7 @@ separates tokens.
       ($F$, $wseq(fn)$),
       ($fn$, $#sem($wseq(prop, n: k)$) space kw("fun") f #sem($tt("(")seq(frm)tt(")")$) tt("{")$,
              cont($wseq(ver, n: m) tt("}")$)),
-      semrule($prop$, $tt("@strict") alt tt("@liteSpecial") alt tt("@readsContext") alt tt("@needsContext")$),
+      semrule($prop$, $tt("@strict") alt tt("@liteSpecial") alt tt("@readsContext") alt tt("@needsContext") alt tt("@readsPromise") alt tt("@needsPromises")$),
       semrule($frm$, $x alt x tt("=") tt("<")sexp#h(0pt)tt(">")$),
       ($ver$, $tt("(")seq(prm)tt(")") arrow t tt("{") body tt("}")$,
               sem($tt("(")seq(prm)tt(")") arrow t tt("{") tt("...") tt("}")$)),

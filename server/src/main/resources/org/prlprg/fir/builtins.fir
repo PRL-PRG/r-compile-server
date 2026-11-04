@@ -526,9 +526,17 @@ fun `.External`(`.NAME`, `...`, PACKAGE) {
   (name:*@!, ddd:dots, package:*@!) -+> V { ... }
 }
 
+# `@readsPromise`: reads the promise bound to its argument symbol in the caller's frame. A closure
+# that calls one gets `@needsPromises` (see `BC2FirClosureCompiler`).
+@readsPromise
 fun missing(x) {
   (x:*@!) --> v(L) { ... }
   (x:*@!) --> B { ... }
+}
+
+@readsPromise
+fun substitute(`...`) {
+  (ddd:dots) -+> V { ... }
 }
 
 fun seq_along(`along.with`) {

@@ -1,5 +1,6 @@
 package org.prlprg.bc2fir;
 
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
@@ -95,49 +96,52 @@ public final class BC2FirClosureCompiler {
               cfgCompiler.compileBc();
             });
     function.setFormals(closure.parameters());
-    function
-        .userProperties()
-        .setNeedsContext(
-            needsContext(bc)
-                || closure.parameters().values().stream()
-                    .anyMatch(BC2FirClosureCompiler::needsContext));
+    var properties = function.userProperties();
+    properties.setNeedsContext(calls(bc, closure, GlobalModules.CONTEXT_READERS));
+    properties.setNeedsPromises(calls(bc, closure, GlobalModules.PROMISE_READERS));
     return function;
   }
 
-  /// Whether the code calls a [GlobalModules#CONTEXT_READERS] function in its own frame: by name
-  /// in its instructions, or in its promises. Inner closures aren't scanned, because they have
-  /// their own frame (and get their own property when compiled).
-  private static boolean needsContext(Bc bc) {
+  /// Whether the closure's bytecode or default arguments call one of `names` in its own frame.
+  private static boolean calls(Bc bc, CloSXP closure, Set<String> names) {
+    return calls(bc, names)
+        || closure.parameters().values().stream().anyMatch(d -> calls(d, names));
+  }
+
+  /// Whether the code calls one of `names` in its own frame: by name in its instructions, or in its
+  /// promises. Inner closures aren't scanned, because they have their own frame (and get their own
+  /// properties when compiled).
+  private static boolean calls(Bc bc, Set<String> names) {
     var consts = bc.consts();
     return bc.code().stream()
         .anyMatch(
             instr ->
                 switch (instr) {
-                  case GetFun(var name) -> isContextReader(consts.get(name));
-                  case GetGlobFun(var name) -> isContextReader(consts.get(name));
-                  case GetBuiltin(var name) -> isContextReader(consts.get(name));
-                  case GetIntlBuiltin(var name) -> isContextReader(consts.get(name));
-                  case CallSpecial(var ast) -> isContextReader(consts.get(ast).fun());
-                  case BaseGuard(var expr, var _) -> isContextReader(consts.get(expr).fun());
-                  case MakeProm(var code) -> needsContext(consts.get(code));
+                  case GetFun(var name) -> isIn(consts.get(name), names);
+                  case GetGlobFun(var name) -> isIn(consts.get(name), names);
+                  case GetBuiltin(var name) -> isIn(consts.get(name), names);
+                  case GetIntlBuiltin(var name) -> isIn(consts.get(name), names);
+                  case CallSpecial(var ast) -> isIn(consts.get(ast).fun(), names);
+                  case BaseGuard(var expr, var _) -> isIn(consts.get(expr).fun(), names);
+                  case MakeProm(var code) -> calls(consts.get(code), names);
                   default -> false;
                 });
   }
 
-  /// [#needsContext(Bc)] of promise code or a default argument, which is bytecode or an AST.
-  private static boolean needsContext(SEXP code) {
+  /// [#calls(Bc, Set)] of promise code or a default argument, which is bytecode or an AST.
+  private static boolean calls(SEXP code, Set<String> names) {
     return switch (code) {
-      case BCodeSXP bcSxp -> needsContext(bcSxp.bc());
+      case BCodeSXP bcSxp -> calls(bcSxp.bc(), names);
       case LangSXP call when call.funNameIs("function") -> false;
       case LangSXP call ->
-          isContextReader(call.fun())
-              || needsContext(call.fun())
-              || call.args().values().stream().anyMatch(BC2FirClosureCompiler::needsContext);
+          isIn(call.fun(), names)
+              || calls(call.fun(), names)
+              || call.args().values().stream().anyMatch(arg -> calls(arg, names));
       default -> false;
     };
   }
 
-  private static boolean isContextReader(SEXP fun) {
-    return fun instanceof RegSymSXP sym && GlobalModules.CONTEXT_READERS.contains(sym.name());
+  private static boolean isIn(SEXP fun, Set<String> names) {
+    return fun instanceof RegSymSXP sym && names.contains(sym.name());
   }
 }

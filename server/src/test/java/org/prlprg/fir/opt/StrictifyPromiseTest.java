@@ -58,6 +58,38 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void needsPromisesCallee_notChanged() {
+    // `f` calls e.g. `substitute`, so the value-taking version would give it the value.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I {
+                rx: p(v(I) -) = prom<v(I) ->{
+                  ry: v(I) = v(I)[1];
+                  return ry;
+                };
+                rz: v(I) = f< p(v(I) -)@! --> v(I) >(rx);
+                return rz;
+              }
+            }
+
+            @needsPromises
+            fun f(r) {
+              (r:*@!) -+> V { ... }
+              (r:p(v(I) -)@!) --> v(I) { ... }
+              (r:v(I)) --> v(I) {
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "optimization should report no change");
+    assertTrue(Printer.toString(module).contains("prom<"), "promise should stay");
+  }
+
+  @Test
   void staticCallee_effectfulPromise_notChanged() {
     var module =
         ParseUtil.parseModule(
