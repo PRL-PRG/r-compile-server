@@ -64,6 +64,63 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
       throw new SkipQueryException(name());
     }
 
+    var runs = moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
+    var run = run(example, store, moduleQuery, stubThreshold, runs, "");
+    var session = run.session();
+    var error = run.error();
+    if (error != null) {
+      return new EvalOutput(
+          new Error(error, false),
+          run.outputLog(),
+          null,
+          PerformanceCounters.EMPTY,
+          moduleAfter(session));
+    }
+
+    var v = Objects.requireNonNull(run.value());
+    var res = v.get(0);
+    var pc = PerformanceCounters.from(v.get(1));
+    var recordings = BcRecordingFeedback.Recording.listOf(v.get(2));
+    MockModuleFeedback feedback = null;
+    if (!recordings.isEmpty()) {
+      var module =
+          session != null
+              ? session.module()
+              : store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
+      var bytecodes =
+          Objects.requireNonNull(
+              session != null ? session.bytecodes() : Fir2CQuery.bytecodes(example, store),
+              "recorded feedback for a module without bytecode");
+      feedback = BcRecordingFeedback.translate(module, bytecodes, recordings);
+    }
+    return new EvalOutput(new Ok(res), run.outputLog(), feedback, pc, moduleAfter(session));
+  }
+
+  /// What one run of a module by `eval.R` did.
+  ///
+  /// @param value What `eval.R` returned (`list(res, pc, feedback)`), or `null` if R raised
+  ///     `error`.
+  /// @param session What the compile server has of the module, or `null` if the module isn't
+  ///     connected. The server no longer has the module, so the session doesn't change any more,
+  ///     unless R raised an error before every request was answered.
+  public record Run(
+      @Nullable VecSXP value,
+      String outputLog,
+      @Nullable EvalException error,
+      @Nullable Fir2CSession session) {}
+
+  /// Run the module that `moduleQuery` compiles for `example` (the one for
+  /// [CompiledModuleQuery#forEval()]) with `eval.R`, and then remove it from the compile server.
+  ///
+  /// @param runs How many times `eval.R` calls `main` (or the benchmark call).
+  /// @param definitions R code that runs before `eval.R`, e.g. to set its optional variables.
+  public static Run run(
+      Example example,
+      SnapshotStore store,
+      CompiledModuleQuery moduleQuery,
+      int stubThreshold,
+      int runs,
+      String definitions) {
     var evalQuery = moduleQuery.forEval();
     var isStandalone = evalQuery.isStandalone();
     if (!isStandalone) {
@@ -82,7 +139,6 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
             : Objects.requireNonNull(server.firModules().get(moduleId), "module isn't registered")
                 .session();
 
-    var runs = moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
     var stdlibPackage = example.stdlibPackage();
     var seed = example.seed();
     var source =
@@ -94,6 +150,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
         threshold <- %dL
         stdlib_pkg <- %s
         seed <- %s
+        %s
         %s"""
             .formatted(
                 modulePath.toAbsolutePath(),
@@ -103,39 +160,18 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
                 stubThreshold,
                 stdlibPackage == null ? "NULL" : "'" + stdlibPackage + "'",
                 seed == null ? "NULL" : seed + "L",
+                definitions,
                 EVAL_DRIVER);
 
     try {
       var rawOutput = R.capturingEval(source);
-
       if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 3) {
         throw new IllegalArgumentException(
             "Value first item must be a vector of size 3, got: " + rawOutput.first());
       }
-      var res = v.get(0);
-      var pc = PerformanceCounters.from(v.get(1));
-      var recordings = BcRecordingFeedback.Recording.listOf(v.get(2));
-      MockModuleFeedback feedback = null;
-      if (!recordings.isEmpty()) {
-        var module =
-            session != null
-                ? session.module()
-                : store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
-        var bytecodes =
-            Objects.requireNonNull(
-                session != null ? session.bytecodes() : Fir2CQuery.bytecodes(example, store),
-                "recorded feedback for a module without bytecode");
-        feedback = BcRecordingFeedback.translate(module, bytecodes, recordings);
-      }
-      var outputLog = rawOutput.second();
-      return new EvalOutput(new Ok(res), outputLog, feedback, pc, moduleAfter(session));
+      return new Run(v, rawOutput.second(), null, session);
     } catch (EvalException e) {
-      return new EvalOutput(
-          new Error(e, false),
-          e.outputLog(),
-          null,
-          PerformanceCounters.EMPTY,
-          moduleAfter(session));
+      return new Run(null, e.outputLog(), e, session);
     } finally {
       if (server != null) {
         server.firModules().remove(moduleId);
