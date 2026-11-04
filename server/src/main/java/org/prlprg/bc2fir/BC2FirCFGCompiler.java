@@ -757,8 +757,12 @@ public final class BC2FirCFGCompiler {
         }
         var builtinName = builtinSymbol.name();
         // Note that some of these are constant symbols and language objects, they should be treated
-        // like `eval`. We also assume builtins never use names.
-        // GNU-R just passes `CDR(call)` to the builtin.
+        // like `eval`. GNU-R just passes `CDR(call)`, with its tags, to the builtin (`rep` reads
+        // `each`).
+        var argNames =
+            ast.args().names().stream()
+                .map(OptionalNamedVariable::ofString)
+                .collect(ImmutableList.toImmutableList());
         var args =
             ast.args().stream()
                 .map(arg -> new Constant(arg.value()))
@@ -769,7 +773,7 @@ public final class BC2FirCFGCompiler {
             insertAndReturn(builtinName, new Load(LoadType.BASE_FUN, Variable.named(builtinName)));
         pushInsertThenCp(
             new Built(
-                new org.prlprg.fir.ir.expression.Call(new DynamicCallee()),
+                new org.prlprg.fir.ir.expression.Call(new DynamicCallee(argNames)),
                 prependArg(loadFun, args)));
       }
       case MakeClosure(var arg) -> {
