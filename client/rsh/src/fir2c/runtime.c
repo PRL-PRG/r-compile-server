@@ -907,8 +907,11 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
     return Fir_call_dynamic(closure, call, env, argc, args, names);
   }
 
+  // GNU-R doesn't check a primitive's table arity when it calls it; each `do_*` checks its own
+  // count. E.g. `names.c` declares `tcrossprod` with arity 1, but `do_matprod` takes 1 or 2. So
+  // only check matched calls, whose argument count comes from the signatures in `builtins.fir`.
   ASSERT(
-    fun.arity == -1 || fun.arity == argc ||
+    !matched || fun.arity == -1 || fun.arity == argc ||
     // Subassign's arity in `names.c` is 3, but it has `...` and works with variadic arguments
     strcmp(fun.name, "[<-") == 0 || strcmp(fun.name, "[[<-") == 0,
     "Builtin %s called with incorrect number of arguments: expected %d, got %d",
