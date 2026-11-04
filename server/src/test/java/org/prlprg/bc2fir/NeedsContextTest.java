@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Set;
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
 import org.prlprg.bc.BCCompiler;
@@ -80,8 +81,7 @@ class NeedsContextTest {
   void builtinsDeclareReaders() {
     assertTrue(GlobalModules.CONTEXT_READERS.contains("UseMethod"));
     assertTrue(GlobalModules.CONTEXT_READERS.contains("match.arg"));
-    assertTrue(
-        GlobalModules.PROMISE_READERS.containsAll(java.util.Set.of("substitute", "missing")));
+    assertTrue(GlobalModules.PROMISE_READERS.containsAll(Set.of("substitute", "missing")));
     assertTrue(
         GlobalModules.BUILTINS
             .localFunction(Variable.named("sys.function"))
