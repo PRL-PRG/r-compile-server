@@ -108,6 +108,19 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
       // but in practice this is rare enough that not optimizing is OK
       return Result.UNCHANGED;
     }
+    // A builtin binds the formals before `...` by its own rules, often by position whatever the
+    // names (`a[[x = 1]]` indexes `a`). Only resolve when those rules can't differ from name
+    // matching: every named argument bound to such a formal is at the formal's position.
+    if (GlobalModules.BUILTINS.localFunction(staticFunction.name()) == staticFunction) {
+      var dddIndex = formalParameters.indexOf("...");
+      var preDddEnd = dddIndex == -1 ? formalParameters.size() : dddIndex;
+      for (var i = 0; i < preDddEnd; i++) {
+        var argIndex = staticArgumentPositions.arguments().get(formalParameters.get(i));
+        if (argIndex != null && argIndex != i && !realNames.get(argIndex).isEmpty()) {
+          return Result.UNCHANGED;
+        }
+      }
+    }
     var staticArguments =
         formalParameters.stream()
             .map(
