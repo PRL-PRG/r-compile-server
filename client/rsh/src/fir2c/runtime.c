@@ -959,21 +959,26 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
     }
   }
 
+  SEXP op = R_Primitive(fun.name);
+  if (op == R_NilValue) {
+    // `fun` is an `.Internal`: `op` is its function object, so that `PRIMVAL(op)` (which selects
+    // the operation of a shared `do_*`: `choose` is `do_math2` with code 5, `atan2` code 0),
+    // `PRIMARITY(op)` and `PRIMNAME(op)` are this entry's. If the symbol's internal is another
+    // entry (a duplicated name), or the forced count no longer matches the arity (dropped trailing
+    // missings), call the base closure, which supplies the defaults.
+    op = INTERNAL(Rf_install(fun.name));
+    if ((TYPEOF(op) != BUILTINSXP && TYPEOF(op) != SPECIALSXP) || PRIMOFFSET(op) != blt_idx ||
+        (fun.arity != -1 && fun.arity != argc)) {
+      SEXP closure = Rf_findFun(Rf_install(fun.name), R_BaseEnv);
+      return Fir_call_dynamic(closure, call, env, argc, args, names);
+    }
+  }
+
   int visibility = (blt_idx / 100) % 10;
   R_Visible = (Rboolean)(visibility != 1);
 
   int protect_count = 0;
   SEXP arglist = Fir_build_arglist(argc, args, names, true, fun.eval % 10 == 1, &protect_count);
-
-  SEXP op = R_Primitive(fun.name);
-  if (op == R_NilValue) {
-    // `fun` is an `.Internal`.
-    // Idk what this should be, since `R_Primitive` returns `R_NilValue`,
-    // but for some internals `op` must be a builtin or special with "correct" arity,
-    // because arity is checked for some reason.
-    // `if` is the first primitive and has arbitrary arity, so hopefully it's OK.
-    op = R_Primitive("if");
-  }
 
   call = Fir_source_call(call, env);
   if (call == NULL) {
