@@ -352,6 +352,11 @@ server gives it to the optimizations, which use it as the minimum number of hits
 - `ServerTests#testCompileFirClosure` sends `CompileFirClosure` a recording, and checks the
   versions that the optimizations create from it.
 - `ManualFirServer` (test sources) serves one example for running `eval.R` by hand.
+- `VersionBenchmark` (a benchmark, not a test) runs a `#? benchmark:` example's call on the lazy
+  module through `EvalQuery`'s path, with the client's default threshold (10). It runs the
+  example's main until main runs compiled, and then the call 3 times. Per function, it counts the
+  versions that the optimizations created, that the server evaluated, that the client has compiled,
+  and that are redundant. Its CSV is a histogram of the functions by those counts.
 
 Running these tests needs `rsh` installed in the vendored R (`make -C client/rsh install`), and it
 must be reinstalled after changing the runtime, which the tests no longer compile in.

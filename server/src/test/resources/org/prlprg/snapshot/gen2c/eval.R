@@ -10,7 +10,7 @@ if (length(args) > 0) {
 # the compile server its stubs ask for their versions (`NULL` for a standalone module), how many
 # times to call `main`, the package of a `#? stdlib` example (`NULL` for other examples), the RNG
 # seed of a `#? seed(<int>)` example (`NULL` for other examples), and optionally how many calls a
-# stub runs before it requests its version.
+# stub runs before it requests its version, and a benchmark's call (see below).
 if (!exists("prefix")) prefix <- ""
 if (!exists("fir_port")) fir_port <- NULL
 if (!exists("runs")) runs <- 1L
@@ -57,11 +57,30 @@ main <-
 # Call the compiled closure
 # A seeded example gets the same random numbers in every run, so the baseline run and the compiled
 # runs compute the same values. The kinds reset an `RNGkind` that an earlier example changed.
-for (i in seq_len(runs)) {
+reseed <- function() {
   if (!is.null(seed)) {
     set.seed(seed, kind = "default", normal.kind = "default", sample.kind = "default")
   }
-  res <- main()
+}
+# A benchmark (`VersionBenchmarkQuery`) sets `bench_call` to the example's quoted `#? benchmark:`
+# call. Then the module's main (the example's warmup) runs `threshold + 1` times, each in an
+# environment that keeps what it defines, like `bench.R`'s `cc`. The last run is compiled, so the
+# closures it defines are the module's functions (the earlier runs run main's stub, whose fallback
+# runs the bytecode, which defines GNU-R closures). The call runs `runs` times in its environment.
+if (!exists("bench_call")) bench_call <- NULL
+if (is.null(bench_call)) {
+  for (i in seq_len(runs)) {
+    reseed()
+    res <- main()
+  }
+} else {
+  for (i in seq_len(threshold + 1L)) {
+    reseed()
+    bench_env <- new.env(parent = main_env)
+    invisible(.Call(paste0("Fir_", prefix, "fun_from_r_main"), bench_env, constantPool))
+  }
+  for (i in seq_len(runs)) eval(bench_call, bench_env)
+  res <- NULL
 }
 
 # Get performance counters, used by some BC->C tests (suppress if FIŘ->C)

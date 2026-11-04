@@ -643,7 +643,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../server/RshConstants.java` — Constants shared with `rsh`.
 - `.../session/`, `.../session/gnur/` — R session tests, and `GNUR`, the R processes that tests evaluate in.
 - `.../snapshot/` — Snapshot framework (`Query`, `SnapshotStore`, `DeterminismTest`).
-- `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand).
+- `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand; `bench/VersionBenchmark` counts the versions per function after the benchmark call runs on the lazy module).
 - `server/src/test/resources/org/prlprg/examples/` — R and FIŘ example programs (data).
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
