@@ -595,7 +595,6 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `MapIterableView.java` — Read-write view created by applying a function to each of another iterable's elements.
 - `MapListView.java` — Readonly view created by applying a function to each of another list's elements.
 - `MapSequencedCollectionView.java` — Readonly mapped view of a sequenced collection.
-- `Math2.java` — Math helpers.
 - `Maybe.java` — 3-way boolean.
 - `NotImplementedError.java` — Error for code that isn't implemented yet.
 - `Nothing.java` — A type with no instances, it can't be constructed.

@@ -2,6 +2,9 @@ package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -15,6 +18,11 @@ import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 
 /// Compile a new version with feedback from parameters on an existing version.
+///
+/// The feedback of each parameter is separate, so it doesn't say which types were passed
+/// together. This assumes that the k-th most frequent types of the parameters were: it creates
+/// one version per rank k (up to `parameterLimit`), whose parameter types are each parameter's
+/// k-th most frequent type, or the parameter's own type if it has fewer recorded types.
 ///
 /// TODO: Somewhere we should store removed specializations which were deoptimized.
 /// Also remove ones with more specific assumptions which turn out to not be optimizations over
@@ -49,15 +57,27 @@ public final class SpeculateDispatch extends AbstractionOptimization {
     }
 
     // See if parameter feedback suggests more specific types
-    var candidates =
+    var hits =
         version.parameters().stream()
             .map(
                 param ->
-                    feedback.type(param).streamHits(threshold, param.type()).limit(parameterLimit))
-            .gather(Streams.cartesianShuffled())
-            // If there are *many* versions even checking them all is too slow.
-            // If there are many parameters we may get many versions.
-            .limit(newVersionLimit * 9L)
+                    feedback
+                        .type(param)
+                        .streamHits(threshold, param.type())
+                        .limit(parameterLimit)
+                        .toList())
+            .toList();
+    var ranks = hits.stream().mapToInt(List::size).max().orElse(0);
+    var candidates =
+        IntStream.range(0, ranks)
+            .mapToObj(
+                rank ->
+                    Streams.zip(
+                            version.parameters().stream(),
+                            hits.stream(),
+                            (param, paramHits) ->
+                                rank < paramHits.size() ? paramHits.get(rank) : param.type())
+                        .collect(ImmutableList.toImmutableList()))
             // Check the version is more specific than an existing one.
             .filter(
                 parameterTypes -> {
