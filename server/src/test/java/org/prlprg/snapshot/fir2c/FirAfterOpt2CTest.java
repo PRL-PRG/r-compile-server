@@ -51,12 +51,6 @@ class FirAfterOpt2CTest implements Gen2CCompilerTest {
           "leak_promise2",
           "non_bytecode_closure",
           "vecsubset2_n6",
-          "vectorized_boolean_operations",
-          "vectorized_boolean_operations10",
-          "vectorized_boolean_operations4",
-          "vectorized_boolean_operations5",
-          "vectorized_boolean_operations6",
-          "vectorized_boolean_operations7",
           // returns a different value
           "inline_is_xyz",
           "is",

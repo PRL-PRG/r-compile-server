@@ -813,8 +813,9 @@ public final class BC2FirCFGCompiler {
       case Le(var _) -> pushInsertThenCp(mkBinop("<="));
       case Ge(var _) -> pushInsertThenCp(mkBinop(">="));
       case Gt(var _) -> pushInsertThenCp(mkBinop(">"));
-      case And(var _) -> pushInsertThenCp(mkBinop("&&"));
-      case Or(var _) -> pushInsertThenCp(mkBinop("||"));
+      // Bytecode `AND`/`OR` are the vector operators; `AND1ST`/`OR1ST` etc. are the scalar ones.
+      case And(var _) -> pushInsertThenCp(mkBinop("&"));
+      case Or(var _) -> pushInsertThenCp(mkBinop("|"));
       case Not(var _) -> pushInsertThenCp(mkUnop("!"));
       case DotsErr() -> insert(stop("'...' used in an incorrect context"));
       case StartAssign(var name) -> {
