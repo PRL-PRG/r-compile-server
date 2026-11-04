@@ -52,7 +52,8 @@ import org.prlprg.util.Files;
 ///
 /// The CSV is a histogram: per number of versions, how many functions have that many created,
 /// evaluated and compiled versions. The log also has the per-function table, a per-version table
-/// (every version the client got, and every other one the module has), and each run's wall time.
+/// (every version the client got, and every other one the module has), and each run's wall and
+/// CPU (user) time.
 ///
 /// The module is compiled with the version statistics (see [Fir2CQuery#stats()]), so the
 /// per-version table also has each version's calls during the benchmark runs (`calls`), during
@@ -236,6 +237,7 @@ public record VersionBenchmarkQuery(int stubThreshold, int runs) implements Quer
     var session = Objects.requireNonNull(run.session(), "the lazy module isn't connected");
     var bench = (VecSXP) Objects.requireNonNull(run.value()).get(3);
     var times = ((RealSXP) bench.get(0)).data();
+    var cpuTimes = ((RealSXP) bench.get(2)).data();
     var calls = counters((VecSXP) bench.get(1));
 
     // The server changes the module on its own threads, but every request was answered before
@@ -292,7 +294,9 @@ public record VersionBenchmarkQuery(int stubThreshold, int runs) implements Quer
                                 c.patches()))
                 .collect(Collectors.joining());
     var timeLine =
-        Arrays.stream(times).mapToObj("%.3f"::formatted).collect(Collectors.joining(","));
+        Arrays.stream(times).mapToObj("%.3f"::formatted).collect(Collectors.joining(","))
+            + "\nCPU (s):\n"
+            + Arrays.stream(cpuTimes).mapToObj("%.3f"::formatted).collect(Collectors.joining(","));
     var rshLine =
         run.outputLog().lines().filter(l -> l.startsWith("rsh library:")).findFirst().orElse("");
     return new BenchmarkOutput(

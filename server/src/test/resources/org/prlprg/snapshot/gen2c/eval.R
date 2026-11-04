@@ -80,16 +80,18 @@ if (is.null(bench_call)) {
     bench_env <- new.env(parent = main_env)
     invisible(.Call(paste0("Fir_", prefix, "fun_from_r_main"), bench_env, constantPool))
   }
-  # Each run's wall time, and the module's version call counters (`Fir_stats_versions_get`)
-  # before the first run and after each.
-  bench <- list(times = numeric(runs), calls = vector("list", runs + 1L))
+  # Each run's wall time and CPU time (user), and the module's version call counters
+  # (`Fir_stats_versions_get`) before the first run and after each.
+  bench <- list(times = numeric(runs), calls = vector("list", runs + 1L), cpu = numeric(runs))
   calls <- function() {
     all <- .Call("Fir_stats_versions_get")
     all[startsWith(names(all), prefix)]
   }
   bench$calls[[1L]] <- calls()
   for (i in seq_len(runs)) {
-    bench$times[[i]] <- system.time(eval(bench_call, bench_env))[["elapsed"]]
+    time <- system.time(eval(bench_call, bench_env))
+    bench$times[[i]] <- time[["elapsed"]]
+    bench$cpu[[i]] <- time[["user.self"]]
     bench$calls[[i + 1L]] <- calls()
   }
   res <- NULL
