@@ -11,10 +11,12 @@
 # them costs more than removing each one does.
 #
 # The noise floor is the relative difference between the two `<none>` rows, which run the same
-# code. `significant` says whether `synergy` is farther from 1 than that.
-reportSynergy <- function(removed, loc, time, same.as, size, expected) {
+# code, but at least `noise.min`, because one pair of runs usually underestimates the noise.
+# `significant` says whether `synergy` is farther from 1 than the floor.
+reportSynergy <- function(removed, loc, time, same.as, size, expected, noise.min) {
   baseline <- time[1]
-  noise <- abs(time[match("<none> (rerun)", removed)] / baseline - 1)
+  measuredNoise <- abs(time[match("<none> (rerun)", removed)] / baseline - 1)
+  noise <- max(measuredNoise, noise.min, na.rm = TRUE)
   slowdown <- time / baseline
   synergy <- slowdown / expected
   res <- data.frame(
@@ -30,7 +32,7 @@ reportSynergy <- function(removed, loc, time, same.as, size, expected) {
   )
 
   # Log to console, the farthest synergy from 1 first (`NA`s sort last)
-  cat("Noise floor:", round(noise, 3), "\n")
+  cat("Noise floor: ", round(noise, 3), " (measured: ", round(measuredNoise, 3), ")\n", sep = "")
   print(res[order(-abs(res$synergy - 1)), ])
 
   toCsv(res)

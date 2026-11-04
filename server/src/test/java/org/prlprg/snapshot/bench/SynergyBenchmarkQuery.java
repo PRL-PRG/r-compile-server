@@ -41,8 +41,8 @@ import org.prlprg.util.Paths;
 ///
 /// `slowdown` is relative to this run's baseline, but `expected` comes from the run of
 /// [OptimizationBenchmarkQuery], so `synergy` has both runs' noise. The table's `significant` is
-/// whether `synergy` is farther from 1 than the relative difference between the `<none>` and
-/// `<none> (rerun)` rows.
+/// whether `synergy` is farther from 1 than the noise floor: the relative difference between the
+/// `<none>` and `<none> (rerun)` rows, but at least [TestConfig#BENCHMARK_NOISE_FLOOR_MIN].
 ///
 /// [OptimizationBenchmarkQuery]'s snapshot is reused, unless [TestConfig#IGNORE_SNAPSHOTS] matches
 /// `snapshot/bench/opt`, which reruns it.
@@ -121,6 +121,7 @@ public class SynergyBenchmarkQuery implements BenchmarkOutputQuery {
     var columns = VariantBenchmark.columns(measurements);
     columns.put("size", VariantBenchmark.rInts(sizes, -1));
     columns.put("expected", VariantBenchmark.rNumbers(expected));
+    columns.put("noise.min", Double.toString(TestConfig.BENCHMARK_NOISE_FLOOR_MIN));
     return VariantBenchmark.report(SCRIPT, "reportSynergy", columns, log.toString());
   }
 

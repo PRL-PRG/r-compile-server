@@ -78,4 +78,14 @@ public class TestConfig extends Config {
   ///
   /// This is **empty** by default.
   public static final String BENCHMARK_SYNERGY_SETS = INSTANCE.get("BENCHMARK_SYNERGY_SETS", "");
+
+  /// The least noise floor of `org.prlprg.snapshot.bench.SynergyBenchmark`: a `synergy` closer to 1
+  /// than this isn't `significant`, even if the two runs of the baseline differ by less.
+  ///
+  /// The measured floor comes from one pair of runs, which usually underestimates the noise: two
+  /// loads of the same shared object were observed to differ by 20-30% (see `optbench.R`).
+  ///
+  /// This is **0.1** by default.
+  public static final double BENCHMARK_NOISE_FLOOR_MIN =
+      INSTANCE.get("BENCHMARK_NOISE_FLOOR_MIN", 0.1);
 }
