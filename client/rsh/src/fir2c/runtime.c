@@ -1399,15 +1399,43 @@ void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinke
   };
 }
 
+void Fir_setter_begin_value(Fir_Setter *s, SEXP lhs, int nlinked, SEXP *linked) {
+  s->active = false;
+  SEXP value = lhs;
+  if (TYPEOF(value) == PROMSXP) {
+    value = PRVALUE(value);
+  }
+  if (value == R_UnboundValue || value == R_NilValue || TYPEOF(value) == SYMSXP) {
+    return;
+  }
+
+  for (int i = 0; i < nlinked; i++) {
+    if (linked[i] != NULL) {
+      INCREMENT_REFCNT(linked[i]);
+    }
+  }
+  // With the variable in a register, any counted reference is one GNU-R's binding would share.
+  if (MAYBE_REFERENCED(value)) {
+    value = Rf_shallow_duplicate(value);
+  }
+  PROTECT(value);
+
+  *s = (Fir_Setter) {
+    .cell = NULL, .value = value, .nlinked = nlinked, .linked = linked, .active = true
+  };
+}
+
 SEXP Fir_setter_end(Fir_Setter *s, SEXP result) {
   if (s->active) {
-    SET_ASSIGNMENT_PENDING(s->cell, FALSE);
+    if (s->cell != NULL) {
+      SET_ASSIGNMENT_PENDING(s->cell, FALSE);
+    }
     for (int i = 0; i < s->nlinked; i++) {
       if (s->linked[i] != NULL) {
         DECREMENT_REFCNT(s->linked[i]);
       }
     }
-    UNPROTECT(2); // cell + value
+    UNPROTECT(s->cell == NULL ? 1 : 2); // (cell +) value
   }
   return result;
 }

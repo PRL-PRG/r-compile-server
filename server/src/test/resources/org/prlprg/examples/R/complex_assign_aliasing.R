@@ -6,6 +6,25 @@ alias_local <- function() {
   c(x, y)
 }
 
+# Like `bench_simple_vector_for`, whose `x` the optimizer keeps in registers.
+alias_registers <- function(n) {
+  x <- vector(length=n)
+  y <- x
+  for (i in 1:n) {
+    x[[i]] <- i
+  }
+  y
+}
+alias_registers_in_loop <- function(n) {
+  x <- vector(length=n)
+  y <- 0
+  for (i in 1:n) {
+    x[[i]] <- i
+    if (i == 1) y <- x
+  }
+  y
+}
+
 modify_param <- function(v) {
   v[1] <- 20
   v[[2]] <- 21
@@ -92,6 +111,8 @@ self_value <- function() {
 
 all_cases <- function() {
   list(
+    alias_registers(3),
+    alias_registers_in_loop(3),
     alias_local(),
     alias_param(),
     keep_param(c(1, 2)),
@@ -105,7 +126,12 @@ all_cases <- function() {
   )
 }
 
-# warmup
+# warmup (`alias_registers` first: the interpreter, which records the feedback, stops at the
+# first case it doesn't support)
+for (i in 1:12) {
+  alias_registers(3)
+  alias_registers_in_loop(3)
+}
 for (i in 1:12) {
   r <- all_cases()
 }

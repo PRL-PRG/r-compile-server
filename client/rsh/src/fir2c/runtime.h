@@ -433,7 +433,8 @@ SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP 
 SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 
 /// A call of a replacement function in GNU-R's assignment protocol (bytecode's `STARTASSIGN`,
-/// `SETTER_CALL`, `ENDASSIGN`), for `l = ld x; r = f(l, ...) in <f(*tmp*, ...)>; st x = r`. The
+/// `SETTER_CALL`, `ENDASSIGN`), for `l = ld x; r = f(l, ...) in <f(*tmp*, ...)>; st x = r`, or
+/// `r = f(l, ...) in <f(*tmp*, ...)>` where FIŘ keeps `x` in registers. The
 /// protocol lets the callee modify `x`'s value in place when nothing else references it.
 ///
 /// `Fir_setter_begin` reads `x`'s binding. If the protocol applies (`active`), it counts the
@@ -451,6 +452,10 @@ typedef struct {
 
 /// `lhs` is the value the `ld` read. The protocol only applies if `x`'s binding still holds it.
 void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinked, SEXP *linked);
+/// `Fir_setter_begin` for a variable that FIŘ keeps in a register instead of a binding: `lhs` is the
+/// call's first argument (a value, or a forced promise). `value` is a copy if anything counts a
+/// reference to it.
+void Fir_setter_begin_value(Fir_Setter *s, SEXP lhs, int nlinked, SEXP *linked);
 SEXP Fir_setter_end(Fir_Setter *s, SEXP result);
 /// `Fir_call_dynamic` in the protocol `s` began; `args[0]` is replaced by `s->value`.
 SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, SEXP *args,

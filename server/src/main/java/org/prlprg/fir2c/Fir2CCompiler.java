@@ -11,6 +11,7 @@ import com.google.common.hash.HashCode;
 import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.bc2fir.FunctionBcOrigin;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
@@ -61,6 +62,7 @@ import org.prlprg.fir.ir.instruction.Raise;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
@@ -2409,10 +2411,11 @@ public final class Fir2CCompiler {
                         names.pointer());
           }
 
-          /// Whether `statement` is `r = f(l', ...) in <f(*tmp*, ...)>`, where `l'` is `l = ld x`
-          /// or an assumption, cast or force of it, and `st x = r` follows it (after a checkpoint
-          /// or goto at most). GNU-R's bytecode runs such a call in its assignment protocol (see
-          /// `Fir_Setter` in `runtime.h`).
+          /// Whether `statement` is `r = f(l', ...) in <f(*tmp*, ...)>`, a call that GNU-R's
+          /// bytecode runs in its assignment protocol (see `Fir_Setter` in `runtime.h`). `l'` is a
+          /// register or an assumption, cast or force of one, `l`. If `l = ld x`, `st x = r` (or of
+          /// an assumption or cast of `r`) must follow the call, after a checkpoint or goto at
+          /// most. Otherwise FIŘ keeps `x` in registers.
           private @Nullable SetterPattern matchSetter(Statement statement) {
             var source = statement.source();
             var result = statement.assignee();
@@ -2422,12 +2425,15 @@ public final class Fir2CCompiler {
                 || source.args().isEmpty()
                 || !source.arg(0).equals(SEXPs.ASSIGN_TMP)
                 || statement.args().size() < 2
-                || !(statement.arg(1) instanceof Read(var lhs))
+                || !(statement.arg(1) instanceof Read(var arg))
                 || result.uses().stream()
                     .anyMatch(
                         use -> use.instruction().args().get(use.index()) instanceof Consume)) {
               return null;
             }
+            var chain = new LinkedHashSet<Register>();
+            var lhs = arg;
+            chain.add(lhs);
             while (lhs instanceof AssigneeOf ao
                 && (ao.statement().expression() instanceof Assume
                     || ao.statement().expression() instanceof Cast
@@ -2435,50 +2441,78 @@ public final class Fir2CCompiler {
                 && !ao.statement().args().isEmpty()
                 && ao.statement().arg(0) instanceof Read(var from)) {
               lhs = from;
+              chain.add(lhs);
             }
             if (!(lhs instanceof AssigneeOf ao
                 && ao.statement().expression() instanceof Load(var loadType, var variable)
                 && loadType == LoadType.LOCAL_VAR
                 && !variable.equals(NamedVariable.DOTS)
                 && !variable.isDdNum())) {
-              return null;
+              // Another load reads a binding the protocol doesn't handle (`<<-`).
+              return lhs instanceof AssigneeOf def && def.statement().expression() instanceof Load
+                  ? null
+                  : new SetterPattern(null, arg, Collections.unmodifiableSet(chain));
             }
-
-            var statements = bb.statements();
-            var index = statements.indexOf(statement);
-            Statement next = null;
-            if (index + 1 < statements.size()) {
-              next = statements.get(index + 1);
-            } else {
-              var nextBb =
-                  switch (bb.jump().expression()) {
-                    case Checkpoint(var success, var _, var _) -> success.get();
-                    case Goto(var target) -> target.get();
-                    default -> null;
-                  };
-              if (nextBb != null && !nextBb.statements().isEmpty()) {
-                next = nextBb.statements().getFirst();
-              }
-            }
-            return next != null
-                    && next.expression() instanceof Store(var storeType, var stored)
-                    && storeType == Store.StoreType.LOCAL_VAR
-                    && stored.equals(variable)
-                    && next.arg(0) instanceof Read(var storedValue)
-                    && storedValue == result
-                ? new SetterPattern(variable, lhs)
+            return storesNext(statement, result, variable)
+                ? new SetterPattern(variable, lhs, Collections.unmodifiableSet(chain))
                 : null;
           }
 
-          /// Emit `Fir_setter_begin` for the call `statement` that matches `setter`, and return the
-          /// name of its `Fir_Setter`.
+          /// Whether `st variable = r`, where `r` is `result` or an assumption or cast of it,
+          /// follows `statement`, after a checkpoint or goto at most.
+          private boolean storesNext(Statement statement, Register result, NamedVariable variable) {
+            var next = new ArrayList<>(bb.statements());
+            next.subList(0, next.indexOf(statement) + 1).clear();
+            var nextBb =
+                switch (bb.jump().expression()) {
+                  case Checkpoint(var success, var _, var _) -> success.get();
+                  case Goto(var target) -> target.get();
+                  default -> null;
+                };
+            if (nextBb != null) {
+              next.addAll(nextBb.statements());
+            }
+            Register value = result;
+            for (var stmt : next) {
+              if ((stmt.expression() instanceof Assume || stmt.expression() instanceof Cast)
+                  && !stmt.args().isEmpty()
+                  && stmt.arg(0) instanceof Read(var from)
+                  && from == value
+                  && stmt.assignee() != null) {
+                value = stmt.assignee();
+                continue;
+              }
+              return stmt.expression() instanceof Store(var storeType, var stored)
+                  && storeType == Store.StoreType.LOCAL_VAR
+                  && stored.equals(variable)
+                  && stmt.arg(0) instanceof Read(var storedValue)
+                  && storedValue == value;
+            }
+            return false;
+          }
+
+          /// Emit the `Fir_setter_begin` for the call `statement` that matches `setter`, and return
+          /// the name of its `Fir_Setter`.
           ///
           /// The linked registers are those GNU-R would have on its stack during the call: the
-          /// ones live after it, its other arguments, and the version's parameters (a caller may
-          /// hold an argument in a register, which nothing counts).
+          /// ones live after it, the ones the promises live after it capture, its other
+          /// arguments, and the version's parameters (a caller may hold an argument in a
+          /// register, which nothing counts). Except a register of `l'` that only deopt branches
+          /// use after the call: the bytecode they continue in has the value the call modified.
           private String emitSetterBegin(Statement statement, SetterPattern setter) {
             var linked = new LinkedHashSet<>(liveness.liveAfter(statement));
             linked.remove(statement.assignee());
+            for (var register : List.copyOf(linked)) {
+              if (register instanceof AssigneeOf ao
+                  && ao.statement().expression() instanceof Promise p) {
+                linked.addAll(Objects.requireNonNull(captures.get(p.code())));
+              }
+            }
+            linked.removeIf(
+                register ->
+                    setter.chain().contains(register)
+                        && register.uses().stream()
+                            .allMatch(use -> isChainOrDeoptUse(use, statement, setter)));
             statement.args().stream()
                 .skip(2)
                 .map(Argument::variable)
@@ -2501,15 +2535,34 @@ public final class Fir2CCompiler {
             tempArrayDisambiguators.put("setter", disambiguator + 1);
             var state = "t_setter_%d".formatted(disambiguator);
             cCode.stmt("Fir_Setter %s;", state);
-            cCode.stmt(
-                "Fir_setter_begin(&%s, %s, %s, %s, %d, %s);",
-                state,
-                nvSymbolRef(pool, setter.variable()),
-                VAR_ENV,
-                registerPlace(setter.lhs()),
-                linkedArray.size(),
-                linkedArray.pointer());
+            if (setter.variable() == null) {
+              cCode.stmt(
+                  "Fir_setter_begin_value(&%s, %s, %d, %s);",
+                  state, registerPlace(setter.lhs()), linkedArray.size(), linkedArray.pointer());
+            } else {
+              cCode.stmt(
+                  "Fir_setter_begin(&%s, %s, %s, %s, %d, %s);",
+                  state,
+                  nvSymbolRef(pool, setter.variable()),
+                  VAR_ENV,
+                  registerPlace(setter.lhs()),
+                  linkedArray.size(),
+                  linkedArray.pointer());
+            }
             return state;
+          }
+
+          /// Whether `use` is the setter call `statement`, the definition of a register of its
+          /// first argument's chain, or in a deopt branch.
+          private static boolean isChainOrDeoptUse(
+              Use use, Statement statement, SetterPattern setter) {
+            var instruction = use.instruction();
+            var useBb = instruction.parentBB();
+            return instruction == statement
+                || (instruction instanceof Statement s
+                    && s.assignee() != null
+                    && setter.chain().contains(s.assignee()))
+                || (useBb != null && useBb.jump().expression() instanceof Deopt);
           }
 
           /// The source of a setter call, in a pool slot of its own: the protocol marks it as an
@@ -3449,9 +3502,11 @@ public final class Fir2CCompiler {
 
   private record Array(int size, String pointer) {}
 
-  /// A setter call's variable `x` and the register `l` of its `l = ld x` (see
-  /// `BBEmitter#matchSetter`).
-  private record SetterPattern(NamedVariable variable, Register lhs) {}
+  /// A setter call (see `BBEmitter#matchSetter`): its variable `x` and the register `l` of its
+  /// `l = ld x`, or `null` and its first argument if FIŘ keeps `x` in registers; and the registers
+  /// from its first argument to `l`.
+  private record SetterPattern(
+      @Nullable NamedVariable variable, Register lhs, @Unmodifiable Set<Register> chain) {}
 
   /// The version of `function` that is `version` except that it owns its first argument (which
   /// `version` borrows), or `null` if there's none.
