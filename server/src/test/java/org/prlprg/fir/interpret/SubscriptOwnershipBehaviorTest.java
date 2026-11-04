@@ -87,7 +87,7 @@ class SubscriptOwnershipBehaviorTest {
         printed.contains("`[<-`"),
         "every sub-assignment should be an in-place write; printed:\n" + printed);
     assertTrue(
-        printed.contains("v[0] = 42"),
+        printed.contains("`v`[0] = 42"),
         "the owned version should write into its own vector; printed:\n" + printed);
     assertTrue(
         printed.contains("d[0] = 42"),

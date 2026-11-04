@@ -132,6 +132,8 @@ Registers are only accessible within the version body and inner promises; they c
 
 A register name must be a valid identifier: must start with a letter or `_`, be followed by letters, digits, or `_`, and cannot equal `_`. By convention a register name doesn't start with an uppercase letter, so registers are visibly distinct from block labels.
 
+A register or function whose name is a statement keyword (e.g. `v`, `force`, `st`, `goto`) is backquoted where it begins an expression, e.g. `` `v` ?: V `` or `` `v`[i] ``. A backquoted name there is never read as a keyword.
+
 ### Named Variables (`x`)
 
 Named variables represent R environment bindings, accessed with `ld x` and `st x = a`. Each named variable has a declared type in the version (`Abstraction#namedVariableTypes`), which defaults to `*`. All named variable types must be shared and maybe (`t?` or `*`).

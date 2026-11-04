@@ -6,6 +6,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.NamedArgument;
+import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
@@ -46,6 +47,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -270,7 +272,7 @@ public final class IrPrintContext {
       case Call(var callee) -> {
         switch (callee) {
           case StaticFnCallee(var functionRef, var isDispatch, var signature) -> {
-            p.print(functionRef.get().name());
+            printHead(p, functionRef.get().name());
             if (isDispatch) {
               w.write('%');
             }
@@ -328,7 +330,7 @@ public final class IrPrintContext {
         p.print(args.getFirst());
       }
       case Cast(var type) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(" as ");
         p.print(type);
       }
@@ -363,25 +365,25 @@ public final class IrPrintContext {
         p.print(args.getFirst());
       }
       case SubscriptRead(var outOfRangeIsNa) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(outOfRangeIsNa ? "[" : "[[");
         p.print(args.get(1));
         w.write(outOfRangeIsNa ? "]" : "]]");
       }
       case SubscriptWrite _ -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write("[");
         p.print(args.get(1));
         w.write("] = ");
         p.print(args.get(2));
       }
       case ReflectiveLoad(var variable) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write("$");
         p.print(variable);
       }
       case ReflectiveStore(var variable) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write("$");
         p.print(variable);
         w.write(" = ");
@@ -419,17 +421,17 @@ public final class IrPrintContext {
     var w = p.writer();
     switch (assumption) {
       case AssumeType(var type) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(" ?: ");
         p.print(type);
       }
       case AssumeConstant(var constant) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(" ?= ");
         p.print(constant);
       }
       case AssumeFunction(var functionRef) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(" ?- ");
         p.print(functionRef.get().name());
       }
@@ -445,6 +447,22 @@ public final class IrPrintContext {
         w.write(" ?= ");
         p.print(constant);
       }
+    }
+  }
+
+  /// Print `head`, the first word of a statement's expression, backquoted if it's a register or
+  /// function named like a keyword, because the parser reads an unquoted keyword as one.
+  private void printHead(Printer p, Object head) {
+    var name =
+        switch (head) {
+          case Read(var register) -> register.name();
+          case NamedVariable variable -> variable.name();
+          default -> null;
+        };
+    if (name != null && ModuleParseContext.STATEMENT_KEYWORDS.contains(name)) {
+      p.writer().writeQuoted('`', name);
+    } else {
+      p.print(head);
     }
   }
 

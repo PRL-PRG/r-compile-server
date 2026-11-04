@@ -1,6 +1,7 @@
 package org.prlprg.fir.parseprint;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -100,6 +101,33 @@ import org.prlprg.util.Characters;
 ///   - [FunctionParseContext.AbstractionParseContext.BodyParseContext] — a version's body: its
 ///     [CFG]'s blocks, instructions, and arguments.
 public final class ModuleParseContext {
+  /// Words that begin an expression or jump when they're the first word of a statement, so a
+  /// register or function named one of them is backquoted there (see [IrPrintContext]).
+  static final ImmutableSet<String> STATEMENT_KEYWORDS =
+      ImmutableSet.of(
+          "noop",
+          "clos",
+          "dup",
+          "dyn",
+          "force",
+          "ldf",
+          "ld",
+          "mkenv",
+          "popenv",
+          "prom",
+          "st",
+          "consume",
+          "v",
+          "v1",
+          "dots",
+          "check",
+          "deopt",
+          "if",
+          "goto",
+          "raise",
+          "return",
+          "unreachable");
+
   @ParseMethod
   private Module parseModule(Parser p) {
     var s = p.scanner();
@@ -490,8 +518,9 @@ public final class ModuleParseContext {
           String assigneeName = null;
           Type assigneeType = null;
           String headName = null;
+          var isHeadQuoted = s.nextCharIs('`');
           if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
-            var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+            var nameHead = isHeadQuoted ? Names.read(s, true) : s.readIdentifierOrKeyword();
             if (s.trySkip(':')) {
               // A real register definition declares its type inline: `r0: T = <expr>`.
               assigneeName = nameHead;
@@ -505,7 +534,7 @@ public final class ModuleParseContext {
             }
           }
 
-          var parsed = parseExpr(p, headName);
+          var parsed = parseExpr(p, headName, isHeadQuoted);
 
           // Legacy bare-argument statement (old `Aea`): no expression, just a single argument. The
           // new IR has no forwarding node, so it emits no statement. With an assignee (`r = <arg>`)
@@ -618,8 +647,9 @@ public final class ModuleParseContext {
         /// Parse an expression and its arguments. `headName`, if non-null, is an identifier already
         /// read from the input that begins the expression (an ugly necessity because the grammar
         /// has no lookahead and we must commit to reading `r =` before knowing whether `r` is an
-        /// assignee).
-        private ParsedExpr parseExpr(Parser p, @Nullable String headName) {
+        /// assignee). It was backquoted iff `isHeadQuoted`, in which case it's a register or
+        /// function name even if it's a keyword.
+        private ParsedExpr parseExpr(Parser p, @Nullable String headName, boolean isHeadQuoted) {
           var s = p.scanner();
           Argument headArg = null;
 
@@ -630,11 +660,16 @@ public final class ModuleParseContext {
                 || s.nextCharIs('<')) {
               headArg = p.parse(Argument.class);
             } else if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
-              headName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+              isHeadQuoted = s.nextCharIs('`');
+              headName = isHeadQuoted ? Names.read(s, true) : s.readIdentifierOrKeyword();
             }
           }
 
-          if (headName != null) {
+          if (headName != null && isHeadQuoted) {
+            if (isInScope(headName)) {
+              headArg = resolveUse(headName, s);
+            }
+          } else if (headName != null) {
             switch (headName) {
               case "noop":
                 return new ParsedExpr(new Noop(), List.of());
