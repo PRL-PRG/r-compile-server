@@ -2221,21 +2221,40 @@ public final class Fir2CCompiler {
           private String emitBuiltinCall(
               String source, List<Argument> callArgs, Function calleeFun) {
             var builtinIndex = builtinIndex(calleeFun);
-
-            var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
-            var names =
-                emitArray(
-                    "arg_names",
-                    "SEXP",
-                    Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
-            if (arguments.size() != names.size()) {
+            if (callArgs.size() != calleeFun.parameterNames().size()) {
               throw new IllegalStateException(
                   "Dispatched builtin has different number of arguments than its signature:\nFull definition = "
                       + calleeFun);
             }
 
-            // A `@readsContext` builtin's `.Internal` must run in the base closure's frame.
-            return builtinIndex == null || calleeFun.userProperties().readsContext()
+            // A static call passes every parameter, so bc2fir pads the trailing parameters R code
+            // left out with `<missing>` constants. Drop them: the callee then gets the arguments
+            // of the R call. A missing-argument *value* (a forced promise can yield the empty
+            // symbol) is passed through, as GNU-R's `CALLBUILTIN` does.
+            var present = callArgs.size();
+            while (present > 0
+                && callArgs.get(present - 1) instanceof Constant(var c)
+                && c.equals(new Value.Sexp(SEXPs.MISSING_ARG))) {
+              present--;
+            }
+            var arguments = emitArgumentArray("args", Repr.SEXP, callArgs.subList(0, present));
+            var names =
+                emitArray(
+                    "arg_names",
+                    "SEXP",
+                    Lists.mapLazy(
+                        calleeFun.parameterNames().subList(0, present),
+                        nv -> nvSymbolRef(pool, nv)));
+
+            // A `@readsContext` builtin's `.Internal` must run in the base closure's frame. An
+            // `.Internal` whose arity differs from the signature (`stop`, `warning`) needs its
+            // base closure to build the arguments. Decide this on the untrimmed count.
+            var entry = rSession.RFunTab().get(calleeFun.name().name());
+            return builtinIndex == null
+                    || calleeFun.userProperties().readsContext()
+                    || (entry.isInternal()
+                        && entry.arity() != -1
+                        && entry.arity() != callArgs.size())
                 ? "Fir_call_base(%s, %s, %s, %d, %s, %s)"
                     .formatted(
                         baseSymbolRef(pool, calleeFun),

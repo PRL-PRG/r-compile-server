@@ -932,8 +932,9 @@ static SEXP Fir_source_call(SEXP call, SEXP env) {
   return call;
 }
 
-// `matched`: FIŘ matched the arguments to the parameters in `builtins.fir`, so a trailing missing
-// one was not supplied (a dynamic call passes the source's arguments as they are).
+// `matched`: a static call, whose arguments FIŘ matched to the parameters in `builtins.fir`
+// (`Fir2CCompiler` drops the unsupplied trailing ones). A dynamic call passes the source's
+// arguments as they are.
 static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
                                bool matched) {
   FUNTAB fun = R_FunTab[blt_idx];
@@ -943,7 +944,8 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
   // `.Internal(fun.name(...))`. For most of them that wrapper passes its arguments straight
   // through, so calling the internal below is equivalent. `stop` and `warning` are the exceptions:
   // they build one message out of `...`, and it shows in their parameters not lining up with the
-  // internal's arity. Send those through the closure instead.
+  // internal's arity (`Fir2CCompiler` calls those via `Fir_call_base`). Send those through the
+  // closure instead.
   if (fun.arity != -1 && fun.arity != argc && R_Primitive(fun.name) == R_NilValue) {
     SEXP closure = Rf_findFun(Rf_install(fun.name), R_BaseEnv);
     return Fir_call_dynamic(closure, call, env, argc, args, names);
@@ -951,9 +953,10 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
 
   // GNU-R doesn't check a primitive's table arity when it calls it; each `do_*` checks its own
   // count. E.g. `names.c` declares `tcrossprod` with arity 1, but `do_matprod` takes 1 or 2. So
-  // only check matched calls, whose argument count comes from the signatures in `builtins.fir`.
+  // only check matched calls, whose argument count comes from the signatures in `builtins.fir`. A
+  // matched call has at most the signature's parameters, and R's `checkArity` reports too few.
   ASSERT(
-    !matched || fun.arity == -1 || fun.arity == argc ||
+    !matched || fun.arity == -1 || argc <= fun.arity ||
     // Subassign's arity in `names.c` is 3, but it has `...` and works with variadic arguments
     strcmp(fun.name, "[<-") == 0 || strcmp(fun.name, "[[<-") == 0,
     "Builtin %s called with incorrect number of arguments: expected %d, got %d",
@@ -965,40 +968,6 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
     for (int i = 0; i < argc; i++) {
       args[i] = Fir_maybe_force(args[i]);
     }
-
-    for (int i = 0; i < argc; i++) {
-      if (args[i] != R_MissingArg) {
-        continue;
-      }
-
-      // If all remaining arguments are missing, ignore them.
-      // FIR requires all arguments of a static call to be present and matched.
-      // This means we must append explicitly missing arguments where R would not.
-      // Although we may get this code from R code with explicitly missing trailing arguments,
-      // since the expected behavior calls `Rf_Error`,
-      // it's an edge-case we probably don't need to handle.
-      bool missing_tail = true;
-      for (int j = i + 1; j < argc; j++) {
-        if (args[j] != R_MissingArg) {
-          missing_tail = false;
-          break;
-        }
-      }
-      if (missing_tail) {
-        argc = i;
-        break;
-      }
-
-      Rf_error("argument %d is missing", i + 1);
-    }
-  }
-
-  if (!fun.eval && matched) {
-    // Drop a special's unsupplied trailing parameters, so its argument count matches the source
-    // call's (GNU-R's group dispatch compares them: `log(x)` has one argument).
-    while (argc > 0 && args[argc - 1] == R_MissingArg) {
-      argc--;
-    }
   }
 
   SEXP op = R_Primitive(fun.name);
@@ -1006,8 +975,8 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
     // `fun` is an `.Internal`: `op` is its function object, so that `PRIMVAL(op)` (which selects
     // the operation of a shared `do_*`: `choose` is `do_math2` with code 5, `atan2` code 0),
     // `PRIMARITY(op)` and `PRIMNAME(op)` are this entry's. If the symbol's internal is another
-    // entry (a duplicated name), or the forced count no longer matches the arity (dropped trailing
-    // missings), call the base closure, which supplies the defaults.
+    // entry (a duplicated name), or the count no longer matches the arity (`Fir2CCompiler` dropped
+    // trailing missings), call the base closure, which supplies the defaults.
     op = INTERNAL(Rf_install(fun.name));
     if ((TYPEOF(op) != BUILTINSXP && TYPEOF(op) != SPECIALSXP) || PRIMOFFSET(op) != blt_idx ||
         (fun.arity != -1 && fun.arity != argc)) {
