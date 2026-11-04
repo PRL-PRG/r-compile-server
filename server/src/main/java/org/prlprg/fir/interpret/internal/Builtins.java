@@ -2345,25 +2345,33 @@ public final class Builtins {
   // region missing
 
   private static void registerMissing(InternalInterpreter interpreter) {
-    var missingVal = new Value.Sexp(SEXPs.MISSING_ARG);
     // v0: (*) --> v(L)
     interpreter.registerExternal(
         "missing",
         sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_SEXP),
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              boolean isMissing = args.getFirst().equals(missingVal);
-              return new Value.Sexp(SEXPs.logical(isMissing));
-            }));
+        (runtime, _, args, _) ->
+            new Value.Sexp(SEXPs.logical(isMissing(runtime, args.getFirst()))));
     // v1: (*) --> B
     interpreter.registerExternal(
         "missing",
         sig(Type.BOOLEAN, Effects.NONE, Type.ANY_SEXP),
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              boolean isMissing = args.getFirst().equals(missingVal);
-              return new Value.Bool(isMissing);
-            }));
+        (runtime, _, args, _) -> new Value.Bool(isMissing(runtime, args.getFirst())));
+  }
+
+  /// `missing(arg)`. *Not* [strict][ExternalVersion#strict] for a symbol, the unevaluated argument
+  /// of the special: it checks the symbol's binding without forcing it, like GNU-R, and a promise
+  /// of another symbol is missing if that symbol is missing in the promise's environment.
+  private static boolean isMissing(InternalInterpreter runtime, Value arg) {
+    if (!(arg instanceof Value.Sexp(RegSymSXP symbol))) {
+      return runtime.eval(arg).equals(new Value.Sexp(SEXPs.MISSING_ARG));
+    }
+    SEXP binding = runtime.load(Variable.named(symbol.name()));
+    while (binding instanceof PromSXP promise
+        && promise.boundVal() == null
+        && promise.expr() instanceof RegSymSXP promiseSymbol) {
+      binding = promise.env().getLocal(promiseSymbol.name()).orElse(null);
+    }
+    return binding == SEXPs.MISSING_ARG;
   }
 
   // endregion
