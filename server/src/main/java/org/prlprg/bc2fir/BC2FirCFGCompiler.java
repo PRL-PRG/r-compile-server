@@ -1014,16 +1014,16 @@ public final class BC2FirCFGCompiler {
                     new Constant(new Value.Str("factor")),
                     new Constant(new Value.Bool(false))));
         var isFactorBb = cfg.addBB();
-        var isNotFactorBb = cfg.addBB();
-        setJump(branch(isFactor, isFactorBb, isNotFactorBb));
+        var afterFactorBb = cfg.addBB();
+        setJump(branch(isFactor, isFactorBb, afterFactorBb));
 
-        moveTo(isNotFactorBb);
+        moveTo(isFactorBb);
         insert(
             warning(
                 "EXPR is a \"factor\", treated as integer.\n Consider using 'switch(as.character( * ), ...)' instead."));
-        setJump(goto_(isFactorBb));
+        setJump(goto_(afterFactorBb));
 
-        moveTo(isFactorBb);
+        moveTo(afterFactorBb);
         var isString =
             insertAndReturn(
                 "_cond",

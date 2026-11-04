@@ -18,33 +18,6 @@ class FirAfterOpt2CTest implements Gen2CCompilerTest {
   ///  whole set (and this override) once they all do.
   private static final Set<String> BROKEN_UNDER_OPTIMIZATION =
       Set.of(
-          // `switch` warns "EXPR is a \"factor\", treated as integer" where the baseline doesn't
-          "inline_switch",
-          "switch_default_index_1",
-          "switch_default_index_4",
-          "switch_default_name_a",
-          "switch_default_name_c",
-          "switch_expr_1",
-          "switch_expr_2",
-          "switch_expr_name",
-          "switch_fallthrough_a",
-          "switch_fallthrough_b",
-          "switch_fallthrough_c",
-          "switch_in_function",
-          "switch_index_0",
-          "switch_index_1",
-          "switch_index_2",
-          "switch_index_3",
-          "switch_index_4",
-          "switch_index_neg1",
-          "switch_na",
-          "switch_name_a",
-          "switch_name_b",
-          "switch_name_c",
-          "switch_name_d",
-          "switch_name_empty",
-          "switch_null_1",
-          "switch_null_2",
           // crashes
           "dd_val2",
           "leak_promise",
