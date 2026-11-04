@@ -1593,7 +1593,9 @@ public final class Fir2CCompiler {
         /// [#VAR_ENV_SAVED], and [#VAR_ENV_DEPTH].
         private final boolean hasEnvOps;
 
-        /// The number of `MkEnv`s in this CFG, which bounds how many are active at once.
+        /// The number of `MkEnv`s in this CFG, which bounds how many are active at once. (Like
+        /// [#VAR_ENV_PUSHED], [#VAR_ENV_DEPTH] assumes each `PopEnv` follows its `MkEnv` in the
+        /// CFG.)
         private final long numMkEnvs;
 
         /// Whether this CFG's deopt branches materialize its environment (see
@@ -1743,9 +1745,10 @@ public final class Fir2CCompiler {
               cCode.label("%s:;", labelCName(bb));
             }
 
-            emitMaterializeEnv();
-
             int numLiveIn = emitProtect();
+
+            // After the protect: it allocates.
+            emitMaterializeEnv();
 
             for (var statement : bb.statements()) {
               emitStatement(statement);

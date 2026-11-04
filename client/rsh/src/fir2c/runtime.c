@@ -460,6 +460,7 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed) {
 // innermost one. The push saves the previous parent in `*saved` and the pop restores it, so a frame
 // reads its own parent again after an elided callee returns. A promise or closure made in an elided
 // frame captures the parent instead: the frame has no bindings, and the singleton's parent changes.
+// (A real frame pushed in an elided one still has the singleton as its parent.)
 bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
   ASSERT(saved || type != FIR_MKENV_ELIDED, "elided push_env requires a slot to save the parent");
