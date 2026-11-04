@@ -2125,6 +2125,7 @@ public final class Fir2CCompiler {
             var callArgs = statement.args().subList(1, statement.args().size());
             var sourceCall = statement.source();
             var source = sourceCall == null ? "NULL" : constantRef(pool, sourceCall);
+            var setter = matchSetter(statement);
             return switch (call.callee()) {
               case StaticFnCallee(var calleeFunRef, var isDispatch, var signature) -> {
                 var calleeFun = calleeFunRef.get();
@@ -2143,7 +2144,7 @@ public final class Fir2CCompiler {
                       "Builtin with closure environment is unimplemented");
                 } else if (calleeModule == BUILTINS
                     && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
-                  yield emitBuiltinCall(source, callArgs, calleeFun);
+                  yield emitBuiltinCall(source, callArgs, calleeFun, statement, setter);
                 } else if (calleeFun.userProperties().needsContext()) {
                   yield emitInContextCall(source, call, closureOrCalleeArg, callArgs, calleeFun);
                 }
@@ -2212,7 +2213,28 @@ public final class Fir2CCompiler {
                   }
 
                   var arguments = emitArgumentSplice(callArgs);
-                  yield emitVersionCall(calleeFun, calleeVersion, closureEnv, arguments);
+                  var versionCall =
+                      emitVersionCall(calleeFun, calleeVersion, closureEnv, arguments);
+                  var ownedVersion =
+                      setter == null || calleeModule != BUILTINS
+                          ? null
+                          : ownedTwin(calleeFun, calleeVersion);
+                  if (ownedVersion == null) {
+                    yield versionCall;
+                  }
+                  // Nothing else references the protocol's value, so the owned version can
+                  // modify it.
+                  var state = emitSetterBegin(statement, Objects.requireNonNull(setter));
+                  var ownedArguments =
+                      ", %s.value%s"
+                          .formatted(
+                              state, emitArgumentSplice(callArgs.subList(1, callArgs.size())));
+                  yield "Fir_setter_end(&%s, %s.active ? %s : %s)"
+                      .formatted(
+                          state,
+                          state,
+                          emitVersionCall(calleeFun, ownedVersion, closureEnv, ownedArguments),
+                          versionCall);
                 }
               }
               case FallbackCallee(var signature) -> {
@@ -2233,6 +2255,19 @@ public final class Fir2CCompiler {
               case DynamicCallee(var argumentNames) -> {
                 var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
                 var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
+                if (setter != null) {
+                  var state = emitSetterBegin(statement, setter);
+                  yield "Fir_setter_end(&%s, Fir_call_setter(&%s, %s, %s, %s, %d, %s, %s))"
+                      .formatted(
+                          state,
+                          state,
+                          emitArgument(closureOrCalleeArg),
+                          setterSourceRef(statement),
+                          VAR_ENV,
+                          arguments.size(),
+                          arguments.pointer(),
+                          names.pointer());
+                }
                 yield "Fir_call_dynamic(%s, %s, %s, %d, %s, %s)"
                     .formatted(
                         emitArgument(closureOrCalleeArg),
@@ -2281,7 +2316,11 @@ public final class Fir2CCompiler {
 
           /// `source` is the C expression of the call's source (`NULL` if it has none).
           private String emitBuiltinCall(
-              String source, List<Argument> callArgs, Function calleeFun) {
+              String source,
+              List<Argument> callArgs,
+              Function calleeFun,
+              Statement statement,
+              @Nullable SetterPattern setter) {
             var builtinIndex = builtinIndex(calleeFun);
             if (callArgs.size() != calleeFun.parameterNames().size()) {
               throw new IllegalStateException(
@@ -2314,14 +2353,33 @@ public final class Fir2CCompiler {
             var entry = rSession.RFunTab().get(calleeFun.name().name());
             // A lite special's constant symbols and calls are expressions, its registers values.
             var values =
-                IntStream.range(0, present)
-                    .filter(i -> !(callArgs.get(i) instanceof Constant))
-                    .mapToLong(i -> 1L << i)
-                    .sum();
-            if (builtinIndex != null
-                && calleeFun.userProperties().liteSpecial()
-                && values != 0
-                && present <= 64) {
+                calleeFun.userProperties().liteSpecial() && present <= 64
+                    ? IntStream.range(0, present)
+                        .filter(i -> !(callArgs.get(i) instanceof Constant))
+                        .mapToLong(i -> 1L << i)
+                        .sum()
+                    : 0;
+            var viaBase =
+                builtinIndex == null
+                    || calleeFun.userProperties().readsContext()
+                    || (entry.isInternal()
+                        && entry.arity() != -1
+                        && entry.arity() != callArgs.size());
+            if (setter != null && !viaBase) {
+              var state = emitSetterBegin(statement, setter);
+              return "Fir_setter_end(&%s, Fir_call_setter_builtin(&%s, %d, %s, %s, %d, %s, %s, 0x%xULL))"
+                  .formatted(
+                      state,
+                      state,
+                      builtinIndex,
+                      setterSourceRef(statement),
+                      VAR_ENV,
+                      arguments.size(),
+                      arguments.pointer(),
+                      names.pointer(),
+                      values);
+            }
+            if (builtinIndex != null && values != 0) {
               return "Fir_call_builtin_values(%d, %s, %s, %d, %s, %s, 0x%xULL)"
                   .formatted(
                       builtinIndex,
@@ -2332,11 +2390,7 @@ public final class Fir2CCompiler {
                       names.pointer(),
                       values);
             }
-            return builtinIndex == null
-                    || calleeFun.userProperties().readsContext()
-                    || (entry.isInternal()
-                        && entry.arity() != -1
-                        && entry.arity() != callArgs.size())
+            return viaBase
                 ? "Fir_call_base(%s, %s, %s, %d, %s, %s)"
                     .formatted(
                         baseSymbolRef(pool, calleeFun),
@@ -2353,6 +2407,116 @@ public final class Fir2CCompiler {
                         arguments.size(),
                         arguments.pointer(),
                         names.pointer());
+          }
+
+          /// Whether `statement` is `r = f(l', ...) in <f(*tmp*, ...)>`, where `l'` is `l = ld x`
+          /// or an assumption, cast or force of it, and `st x = r` follows it (after a checkpoint
+          /// or goto at most). GNU-R's bytecode runs such a call in its assignment protocol (see
+          /// `Fir_Setter` in `runtime.h`).
+          private @Nullable SetterPattern matchSetter(Statement statement) {
+            var source = statement.source();
+            var result = statement.assignee();
+            if (cfg != root
+                || source == null
+                || result == null
+                || source.args().isEmpty()
+                || !source.arg(0).equals(SEXPs.ASSIGN_TMP)
+                || statement.args().size() < 2
+                || !(statement.arg(1) instanceof Read(var lhs))
+                || result.uses().stream()
+                    .anyMatch(
+                        use -> use.instruction().args().get(use.index()) instanceof Consume)) {
+              return null;
+            }
+            while (lhs instanceof AssigneeOf ao
+                && (ao.statement().expression() instanceof Assume
+                    || ao.statement().expression() instanceof Cast
+                    || ao.statement().expression() instanceof Force)
+                && !ao.statement().args().isEmpty()
+                && ao.statement().arg(0) instanceof Read(var from)) {
+              lhs = from;
+            }
+            if (!(lhs instanceof AssigneeOf ao
+                && ao.statement().expression() instanceof Load(var loadType, var variable)
+                && loadType == LoadType.LOCAL_VAR
+                && !variable.equals(NamedVariable.DOTS)
+                && !variable.isDdNum())) {
+              return null;
+            }
+
+            var statements = bb.statements();
+            var index = statements.indexOf(statement);
+            Statement next = null;
+            if (index + 1 < statements.size()) {
+              next = statements.get(index + 1);
+            } else {
+              var nextBb =
+                  switch (bb.jump().expression()) {
+                    case Checkpoint(var success, var _, var _) -> success.get();
+                    case Goto(var target) -> target.get();
+                    default -> null;
+                  };
+              if (nextBb != null && !nextBb.statements().isEmpty()) {
+                next = nextBb.statements().getFirst();
+              }
+            }
+            return next != null
+                    && next.expression() instanceof Store(var storeType, var stored)
+                    && storeType == Store.StoreType.LOCAL_VAR
+                    && stored.equals(variable)
+                    && next.arg(0) instanceof Read(var storedValue)
+                    && storedValue == result
+                ? new SetterPattern(variable, lhs)
+                : null;
+          }
+
+          /// Emit `Fir_setter_begin` for the call `statement` that matches `setter`, and return the
+          /// name of its `Fir_Setter`.
+          ///
+          /// The linked registers are those GNU-R would have on its stack during the call: the
+          /// ones live after it, its other arguments, and the version's parameters (a caller may
+          /// hold an argument in a register, which nothing counts).
+          private String emitSetterBegin(Statement statement, SetterPattern setter) {
+            var linked = new LinkedHashSet<>(liveness.liveAfter(statement));
+            linked.remove(statement.assignee());
+            statement.args().stream()
+                .skip(2)
+                .map(Argument::variable)
+                .filter(Objects::nonNull)
+                .forEach(linked::add);
+            linked.addAll(version.parameters());
+            var linkedArray =
+                emitArray(
+                    "linked",
+                    "SEXP",
+                    linked.stream()
+                        .filter(
+                            r ->
+                                registerRepr(r) == Repr.SEXP
+                                    && (locals.contains(r) || version.isParameter(r)))
+                        .map(CfgEmitter.this::registerPlace)
+                        .toList());
+
+            var disambiguator = tempArrayDisambiguators.getOrDefault("setter", 0);
+            tempArrayDisambiguators.put("setter", disambiguator + 1);
+            var state = "t_setter_%d".formatted(disambiguator);
+            cCode.stmt("Fir_Setter %s;", state);
+            cCode.stmt(
+                "Fir_setter_begin(&%s, %s, %s, %s, %d, %s);",
+                state,
+                nvSymbolRef(pool, setter.variable()),
+                VAR_ENV,
+                registerPlace(setter.lhs()),
+                linkedArray.size(),
+                linkedArray.pointer());
+            return state;
+          }
+
+          /// The source of a setter call, in a pool slot of its own: the protocol marks it as an
+          /// assignment call, which must not affect a call outside the protocol.
+          private String setterSourceRef(Statement statement) {
+            return "Fir_const(%s, %d)"
+                .formatted(VAR_POOL, pool.internUnique(Objects.requireNonNull(statement.source())));
           }
 
           private void emitJump(Jump jump) {
@@ -3284,6 +3448,25 @@ public final class Fir2CCompiler {
   }
 
   private record Array(int size, String pointer) {}
+
+  /// A setter call's variable `x` and the register `l` of its `l = ld x` (see
+  /// `BBEmitter#matchSetter`).
+  private record SetterPattern(NamedVariable variable, Register lhs) {}
+
+  /// The version of `function` that is `version` except that it owns its first argument (which
+  /// `version` borrows), or `null` if there's none.
+  private static @Nullable Abstraction ownedTwin(Function function, Abstraction version) {
+    var parameterTypes = version.signature().parameterTypes();
+    if (parameterTypes.isEmpty() || parameterTypes.getFirst().ownership() != Ownership.BORROWED) {
+      return null;
+    }
+    var ownedTypes = new ArrayList<>(parameterTypes);
+    ownedTypes.set(0, parameterTypes.getFirst().withOwnership(Ownership.OWNED));
+    return function.versions().stream()
+        .filter(v -> v.signature().parameterTypes().equals(ownedTypes))
+        .findFirst()
+        .orElse(null);
+  }
 
   private record ArrayAndNames(Array values, String names) {}
   // endregion misc

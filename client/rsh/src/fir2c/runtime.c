@@ -1103,9 +1103,10 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
 
 /// Splices a `...` argument as a copy of its cells, in order: the callee may modify the cells
 /// (`applyClosure` with `unpromise` clears them), and the caller may pass the same `...` again.
-/// `force_dots` forces each element, as `evalList` does for a builtin.
+/// `force_dots` forces each element, as `evalList` does for a builtin. `nr_first` builds the first
+/// cell with `CONS_NR`, which doesn't count a reference to its value.
 static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, bool is_builtin,
-                              bool force_dots, int *protect_count) {
+                              bool force_dots, bool nr_first, int *protect_count) {
   SEXP list = R_NilValue;
   for (int i = argc - 1; i >= 0; --i) {
     SEXP arg = args[i];
@@ -1133,7 +1134,7 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
       SETCDR(last, list);
       list = head;
     } else {
-      SEXP node = PROTECT(Rf_cons(arg, list));
+      SEXP node = PROTECT(i == 0 && nr_first ? CONS_NR(arg, list) : Rf_cons(arg, list));
       (*protect_count)++;
       // Builtins have unnamed arguments, but those don't exist in FIR.
       // We use names that start with dots as a workaround,
@@ -1170,7 +1171,7 @@ static SEXP Fir_source_call(SEXP call, SEXP env) {
 // (`Fir2CCompiler` drops the unsupplied trailing ones). A dynamic call passes the source's
 // arguments as they are.
 static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
-                               bool matched) {
+                               bool matched, bool nr_first) {
   FUNTAB fun = R_FunTab[blt_idx];
 
   // An `.Internal`-only entry has no primitive of its own: what R code calls `fun.name` -- and so
@@ -1223,7 +1224,7 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
   R_Visible = (Rboolean)(visibility != 1);
 
   int protect_count = 0;
-  SEXP arglist = Fir_build_arglist(argc, args, names, true, fun.eval % 10 == 1, &protect_count);
+  SEXP arglist = Fir_build_arglist(argc, args, names, true, fun.eval % 10 == 1, nr_first, &protect_count);
 
   call = Fir_source_call(call, env);
   if (call == NULL) {
@@ -1243,11 +1244,12 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
 }
 
 SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names) {
-  return Fir_call_primitive(blt_idx, call, env, argc, args, names, true);
+  return Fir_call_primitive(blt_idx, call, env, argc, args, names, true, false);
 }
 
-SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
-                             uint64_t values) {
+// Wrap the symbol and call values (bit `i` of `values`) of a special's arguments in evaluated
+// promises, and return how many it protected.
+static int Fir_wrap_values(int blt_idx, int argc, SEXP *args, SEXP *names, uint64_t values) {
   int protect_count = 0;
   if (R_FunTab[blt_idx].eval % 10 == 0) {
     for (int i = 0; i < argc; i++) {
@@ -1261,7 +1263,13 @@ SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *a
       }
     }
   }
-  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true);
+  return protect_count;
+}
+
+SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                             uint64_t values) {
+  int protect_count = Fir_wrap_values(blt_idx, argc, args, names, values);
+  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, false);
   UNPROTECT(protect_count);
   return result;
 }
@@ -1274,7 +1282,7 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SE
   switch (TYPEOF(callee)) {
     case BUILTINSXP:
     case SPECIALSXP:
-      return Fir_call_primitive(PRIMOFFSET(callee), call, env, argc, args, names, false);
+      return Fir_call_primitive(PRIMOFFSET(callee), call, env, argc, args, names, false, false);
     case CLOSXP: {
       // Try to fastcase compiled closures.
       Fir_FunctionData *data = NULL;
@@ -1332,7 +1340,7 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SE
       }
 
       int protect_count = 0;
-      SEXP arglist = Fir_build_arglist(argc, args, names, false, false, &protect_count);
+      SEXP arglist = Fir_build_arglist(argc, args, names, false, false, false, &protect_count);
 
       call = Fir_source_call(call, env);
       if (call == NULL) {
@@ -1349,6 +1357,98 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SE
     default:
       Rf_error("Unsupported callee type");
   }
+}
+
+void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinked, SEXP *linked) {
+  s->active = false;
+  if (TYPEOF(env) != ENVSXP || env == Rsh_ElidedEnv || env == R_BaseEnv || env == R_BaseNamespace) {
+    return;
+  }
+  // Only a plain binding in `env`'s own frame that still holds what the `ld` read. Otherwise the
+  // call copies, as outside the protocol.
+  R_varloc_t loc = R_findVarLocInFrame(env, symbol);
+  SEXP cell = loc.cell;
+  if (cell == NULL || TYPEOF(cell) != LISTSXP || IS_ACTIVE_BINDING(cell) ||
+      BINDING_IS_LOCKED(cell) || CAR(cell) != lhs || TYPEOF(lhs) == SYMSXP) {
+    return;
+  }
+
+  // GNU-R's `INCLNK_stack_commit`: the registers that outlive the call count as references.
+  for (int i = 0; i < nlinked; i++) {
+    if (linked[i] != NULL) {
+      INCREMENT_REFCNT(linked[i]);
+    }
+  }
+
+  // GNU-R's `STARTASSIGN`. `EnsureLocal` forces a promise, and rebinds a copy if it's shared.
+  SEXP value = lhs;
+  if (TYPEOF(value) == PROMSXP) {
+    value = EnsureLocal(symbol, env, &loc);
+    cell = loc.cell;
+  }
+  PROTECT(cell);
+  bool maybe_in_assign = ASSIGNMENT_PENDING(cell);
+  SET_ASSIGNMENT_PENDING(cell, TRUE);
+  if (maybe_in_assign || MAYBE_SHARED(value)) {
+    value = Rf_shallow_duplicate(value);
+  }
+  PROTECT(value);
+
+  *s = (Fir_Setter) {
+    .cell = cell, .value = value, .nlinked = nlinked, .linked = linked, .active = true
+  };
+}
+
+SEXP Fir_setter_end(Fir_Setter *s, SEXP result) {
+  if (s->active) {
+    SET_ASSIGNMENT_PENDING(s->cell, FALSE);
+    for (int i = 0; i < s->nlinked; i++) {
+      if (s->linked[i] != NULL) {
+        DECREMENT_REFCNT(s->linked[i]);
+      }
+    }
+    UNPROTECT(2); // cell + value
+  }
+  return result;
+}
+
+// GNU-R's `SETTER_CALL` for a primitive: the call is marked as an assignment, and the first argument
+// is the protocol's value, in an argument list that doesn't count it.
+static SEXP Fir_call_setter_primitive(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc,
+                                      SEXP *args, SEXP *names, bool matched, uint64_t values) {
+  MARK_ASSIGNMENT_CALL(call);
+  SEXP setter_args[argc];
+  memcpy(setter_args, args, argc * sizeof(SEXP));
+  int protect_count = Fir_wrap_values(blt_idx, argc, setter_args, names, values & ~1ULL);
+  bool special = R_FunTab[blt_idx].eval % 10 == 0;
+  if (special) {
+    // A special evaluates its arguments, so it gets the value as an evaluated promise.
+    setter_args[0] = PROTECT(R_mkEVPROMISE_NR(CADR(call), s->value));
+    protect_count++;
+  } else {
+    setter_args[0] = s->value;
+  }
+  SEXP result =
+    Fir_call_primitive(blt_idx, call, env, argc, setter_args, names, matched, !special);
+  UNPROTECT(protect_count);
+  return result;
+}
+
+SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, SEXP *args,
+                     SEXP *names) {
+  if (!s->active || argc == 0 || (TYPEOF(callee) != SPECIALSXP && TYPEOF(callee) != BUILTINSXP) ||
+      Fir_source_call(call, env) == NULL) {
+    return Fir_call_dynamic(callee, call, env, argc, args, names);
+  }
+  return Fir_call_setter_primitive(s, PRIMOFFSET(callee), call, env, argc, args, names, false, 0);
+}
+
+SEXP Fir_call_setter_builtin(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
+                             SEXP *names, uint64_t values) {
+  if (!s->active || argc == 0 || Fir_source_call(call, env) == NULL) {
+    return Fir_call_builtin_values(blt_idx, call, env, argc, args, names, values);
+  }
+  return Fir_call_setter_primitive(s, blt_idx, call, env, argc, args, names, true, values);
 }
 
 // First string in a bytecode baseline's `FIR_BC_BASELINE_ID` slot, which is how we recognize its

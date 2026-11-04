@@ -434,6 +434,43 @@ class Fir2CCompilerTest {
     assertTrue(code.matches("(?s).*Fir_call_builtin\\(\\d+, NULL, env, 2, .*"), code);
   }
 
+  /// A setter call runs in GNU-R's assignment protocol, and counts the registers that outlive it,
+  /// so it doesn't modify a vector one of them holds. A call without the `st` after it doesn't.
+  @Test
+  void setterCallRunsInAssignmentProtocol() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                v: v(I)o = v(I)[10, 20, 30];
+                st x = v;
+                alias: * = ld x;
+                lhs: * = ld x;
+                f: cls = ldf `[<-`;
+                r: V = dyn f[, , value](lhs, <real 1.0>, <int 99>) in <lang `[<-`(`*tmp*`, 1.0, value=99.0)>;
+                st x = r;
+                lhs1: * = ld x;
+                r1: V = dyn f[, , value](lhs1, <real 2.0>, <int 98>) in <lang `[<-`(`*tmp*`, 2.0, value=98.0)>;
+                popenv;
+                return alias;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    var code = Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+    assertTrue(code.contains("t_linked_0[0] = r_alias;"), code);
+    assertTrue(
+        code.matches(
+            "(?s).*Fir_setter_begin\\(&t_setter_0, Fir_const\\(pool, \\d+\\), env, r_lhs, 2, t_linked_0\\);.*"),
+        code);
+    assertTrue(
+        code.contains("Fir_setter_end(&t_setter_0, Fir_call_setter(&t_setter_0, r_f, "), code);
+    assertTrue(code.contains("Fir_call_dynamic(r_f, "), code);
+    assertFalse(code.contains("t_setter_1"), code);
+  }
+
   @Test
   void needsContextCallGoesThroughApplyClosure() {
     var code = compileNeedsContextCall("* -+> V");

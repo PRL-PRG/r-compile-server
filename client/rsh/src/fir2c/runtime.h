@@ -431,6 +431,33 @@ SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *a
 /// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
 SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
+
+/// A call of a replacement function in GNU-R's assignment protocol (bytecode's `STARTASSIGN`,
+/// `SETTER_CALL`, `ENDASSIGN`), for `l = ld x; r = f(l, ...) in <f(*tmp*, ...)>; st x = r`. The
+/// protocol lets the callee modify `x`'s value in place when nothing else references it.
+///
+/// `Fir_setter_begin` reads `x`'s binding. If the protocol applies (`active`), it counts the
+/// references in `linked` (every register that outlives the call), sets `x`'s binding as being
+/// assigned, and puts in `value` the binding's value, or a shallow copy if that's shared. The
+/// call then passes `value` without counting it, and `Fir_setter_end` undoes the rest and returns
+/// `result`. An error in between leaves the counts and the flag set, which only causes copies.
+typedef struct {
+  SEXP cell;
+  SEXP value;
+  int nlinked;
+  SEXP *linked;
+  bool active;
+} Fir_Setter;
+
+/// `lhs` is the value the `ld` read. The protocol only applies if `x`'s binding still holds it.
+void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinked, SEXP *linked);
+SEXP Fir_setter_end(Fir_Setter *s, SEXP result);
+/// `Fir_call_dynamic` in the protocol `s` began; `args[0]` is replaced by `s->value`.
+SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, SEXP *args,
+                     SEXP *names);
+/// `Fir_call_builtin_values` in the protocol `s` began; `args[0]` is replaced by `s->value`.
+SEXP Fir_call_setter_builtin(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
+                             SEXP *names, uint64_t values);
 /// Run a baseline version that is the function's original GNU-R bytecode.
 SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
