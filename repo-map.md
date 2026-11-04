@@ -384,7 +384,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `MergeAssumeLoadVar.java` — Merges a load and an assumption into a load assumption.
 - `MergeConsecutiveCheckpoints.java` — Merge consecutive checkpoints whose deopt branches are effectively the same.
 - `Optimization.java` — An optimization that runs on a Function.
-- `Optimizations.java` — The default optimization pipeline.
+- `Optimizations.java` — The default optimization pipeline, variants of it without some optimizations, and `REQUIRES` (which removals make others no-ops).
 - `PromoteStaticallyKnownVariables.java` — Promotes local named variables into registers when every direct load is statically known.
 - `SchedulePure.java` — Hoists and defers specific pure instructions.
 - `Specialize.java` — Groups SpecializeOptimizations into one pass.
@@ -632,7 +632,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples), and their per-test timeout (`ExampleTimeout`).
 - `.../fir/analyze/`, `.../fir/check/`, `.../fir/feedback/`, `.../fir/ir/` — Unit tests of FIŘ analyses, checkers, feedback, and IR.
 - `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises).
-- `.../fir/opt/`, `.../fir/opt/specialize/` — One unit test class per optimization (`AbstractionOptimizationUnitTest`, `OptimizationUnitTest`).
+- `.../fir/opt/`, `.../fir/opt/specialize/` — One unit test class per optimization (`AbstractionOptimizationUnitTest`, `OptimizationUnitTest`), and `OptimizationsTest` (pipeline variants, `REQUIRES`).
 - `.../fir2c/BytecodeBaselineFeedbackTest.java` — Recording translation and baseline pool layout.
 - `.../fir2c/Fir2CCompilerTest.java` — FIŘ→C unit tests.
 - `.../fir2c/FallbackEquivalentVersionTest.java` — Redundant versions: the stub keeps its fallback, and compiled ones are reverted.
@@ -645,6 +645,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../snapshot/` — Snapshot framework (`Query`, `SnapshotStore`, `DeterminismTest`).
 - `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand; `bench/VersionBenchmark` counts the versions per function after the benchmark call runs on the lazy module).
 - `.../snapshot/bench/PromiseBenchmark.java`, `PromiseBenchmarkQuery.java` — Counts the promises (created, forced, reflected) and copies of each benchmark call, in `-DFIR_STATS` builds without and with the FIŘ optimizations.
+- `.../snapshot/bench/` (timed) — `Benchmark` (every representation), `OptimizationBenchmark` (without each optimization), `SynergyBenchmark` (without sets of optimizations, against the product of single removals); `VariantBenchmark` compiles, times and deduplicates their variants by generated C.
 - `server/src/test/resources/org/prlprg/examples/` — R and FIŘ example programs (data).
 - `.../examples/R/bench_simple_promise_reflect.R` — A benchmark whose argument promises reflect (`environment()`) and exit by an error (`stop`), to check the promise benchmark's reflection detection.
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
@@ -652,6 +653,6 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
 - `.../examples/R/elided_env_parent_{after_call,promise}.R` — Regressions for the parent of an elided frame in the fir2c runtime: after an elided callee with another parent returns, and in a promise that such a callee forces.
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
-- `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts, `order.txt`.
+- `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts (`bench.R`, `optbench.R`, `synergy.R`), `order.txt`.
 - `server/src/test/resources/org/prlprg/gen2c/`, `bc2c/` — Build files and data for compiled-C tests.
 - `server/src/test/snapshots/` — Saved snapshot outputs (data). Only the `stdlib_*` examples' are committed, in git LFS.

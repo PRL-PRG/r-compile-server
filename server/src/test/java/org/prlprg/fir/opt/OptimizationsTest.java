@@ -9,6 +9,7 @@ import static org.prlprg.fir.opt.Optimizations.removalClosure;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.prlprg.snapshot.bench.SynergyBenchmarkQuery;
 
 class OptimizationsTest {
   private static final List<String> NAMES = Optimizations.individualOptimizationNames();
@@ -21,6 +22,11 @@ class OptimizationsTest {
         "defaultWithoutUnboxAndUnboxPhi",
         defaultOptimizationsWithout(List.of("unboxPhi", "unbox")).name());
     assertThrows(IllegalArgumentException.class, () -> defaultOptimizationsWithout("notAnOpt"));
+  }
+
+  @Test
+  void familiesAreOptimizations() {
+    SynergyBenchmarkQuery.FAMILIES.forEach(family -> assertTrue(NAMES.containsAll(family)));
   }
 
   @Test

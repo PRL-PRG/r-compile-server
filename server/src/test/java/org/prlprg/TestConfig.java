@@ -39,7 +39,8 @@ public class TestConfig extends Config {
 
   /// A regex, matched against
   /// [org.prlprg.fir.opt.Optimizations#individualOptimizationNames()]. Selects the optimizations
-  /// that `org.prlprg.snapshot.bench.OptimizationBenchmark` removes, one per benchmarked variant.
+  /// that `org.prlprg.snapshot.bench.OptimizationBenchmark` removes, one per benchmarked variant,
+  /// and that `org.prlprg.snapshot.bench.SynergyBenchmark` combines.
   ///
   /// This is **all of them** by default (`true` also means all). That benchmark re-optimizes,
   /// recompiles and reruns each example once per selected optimization, which takes minutes per
@@ -49,4 +50,32 @@ public class TestConfig extends Config {
           Objects.equals(INSTANCE.get("BENCHMARK_OPTIMIZATIONS"), "true")
               ? ".*"
               : INSTANCE.get("BENCHMARK_OPTIMIZATIONS", ".*"));
+
+  /// `org.prlprg.snapshot.bench.SynergyBenchmark` removes every pair among this many
+  /// optimizations, the ones whose single removal slows the example down the most.
+  ///
+  /// This is **8** by default.
+  public static final int BENCHMARK_SYNERGY_TOP = INSTANCE.get("BENCHMARK_SYNERGY_TOP", 8);
+
+  /// `org.prlprg.snapshot.bench.SynergyBenchmark` removes every subset of size 3 up to
+  /// [#BENCHMARK_SYNERGY_MAX_SIZE] among this many optimizations, the ones whose single removal
+  /// slows the example down the most.
+  ///
+  /// This is **5** by default.
+  public static final int BENCHMARK_SYNERGY_TOP_DEEP =
+      INSTANCE.get("BENCHMARK_SYNERGY_TOP_DEEP", 5);
+
+  /// The largest set of optimizations that `org.prlprg.snapshot.bench.SynergyBenchmark` removes,
+  /// except the sets in [#BENCHMARK_SYNERGY_SETS].
+  ///
+  /// This is **4** by default.
+  public static final int BENCHMARK_SYNERGY_MAX_SIZE =
+      INSTANCE.get("BENCHMARK_SYNERGY_MAX_SIZE", 4);
+
+  /// More sets of optimizations for `org.prlprg.snapshot.bench.SynergyBenchmark` to remove: sets
+  /// separated by `,`, names in a set separated by `+`, e.g.
+  // `unbox+unboxPhi,inline+optimizeCallee`.
+  ///
+  /// This is **empty** by default.
+  public static final String BENCHMARK_SYNERGY_SETS = INSTANCE.get("BENCHMARK_SYNERGY_SETS", "");
 }
