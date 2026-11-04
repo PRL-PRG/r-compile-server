@@ -34,7 +34,12 @@ public class OwnershipBenchmarkQuery implements BenchmarkOutputQuery {
 
   /// The optimizations that avoid copies, by using and creating owned and borrowed values.
   public static final @Unmodifiable List<String> OWNERSHIP =
-      SynergyBenchmarkQuery.FAMILIES.getFirst();
+      List.of(
+          "callOwnedVersion",
+          "consumeDeadDup",
+          "elideConsumedDup",
+          "createOwnedParameterVersion",
+          "createBorrowedParameterVersion");
 
   /// The `Fir_stats_get` counters in the table, in order.
   private static final @Unmodifiable List<String> COUNTERS =

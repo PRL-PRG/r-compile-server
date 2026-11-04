@@ -53,13 +53,7 @@ public class SynergyBenchmarkQuery implements BenchmarkOutputQuery {
   /// each other.
   public static final @Unmodifiable List<List<String>> FAMILIES =
       List.of(
-          // Ownership
-          List.of(
-              "callOwnedVersion",
-              "consumeDeadDup",
-              "elideConsumedDup",
-              "createOwnedParameterVersion",
-              "createBorrowedParameterVersion"),
+          OwnershipBenchmarkQuery.OWNERSHIP,
           // Environment
           List.of(
               "specializeNonReflectiveEnv",
