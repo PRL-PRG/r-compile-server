@@ -19,8 +19,6 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Variable;
-import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 
 /// How optimizations treat unevaluated versions: only inlining evaluates one, and the rest leave
@@ -128,33 +126,5 @@ class LazyVersionOptimizationTest {
 
     assertFalse(copy.isEvaluated());
     assertTrue(checkAll(module));
-  }
-
-  @Test
-  void elideUnusedVersionsKeepsTheSourceOfAnUnevaluatedCopy() {
-    var module = moduleCallingLazyCopy();
-    var f = f(module);
-    var source =
-        f.versions().stream()
-            .filter(Abstraction::isEvaluated)
-            .filter(v -> v != f.baseline())
-            .findFirst()
-            .orElseThrow();
-    var copy = f.versions().first();
-    var feedback =
-        Parser.fromString(
-            """
-            feedback {
-              f< * -+> V > = 15x []
-            }
-            """,
-            MockModuleFeedback.class,
-            new ModuleFeedbackParseContext(module));
-
-    new ElideUnusedVersions(10).run(feedback, module);
-
-    assertTrue(f.versions().contains(copy), "the copy has a static occurrence");
-    assertTrue(f.versions().contains(source), "the copy's source is kept for it");
-    assertFalse(copy.isEvaluated());
   }
 }

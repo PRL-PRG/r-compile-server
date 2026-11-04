@@ -43,8 +43,7 @@ class OptimizationsTest {
         canonicalRemoval(List.of("elideRedundantAssumeLoad", "speculateAssume")));
     // `copyBaseline` makes everything else change nothing
     assertEquals(
-        List.of("copyBaseline"),
-        canonicalRemoval(List.of("inline", "copyBaseline", "elideUnusedVersions", "unbox")));
+        List.of("copyBaseline"), canonicalRemoval(List.of("inline", "copyBaseline", "unbox")));
   }
 
   /// Over every pair and triple of names: the canonical removal removes the same, and is its own

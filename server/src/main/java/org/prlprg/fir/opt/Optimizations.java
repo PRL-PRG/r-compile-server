@@ -217,7 +217,6 @@ public class Optimizations {
     return new Sequence(
         defaultName(threshold, modifyCheckpoints, filter.without),
         filter.keep(
-            new ElideUnusedVersions(threshold),
             new CopyBaseline(),
             new ElideUnforcedPromise(threshold),
             new SpeculateDispatch(threshold, 3, 9),

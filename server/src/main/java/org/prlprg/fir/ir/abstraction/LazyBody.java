@@ -23,14 +23,6 @@ public final class LazyBody {
     /// Called after the body is evaluated, so accessing the version's body in here returns it.
     default void afterEvaluated(Abstraction version) {}
 
-    /// The versions whose bodies [#evaluate(CFG)] reads, e.g. the one it copies.
-    ///
-    /// Until the body is evaluated, anything such a version's body needs (e.g. the versions it
-    /// calls), this one still needs too.
-    default List<Abstraction> sources() {
-      return List.of();
-    }
-
     /// What created the version, e.g. the name of the optimization that copied it, for
     /// diagnostics. `null` if unknown.
     default @Nullable String creator() {
@@ -142,12 +134,6 @@ public final class LazyBody {
   /// changed it. `null` if it isn't evaluated, or was constructed evaluated.
   public @Nullable HashCode evaluatedFingerprint() {
     return evaluatedFingerprint;
-  }
-
-  /// The versions whose bodies evaluating this one reads (see [Initializer#sources()]). Empty if
-  /// it's evaluated.
-  public List<Abstraction> sources() {
-    return initializer == null ? List.of() : initializer.sources();
   }
 
   /// The body if it's evaluated or being evaluated, otherwise `null`. Never evaluates.

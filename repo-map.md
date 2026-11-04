@@ -378,7 +378,6 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `ElideRedundantBoxUnbox.java` — Elides redundant `box`/`unbox` calls by substituting their results with an equivalent register.
 - `ElideUnforcedPromise.java` — Replaces promises that are never forced with a deopt.
 - `ElideUnusedCheckpoints.java` — Removes checkpoint jumps whose success BB has no Assume statements.
-- `ElideUnusedVersions.java` — Removes versions that are never called.
 - `Inline.java` — Inline forces, maybe-forces, and static calls when possible.
 - `LazyCopy.java` — Creates lazy copies of versions, and optimizes them when evaluated.
 - `MergeAssumeLoadVar.java` — Merges a load and an assumption into a load assumption.

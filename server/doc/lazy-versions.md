@@ -84,12 +84,11 @@ re-boxes the now-unboxed parameters at the entry and unboxes the return value). 
 the same adaptation around a call to the source's signature.
 
 Optimizations don't evaluate versions: `AbstractionOptimization` runs on evaluated versions only,
-and the passes that look at a callee's body (`StrictifyPromise`, `StaticClosure`,
-`ElideUnusedVersions`) treat an unevaluated one conservatively. The one exception is `Inline`,
-which evaluates a callee once the call passes every check that doesn't depend on the callee's
-body, and does so before it starts inlining (evaluating can run optimizations on the whole
-module, this version included). `ElideUnusedVersions` also keeps any version an unevaluated one
-will be copied from (`LazyBody#sources()`), since the copy will need whatever the source calls.
+and the passes that look at a callee's body (`StrictifyPromise`, `StaticClosure`) treat an
+unevaluated one conservatively. The one exception is `Inline`, which evaluates a callee once the
+call passes every check that doesn't depend on the callee's body, and does so before it starts
+inlining (evaluating can run optimizations on the whole module, this version included). No
+optimization removes versions, so an unevaluated copy's source is always there to copy.
 
 ### Runs and `runId`
 
@@ -226,7 +225,7 @@ removed, an entry added, or a signature changed -- and replaces them (`Fir_fun_s
 Regenerating refers to every version of the function, so the patch also defines the ones the
 client doesn't have (as stubs), and dispatch in the client always sees the same versions the
 interpreter would. The session also remembers each version's function, because a version the
-client has may since have been removed from its function as unused.
+client has may since have been removed from its function.
 
 ### The client
 

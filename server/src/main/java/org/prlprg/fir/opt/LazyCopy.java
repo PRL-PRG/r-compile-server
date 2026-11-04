@@ -165,11 +165,6 @@ public final class LazyCopy {
               }
 
               @Override
-              public List<Abstraction> sources() {
-                return List.of(source);
-              }
-
-              @Override
               public String creator() {
                 return creator.name();
               }
