@@ -603,6 +603,13 @@ public final class Builtins {
 
   // region comparison builtins
 
+  /// GNU-R's scalar comparison: `NA` if an argument is `NA` or `NaN`.
+  private static Logical compare(DoubleBinaryPredicate pred, double a, double b) {
+    return Double.isNaN(a) || Double.isNaN(b)
+        ? Logical.NA
+        : pred.test(a, b) ? Logical.TRUE : Logical.FALSE;
+  }
+
   private static void registerBinaryComparisonBuiltin(
       InternalInterpreter interpreter,
       String name,
@@ -629,9 +636,9 @@ public final class Builtins {
         sig(Type.LOGICAL, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var a = ((Value.Int) args.getFirst()).value();
-              var b = ((Value.Int) args.get(1)).value();
-              return new Value.Lgl(pred.test(a, b) ? Logical.TRUE : Logical.FALSE);
+              var a = RMath.fromInt(((Value.Int) args.getFirst()).value());
+              var b = RMath.fromInt(((Value.Int) args.get(1)).value());
+              return new Value.Lgl(compare(pred, a, b));
             }));
     // Scalar --> L: (R, R) --> L
     interpreter.registerExternal(
@@ -641,7 +648,7 @@ public final class Builtins {
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               var b = ((Value.Real) args.get(1)).value();
-              return new Value.Lgl(pred.test(a, b) ? Logical.TRUE : Logical.FALSE);
+              return new Value.Lgl(compare(pred, a, b));
             }));
     // Scalar --> L: (I, R) --> L
     interpreter.registerExternal(
@@ -649,9 +656,9 @@ public final class Builtins {
         sig(Type.LOGICAL, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var a = ((Value.Int) args.getFirst()).value();
+              var a = RMath.fromInt(((Value.Int) args.getFirst()).value());
               var b = ((Value.Real) args.get(1)).value();
-              return new Value.Lgl(pred.test(a, b) ? Logical.TRUE : Logical.FALSE);
+              return new Value.Lgl(compare(pred, a, b));
             }));
     // Scalar --> L: (R, I) --> L
     interpreter.registerExternal(
@@ -660,8 +667,8 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
-              var b = ((Value.Int) args.get(1)).value();
-              return new Value.Lgl(pred.test(a, b) ? Logical.TRUE : Logical.FALSE);
+              var b = RMath.fromInt(((Value.Int) args.get(1)).value());
+              return new Value.Lgl(compare(pred, a, b));
             }));
 
     // For < and <=: also scalar --> B
@@ -2221,8 +2228,8 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
-              var l = sexpToLogical(sexp, interpreter, "as.logical");
-              return new Value.Bool(l == Logical.TRUE);
+              return new Value.Bool(
+                  condition(sexpToLogical(sexp, interpreter, "as.logical"), interpreter));
             }));
     // v3: (L, miss) --> B
     interpreter.registerExternal(
@@ -2233,8 +2240,16 @@ public final class Builtins {
               if (!(args.getFirst() instanceof Value.Lgl(var lgl))) {
                 throw interpreter.fail("`as.logical` first argument must be logical");
               }
-              return new Value.Bool(lgl == Logical.TRUE);
+              return new Value.Bool(condition(lgl, interpreter));
             }));
+  }
+
+  /// The `B` versions of `as.logical` are the condition of `if` and `while`, which error on `NA`.
+  private static boolean condition(Logical l, InternalInterpreter interpreter) {
+    if (l == Logical.NA) {
+      throw interpreter.fail("missing value where TRUE/FALSE needed");
+    }
+    return l == Logical.TRUE;
   }
 
   private static void registerAsCharacter(InternalInterpreter interpreter) {

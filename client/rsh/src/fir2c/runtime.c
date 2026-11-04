@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <stdint.h>
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
 #include <R_ext/Rdynload.h>
@@ -1814,10 +1815,42 @@ DEFINE_INTRINSIC(char*, unbox, vec1_string_borrowed_fx_none_ret_scalar_string, S
 
 // === Vector operation helpers ===
 
+// The scalar helpers follow GNU-R's `NA` rules (`arithmetic.c`, `relop.c`): an integer `NA` is
+// `NA_INTEGER`, and integer overflow gives `NA` with a warning.
+
+static double Fir_i2r(int a) {
+  return a == NA_INTEGER ? NA_REAL : (double)a;
+}
+
+static int Fir_int_result(int64_t result) {
+  if (result > INT_MAX || result <= INT_MIN) {
+    Rf_warning("NAs produced by integer overflow");
+    return NA_INTEGER;
+  }
+  return (int)result;
+}
+
+static int Fir_int_arith(int a, int b, char op) {
+  if (a == NA_INTEGER || b == NA_INTEGER) return NA_INTEGER;
+  int64_t x = a, y = b;
+  return Fir_int_result(op == '+' ? x + y : op == '-' ? x - y : x * y);
+}
+
+#define FIR_CMP_INT(a, op, b) \
+  ((a) == NA_INTEGER || (b) == NA_INTEGER ? NA_LOGICAL : (Rboolean)((a) op (b)))
+#define FIR_CMP_REAL(a, op, b) \
+  (ISNAN(a) || ISNAN(b) ? NA_LOGICAL : (Rboolean)((a) op (b)))
+#define FIR_CMP_LGL(a, op, b) \
+  ((a) == NA_LOGICAL || (b) == NA_LOGICAL ? NA_LOGICAL : (Rboolean)((a) op (b)))
+// `NULL` is how the generated code spells `NA_STRING`. Strings are compared by their cached
+// `CHARSXP`'s pointer.
+#define FIR_CMP_STR(a, op, b) \
+  ((a) == NULL || (b) == NULL ? NA_LOGICAL : (Rboolean)((a) op (b)))
+
 // === + ===
 // I+I→I
 DEFINE_OVERRIDDEN_BUILTIN(int, _u2b, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b) {
-  return a + b;
+  return Fir_int_arith(a, b, '+');
 }
 // R+R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b) {
@@ -1825,11 +1858,11 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_scalar_real_fx_none_ret_scal
 }
 // I+R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b) {
-  return a + b;
+  return Fir_i2r(a) + b;
 }
 // R+I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
-  return a + b;
+  return a + Fir_i2r(b);
 }
 // +I→I (unary; `b` is the missing second argument)
 DEFINE_OVERRIDDEN_BUILTIN(int, _u2b, scalar_int_missing_fx_none_ret_scalar_int, int a, SEXP b) {
@@ -1843,7 +1876,7 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_missing_fx_none_ret_scalar_r
 // === - ===
 // I-I→I
 DEFINE_OVERRIDDEN_BUILTIN(int, _u2d, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b) {
-  return a - b;
+  return Fir_int_arith(a, b, '-');
 }
 // R-R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b) {
@@ -1851,15 +1884,15 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_scalar_real_fx_none_ret_scal
 }
 // I-R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b) {
-  return a - b;
+  return Fir_i2r(a) - b;
 }
 // R-I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
-  return a - b;
+  return a - Fir_i2r(b);
 }
 // -I→I (unary; `b` is the missing second argument)
 DEFINE_OVERRIDDEN_BUILTIN(int, _u2d, scalar_int_missing_fx_none_ret_scalar_int, int a, SEXP b) {
-  return -a;
+  return a == NA_INTEGER ? NA_INTEGER : -a;
 }
 // -R→R (unary)
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_missing_fx_none_ret_scalar_real, double a, SEXP b) {
@@ -1869,7 +1902,7 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_missing_fx_none_ret_scalar_r
 // === * ===
 // I*I→I
 DEFINE_OVERRIDDEN_BUILTIN(int, _u2a, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b) {
-  return a * b;
+  return Fir_int_arith(a, b, '*');
 }
 // R*R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2a, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b) {
@@ -1877,17 +1910,17 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2a, scalar_real_scalar_real_fx_none_ret_scal
 }
 // I*R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2a, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b) {
-  return a * b;
+  return Fir_i2r(a) * b;
 }
 // R*I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2a, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
-  return a * b;
+  return a * Fir_i2r(b);
 }
 
 // === / ===
 // I/I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_int_scalar_int_fx_none_ret_scalar_real, int a, int b) {
-  return (double)a / (double)b;
+  return Fir_i2r(a) / Fir_i2r(b);
 }
 // R/R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b) {
@@ -1895,11 +1928,11 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_real_scalar_real_fx_none_ret_scal
 }
 // I/R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b) {
-  return a / b;
+  return Fir_i2r(a) / b;
 }
 // R/I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
-  return a / b;
+  return a / Fir_i2r(b);
 }
 
 // === : ===
@@ -1937,19 +1970,19 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u3a, scalar_real_scalar_real_fx_none_ret_value,
 // === < ===
 // I<I→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b) {
-  return a < b;
+  return FIR_CMP_INT(a, <, b);
 }
 // R<R→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b) {
-  return a < b;
+  return FIR_CMP_REAL(a, <, b);
 }
 // I<R→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b) {
-  return (double)a < b;
+  return FIR_CMP_REAL(Fir_i2r(a), <, b);
 }
 // R<I→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b) {
-  return a < (double)b;
+  return FIR_CMP_REAL(a, <, Fir_i2r(b));
 }
 
 // I<I→B
@@ -1972,19 +2005,19 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c, scalar_real_scalar_int_fx_none_ret_bool, d
 // === <= ===
 // I<=I→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b) {
-  return a <= b;
+  return FIR_CMP_INT(a, <=, b);
 }
 // R<=R→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b) {
-  return a <= b;
+  return FIR_CMP_REAL(a, <=, b);
 }
 // I<=R→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c_u3d, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b) {
-  return (double)a <= b;
+  return FIR_CMP_REAL(Fir_i2r(a), <=, b);
 }
 // R<=I→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c_u3d, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b) {
-  return a <= (double)b;
+  return FIR_CMP_REAL(a, <=, Fir_i2r(b));
 }
 
 // I<=I→B
@@ -2011,19 +2044,19 @@ DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, any_any_fx_none_ret_scalar_logical
 }
 // L,L→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, scalar_logical_scalar_logical_fx_none_ret_scalar_logical, Rboolean a, Rboolean b) {
-  return a == b;
+  return FIR_CMP_LGL(a, ==, b);
 }
 // I,I→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b) {
-  return a == b;
+  return FIR_CMP_INT(a, ==, b);
 }
 // R,R→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b) {
-  return a == b;
+  return FIR_CMP_REAL(a, ==, b);
 }
 // S,S→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, scalar_string_scalar_string_fx_none_ret_scalar_logical, char* a, char* b) {
-  return a == b;
+  return FIR_CMP_STR(a, ==, b);
 }
 // *,*→B
 DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, any_any_fx_none_ret_bool, SEXP a, SEXP b) {
@@ -2049,7 +2082,7 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_string_scalar_string_fx_none_re
 // === log ===
 // I,R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_int_scalar_real_fx_none_ret_scalar_real, int value, double base) {
-  return R_logbase((double)value, base);
+  return R_logbase(Fir_i2r(value), base);
 }
 // R,R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_scalar_real_fx_none_ret_scalar_real, double value, double base) {
@@ -2067,7 +2100,7 @@ DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_missing_fx_none_ret_scalar_re
 // === abs ===
 // I→I
 DEFINE_OVERRIDDEN_BUILTIN(int, abs, scalar_int_fx_none_ret_scalar_int, int value) {
-  return value < 0 ? -value : value;
+  return value == NA_INTEGER ? NA_INTEGER : value < 0 ? -value : value;
 }
 // R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, double value) {
@@ -2087,7 +2120,7 @@ static double Fir_sign(double value) {
 // math1: v1=I→R, v2=R→R
 #define V(name, func) \
   DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_int_fx_none_ret_scalar_real, int value) {\
-    return func((double)value);\
+    return func(Fir_i2r(value));\
   }\
   \
   DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_real_fx_none_ret_scalar_real, double value) {\
@@ -2097,7 +2130,8 @@ DEFINE_MATH1_BUILTINS(V)
 #undef V
 
 DEFINE_OVERRIDDEN_BUILTIN(int, length, value_fx_none_ret_scalar_int, SEXP value) {
-  return LENGTH(value);
+  // `Rf_length`, unlike `LENGTH`, handles environments, pairlists, and closures.
+  return Rf_length(value);
 }
 
 // as.integer
@@ -2111,14 +2145,29 @@ DEFINE_OVERRIDDEN_BUILTIN(Rboolean, as_u2elogical, value_missing_fx_none_ret_sca
   return Rf_asLogical(value);
 }
 // V,miss→B
+// The condition of `if` and `while`: GNU-R's `asLogicalNoNA` (`eval.c`).
 DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, value_missing_fx_none_ret_bool, SEXP value, SEXP missing) {
-  // TODO: error on NA
-  return Rf_asLogical(value);
+  R_xlen_t length = Rf_xlength(value);
+  if (length > 1) Rf_error("the condition has length > 1");
+  int cond = NA_LOGICAL;
+  if (length > 0) {
+    switch (TYPEOF(value)) {
+    case LGLSXP: cond = LOGICAL(value)[0]; break;
+    case INTSXP: cond = INTEGER(value)[0]; break;
+    default: cond = Rf_asLogical(value);
+    }
+  }
+  if (cond == NA_LOGICAL) {
+    Rf_error(length == 0 ? "argument is of length zero"
+             : Rf_isLogical(value) ? "missing value where TRUE/FALSE needed"
+             : "argument is not interpretable as logical");
+  }
+  return cond;
 }
 // L,miss→B
 DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, scalar_logical_missing_fx_none_ret_bool, Rboolean value, SEXP missing) {
-  // TODO: error on NA
-  return (bool) value;
+  if (value == NA_LOGICAL) Rf_error("missing value where TRUE/FALSE needed");
+  return value;
 }
 
 // as.character
@@ -2137,7 +2186,7 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, inherits, value_scalar_string_bool_fx_none_ret_b
 // === ^ ===
 // I^I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_int_scalar_int_fx_none_ret_scalar_real, int a, int b) {
-  return R_pow((double)a, (double)b);
+  return R_pow(Fir_i2r(a), Fir_i2r(b));
 }
 // R^R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b) {
@@ -2145,39 +2194,39 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_real_scalar_real_fx_none_ret_scal
 }
 // I^R→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b) {
-  return R_pow((double)a, b);
+  return R_pow(Fir_i2r(a), b);
 }
 // R^I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
-  return R_pow(a, (double)b);
+  return R_pow(a, Fir_i2r(b));
 }
 
 // === > ===
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b) {
-  return a > b;
+  return FIR_CMP_INT(a, >, b);
 }
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b) {
-  return a > b;
+  return FIR_CMP_REAL(a, >, b);
 }
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b) {
-  return (double)a > b;
+  return FIR_CMP_REAL(Fir_i2r(a), >, b);
 }
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b) {
-  return a > (double)b;
+  return FIR_CMP_REAL(a, >, Fir_i2r(b));
 }
 
 // === >= ===
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b) {
-  return a >= b;
+  return FIR_CMP_INT(a, >=, b);
 }
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b) {
-  return a >= b;
+  return FIR_CMP_REAL(a, >=, b);
 }
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b) {
-  return (double)a >= b;
+  return FIR_CMP_REAL(Fir_i2r(a), >=, b);
 }
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b) {
-  return a >= (double)b;
+  return FIR_CMP_REAL(a, >=, Fir_i2r(b));
 }
 
 // === != ===
@@ -2187,19 +2236,19 @@ DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, any_any_fx_none_ret_scalar_logical
 }
 // L,L→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, scalar_logical_scalar_logical_fx_none_ret_scalar_logical, Rboolean a, Rboolean b) {
-  return a != b;
+  return FIR_CMP_LGL(a, !=, b);
 }
 // I,I→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b) {
-  return a != b;
+  return FIR_CMP_INT(a, !=, b);
 }
 // R,R→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b) {
-  return a != b;
+  return FIR_CMP_REAL(a, !=, b);
 }
 // S,S→L
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, scalar_string_scalar_string_fx_none_ret_scalar_logical, char* a, char* b) {
-  return a != b;
+  return FIR_CMP_STR(a, !=, b);
 }
 // *,*→B
 DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, any_any_fx_none_ret_bool, SEXP a, SEXP b) {

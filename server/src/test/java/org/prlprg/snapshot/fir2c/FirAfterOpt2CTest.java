@@ -59,7 +59,6 @@ class FirAfterOpt2CTest implements Gen2CCompilerTest {
           "vectorized_boolean_operations7",
           // returns a different value
           "inline_is_xyz",
-          "inline_logical",
           "is",
           "is7",
           "is8",
