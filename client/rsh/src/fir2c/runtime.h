@@ -333,6 +333,10 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
 bool Fir_push_env(SEXP *env, Fir_MkEnvType type);
 /// `pushed` is what the matching `Fir_push_env` returned.
 void Fir_pop_env(SEXP *env, bool pushed);
+/// If `*env` is the elided environment, replaces it with a new empty one (protected) whose
+/// parent is `closure_env`, the environment the version received. A deopt branch calls it:
+/// it stores into the frame, and the bytecode the deopt continues in needs a real one.
+void Fir_materialize_env(SEXP *env, SEXP closure_env);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);

@@ -317,8 +317,9 @@ server gives it to the optimizations, which use it as the minimum number of hits
 - Without rcp, the baseline records nothing, so the server gets no feedback and doesn't
   speculate. rcp is only in the RCP variant of GNU-R, on Linux x86-64.
 - CI has no RCP build, so CI tests the tiers without feedback.
-- If a speculation fails after the closure is optimized, R signals an error. There is no
-  deoptimization back to the bytecode.
+- If a speculation fails after the closure is optimized, R signals an error ("FIŘ
+  deoptimization triggered at pc=... (unsupported)"). There is no deoptimization back to the
+  bytecode. Before the error, the deopt branch materializes an elided frame and stores into it.
 - The server never removes a module from `FirModules`.
 - `rsh_compile` and the `Compile` RPC (the bytecode-to-C path) still exist, but the JIT doesn't
   use them.

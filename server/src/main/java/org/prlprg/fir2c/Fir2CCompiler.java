@@ -164,6 +164,8 @@ public final class Fir2CCompiler {
   private static final String VAR_LOCAL_PROMISES = "local_promises";
   private static final String VAR_LOCAL_PROMISES_IDX = "local_promises_idx";
   private static final String VAR_ENV_PUSHED = "env_pushed";
+  /// The environment a version's C function receives, before its `MkEnv` replaces [#VAR_ENV].
+  private static final String VAR_ENV_CLOSURE = "env_closure";
 
   /// Constant pool slot of what identifies a bytecode baseline's pool (see
   /// [FunctionEmitter#bcBaselineId()]).
@@ -1588,6 +1590,10 @@ public final class Fir2CCompiler {
         /// Whether this CFG has any `MkEnv` or `PopEnv`, so it needs [#VAR_ENV_PUSHED].
         private final boolean hasEnvOps;
 
+        /// Whether this CFG's deopt branches materialize its environment (see
+        /// [BBEmitter#emitMaterializeEnv()]), so it needs [#VAR_ENV_CLOSURE].
+        private final boolean materializesEnv;
+
         CfgEmitter(
             CFG cfg,
             Type returnType,
@@ -1613,6 +1619,9 @@ public final class Fir2CCompiler {
                   .flatMap(bb -> bb.statements().stream())
                   .anyMatch(
                       s -> s.expression() instanceof MkEnv || s.expression() instanceof PopEnv);
+          materializesEnv =
+              hasEnvOps
+                  && cfg.bbs().stream().anyMatch(bb -> bb.jump().expression() instanceof Deopt);
         }
 
         VecSXP run() {
@@ -1657,6 +1666,9 @@ public final class Fir2CCompiler {
         private void emitEnvPushedDeclaration() {
           if (hasEnvOps) {
             cFunction.add().stmt("uint64_t %s = 0;", VAR_ENV_PUSHED);
+          }
+          if (materializesEnv) {
+            cFunction.add().stmt("SEXP %s = %s;", VAR_ENV_CLOSURE, VAR_ENV);
           }
         }
 
@@ -1716,6 +1728,8 @@ public final class Fir2CCompiler {
               cCode.label("%s:;", labelCName(bb));
             }
 
+            emitMaterializeEnv();
+
             int numLiveIn = emitProtect();
 
             for (var statement : bb.statements()) {
@@ -1726,6 +1740,15 @@ public final class Fir2CCompiler {
             // and we can't emit a cleanup after because it changes control flow.
             emitUnprotect(numLiveIn);
             emitJump(bb.jump());
+          }
+
+          /// A deopt branch stores into an elided environment, and the bytecode it continues in
+          /// needs a real one, so make it real at the branch's entry. Only a CFG with a `MkEnv`
+          /// can have an elided environment: a promise's has none.
+          private void emitMaterializeEnv() {
+            if (materializesEnv && bb.jump().expression() instanceof Deopt) {
+              cCode.stmt("Fir_materialize_env(&%s, %s);", VAR_ENV, VAR_ENV_CLOSURE);
+            }
           }
 
           private void emitStatement(Statement statement) {

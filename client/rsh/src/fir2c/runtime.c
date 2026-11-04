@@ -484,6 +484,14 @@ void Fir_pop_env(SEXP *env_ptr, bool pushed) {
   *env_ptr = parent;
 }
 
+void Fir_materialize_env(SEXP *env_ptr, SEXP closure_env) {
+  if (*env_ptr != Rsh_ElidedEnv) {
+    return;
+  }
+  *env_ptr = Rf_NewEnvironment(R_NilValue, R_NilValue, closure_env);
+  PROTECT(*env_ptr);
+}
+
 static SEXP Fir_make_names(int count, SEXP const *names) {
   ASSERT(count >= 0, "Invalid count for names");
   SEXP result = PROTECT(Rf_allocVector(STRSXP, count));

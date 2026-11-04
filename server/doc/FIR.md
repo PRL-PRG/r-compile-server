@@ -219,7 +219,7 @@ Subscripts are 0-based, unlike R's, which are 1-based, and must be unboxed integ
 
 ### Environment Operations
 
-- Create environment: `mkenv`. An environment must be created before any stores. `mkenv~` creates an environment that is assumed not to be observed by reflection. `mkenv-` is an *elided* environment: it isn't materialized (a deopt re-creates it), so it's free.
+- Create environment: `mkenv`. An environment must be created before any stores. `mkenv~` creates an environment that is assumed not to be observed by reflection. `mkenv-` is an *elided* environment: it isn't materialized, so it's free. Its deopt branches still store into it, so the backend materializes it at the entry of each deopt branch.
 - Pop environment: `popenv` destroys the innermost environment created by `mkenv` (e.g. after inlining a callee that has one).
 - Load from environment: `ld x`. `ld-super x` skips the innermost environment (R's `<<-` lookup).
 - Load function from environment: `ldf x` (R function lookup forces promises and ignores non-closure values, hence it's reflective). `ldf-glob x` and `ldf-base x` start the lookup in the global and base environment instead.
@@ -311,12 +311,11 @@ SUCCESS():
   # jump
   return r1;
 DEOPT():
-  mkenv;
   st x = r;
   deopt 5 [r];
 ```
 
-When a checkpoint is encountered, the assumptions at the beginning of the success block (its leading run of assumption statements) are checked. If all pass, control jumps to the success block. Otherwise, control jumps to the deopt block, which creates an environment (unless one exists) and stores the named variables the bytecode expects, then performs a deoptimization.
+When a checkpoint is encountered, the assumptions at the beginning of the success block (its leading run of assumption statements) are checked. If all pass, control jumps to the success block. Otherwise, control jumps to the deopt block, which stores the named variables the bytecode expects into the current environment, then performs a deoptimization. If that environment is elided, the backend materializes it first (`Fir_materialize_env` in C; the interpreter always creates a real environment).
 
 The success target of a `check` can't have arguments.
 

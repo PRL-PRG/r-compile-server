@@ -647,6 +647,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `server/src/test/resources/org/prlprg/examples/` — R and FIŘ example programs (data).
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
+- `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
 - `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts, `order.txt`.
 - `server/src/test/resources/org/prlprg/gen2c/`, `bc2c/` — Build files and data for compiled-C tests.
