@@ -52,7 +52,8 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
 
   /// Whether the module is compiled with `-DFIR_STATS`, the runtime build that counts copies and
   /// promises (see `Fir_stats_get` in `client/rsh/src/fir2c/runtime.h`). It is slower, so a timed
-  /// benchmark mustn't run it.
+  /// benchmark mustn't run it. A module that isn't [standalone][#isStandalone()] is compiled with
+  /// `-DFIR_VERSION_STATS` instead, which only counts calls of each version.
   default boolean isStats() {
     return false;
   }
@@ -113,7 +114,8 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
       var compiler = RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime(), false);
       var defines =
           isStats()
-              ? List.of("-DRSH_TESTS", "-DRSH_PC", "-DFIR_STATS")
+              ? List.of(
+                  "-DRSH_TESTS", "-DRSH_PC", isStandalone() ? "-DFIR_STATS" : "-DFIR_VERSION_STATS")
               : List.of("-DRSH_TESTS", "-DRSH_PC");
       var runtimeObjects = new ArrayList<Path>();
       if (isStandalone()) {

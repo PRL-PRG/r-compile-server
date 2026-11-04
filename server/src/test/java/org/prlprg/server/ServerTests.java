@@ -224,7 +224,7 @@ public class ServerTests {
             GNUR.instance().getSession(),
             null,
             ImmutableSet.of(Option.COMPILE_REFERENCED_FUNCTIONS));
-    firModules.register(session, 0);
+    firModules.register(session, 0, false);
     Fir2CCompiler.compile(
         session, Objects.requireNonNull(module.localFunction(Variable.named("main"))));
     assertEquals(1, session.stubs().size());

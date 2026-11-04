@@ -1230,6 +1230,7 @@ public final class Fir2CCompiler {
       var cCode = cFunction.add();
       debugComment(
           cCode, "## Call %s baseline (JIT-compiled GNU-R bytecode)", function.name().name());
+      emitCallCounter(cFunction, baseline, false);
 
       // Fixed pool layout, mirrored by `Fir_bc_baseline_call` in `runtime.c`:
       // 0 = the GNU-R bytecode, 1 = the formals (with default-argument expressions),
@@ -1434,6 +1435,7 @@ public final class Fir2CCompiler {
         if (stub != null) {
           emitStubEntry(cFunction, cReturn, cParams);
         }
+        emitCallCounter(cFunction, version, stub != null);
 
         return new CfgEmitter(
                 root,
@@ -2885,6 +2887,32 @@ public final class Fir2CCompiler {
         + "_"
         + stub.entries().getFirst().part();
   }
+
+  /// In a statistics build (`FIR_VERSION_STATS_ONLY`), count the call in `version`'s counter, or
+  /// in its fallback's if `fallback`.
+  private void emitCallCounter(CFunction cFunction, Abstraction version, boolean fallback) {
+    var name = versionCounterName(session, version) + (fallback ? FALLBACK_COUNTER_SUFFIX : "");
+    cFunction
+        .add()
+        .stmt(
+            "FIR_VERSION_STATS_ONLY(static double *fir_calls = NULL; if (fir_calls == NULL)"
+                + " fir_calls = Fir_stats_version_counter(\"%s\"); (*fir_calls)++;)",
+            sanitizeString(name));
+  }
+
+  /// What a statistics build names the call counter of `version`, which `session`'s client has
+  /// (see `Fir_stats_version_counter` in `runtime.h`): the same for all its implementations.
+  public static String versionCounterName(Fir2CSession session, Abstraction version) {
+    var state = Objects.requireNonNull(session.version(version), "client doesn't have version");
+    return session.prefix()
+        + session.functionOf(version).name().name()
+        + "/"
+        + state.entries().getFirst().part();
+  }
+
+  /// Appended to [#versionCounterName(Fir2CSession, Abstraction)] for the counter of a stub's
+  /// fallback.
+  public static final String FALLBACK_COUNTER_SUFFIX = "/fallback";
 
   private String patchInitCName(int index) {
     return cNamePrefix() + "patch_init_" + index;

@@ -4,6 +4,8 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
 #include <R_ext/Rdynload.h>
@@ -317,6 +319,49 @@ void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_F
   Fir_FunctionData *data = Fir_fun_data(constants);
   data->dispatch_impl = dispatch_impl;
   data->from_r = from_r;
+}
+
+typedef struct Fir_VersionCounter {
+  char *name;
+  double calls;
+  struct Fir_VersionCounter *next;
+} Fir_VersionCounter;
+
+static Fir_VersionCounter *Fir_version_counters = NULL;
+
+double *Fir_stats_version_counter(const char *name) {
+  for (Fir_VersionCounter *counter = Fir_version_counters; counter != NULL; counter = counter->next) {
+    if (strcmp(counter->name, name) == 0) {
+      return &counter->calls;
+    }
+  }
+  Fir_VersionCounter *counter = malloc(sizeof(Fir_VersionCounter));
+  char *copy = malloc(strlen(name) + 1);
+  if (counter == NULL || copy == NULL) {
+    Rf_error("out of memory for the version counter %s", name);
+  }
+  strcpy(copy, name);
+  *counter = (Fir_VersionCounter){.name = copy, .calls = 0, .next = Fir_version_counters};
+  Fir_version_counters = counter;
+  return &counter->calls;
+}
+
+SEXP Fir_stats_versions_get(void) {
+  int n = 0;
+  for (Fir_VersionCounter *counter = Fir_version_counters; counter != NULL; counter = counter->next) {
+    n++;
+  }
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, n));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, n));
+  int i = 0;
+  for (Fir_VersionCounter *counter = Fir_version_counters; counter != NULL; counter = counter->next) {
+    REAL(result)[i] = counter->calls;
+    SET_STRING_ELT(names, i, Rf_mkChar(counter->name));
+    i++;
+  }
+  Rf_setAttrib(result, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return result;
 }
 
 #ifdef FIR_STATS

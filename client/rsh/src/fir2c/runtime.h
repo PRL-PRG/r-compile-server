@@ -164,6 +164,24 @@ typedef struct Fir_PromiseLocalData {
 #define FIR_STATS_ONLY(x)
 #endif
 
+/// `...` in a module compiled with `-DFIR_VERSION_STATS` or `-DFIR_STATS`, nothing otherwise.
+///
+/// The version statistics count each version's calls (see `Fir_stats_versions_get`). Unlike
+/// `FIR_STATS`, they don't change the runtime's layouts, so a module compiled with them runs on
+/// the `rsh` package's runtime, which has the counters in every build.
+#if defined(FIR_STATS) || defined(FIR_VERSION_STATS)
+#define FIR_VERSION_STATS_ONLY(...) __VA_ARGS__
+#else
+#define FIR_VERSION_STATS_ONLY(...)
+#endif
+
+/// The call counter named `name` (a version's, see `Fir2CCompiler#versionCounterName`), created
+/// at 0 by the first call with the name. It lives as long as the process, so a module's code can
+/// be unloaded and its counters still read.
+double *Fir_stats_version_counter(const char *name);
+/// Every counter of `Fir_stats_version_counter`, as a named numeric vector.
+SEXP Fir_stats_versions_get(void);
+
 /// A version the server hasn't compiled yet (see `server/doc/lazy-versions.md`).
 ///
 /// The generated code defines one of these for the version, and a function with the version's

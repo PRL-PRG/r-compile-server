@@ -13,7 +13,9 @@ public final class FirModules {
   /// A registered module.
   ///
   /// @param ccOpt The C optimization level its code is compiled with.
-  public record Entry(Fir2CSession session, int ccOpt) {}
+  /// @param versionStats Whether its code is compiled with `-DFIR_VERSION_STATS` (it counts the
+  ///     calls of each version, see `Fir_stats_versions_get` in `client/rsh/src/fir2c/runtime.h`).
+  public record Entry(Fir2CSession session, int ccOpt, boolean versionStats) {}
 
   private final Map<String, Entry> entries = new ConcurrentHashMap<>();
   private final AtomicInteger nextId = new AtomicInteger(1);
@@ -27,8 +29,8 @@ public final class FirModules {
   }
 
   /// Register `session`'s module under its id, replacing whatever was registered under it.
-  public void register(Fir2CSession session, int ccOpt) {
-    entries.put(session.id(), new Entry(session, ccOpt));
+  public void register(Fir2CSession session, int ccOpt, boolean versionStats) {
+    entries.put(session.id(), new Entry(session, ccOpt, versionStats));
   }
 
   public @Nullable Entry get(String id) {

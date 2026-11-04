@@ -45,6 +45,8 @@ import org.prlprg.snapshot.gen2c.CompiledModuleQuery;
 /// code runs.
 ///
 /// A [stats][#isStats()] query compiles the same C with the runtime statistics (see [#stats()]).
+/// A lazy one runs on the `rsh` package's runtime, so it only has the version statistics
+/// (`-DFIR_VERSION_STATS`, see `Fir_stats_versions_get` in `client/rsh/src/fir2c/runtime.h`).
 public record Fir2CQuery(
     @Override String name,
     @Nullable Optimization optimization,
@@ -66,13 +68,6 @@ public record Fir2CQuery(
   public static Fir2CSession sessionOf(CompiledModule compiled) {
     return Objects.requireNonNull(
         SESSIONS.get(compiled), "module wasn't compiled by a lazy `Fir2CQuery`");
-  }
-
-  public Fir2CQuery {
-    if (isLazy && isStats) {
-      throw new IllegalArgumentException(
-          "A lazy module runs on the `rsh` package's runtime, which has no statistics");
-    }
   }
 
   public Fir2CQuery(String name, @Nullable Optimization optimization) {
@@ -117,7 +112,7 @@ public record Fir2CQuery(
 
   @Override
   public Fir2CQuery forEval() {
-    return isLazy ? this : new Fir2CQuery(name + ".lazy", optimization, isOptimized, true, false);
+    return isLazy ? this : new Fir2CQuery(name + ".lazy", optimization, isOptimized, true, isStats);
   }
 
   @Override
@@ -168,7 +163,7 @@ public record Fir2CQuery(
             R.getSession(),
             BC2FirUtils.bytecodes(firModule),
             ImmutableSet.copyOf(options));
-    server.firModules().register(session, isOptimized ? 3 : 0);
+    server.firModules().register(session, isOptimized ? 3 : 0, isStats);
     var compiled = compile(session, firMainFn);
     SESSIONS.put(compiled, session);
     return compiled;

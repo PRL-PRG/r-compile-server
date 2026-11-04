@@ -28,6 +28,7 @@ static const R_CallMethodDef callMethods[] = {
     // resolve, and the callers that wrap it in `tryCatch` would silently read the feedback as
     // "nothing recorded".
     {"Fir_serialized_feedback", (DL_FUNC)&Fir_serialized_feedback, 1},
+    {"Fir_stats_versions_get", (DL_FUNC)&Fir_stats_versions_get, 0},
     {NULL, NULL, 0}};
 
 void R_init_rsh(DllInfo *dll) {

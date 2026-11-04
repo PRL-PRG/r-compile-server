@@ -226,7 +226,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           // Name should be fully decided by the client?
           var name = genSymbol(function);
           var module = BC2CCompiler.compile(bc, name, false);
-          var res = compileObject(module.code(), "bc2c", ccOpt, RuntimeVariant.DIRECT_BC2C);
+          var res = compileObject(module.code(), "bc2c", ccOpt, RuntimeVariant.DIRECT_BC2C, false);
           var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
 
           ccCached = new NativeClosure(ByteString.copyFrom(res), name, serializedConstantPool);
@@ -295,7 +295,12 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       if (patch != null) {
         response.setCode(
             ByteString.copyFrom(
-                compileObject(patch.code(), "fir_patch", entry.ccOpt(), RuntimeVariant.FIR2C)));
+                compileObject(
+                    patch.code(),
+                    "fir_patch",
+                    entry.ccOpt(),
+                    RuntimeVariant.FIR2C,
+                    entry.versionStats())));
         response.setConstants(RDSWriter.writeByteString(patch.constantPool()));
         response.setInit(patch.init());
       }
@@ -356,17 +361,21 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   }
 
   /// Compile `code` into an object file, and return its contents. The files are temporary.
-  private static byte[] compileObject(CUnit code, String prefix, int ccOpt, RuntimeVariant variant)
+  ///
+  /// @param versionStats Whether to compile with `-DFIR_VERSION_STATS` (see [FirModules.Entry]).
+  private static byte[] compileObject(
+      CUnit code, String prefix, int ccOpt, RuntimeVariant variant, boolean versionStats)
       throws IOException, InterruptedException, CCompilationException {
     var inputFile = Files.createTempFile(prefix, ".c");
     try {
       var outputFile = Files.createTempFile(prefix, ".o");
       try {
         code.writeTo(inputFile);
-        RshCompiler.getInstance(ccOpt, variant)
-            .createBuilder(inputFile, outputFile)
-            .flag("-c")
-            .compile();
+        var builder = RshCompiler.getInstance(ccOpt, variant).createBuilder(inputFile, outputFile);
+        if (versionStats) {
+          builder.flag("-DFIR_VERSION_STATS");
+        }
+        builder.flag("-c").compile();
         return Files.readAllBytes(outputFile);
       } finally {
         Files.deleteIfExists(outputFile);
@@ -422,9 +431,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     }
 
     var code =
-        compileObject(compiled.code(), "fir_closure", request.getCcOpt(), RuntimeVariant.FIR2C);
+        compileObject(
+            compiled.code(), "fir_closure", request.getCcOpt(), RuntimeVariant.FIR2C, false);
 
-    firModules.register(fir2cSession, request.getCcOpt());
+    firModules.register(fir2cSession, request.getCcOpt(), false);
     return Messages.FirClosureResponse.newBuilder()
         .setModule(fir2cSession.id())
         .setCode(ByteString.copyFrom(code))

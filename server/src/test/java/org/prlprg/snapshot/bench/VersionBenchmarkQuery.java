@@ -1,15 +1,21 @@
 package org.prlprg.snapshot.bench;
 
+import static org.prlprg.fir2c.Fir2CCompiler.FALLBACK_COUNTER_SUFFIX;
+import static org.prlprg.fir2c.Fir2CCompiler.versionCounterName;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.function.ToDoubleBiFunction;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -47,6 +53,11 @@ import org.prlprg.util.Files;
 /// The CSV is a histogram: per number of versions, how many functions have that many created,
 /// evaluated and compiled versions. The log also has the per-function table, a per-version table
 /// (every version the client got, and every other one the module has), and each run's wall time.
+///
+/// The module is compiled with the version statistics (see [Fir2CQuery#stats()]), so the
+/// per-version table also has each version's calls during the benchmark runs (`calls`), during
+/// the last run (`calls.last`), the same for its stub's fallback (`fallback`, `fallback.last`),
+/// and the first and last run that called it compiled (`runs`).
 ///
 /// @param stubThreshold How many calls a stub runs its fallback before it requests its version.
 /// @param runs How many times the benchmark call runs.
@@ -117,7 +128,11 @@ public record VersionBenchmarkQuery(int stubThreshold, int runs) implements Quer
   }
 
   /// One row of the per-version table.
-  private static String versionRow(Function function, Abstraction version, Fir2CSession session) {
+  private static String versionRow(
+      Function function,
+      Abstraction version,
+      Fir2CSession session,
+      List<Map<String, Double>> calls) {
     var state = session.version(version);
     var lazyBody = version.lazyBody();
     var creator =
@@ -138,7 +153,65 @@ public record VersionBenchmarkQuery(int stubThreshold, int runs) implements Quer
         String.valueOf(version.isEvaluated()),
         String.valueOf(state != null && state.compiled()),
         String.valueOf(version != function.baseline() && isRedundant(version)),
-        state == null ? "0" : String.valueOf(implsOf(session, version)));
+        state == null ? "0" : String.valueOf(implsOf(session, version)),
+        callColumns(calls, state == null ? null : versionCounterName(session, version)));
+  }
+
+  /// The `calls` columns of a version whose counter is `name` (`null` if the client doesn't have
+  /// it), from the counters before the runs and after each.
+  private static String callColumns(List<Map<String, Double>> calls, @Nullable String name) {
+    if (name == null) {
+      return "0,0,0,0,-";
+    }
+    ToDoubleBiFunction<Integer, String> at = (i, n) -> calls.get(i).getOrDefault(n, 0.0);
+    var last = calls.size() - 1;
+    var fallback = name + FALLBACK_COUNTER_SUFFIX;
+    var active =
+        IntStream.rangeClosed(1, last)
+            .filter(i -> at.applyAsDouble(i, name) > at.applyAsDouble(i - 1, name))
+            .boxed()
+            .toList();
+    return "%.0f,%.0f,%.0f,%.0f,%s"
+        .formatted(
+            at.applyAsDouble(last, name) - at.applyAsDouble(0, name),
+            at.applyAsDouble(last, name) - at.applyAsDouble(last - 1, name),
+            at.applyAsDouble(last, fallback) - at.applyAsDouble(0, fallback),
+            at.applyAsDouble(last, fallback) - at.applyAsDouble(last - 1, fallback),
+            active.isEmpty() ? "-" : active.getFirst() + "-" + active.getLast());
+  }
+
+  /// The counters (`Fir_stats_versions_get`) in `eval.R`'s `bench$calls`.
+  private static List<Map<String, Double>> counters(VecSXP calls) {
+    return calls.stream()
+        .map(
+            sexp -> {
+              var names = sexp.attributes() == null ? List.<String>of() : sexp.names();
+              var values = ((RealSXP) sexp).data();
+              return IntStream.range(0, names.size())
+                  .boxed()
+                  .collect(Collectors.toMap(names::get, i -> values[i]));
+            })
+        .toList();
+  }
+
+  /// Fail if a stub that requested its version has no fallback calls, which means its code was
+  /// compiled without the version statistics, so every count would read 0.
+  private static void checkCounted(Fir2CSession session, Map<String, Double> counters) {
+    var uncounted =
+        session.requests().stream()
+            .map(r -> session.stub(r.stubId()))
+            .filter(
+                v ->
+                    counters.getOrDefault(
+                            versionCounterName(session, v) + FALLBACK_COUNTER_SUFFIX, 0.0)
+                        == 0)
+            .toList();
+    if (!uncounted.isEmpty()) {
+      throw new AssertionError(
+          "Stubs requested their versions without counting their calls, so their code wasn't"
+              + " compiled with `-DFIR_VERSION_STATS`: "
+              + uncounted);
+    }
   }
 
   @Override
@@ -151,30 +224,38 @@ public record VersionBenchmarkQuery(int stubThreshold, int runs) implements Quer
             .formatted(BenchmarkQuery.benchmarkCall(example));
     var run =
         EvalQuery.run(
-            example, store, Fir2CQuery.OPTIMIZED_ONLY_FIR, stubThreshold, runs, definitions);
+            example,
+            store,
+            Fir2CQuery.OPTIMIZED_ONLY_FIR.stats(),
+            stubThreshold,
+            runs,
+            definitions);
     if (run.error() != null) {
       throw new AssertionError("Benchmark crashed:\n" + run.outputLog(), run.error());
     }
     var session = Objects.requireNonNull(run.session(), "the lazy module isn't connected");
     var bench = (VecSXP) Objects.requireNonNull(run.value()).get(3);
     var times = ((RealSXP) bench.get(0)).data();
+    var calls = counters((VecSXP) bench.get(1));
 
     // The server changes the module on its own threads, but every request was answered before
     // the run finished (the driver waits for that).
     List<Counts> counts;
     String versionTable;
     synchronized (session) {
+      checkCounted(session, calls.getLast());
       var functions = session.module().localFunctions();
       counts = functions.stream().map(f -> Counts.of(f, session)).toList();
       versionTable =
-          "function,signature,creator,live,stub,requested,evaluated,compiled,redundant,impls\n"
+          "function,signature,creator,live,stub,requested,evaluated,compiled,redundant,impls,"
+              + "calls,calls.last,fallback,fallback.last,runs\n"
               + functions.stream()
                   .flatMap(
                       f -> {
                         var versions = new LinkedHashSet<Abstraction>();
                         f.versions().stream().filter(v -> !v.isStub()).forEach(versions::add);
                         versions.addAll(clientVersions(f, session));
-                        return versions.stream().map(v -> versionRow(f, v, session) + "\n");
+                        return versions.stream().map(v -> versionRow(f, v, session, calls) + "\n");
                       })
                   .collect(Collectors.joining());
     }

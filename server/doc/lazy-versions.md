@@ -359,7 +359,11 @@ server gives it to the optimizations, which use it as the minimum number of hits
   evaluated, that the client has compiled, and that are redundant, and the client's requests,
   compiled implementations, stubs, and patches. Its CSV is a histogram of the functions by the
   first three counts. Its log also has a table of every version (with the optimization that
-  created it, `LazyBody#creator()`) and the wall time of each run.
+  created it, `LazyBody#creator()`) and the wall time of each run. Its module and patches are
+  compiled with `-DFIR_VERSION_STATS`: every compiled version, and every stub's fallback, counts
+  its calls (`Fir_stats_version_counter`, read by `Fir_stats_versions_get`). These counters don't
+  change the runtime's layouts, so the module runs on the normal `rsh` runtime, and a build
+  without the define has no counting code.
 
 Running these tests needs `rsh` installed in the vendored R (`make -C client/rsh install`), and it
 must be reinstalled after changing the runtime, which the tests no longer compile in.
