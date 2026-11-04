@@ -62,19 +62,25 @@ cc <- function(path) {
   res
 }
 
-# Log and return benchmark results.
-# Each test is specified in `...`, which returns the user execution time.
-run <- function(call, ...) {
+# Log and return benchmark results: one row per runner in `...` (each returns the user execution
+# time). `loc` is the code size of the FIŘ runners, by name (see `optbench.R`); the other runners
+# get `NA`.
+run <- function(call, loc, ...) {
   call <<- substitute(call)
 
-  res <- data.frame(...)
+  times <- list(...)
+  res <- data.frame(
+    runner = names(times),
+    time = vapply(times, as.numeric, numeric(1)),
+    loc = unname(loc[names(times)])
+  )
 
   # Log to console
-  print(res)
+  print(res, row.names = FALSE)
 
   # Return CSV
   csvConn <- textConnection("csv", "w")
-  write.csv(res, file=csvConn)
+  write.csv(res, file = csvConn, row.names = FALSE)
   close(csvConn)
   csv
 }

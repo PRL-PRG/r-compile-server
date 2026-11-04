@@ -85,7 +85,9 @@ public record Fir2CQuery(
     return isLazy ? unevaluatedFirQuery() : new ForcedFirQuery(unevaluatedFirQuery());
   }
 
-  private GenFirQuery unevaluatedFirQuery() {
+  /// The module this compiles before its versions are evaluated: the example's, optimized if this
+  /// is.
+  public GenFirQuery unevaluatedFirQuery() {
     return optimization == null ? FirQuery.INSTANCE : new OptimizedFirQuery(optimization);
   }
 

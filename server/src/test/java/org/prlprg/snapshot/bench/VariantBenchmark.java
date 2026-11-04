@@ -182,7 +182,7 @@ final class VariantBenchmark {
   /// [org.prlprg.fir.parseprint.IrPrintContext#printFunction]). Only that version runs on the hot
   /// path, so summing every version's lines -- i.e. the file's total line count -- would overstate
   /// how much code the optimizations actually produced.
-  private static int loc(@Nullable Path path) {
+  static int loc(@Nullable Path path) {
     if (path == null) {
       return NO_LOC;
     }

@@ -26,8 +26,10 @@ public class BenchmarkQuery implements BenchmarkOutputQuery {
     var bcPath = store.tryLoadPath(example, BCQuery.REGULAR);
     var optBcPath = store.tryLoadPath(example, BCQuery.OPT);
     var bc2cPath = store.tryLoadPath(example, BC2CQuery.OPTIMIZED);
-    var firPath = store.tryLoadPath(example, Fir2CQuery.DIRECT.optimized());
-    var optFirPath = store.tryLoadPath(example, Fir2CQuery.FULLY_OPTIMIZED);
+    var firQuery = Fir2CQuery.DIRECT.optimized();
+    var optFirQuery = Fir2CQuery.FULLY_OPTIMIZED;
+    var firPath = store.tryLoadPath(example, firQuery);
+    var optFirPath = store.tryLoadPath(example, optFirQuery);
 
     var benchmarkCall = benchmarkCall(example);
 
@@ -38,6 +40,8 @@ public class BenchmarkQuery implements BenchmarkOutputQuery {
                   + "\n"
                   + "run(\n"
                   + "  call = %s,\n".formatted(benchmarkCall)
+                  + "  loc = c(fir2c.direct = %s, fir2c.opt = %s),\n"
+                      .formatted(loc(example, store, firQuery), loc(example, store, optFirQuery))
                   + "  ast = ast('%s')".formatted(astPath)
                   + (bcPath == null
                       ? ""
@@ -67,6 +71,12 @@ public class BenchmarkQuery implements BenchmarkOutputQuery {
     } catch (EvalException e) {
       throw new AssertionError("Benchmark crashed", e);
     }
+  }
+
+  /// [VariantBenchmark#loc(java.nio.file.Path)] of the FIŘ that `query` compiles, as an R integer.
+  private static String loc(Example example, SnapshotStore store, Fir2CQuery query) {
+    var loc = VariantBenchmark.loc(store.tryLoadPath(example, query.unevaluatedFirQuery()));
+    return loc == VariantBenchmark.NO_LOC ? "NA" : loc + "L";
   }
 
   /// The R call the example wants benchmarked, from its `#? benchmark:` line.
