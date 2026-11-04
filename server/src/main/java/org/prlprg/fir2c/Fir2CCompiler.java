@@ -2256,6 +2256,26 @@ public final class Fir2CCompiler {
             // `.Internal` whose arity differs from the signature (`stop`, `warning`) needs its
             // base closure to build the arguments. Decide this on the untrimmed count.
             var entry = rSession.RFunTab().get(calleeFun.name().name());
+            // A lite special's constant symbols and calls are expressions, its registers values.
+            var values =
+                IntStream.range(0, present)
+                    .filter(i -> !(callArgs.get(i) instanceof Constant))
+                    .mapToLong(i -> 1L << i)
+                    .sum();
+            if (builtinIndex != null
+                && calleeFun.userProperties().liteSpecial()
+                && values != 0
+                && present <= 64) {
+              return "Fir_call_builtin_values(%d, %s, %s, %d, %s, %s, 0x%xULL)"
+                  .formatted(
+                      builtinIndex,
+                      source,
+                      VAR_ENV,
+                      arguments.size(),
+                      arguments.pointer(),
+                      names.pointer(),
+                      values);
+            }
             return builtinIndex == null
                     || calleeFun.userProperties().readsContext()
                     || (entry.isInternal()

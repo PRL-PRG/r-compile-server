@@ -1201,6 +1201,26 @@ SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SE
   return Fir_call_primitive(blt_idx, call, env, argc, args, names, true);
 }
 
+SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                             uint64_t values) {
+  int protect_count = 0;
+  if (R_FunTab[blt_idx].eval % 10 == 0) {
+    for (int i = 0; i < argc; i++) {
+      SEXP arg = args[i];
+      // A promise is forced by evaluating it, and the missing argument and `...` aren't values.
+      if (i < 64 && ((values >> i) & 1) && names[i] != R_DotsSymbol &&
+          ((TYPEOF(arg) == SYMSXP && arg != R_MissingArg) || TYPEOF(arg) == LANGSXP ||
+           TYPEOF(arg) == BCODESXP)) {
+        args[i] = PROTECT(R_mkEVPROMISE(arg, arg));
+        protect_count++;
+      }
+    }
+  }
+  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true);
+  UNPROTECT(protect_count);
+  return result;
+}
+
 SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names) {
   return Fir_call_dynamic(Fir_base_function(symbol), call, env, argc, args, names);
 }

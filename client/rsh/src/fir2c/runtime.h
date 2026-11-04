@@ -405,6 +405,11 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 /// `args` has no unsupplied trailing parameters (`Fir2CCompiler` drops them). An argument whose value
 /// is the missing argument is passed through, as in GNU-R.
 SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
+/// `Fir_call_builtin`, where bit `i` of `values` is set if `args[i]` is a value, not an expression
+/// for the callee to evaluate. A special evaluates its arguments, so it gets such a symbol or call
+/// in an evaluated promise.
+SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                             uint64_t values);
 /// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
 SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
