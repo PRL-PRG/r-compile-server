@@ -222,7 +222,8 @@ class SpeculateAssumeTest {
     assertTrue(runConstant(module, "c", new Value.Bool(false)));
     var printed = Printer.toString(module);
     assertTrue(printed.contains("c ?= FALSE"), "the assume should be inserted:\n" + printed);
-    assertTrue(printed.contains("if FALSE then"), "the `if` should read the constant:\n" + printed);
+    // The `if` reads the constant, and may be folded away entirely
+    assertFalse(printed.contains("if c then"), "the `if` should read the constant:\n" + printed);
   }
 
   /// Record `type` for the register named `registerName`, often enough to pass the threshold, then
