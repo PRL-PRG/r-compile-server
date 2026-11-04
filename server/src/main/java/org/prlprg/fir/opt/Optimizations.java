@@ -1,11 +1,19 @@
 package org.prlprg.fir.opt;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.stream.Stream;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
@@ -50,6 +58,96 @@ public class Optimizations {
       };
 
   private static final int DEFAULT_THRESHOLD = 10;
+
+  /// For each individual optimization, groups of other ones: when every optimization of one group
+  /// is removed from [#defaultOptimizations()], it changes nothing. So removing it too produces
+  /// the same code (see [#canonicalRemoval(Collection)]).
+  ///
+  /// It only has the entries that the optimizations' code guarantees, for modules that bc2fir
+  /// creates (a FIŘ text module may have non-baseline versions already).
+  public static final @Unmodifiable Map<String, @Unmodifiable List<@Unmodifiable Set<String>>>
+      REQUIRES = requires();
+
+  private static Map<String, List<Set<String>>> requires() {
+    var requires = new LinkedHashMap<String, List<Set<String>>>();
+    BiConsumer<String, Set<String>> require =
+        (name, group) -> requires.computeIfAbsent(name, _ -> new ArrayList<>()).add(group);
+
+    var names = individualOptimizationNames();
+
+    // bc2fir only creates baselines. Only `copyBaseline` creates the first non-baseline version
+    // (the others copy non-baselines), and no optimization changes a baseline.
+    names.stream()
+        .filter(name -> !name.equals("copyBaseline"))
+        .forEach(name -> require.accept(name, Set.of("copyBaseline")));
+    // Only `callOwnedVersion` inserts `dup`, which they need.
+    require.accept("consumeDeadDup", Set.of("callOwnedVersion"));
+    require.accept("elideConsumedDup", Set.of("callOwnedVersion"));
+    require.accept("createOwnedParameterVersion", Set.of("callOwnedVersion"));
+    // Only `specializeNonReflectiveEnv` makes the non-reflective environments it needs.
+    require.accept("elideDeadStore", Set.of("specializeNonReflectiveEnv"));
+    // Only `speculateAssume` inserts `assume`, which they need.
+    require.accept("mergeAssumeLoadVar", Set.of("speculateAssume"));
+    require.accept("elideTrivialAssume", Set.of("speculateAssume"));
+    // Only `mergeAssumeLoadVar` makes the `AssumeLoadFun`/`AssumeLoadVar` it needs.
+    require.accept("elideRedundantAssumeLoad", Set.of("mergeAssumeLoadVar"));
+
+    // Not entries, although they hold on most examples:
+    // - `elideConsumedDup` -> `consumeDeadDup`: `inline` can substitute `consume d` into a `dup`.
+    // - `createBorrowedParameterVersion` -> `createOwnedParameterVersion`: `createBestVersion` can
+    //   create a version with an owned parameter.
+    // - `strictifyPhi` -> `strictifyPromise`: `inline` makes the `prom { return v }` it needs.
+    // - `elideRedundantBoxUnbox`, `schedulePure` -> `unbox` or `unboxPhi`: bc2fir boxes in a
+    //   `switch` on a string.
+
+    var unknown =
+        Stream.concat(
+                requires.keySet().stream(),
+                requires.values().stream().flatMap(List::stream).flatMap(Set::stream))
+            .filter(name -> !names.contains(name))
+            .toList();
+    if (!unknown.isEmpty()) {
+      throw new AssertionError("`REQUIRES` has unknown optimizations: " + unknown);
+    }
+    requires.replaceAll((_, groups) -> List.copyOf(groups));
+    return Collections.unmodifiableMap(requires);
+  }
+
+  /// `removed` without every optimization that the others make change nothing (see [#REQUIRES]),
+  /// in pipeline order.
+  ///
+  /// Two removal sets with the same canonical removal produce the same code.
+  /// [#defaultOptimizationsWithout(Collection)] of the canonical removal is the same as of
+  /// `removed`, so benchmark only one of them.
+  ///
+  /// @throws IllegalArgumentException if a name isn't in [#individualOptimizationNames()].
+  public static List<String> canonicalRemoval(Collection<String> removed) {
+    var ordered = inPipelineOrder(removed);
+    return ordered.stream()
+        .filter(
+            name ->
+                !removalClosure(ordered.stream().filter(other -> !other.equals(name)).toList())
+                    .contains(name))
+        .toList();
+  }
+
+  /// `removed` and every optimization that it makes change nothing, transitively (see
+  /// [#REQUIRES]).
+  public static Set<String> removalClosure(Collection<String> removed) {
+    var closure = new LinkedHashSet<>(removed);
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var entry : REQUIRES.entrySet()) {
+        if (!closure.contains(entry.getKey())
+            && entry.getValue().stream().anyMatch(closure::containsAll)) {
+          closure.add(entry.getKey());
+          changed = true;
+        }
+      }
+    }
+    return closure;
+  }
 
   public static Optimization defaultOptimizations() {
     return defaultOptimizations(DEFAULT_THRESHOLD, true);
