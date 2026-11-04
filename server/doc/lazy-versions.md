@@ -81,7 +81,10 @@ Every optimization that used to copy a version into a new one (`CopyBaseline`,
 [`LazyCopy`](../src/main/java/org/prlprg/fir/opt/LazyCopy.java). The copy's body is the source's,
 copied when first accessed, adapted by an optimization-specific `LazyCopy.Adapter` (e.g. `Unbox`
 re-boxes the now-unboxed parameters at the entry and unboxes the return value). The fallback does
-the same adaptation around a call to the source's signature.
+the same adaptation around a call to the source's signature. A copy of an unevaluated copy is made
+from the nearest evaluated ancestor instead, if at most one of the two adapters isn't
+`Adapter.NONE` (that one is the copy's): so evaluating it evaluates nothing in between, and its
+fallback calls the ancestor directly.
 
 Optimizations don't evaluate versions: `AbstractionOptimization` runs on evaluated versions only,
 and the passes that look at a callee's body (`StrictifyPromise`, `StaticClosure`) treat an
@@ -295,8 +298,9 @@ The server (`CompileService#compileFirClosure`) does these steps:
    optimizations create lazy versions as usual. For example, `CopyBaseline` creates a copy of the
    baseline, which speculates on the feedback when it's evaluated.
 5. It evaluates the function's versions that exist at this point (the copy), because the closure
-   is hot. Optimizing the copy runs `SpeculateDispatch`, which creates a version for each recorded
-   parameter type. Those versions stay lazy.
+   is hot. Optimizing the copy runs `SpeculateDispatch`, which creates a version per rank of the
+   recorded parameter types (the most frequent type of each parameter, the second most frequent,
+   ...). Those versions stay lazy.
 6. It registers a `Fir2CSession` for the module in `FirModules`, and compiles the closure's
    function with `Fir2CCompiler#compile`. The copy is compiled. The specialized versions become
    stubs, which the client asks for with `CompileFirVersion`, as above.

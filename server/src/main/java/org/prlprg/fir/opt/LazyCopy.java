@@ -97,6 +97,11 @@ public final class LazyCopy {
   ///
   /// The copy of a stub is a stub.
   ///
+  /// If `source` is an unevaluated copy itself, and its adapter or `adapter` is [Adapter#NONE],
+  /// the copy is made from `source`'s source instead, with the other adapter, and so on up to the
+  /// nearest evaluated ancestor. So evaluating the copy doesn't evaluate `source`, and its
+  /// fallback skips `source`'s. The copy's signature is the same either way.
+  ///
   /// Every parameter in `newParameters` must be unowned: a [FunctionParameter] is owned by exactly
   /// one [Abstraction] and accumulates that abstraction's uses, so handing the copy one that
   /// `source` already owns would re-own it and merge both bodies' uses. Pass
@@ -119,7 +124,6 @@ public final class LazyCopy {
     }
 
     // The signature isn't lazy.
-    var sourceSignature = source.signature();
     var returnType = adapter.returnType(source.returnType());
     var effects = source.effects();
 
@@ -130,51 +134,71 @@ public final class LazyCopy {
       return copy;
     }
 
+    while (!source.isEvaluated()
+        && Objects.requireNonNull(source.lazyBody()).initializer()
+            instanceof
+            CopyInitializer(var _, var _, var _, var _, var ancestor, var sourceAdapter, _)
+        && (adapter == Adapter.NONE || sourceAdapter == Adapter.NONE)) {
+      adapter = adapter == Adapter.NONE ? sourceAdapter : adapter;
+      source = ancestor;
+    }
+
     // Only if the copy is created during a run: outside of one, whatever run ends up evaluating
     // it may be optimizing something else.
     var creationRunId = topLevel.isRunning() ? topLevel.runId() : NO_RUN;
     var copy =
         function.addVersion(
             newParameters,
-            new LazyBody.Initializer() {
-              @Override
-              public void evaluate(CFG body) {
-                copyBody(feedback, body, source, adapter);
-              }
-
-              @Override
-              public void afterEvaluated(Abstraction copy) {
-                if (creationRunId != NO_RUN && topLevel.runId() == creationRunId) {
-                  // The run that created `copy` optimizes it, now that it's evaluated.
-                  return;
-                }
-
-                // The run optimizes more than `copy`, so it waits for whoever is in the middle of
-                // running the module's code (the interpreter).
-                var module = function.owner();
-                module.changeWhenUnpinned(
-                    new OptimizeKey(topLevel, feedback),
-                    () -> {
-                      // A later run in progress optimizes `copy` too. It also must not be
-                      // re-entered: it may be in the middle of changing the code that made it
-                      // evaluate `copy`.
-                      if (!topLevel.isRunning()) {
-                        topLevel.run(feedback, module);
-                      }
-                    });
-              }
-
-              @Override
-              public String creator() {
-                return creator.name();
-              }
-            });
+            new CopyInitializer(
+                topLevel, creator, feedback, function, source, adapter, creationRunId));
     copy.setReturnType(returnType);
     copy.setEffects(effects);
 
-    addFallback(copy, sourceSignature, adapter);
+    addFallback(copy, source.signature(), adapter);
 
     return copy;
+  }
+
+  /// Computes the body of a copy of `source`, adapted by `adapter`.
+  private record CopyInitializer(
+      Optimization topLevel,
+      Optimization creatorOptimization,
+      ModuleFeedback feedback,
+      Function function,
+      Abstraction source,
+      Adapter adapter,
+      int creationRunId)
+      implements LazyBody.Initializer {
+    @Override
+    public void evaluate(CFG body) {
+      copyBody(feedback, body, source, adapter);
+    }
+
+    @Override
+    public void afterEvaluated(Abstraction copy) {
+      if (creationRunId != NO_RUN && topLevel.runId() == creationRunId) {
+        // The run that created `copy` optimizes it, now that it's evaluated.
+        return;
+      }
+
+      // The run optimizes more than `copy`, so it waits for whoever is in the middle of running
+      // the module's code (the interpreter).
+      var module = function.owner();
+      module.changeWhenUnpinned(
+          new OptimizeKey(topLevel, feedback),
+          () -> {
+            // A later run in progress optimizes `copy` too. It also must not be re-entered: it may
+            // be in the middle of changing the code that made it evaluate `copy`.
+            if (!topLevel.isRunning()) {
+              topLevel.run(feedback, module);
+            }
+          });
+    }
+
+    @Override
+    public String creator() {
+      return creatorOptimization.name();
+    }
   }
 
   /// A `creationRunId` for a copy created outside of a run.

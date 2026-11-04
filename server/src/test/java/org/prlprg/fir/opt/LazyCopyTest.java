@@ -11,10 +11,13 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Variable;
@@ -162,5 +165,72 @@ class LazyCopyTest {
     topLevel.evaluateAll(feedback, module);
     assertFalse(module.hasUnevaluated());
     assertEquals(1, topLevel.runs, "one run for all of them, not one each");
+  }
+
+  /// The callee signature of `copy`'s fallback.
+  private static Signature fallbackTarget(Abstraction copy) {
+    return Objects.requireNonNull(copy.fallback()).entry().statements().stream()
+        .map(Statement::expression)
+        .filter(e -> e instanceof Call(FallbackCallee _))
+        .map(e -> ((FallbackCallee) ((Call) e).callee()).signature())
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void copyOfAnUnevaluatedCopyCopiesTheEvaluatedAncestor() {
+    var module = module();
+    var f = f(module);
+    var source = f.versions().first();
+    var topLevel = new CountingOptimization();
+    var feedback = new MockModuleFeedback(module);
+    var intermediate =
+        LazyCopy.create(
+            topLevel,
+            topLevel,
+            feedback,
+            f,
+            source,
+            FunctionParameter.copyAll(source.parameters()),
+            new LazyCopy.Adapter() {});
+
+    var copy =
+        LazyCopy.create(topLevel, topLevel, feedback, f, intermediate, List.of(Type.BOXED_INTEGER));
+    assertEquals(source.signature(), fallbackTarget(copy), "the fallback skips the intermediate");
+    assertTrue(checkAll(module));
+
+    copy.body();
+    assertFalse(
+        intermediate.isEvaluated(), "evaluating the copy doesn't evaluate the intermediate");
+    assertTrue(checkAll(module));
+  }
+
+  @Test
+  void copyWithAnAdapterOfACopyWithAnAdapterKeepsTheChain() {
+    var module = module();
+    var f = f(module);
+    var source = f.versions().first();
+    var topLevel = new CountingOptimization();
+    var feedback = new MockModuleFeedback(module);
+    var intermediate =
+        LazyCopy.create(
+            topLevel,
+            topLevel,
+            feedback,
+            f,
+            source,
+            List.of(new FunctionParameter("x", Type.BOXED_INTEGER, false)),
+            new LazyCopy.Adapter() {});
+
+    var copy =
+        LazyCopy.create(
+            topLevel,
+            topLevel,
+            feedback,
+            f,
+            intermediate,
+            FunctionParameter.copyAll(intermediate.parameters()),
+            new LazyCopy.Adapter() {});
+    assertEquals(intermediate.signature(), fallbackTarget(copy));
   }
 }

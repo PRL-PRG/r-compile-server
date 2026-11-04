@@ -65,6 +65,11 @@ public final class LazyBody {
     creator = initializer.creator();
   }
 
+  /// What computes the body, or `null` once it's evaluated.
+  public @Nullable Initializer initializer() {
+    return initializer;
+  }
+
   /// What created the version (see [Initializer#creator()]), kept after it's evaluated.
   public @Nullable String creator() {
     return creator;
