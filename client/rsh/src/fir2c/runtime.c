@@ -2090,7 +2090,7 @@ DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_scalar_real_fx_none_ret_scala
 }
 // I,miss→R
 DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_int_missing_fx_none_ret_scalar_real, int value, SEXP base) {
-  return R_log((double)value);
+  return R_log(Fir_i2r(value));
 }
 // R,miss→R
 DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_missing_fx_none_ret_scalar_real, double value, SEXP base) {
