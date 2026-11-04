@@ -63,7 +63,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `client/rsh/src/common2c/rsh_utils.h` — Helpers shared by both runtimes and the server's generated C.
 - `client/rsh/src/bc2c/runtime.c`, `runtime.h`, `runtime_impl.h`, `runtime_internals.h` — Runtime of bc2c's generated C.
 - `client/rsh/src/bc2c/opcodes.h`, `opcodes_internals.h` — Bytecode operation implementations for bc2c's generated C.
-- `client/rsh/src/fir2c/runtime.c`, `runtime.h` — Runtime of fir2c's generated C: values, calls, stubs, bytecode baselines, recordings.
+- `client/rsh/src/fir2c/runtime.c`, `runtime.h` — Runtime of fir2c's generated C: values, calls, stubs, bytecode baselines, recordings; with `-DFIR_STATS`, copy and promise counters (`Fir_stats_get`).
 - `client/rsh/src/fir2c/print_sexp.c`, `print_sexp.h` — Debug printer for SEXPs.
 
 ## fir-intellij-plugin
@@ -644,7 +644,9 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../session/`, `.../session/gnur/` — R session tests, and `GNUR`, the R processes that tests evaluate in.
 - `.../snapshot/` — Snapshot framework (`Query`, `SnapshotStore`, `DeterminismTest`).
 - `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand; `bench/VersionBenchmark` counts the versions per function after the benchmark call runs on the lazy module).
+- `.../snapshot/bench/PromiseBenchmark.java`, `PromiseBenchmarkQuery.java` — Counts the promises (created, forced, reflected) and copies of each benchmark call, in `-DFIR_STATS` builds without and with the FIŘ optimizations.
 - `server/src/test/resources/org/prlprg/examples/` — R and FIŘ example programs (data).
+- `.../examples/R/bench_simple_promise_reflect.R` — A benchmark whose argument promise reflects (`environment()`), to check the promise benchmark's reflection detection.
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
