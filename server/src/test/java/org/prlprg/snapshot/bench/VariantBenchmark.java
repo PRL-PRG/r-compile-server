@@ -92,15 +92,20 @@ final class VariantBenchmark {
             example,
             new OptimizedFirQuery(optimization == null ? defaultOptimizations() : optimization));
 
-    // Snapshots the generated C and the shared object we benchmark. The default shares
-    // `FULLY_OPTIMIZED`'s snapshot, because it runs the exact same pipeline.
-    var fir2c =
-        optimization == null
-            ? Fir2CQuery.FULLY_OPTIMIZED
-            : new Fir2CQuery("opt.fir2c." + optimization.name(), optimization).optimized();
-    var modulePath = store.tryLoadPath(example, fir2c);
+    // Snapshots the generated C and the shared object we benchmark
+    var modulePath = store.tryLoadPath(example, fir2c(optimization));
 
     return new Variant(label, Kind.CC, modulePath, loc(firPath), true);
+  }
+
+  /// The query that compiles the example with `optimization` (or the default optimizations, if
+  /// it's `null`) to C and a shared object.
+  ///
+  /// The default shares `FULLY_OPTIMIZED`'s snapshot, because it runs the exact same pipeline.
+  static Fir2CQuery fir2c(@Nullable Optimization optimization) {
+    return optimization == null
+        ? Fir2CQuery.FULLY_OPTIMIZED
+        : new Fir2CQuery("opt.fir2c." + optimization.name(), optimization).optimized();
   }
 
   /// The reference rows: the plain interpreter (`ast`), default and fully-optimized bytecode

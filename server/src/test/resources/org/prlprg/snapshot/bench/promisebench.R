@@ -1,4 +1,5 @@
-# Driver for `org.prlprg.snapshot.bench.PromiseBenchmarkQuery`.
+# Driver for `org.prlprg.snapshot.bench.PromiseBenchmarkQuery`, and for the copy counts of
+# `OwnershipBenchmarkQuery`.
 #
 # `bench.R` is prepended to this file, so `cc` (load a compiled module, run the example's warmup,
 # then `timeCall` in it) is already defined. The modules are compiled with `-DFIR_STATS`, so they
@@ -9,6 +10,13 @@ timeCall <- function(env) {
   .Call("Fir_stats_reset")
   tryCatch(eval(call, env), error = function(e) warning(e))
   .Call("Fir_stats_get")
+}
+
+# The `counters` (names of `Fir_stats_get`'s statistics) of one call in the compiled module in
+# `path`, in that order (`NA` for one the runtime doesn't have).
+statsOne <- function(call, path, counters) {
+  call <<- substitute(call)
+  as.numeric(cc(path)[counters])
 }
 
 # Log and return the table of statistics: one row per module in `...` (each a path to a compiled

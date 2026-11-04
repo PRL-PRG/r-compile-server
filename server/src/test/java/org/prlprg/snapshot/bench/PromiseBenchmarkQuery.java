@@ -32,7 +32,8 @@ import org.prlprg.util.Paths;
 public class PromiseBenchmarkQuery implements Query<BenchmarkOutput> {
   public static final PromiseBenchmarkQuery INSTANCE = new PromiseBenchmarkQuery();
 
-  private static final String BENCHMARK_DRIVER =
+  /// `bench.R` and `promisebench.R`, which define `run` and `statsOne`.
+  static final String BENCHMARK_DRIVER =
       Files.readString(Paths.getResource(BenchmarkQuery.class, "bench.R"))
           + "\n"
           + Files.readString(Paths.getResource(PromiseBenchmarkQuery.class, "promisebench.R"));
