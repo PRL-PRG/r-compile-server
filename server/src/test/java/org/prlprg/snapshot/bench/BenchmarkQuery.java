@@ -1,12 +1,9 @@
 package org.prlprg.snapshot.bench;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import org.prlprg.examples.Example;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.StrSXP;
-import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.bc.BCQuery;
 import org.prlprg.snapshot.bc2c.BC2CQuery;
@@ -16,7 +13,7 @@ import org.prlprg.util.Paths;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
-public class BenchmarkQuery implements Query<BenchmarkOutput> {
+public class BenchmarkQuery implements BenchmarkOutputQuery {
   public static final BenchmarkQuery INSTANCE = new BenchmarkQuery();
 
   private static final String BENCHMARK_DRIVER =
@@ -82,28 +79,6 @@ public class BenchmarkQuery implements Query<BenchmarkOutput> {
             .findFirst()
             .orElseThrow(() -> new AssertionError("`#? benchmark:` must be on its own line"));
     return benchmarkLine.substring("#? benchmark:".length()).trim();
-  }
-
-  @Override
-  public void verifyEqual(
-      BenchmarkOutput expected, BenchmarkOutput actual, Example example, SnapshotStore store) {
-    // Benchmarks don't have to be equal, so do nothing
-  }
-
-  @Override
-  public String snapshotExtension() {
-    return "csv";
-  }
-
-  @Override
-  public BenchmarkOutput deserialize(Path path, Example example, SnapshotStore store) {
-    return new BenchmarkOutput(Files.readString(path), null);
-  }
-
-  @Override
-  public void serialize(BenchmarkOutput data, Path path, Example example, SnapshotStore store)
-      throws IOException {
-    data.writeCsv(path.toFile());
   }
 
   private BenchmarkQuery() {}
