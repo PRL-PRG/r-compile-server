@@ -567,6 +567,11 @@ SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *nam
     if (protect_count > 0) {
       UNPROTECT(protect_count);
     }
+    // R code that reads a `...` binding requires a `DOTSXP` (only the head is checked, as for
+    // `matchArgs`' value). Empty dots stay `NULL`, which those readers also accept.
+    if (result != R_NilValue) {
+      SET_TYPEOF(result, DOTSXP);
+    }
     return result;
   }
   default:
@@ -820,18 +825,37 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
   Rf_defineVar(symbol, value, R_GlobalEnv);
 }
 
+/// Splices a `...` argument as a copy of its cells, in order: the callee may modify the cells
+/// (`applyClosure` with `unpromise` clears them), and the caller may pass the same `...` again.
+/// `force_dots` forces each element, as `evalList` does for a builtin.
 static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, bool is_builtin,
-                              int *protect_count) {
+                              bool force_dots, int *protect_count) {
   SEXP list = R_NilValue;
   for (int i = argc - 1; i >= 0; --i) {
     SEXP arg = args[i];
     SEXP name = names[i];
 
     if (name == R_DotsSymbol) {
-      // Splice dots argument (missing value = empty dots)
-      if (arg != R_MissingArg) {
-        list = Rf_listAppend(list, arg);
+      // Missing or `NULL` = empty dots
+      if (arg == R_MissingArg || arg == R_NilValue) {
+        continue;
       }
+      SEXP head = R_NilValue;
+      SEXP last = R_NilValue;
+      for (SEXP h = arg; h != R_NilValue; h = CDR(h)) {
+        SEXP elem = force_dots ? Fir_maybe_force(CAR(h)) : CAR(h);
+        SEXP node = PROTECT(Rf_cons(elem, R_NilValue));
+        (*protect_count)++;
+        SET_TAG(node, TAG(h));
+        if (last == R_NilValue) {
+          head = node;
+        } else {
+          SETCDR(last, node);
+        }
+        last = node;
+      }
+      SETCDR(last, list);
+      list = head;
     } else {
       SEXP node = PROTECT(Rf_cons(arg, list));
       (*protect_count)++;
@@ -936,7 +960,7 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
   R_Visible = (Rboolean)(visibility != 1);
 
   int protect_count = 0;
-  SEXP arglist = Fir_build_arglist(argc, args, names, true, &protect_count);
+  SEXP arglist = Fir_build_arglist(argc, args, names, true, fun.eval % 10 == 1, &protect_count);
 
   SEXP op = R_Primitive(fun.name);
   if (op == R_NilValue) {
@@ -1035,7 +1059,7 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SE
       }
 
       int protect_count = 0;
-      SEXP arglist = Fir_build_arglist(argc, args, names, false, &protect_count);
+      SEXP arglist = Fir_build_arglist(argc, args, names, false, false, &protect_count);
 
       call = Fir_source_call(call, env);
       if (call == NULL) {
@@ -1043,6 +1067,7 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SE
         protect_count++;
       }
 
+      // `arglist` is fresh (its `...` cells too), so `unpromise` only clears this call's copy.
       SEXP result = Rf_applyClosure(call, callee, arglist, env, R_NilValue, TRUE);
 
       UNPROTECT(protect_count);
@@ -1136,20 +1161,10 @@ SEXP Fir_bc_baseline_code(SEXP pool) {
 }
 
 // What to bind `...` to in a bytecode baseline's environment, given a FIŘ `dots` value: FIŘ code
-// passes dots as a plain pairlist (or `NULL` when empty), but bytecode expects what
-// `applyClosure` binds `...` to, a `DOTSXP` (or the missing argument when empty).
+// passes dots as a `DOTSXP` (or `NULL` when empty), but bytecode expects what `applyClosure`
+// binds `...` to, a `DOTSXP` (or the missing argument when empty).
 static SEXP Fir_dots_for_bytecode(SEXP dots) {
-  if (dots == R_NilValue) {
-    return R_MissingArg;
-  }
-  if (TYPEOF(dots) != LISTSXP) {
-    return dots;
-  }
-  // The caller may still use its pairlist, so retype a copy of the spine.
-  dots = PROTECT(Rf_shallow_duplicate(dots));
-  SET_TYPEOF(dots, DOTSXP);
-  UNPROTECT(1);
-  return dots;
+  return dots == R_NilValue ? R_MissingArg : dots;
 }
 
 SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {

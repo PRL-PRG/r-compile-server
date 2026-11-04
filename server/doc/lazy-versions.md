@@ -135,8 +135,8 @@ arrived and calls it if so, and otherwise runs the fallback, compiled into the s
 `Fir_Stub` names the module and the stub to the server. An unevaluated baseline is compiled into
 the bytecode-running shim as before (which is why it needs no fallback); one with no bytecode is
 evaluated. Fallbacks are a new way into that shim from FIŘ code, so it now binds a FIŘ `dots`
-argument (a plain pairlist, or `NULL`) the way `applyClosure` binds `...` (a `DOTSXP`, or
-missing), which the bytecode expects.
+argument (a `DOTSXP`, or `NULL`) the way `applyClosure` binds `...` (a `DOTSXP`, or missing),
+which the bytecode expects.
 
 The runtime (`client/rsh/src/fir2c/runtime.c`) doesn't know how to reach the server, so it takes a
 `Fir_StubCompiler` from whoever does (`Fir_set_stub_compiler`). Without one, stubs run their
