@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `plot.acf` <- function (x, ci = 0.95, type = "h", xlab = "Lag", ylab = NULL, 
     ylim = NULL, main = NULL, ci.col = "blue", ci.type = c("white", 
         "ma"), max.mfrow = 6, ask = Npgs > 1 && dev.interactive(), 

@@ -7,8 +7,15 @@ if (!endsWith(getwd(), file.path("resources", "org", "prlprg", "examples"))) {
   stop("Must call in same directory as script")
 }
 
-# Remove old stdlib files
-invisible(file.remove(list.files("R", pattern = "^stdlib_.*\\.R$", full.names = TRUE)))
+# Remove old stdlib files, but keep their hand-added header options (e.g. `#? crashes(...)`,
+# `#? seed(...)`), which the new files get back
+old_files <- list.files("R", pattern = "^stdlib_.*\\.R$", full.names = TRUE)
+old_options <- lapply(setNames(old_files, old_files), function(file) {
+  lines <- readLines(file)
+  header <- lines[seq_len(match(FALSE, startsWith(lines, "#? "), nomatch = length(lines) + 1L) - 1L)]
+  header[header != "#? stdlib"]
+})
+invisible(file.remove(old_files))
 
 # Process functions from these packages
 for (pkg in c("base", "tools", "utils", "graphics", "methods", "stats")) {
@@ -38,6 +45,7 @@ for (pkg in c("base", "tools", "utils", "graphics", "methods", "stats")) {
     filename <- file.path("R", paste0("stdlib_", pkg, "_", sub("[\\/:\n]", "_", name), ".R"))
     content <- paste0(
       "#? stdlib\n",
+      paste(c(old_options[[filename]], ""), collapse = "\n"),
       "`" , name, "` <- ", paste(deparse(f), collapse = "\n"),
       if (is.null(examples)) "" else paste0("\n\n# Examples", examples)
     )

@@ -30,6 +30,10 @@ public final class ManualFirServer {
     if (stdlibPackage != null) {
       System.out.println("stdlib_pkg <- '" + stdlibPackage + "'");
     }
+    var seed = example.seed();
+    if (seed != null) {
+      System.out.println("seed <- " + seed + "L");
+    }
     System.out.flush();
     Thread.sleep(Long.MAX_VALUE);
   }

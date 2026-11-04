@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `cat` <- function (..., file = "", sep = " ", fill = FALSE, labels = NULL, 
     append = FALSE) 
 {

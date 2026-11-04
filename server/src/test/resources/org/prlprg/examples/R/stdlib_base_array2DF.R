@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `array2DF` <- function (x, responseName = "Value", sep = "", base = list(LETTERS), 
     simplify = TRUE, allowLong = TRUE) 
 {

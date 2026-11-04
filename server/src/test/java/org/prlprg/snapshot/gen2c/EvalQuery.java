@@ -84,6 +84,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
 
     var runs = moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
     var stdlibPackage = example.stdlibPackage();
+    var seed = example.seed();
     var source =
         """
         path <- '%s'
@@ -92,6 +93,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
         runs <- %dL
         threshold <- %dL
         stdlib_pkg <- %s
+        seed <- %s
         %s"""
             .formatted(
                 modulePath.toAbsolutePath(),
@@ -100,6 +102,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
                 runs,
                 stubThreshold,
                 stdlibPackage == null ? "NULL" : "'" + stdlibPackage + "'",
+                seed == null ? "NULL" : seed + "L",
                 EVAL_DRIVER);
 
     try {

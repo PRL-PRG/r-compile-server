@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `manova` <- function (...) 
 {
     Call <- fcall <- match.call()

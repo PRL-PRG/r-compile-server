@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `rowsum` <- function (x, group, reorder = TRUE, ...) 
 UseMethod("rowsum")
 

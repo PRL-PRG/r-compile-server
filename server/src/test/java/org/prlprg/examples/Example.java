@@ -32,6 +32,15 @@ public record Example(Path rpath, String text, ExampleOptions options) {
     return hasOption("", "stdlib") ? name().split("_", 3)[1] : null;
   }
 
+  /// The RNG seed of a `#? seed(<int>)` example, or `null` if it has none.
+  ///
+  /// For an example that uses the RNG without `set.seed`. `eval.R` sets the seed before each call
+  /// of `main`, so every run and every compilation sees the same random numbers.
+  public @Nullable Integer seed() {
+    var option = options.get("", "seed");
+    return option == null ? null : option.expectOneScalarIntegerArg();
+  }
+
   public boolean hasOption(String filter, String name) {
     return options.get(filter, name) != null;
   }

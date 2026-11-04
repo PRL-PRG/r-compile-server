@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `list2env` <- function (x, envir = NULL, parent = parent.frame(), hash = (length(x) > 
     100), size = max(29L, length(x))) 
 {

@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `reshape` <- function (data, varying = NULL, v.names = NULL, timevar = "time", 
     idvar = "id", ids = 1L:NROW(data), times = seq_along(varying[[1L]]), 
     drop = NULL, direction, new.row.names = NULL, sep = ".", 

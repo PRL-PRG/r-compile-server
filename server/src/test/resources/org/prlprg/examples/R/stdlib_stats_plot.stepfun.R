@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `plot.stepfun` <- function (x, xval, xlim, ylim = range(c(y, Fn.kn)), xlab = "x", 
     ylab = "f(x)", main = NULL, add = FALSE, verticals = TRUE, 
     do.points = (n < 1000), pch = par("pch"), col = par("col"), 

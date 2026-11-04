@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `ave` <- function (x, ..., FUN = mean) 
 {
     if (missing(...)) 

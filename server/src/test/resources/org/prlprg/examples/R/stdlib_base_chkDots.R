@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `chkDots` <- function (..., which.call = -1, allowed = character(0)) 
 {
     if (nx <- ...length()) 

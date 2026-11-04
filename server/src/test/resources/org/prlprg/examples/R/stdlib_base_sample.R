@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `sample` <- function (x, size, replace = FALSE, prob = NULL) 
 {
     if (length(x) == 1L && is.numeric(x) && is.finite(x) && x >= 

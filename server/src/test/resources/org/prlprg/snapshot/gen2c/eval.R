@@ -8,12 +8,14 @@ if (length(args) > 0) {
 }
 # What `EvalQuery` defines before this (see it): the prefix of the module's C names, the port of
 # the compile server its stubs ask for their versions (`NULL` for a standalone module), how many
-# times to call `main`, the package of a `#? stdlib` example (`NULL` for other examples), and
-# optionally how many calls a stub runs before it requests its version.
+# times to call `main`, the package of a `#? stdlib` example (`NULL` for other examples), the RNG
+# seed of a `#? seed(<int>)` example (`NULL` for other examples), and optionally how many calls a
+# stub runs before it requests its version.
 if (!exists("prefix")) prefix <- ""
 if (!exists("fir_port")) fir_port <- NULL
 if (!exists("runs")) runs <- 1L
 if (!exists("stdlib_pkg")) stdlib_pkg <- NULL
+if (!exists("seed")) seed <- NULL
 
 # A module with stubs needs the `rsh` package: the runtime (which the module doesn't bring, unlike
 # a standalone one, so that there's one copy) and the connection to the compile server (see
@@ -53,7 +55,12 @@ main <-
     main_env)
 
 # Call the compiled closure
+# A seeded example gets the same random numbers in every run, so the baseline run and the compiled
+# runs compute the same values. The kinds reset an `RNGkind` that an earlier example changed.
 for (i in seq_len(runs)) {
+  if (!is.null(seed)) {
+    set.seed(seed, kind = "default", normal.kind = "default", sample.kind = "default")
+  }
   res <- main()
 }
 

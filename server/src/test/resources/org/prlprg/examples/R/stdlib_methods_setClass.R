@@ -1,4 +1,5 @@
 #? stdlib
+#? nondeterministic
 `setClass` <- function (Class, representation = list(), prototype = NULL, contains = character(), 
     validity = NULL, access = list(), where = topenv(parent.frame()), 
     version = .newExternalptr(), sealed = FALSE, package = getPackageName(where), 

@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `Sweave` <- function (file, driver = RweaveLatex(), syntax = getOption("SweaveSyntax"), 
     encoding = "", ...) 
 {

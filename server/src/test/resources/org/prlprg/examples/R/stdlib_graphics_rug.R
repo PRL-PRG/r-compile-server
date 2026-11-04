@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `rug` <- function (x, ticksize = 0.03, side = 1, lwd = 0.5, col = par("fg"), 
     quiet = getOption("warn") < 0, ...) 
 {

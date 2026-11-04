@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `Box.test` <- function (x, lag = 1, type = c("Box-Pierce", "Ljung-Box"), fitdf = 0) 
 {
     if (NCOL(x) > 1) 

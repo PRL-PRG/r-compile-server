@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `var.test` <- function (x, ...) 
 UseMethod("var.test")
 
