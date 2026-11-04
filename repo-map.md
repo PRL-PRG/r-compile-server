@@ -103,7 +103,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `BCCompiler.java` — The R bytecode compiler that aims to be byte-to-byte compatible with GNU-R's bytecode compiler.
 - `Bc.java` — A complete R bytecode: version, instructions, and constants.
 - `BcCode.java` — An array of bytecode instructions, which make up the code of a closure or promise.
-- `BcInstr.java` — A single bytecode instruction, consists of an operation and arguments.
+- `BcInstr.java` — A single bytecode instruction, consists of an operation and arguments (`HasAst`: it carries its source call).
 - `BcLabel.java` — A branch instruction destination.
 - `BcOp.java` — Bytecode operations.
 - `BcOptLevel.java` — Optimization levels of the bytecode compiler.
@@ -309,7 +309,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `JumpExpression.java` — The operation of a jump.
 - `Raise.java` — Throw an exception, exiting all compiled code.
 - `Return.java` — Return the single argument (`args0`) from the enclosing version or promise.
-- `Statement.java` — An instruction that evaluates an expression into an optional register.
+- `Statement.java` — An instruction that evaluates an expression into an optional register, with an optional source call.
 - `Unreachable.java` — Marks unreachable code; the default terminator of a fresh BB.
 - `Use.java` — One use of a register.
 
