@@ -133,6 +133,10 @@ typedef struct Fir_PromiseGlobalData {
   /// Whether promises created by this `prom` instruction have been observed to escape. Shared by
   /// all instances (it lives in the constant pool).
   Fir_GloballyEscaped escaped;
+#ifdef FIR_STATS
+  /// Whether the server's effect inference says the promise's code may reflect.
+  bool may_reflect;
+#endif
 } Fir_PromiseGlobalData;
 
 typedef struct Fir_PromiseLocalData {
@@ -140,7 +144,25 @@ typedef struct Fir_PromiseLocalData {
   /// Whether this specific promise instance has escaped, i.e. the stack frame that created it has
   /// exited. Set to `false` when created, then `true` when the creating frame exits.
   bool escaped;
+#ifdef FIR_STATS
+  /// Whether this instance was forced (at least started) before.
+  bool forced;
+  /// Whether this instance was observed to reflect.
+  bool reflected;
+  /// Whether this instance was created in an elided or non-reflective frame, so it can't reflect.
+  bool elided;
+#endif
 } Fir_PromiseLocalData;
+
+/// `x` in a module compiled with `-DFIR_STATS` (the runtime statistics build), nothing otherwise.
+///
+/// The statistics build counts copies and promises for the benchmarks (see `Fir_stats_get`). The
+/// generated C is the same in both builds: it puts what only that build needs in this macro.
+#ifdef FIR_STATS
+#define FIR_STATS_ONLY(x) x
+#else
+#define FIR_STATS_ONLY(x)
+#endif
 
 /// A version the server hasn't compiled yet (see `server/doc/lazy-versions.md`).
 ///
@@ -309,6 +331,24 @@ void Fir_mark_promises_escaped(SEXP tracked_list);
 /// escaped its creating frame, record the escape or crash (if it was speculated local). Called
 /// before forcing, including when R itself forces the promise.
 void Fir_check_promise_escaped(SEXP data);
+
+#ifdef FIR_STATS
+/// Run a compiled promise's code `eval` in `env`, and count the force and whether the code
+/// reflected (see `Fir_stats_get`). Both force paths call it: `Fir_force`, and (with `data`, see
+/// `Fir_mk_promise`) the from-R entry that R's `forcePromise` calls.
+SEXP Fir_stats_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data);
+/// The counters, as a named numeric vector:
+/// - `fir.dups`: copies the compiled code made (`Fir_dup`, and the borrowed subassign helpers'
+///   shallow copies); `fir.dups.shallow` is the latter alone.
+/// - `dups`: every copy GNU-R made (its `duplicate_counter`), or `NA` if R doesn't export it.
+/// - `created`, `forced`, `reflected`: compiled promises (`Fir_mk_promise`) that were created,
+///   forced (counted once per promise), and observed to reflect while forced.
+///   `<counter>.may.reflect` counts only promises whose site the server inferred may reflect.
+/// - `elided`: created promises whose frame is elided or non-reflective, so they can't reflect.
+SEXP Fir_stats_get(void);
+/// Set every counter (including GNU-R's `duplicate_counter`) to 0.
+SEXP Fir_stats_reset(void);
+#endif
 
 SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);

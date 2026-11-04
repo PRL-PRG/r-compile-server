@@ -43,11 +43,14 @@ import org.prlprg.snapshot.gen2c.CompiledModuleQuery;
 /// as stubs that ask the [test compile server][FirTestServer] for them: this is what's run, and
 /// it's computed anew for every run, because what the server has of the module changes as the
 /// code runs.
+///
+/// A [stats][#isStats()] query compiles the same C with the runtime statistics (see [#stats()]).
 public record Fir2CQuery(
     @Override String name,
     @Nullable Optimization optimization,
     @Override boolean isOptimized,
-    boolean isLazy)
+    boolean isLazy,
+    @Override boolean isStats)
     implements CompiledModuleQuery {
   public static final Fir2CQuery DIRECT = new Fir2CQuery("fir2c", null);
   public static final Fir2CQuery OPTIMIZED_ONLY_FIR =
@@ -65,8 +68,15 @@ public record Fir2CQuery(
         SESSIONS.get(compiled), "module wasn't compiled by a lazy `Fir2CQuery`");
   }
 
+  public Fir2CQuery {
+    if (isLazy && isStats) {
+      throw new IllegalArgumentException(
+          "A lazy module runs on the `rsh` package's runtime, which has no statistics");
+    }
+  }
+
   public Fir2CQuery(String name, @Nullable Optimization optimization) {
-    this(name, optimization, false, false);
+    this(name, optimization, false, false, false);
   }
 
   /// The module this compiles: the example's, optimized if this is, and with every version
@@ -86,7 +96,16 @@ public record Fir2CQuery(
 
   @Override
   public Fir2CQuery optimized() {
-    return isOptimized ? this : new Fir2CQuery(name + ".opt", optimization, true, isLazy);
+    return isOptimized ? this : new Fir2CQuery(name + ".opt", optimization, true, isLazy, isStats);
+  }
+
+  /// This query's module, compiled with the runtime statistics (`-DFIR_STATS`), into its own
+  /// snapshot. For the module of an arbitrary optimization `o`:
+  /// `new Fir2CQuery("opt.fir2c." + o.name(), o).optimized().stats()`.
+  public Fir2CQuery stats() {
+    return isStats
+        ? this
+        : new Fir2CQuery(name + ".stats", optimization, isOptimized, isLazy, true);
   }
 
   @Override
@@ -96,7 +115,7 @@ public record Fir2CQuery(
 
   @Override
   public Fir2CQuery forEval() {
-    return isLazy ? this : new Fir2CQuery(name + ".lazy", optimization, isOptimized, true);
+    return isLazy ? this : new Fir2CQuery(name + ".lazy", optimization, isOptimized, true, false);
   }
 
   @Override

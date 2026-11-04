@@ -7,6 +7,9 @@
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
 #include <R_ext/Rdynload.h>
+#ifdef FIR_STATS
+#include <dlfcn.h>
+#endif
 
 #define ASSERT(x, msg, ...) \
   if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
@@ -316,8 +319,173 @@ void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_F
   data->from_r = from_r;
 }
 
+#ifdef FIR_STATS
+static struct {
+  double fir_dups;
+  double fir_dups_shallow;
+  double created;
+  double created_may_reflect;
+  double forced;
+  double forced_may_reflect;
+  double reflected;
+  double reflected_may_reflect;
+  double elided;
+} Fir_stats;
+
+// GNU-R's copy counter. It's `attribute_hidden`, so it's only there if the platform exports
+// hidden symbols anyway (macOS does, Linux doesn't).
+static unsigned long (*Fir_stats_gnur_get_dups)(void) = NULL;
+static void (*Fir_stats_gnur_reset_dups)(void) = NULL;
+
+static void Fir_stats_resolve_gnur_dups(void) {
+  static bool resolved = false;
+  if (resolved) {
+    return;
+  }
+  resolved = true;
+  void *self = dlopen(NULL, RTLD_LAZY);
+  if (self == NULL) {
+    return;
+  }
+  Fir_stats_gnur_get_dups = (unsigned long (*)(void))dlsym(self, "get_duplicate_counter");
+  Fir_stats_gnur_reset_dups = (void (*)(void))dlsym(self, "reset_duplicate_counter");
+}
+
+SEXP Fir_stats_get(void) {
+  Fir_stats_resolve_gnur_dups();
+  double dups = Fir_stats_gnur_get_dups && Fir_stats_gnur_reset_dups
+      ? (double)Fir_stats_gnur_get_dups()
+      : NA_REAL;
+  struct { const char *name; double value; } const entries[] = {
+    {"fir.dups", Fir_stats.fir_dups},
+    {"fir.dups.shallow", Fir_stats.fir_dups_shallow},
+    {"dups", dups},
+    {"created", Fir_stats.created},
+    {"created.may.reflect", Fir_stats.created_may_reflect},
+    {"forced", Fir_stats.forced},
+    {"forced.may.reflect", Fir_stats.forced_may_reflect},
+    {"reflected", Fir_stats.reflected},
+    {"reflected.may.reflect", Fir_stats.reflected_may_reflect},
+    {"elided", Fir_stats.elided},
+  };
+  int n = sizeof(entries) / sizeof(entries[0]);
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, n));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, n));
+  for (int i = 0; i < n; i++) {
+    REAL(result)[i] = entries[i].value;
+    SET_STRING_ELT(names, i, Rf_mkChar(entries[i].name));
+  }
+  Rf_setAttrib(result, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return result;
+}
+
+SEXP Fir_stats_reset(void) {
+  memset(&Fir_stats, 0, sizeof(Fir_stats));
+  Fir_stats_resolve_gnur_dups();
+  if (Fir_stats_gnur_get_dups && Fir_stats_gnur_reset_dups) {
+    Fir_stats_gnur_reset_dups();
+  }
+  return R_NilValue;
+}
+
+// Whether a promise whose environment is `env` can't reflect (see `Fir_push_env`): reflection in
+// an elided or non-reflective frame is an error.
+static bool Fir_stats_is_elided(SEXP env) {
+  return env == Rsh_ElidedEnv || TYPEOF(env) != ENVSXP
+      || Rf_findVarInFrame(env, Rsh_ReflectivelyAccessed) == R_LogicalNAValue;
+}
+
+// Whether the stats can remove and restore `env`'s reflection marker: `R_removeVarFromFrame` and
+// `Rf_defineVar` raise errors in locked and base environments.
+static bool Fir_stats_can_track_marker(SEXP env) {
+  return TYPEOF(env) == ENVSXP && env != Rsh_ElidedEnv && env != R_BaseEnv
+      && env != R_BaseNamespace && !R_EnvironmentIsLocked(env);
+}
+
+// Mark `env` reflectively accessed, like GNU-R's `recordReflection`, if the stats can track it.
+static void Fir_stats_record_reflection(SEXP env) {
+  if (Fir_stats_can_track_marker(env)
+      && Rf_findVarInFrame(env, Rsh_ReflectivelyAccessed) != R_LogicalNAValue) {
+    Rf_defineVar(Rsh_ReflectivelyAccessed, R_TrueValue, env);
+  }
+}
+
+typedef struct {
+  Fir_PromiseFn eval;
+  SEXP env;
+  Fir_PromiseGlobalData *global_data;
+  Fir_PromiseLocalData *local_data;
+  bool was_marked;
+} Fir_StatsForce;
+
+static SEXP Fir_stats_force_body(void *data) {
+  Fir_StatsForce *force = data;
+  return force->eval(force->env, force->local_data->captures);
+}
+
+// Also runs on a non-local exit out of the promise's code (an error, a `return` from the creating
+// function), so the marker is restored before R continues the jump.
+static void Fir_stats_force_cleanup(void *data, Rboolean jump) {
+  (void)jump;
+  Fir_StatsForce *force = data;
+  bool is_marked = R_existsVarInFrame(force->env, Rsh_ReflectivelyAccessed);
+  if (is_marked && !force->local_data->reflected) {
+    force->local_data->reflected = true;
+    Fir_stats.reflected++;
+    if (force->global_data->may_reflect) {
+      Fir_stats.reflected_may_reflect++;
+    }
+  }
+  if (force->was_marked && !is_marked) {
+    Rf_defineVar(Rsh_ReflectivelyAccessed, R_TrueValue, force->env);
+  }
+}
+
+// To see whether the code reflects, remove the frame's reflection marker, run the code, and check
+// whether GNU-R's `recordReflection` (or `Fir_reflective_load`/`_store`) bound it again. A
+// promise forced while another one in the same frame runs also counts for that one.
+SEXP Fir_stats_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data) {
+  Fir_PromiseGlobalData *global_data =
+      (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(Fir_prom_cp(data), 0));
+  Fir_PromiseLocalData *local_data = Fir_prom_local(data);
+
+  if (!local_data->forced) {
+    local_data->forced = true;
+    Fir_stats.forced++;
+    if (global_data->may_reflect) {
+      Fir_stats.forced_may_reflect++;
+    }
+  }
+
+  if (local_data->elided || !Fir_stats_can_track_marker(env)
+      || Rf_findVarInFrame(env, Rsh_ReflectivelyAccessed) == R_LogicalNAValue) {
+    return eval(env, local_data->captures);
+  }
+
+  Fir_StatsForce force = {
+    .eval = eval,
+    .env = env,
+    .global_data = global_data,
+    .local_data = local_data,
+    .was_marked = R_existsVarInFrame(env, Rsh_ReflectivelyAccessed),
+  };
+  if (force.was_marked) {
+    R_removeVarFromFrame(Rsh_ReflectivelyAccessed, env);
+  }
+  SEXP cont = PROTECT(R_MakeUnwindCont());
+  SEXP result = R_UnwindProtect(Fir_stats_force_body, &force, Fir_stats_force_cleanup, &force, cont);
+  UNPROTECT(1);
+  return result;
+}
+#endif
+
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env, SEXP expr) {
   ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
+#ifdef FIR_STATS
+  // Before the elided frame is replaced by its parent below.
+  bool elided = Fir_stats_is_elided(env);
+#endif
   // See `Fir_push_env`.
   if (env == Rsh_ElidedEnv) {
     env = ENCLOS(env);
@@ -330,6 +498,17 @@ SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env, SEXP
   SET_VECTOR_ELT(data, 2, local_data_sexp);
   *(Fir_PromiseLocalData *)STDVEC_DATAPTR(local_data_sexp) =
       (Fir_PromiseLocalData) {.captures = captures, .escaped = false};
+#ifdef FIR_STATS
+  Fir_PromiseGlobalData *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(cp, 0));
+  ((Fir_PromiseLocalData *)STDVEC_DATAPTR(local_data_sexp))->elided = elided;
+  Fir_stats.created++;
+  if (global_data->may_reflect) {
+    Fir_stats.created_may_reflect++;
+  }
+  if (elided) {
+    Fir_stats.elided++;
+  }
+#endif
 
   SEXP ext = PROTECT(R_MakeExternalPtr((void *)evalFromR, Rsh_CodeTag, data));
   SEXP promise = Rf_mkPROMISE(ext, env);
@@ -389,7 +568,10 @@ SEXP Fir_cast(SEXP value, Fir_Type type) {
   return value;
 }
 
-SEXP Fir_dup(SEXP value) { return Rf_duplicate(value); }
+SEXP Fir_dup(SEXP value) {
+  FIR_STATS_ONLY(Fir_stats.fir_dups++);
+  return Rf_duplicate(value);
+}
 
 SEXP Fir_load(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "load");
@@ -630,7 +812,12 @@ SEXP Fir_force(SEXP promise) {
     if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
       // If this promise escaped its creating frame, record the escape or crash (see the helper).
       Fir_handle_escape(global_data, local_data);
+#ifdef FIR_STATS
+      SEXP forced = Fir_stats_eval_promise(
+          global_data->eval, PRENV(promise), R_ExternalPtrProtected(PRCODE(promise)));
+#else
       SEXP forced = global_data->eval(PRENV(promise), local_data->captures);
+#endif
       SET_PRVALUE(promise, forced);
       // Unlike R's `forcePromise`, keep the environment: it's only dropped there so the GC can
       // collect it, but FIŘ's reflective promise accesses (`Fir_reflective_load`/`_store`, i.e.
@@ -736,6 +923,7 @@ SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
 
   SEXP value = Rf_findVarInFrame(PRENV(promise), symbol);
   ASSERT(value != R_UnboundValue, "Variable not bound in promise environment");
+  FIR_STATS_ONLY(Fir_stats_record_reflection(PRENV(promise)));
 
   return value;
 }
@@ -748,6 +936,7 @@ SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
          "reflective_store requires a promise with an environment");
 
   Rf_defineVar(symbol, value, PRENV(promise));
+  FIR_STATS_ONLY(Fir_stats_record_reflection(PRENV(promise)));
 
   return value;
 }
@@ -2417,30 +2606,38 @@ DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b_u5b, vec_string_borrowed_scalar_int_missin
 /// Write `value` at (1-based) `i` in `x` and return the result. `in_place` is for the versions
 /// that own `x` (nothing else holds it, so it can be mutated); the ones that borrow it copy first.
 
+static SEXP Fir_shallow_dup(SEXP x) {
+#ifdef FIR_STATS
+  Fir_stats.fir_dups++;
+  Fir_stats.fir_dups_shallow++;
+#endif
+  return Rf_shallow_duplicate(x);
+}
+
 static SEXP Fir_subassign_logical(SEXP x, int i, Rboolean value, bool in_place) {
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SEXP res = in_place ? x : PROTECT(Fir_shallow_dup(x));
   LOGICAL(res)[i - 1] = value;
   if (!in_place) UNPROTECT(1);
   return res;
 }
 static SEXP Fir_subassign_int(SEXP x, int i, int value, bool in_place) {
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SEXP res = in_place ? x : PROTECT(Fir_shallow_dup(x));
   INTEGER(res)[i - 1] = value;
   if (!in_place) UNPROTECT(1);
   return res;
 }
 static SEXP Fir_subassign_real(SEXP x, int i, double value, bool in_place) {
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SEXP res = in_place ? x : PROTECT(Fir_shallow_dup(x));
   REAL(res)[i - 1] = value;
   if (!in_place) UNPROTECT(1);
   return res;
 }
 static SEXP Fir_subassign_string(SEXP x, int i, char* value, bool in_place) {
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SEXP res = in_place ? x : PROTECT(Fir_shallow_dup(x));
   SET_STRING_ELT(res, i - 1, value == NULL ? NA_STRING : Rf_mkChar(value));
   if (!in_place) UNPROTECT(1);
   return res;
@@ -2526,7 +2723,7 @@ static int Fir_index_elt(SEXP indices, R_xlen_t k) {
 static SEXP Fir_subassign_vector_logical(SEXP x, SEXP i, SEXP value, bool in_place) {
   R_xlen_t count = XLENGTH(i);
   ASSERT(XLENGTH(value) == count, "value must have as many elements as the index");
-  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SEXP res = in_place ? x : PROTECT(Fir_shallow_dup(x));
   for (R_xlen_t k = 0; k < count; k++) {
     int idx = Fir_index_elt(i, k);
     ASSERT(idx >= 1 && (R_xlen_t)idx <= XLENGTH(res), "subscript out of bounds");
@@ -2538,7 +2735,7 @@ static SEXP Fir_subassign_vector_logical(SEXP x, SEXP i, SEXP value, bool in_pla
 static SEXP Fir_subassign_vector_int(SEXP x, SEXP i, SEXP value, bool in_place) {
   R_xlen_t count = XLENGTH(i);
   ASSERT(XLENGTH(value) == count, "value must have as many elements as the index");
-  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SEXP res = in_place ? x : PROTECT(Fir_shallow_dup(x));
   for (R_xlen_t k = 0; k < count; k++) {
     int idx = Fir_index_elt(i, k);
     ASSERT(idx >= 1 && (R_xlen_t)idx <= XLENGTH(res), "subscript out of bounds");
@@ -2550,7 +2747,7 @@ static SEXP Fir_subassign_vector_int(SEXP x, SEXP i, SEXP value, bool in_place) 
 static SEXP Fir_subassign_vector_real(SEXP x, SEXP i, SEXP value, bool in_place) {
   R_xlen_t count = XLENGTH(i);
   ASSERT(XLENGTH(value) == count, "value must have as many elements as the index");
-  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SEXP res = in_place ? x : PROTECT(Fir_shallow_dup(x));
   for (R_xlen_t k = 0; k < count; k++) {
     int idx = Fir_index_elt(i, k);
     ASSERT(idx >= 1 && (R_xlen_t)idx <= XLENGTH(res), "subscript out of bounds");
@@ -2562,7 +2759,7 @@ static SEXP Fir_subassign_vector_real(SEXP x, SEXP i, SEXP value, bool in_place)
 static SEXP Fir_subassign_vector_string(SEXP x, SEXP i, SEXP value, bool in_place) {
   R_xlen_t count = XLENGTH(i);
   ASSERT(XLENGTH(value) == count, "value must have as many elements as the index");
-  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SEXP res = in_place ? x : PROTECT(Fir_shallow_dup(x));
   for (R_xlen_t k = 0; k < count; k++) {
     int idx = Fir_index_elt(i, k);
     ASSERT(idx >= 1 && (R_xlen_t)idx <= XLENGTH(res), "subscript out of bounds");

@@ -50,6 +50,13 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     return true;
   }
 
+  /// Whether the module is compiled with `-DFIR_STATS`, the runtime build that counts copies and
+  /// promises (see `Fir_stats_get` in `client/rsh/src/fir2c/runtime.h`). It is slower, so a timed
+  /// benchmark mustn't run it.
+  default boolean isStats() {
+    return false;
+  }
+
   /// What the compile server knows `compiled`'s module as (see
   /// [org.prlprg.fir2c.Fir2CSession#id()]), or empty if it doesn't know it (it isn't connected).
   default String moduleId(CompiledModule compiled) {
@@ -104,7 +111,10 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     // because nothing here reads it, and on macOS it costs a `dsymutil` run per module.
     try {
       var compiler = RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime(), false);
-      var defines = List.of("-DRSH_TESTS", "-DRSH_PC");
+      var defines =
+          isStats()
+              ? List.of("-DRSH_TESTS", "-DRSH_PC", "-DFIR_STATS")
+              : List.of("-DRSH_TESTS", "-DRSH_PC");
       var runtimeObjects = new ArrayList<Path>();
       if (isStandalone()) {
         for (var source : RshCompiler.standaloneRuntimeSources(runtime())) {

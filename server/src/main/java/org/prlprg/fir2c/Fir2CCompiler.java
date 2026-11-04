@@ -15,6 +15,7 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.bc2fir.FunctionBcOrigin;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.analyze.cfg.Liveness;
+import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -1534,6 +1535,8 @@ public final class Fir2CCompiler {
           cCode.stmt(
               "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s, .escaped = %s};",
               evalCName, valueType, reflect, escaped);
+          var mayReflect = new InferEffects(promise.code().scope()).of(promise.code()).reflect();
+          cCode.stmt("FIR_STATS_ONLY(data->may_reflect = %s;)", mayReflect);
 
           // The source expression, which `Fir_mk_promise` puts in the promise.
           var exprIdx =
@@ -1547,6 +1550,9 @@ public final class Fir2CCompiler {
           cCode.stmt("Fir_check_promise_escaped(%s);", VAR_DATA);
           cCode.stmt("void **captures = Fir_prom_local(%s)->captures;", VAR_DATA);
           var evalCName = promiseEvalCName(promise);
+          cCode.stmt(
+              "FIR_STATS_ONLY(return Fir_stats_eval_promise(%s, %s, %s);)",
+              evalCName, VAR_ENV, VAR_DATA);
           cCode.stmt("return %s(%s, captures);", evalCName, VAR_ENV);
         }
 
