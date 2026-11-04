@@ -1860,10 +1860,11 @@ static int Fir_int_arith(int a, int b, char op) {
   (ISNAN(a) || ISNAN(b) ? NA_LOGICAL : (Rboolean)((a) op (b)))
 #define FIR_CMP_LGL(a, op, b) \
   ((a) == NA_LOGICAL || (b) == NA_LOGICAL ? NA_LOGICAL : (Rboolean)((a) op (b)))
-// `NULL` is how the generated code spells `NA_STRING`. Strings are compared by their cached
-// `CHARSXP`'s pointer.
+// `NULL` is how the generated code spells `NA_STRING`. Compare contents, not pointers: the
+// generated code passes string literals, which aren't the `CHARSXP` cache's strings.
 #define FIR_CMP_STR(a, op, b) \
-  ((a) == NULL || (b) == NULL ? NA_LOGICAL : (Rboolean)((a) op (b)))
+  ((a) == NULL || (b) == NULL ? NA_LOGICAL : (Rboolean)(strcmp((a), (b)) op 0))
+#define FIR_STR_EQ(a, b) ((a) == (b) || ((a) != NULL && (b) != NULL && strcmp((a), (b)) == 0))
 
 // === + ===
 // I+I→I
@@ -2094,7 +2095,7 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_real_scalar_real_fx_none_ret_bo
 }
 // S,S→B
 DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_string_scalar_string_fx_none_ret_bool, char* a, char* b) {
-  return a == b;
+  return FIR_STR_EQ(a, b);
 }
 
 // === log ===
@@ -2286,7 +2287,7 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_real_scalar_real_fx_none_ret_bo
 }
 // S,S→B
 DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_string_scalar_string_fx_none_ret_bool, char* a, char* b) {
-  return a != b;
+  return !FIR_STR_EQ(a, b);
 }
 
 // === & === (bit-and on booleans)
