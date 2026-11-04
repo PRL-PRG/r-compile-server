@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.bc2fir.BcRecordingFeedback;
 import org.prlprg.examples.Example;
@@ -182,14 +184,24 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
   private static boolean checkedRsh = false;
 
   /// A module that isn't standalone gets its runtime from the `rsh` package installed in the
-  /// vendored R, not from the working tree, so that package has to be installed and up to date
-  /// (`make -C client/rsh install`). Otherwise the failures are confusing (a missing symbol at
-  /// `dyn.load`, or the old runtime's behavior), so check up front, once.
+  /// vendored R (or in a library in `R_LIBS`), not from the working tree, so that package has to
+  /// be installed and up to date (`make -C client/rsh install`). Otherwise the failures are
+  /// confusing (a missing symbol at `dyn.load`, or the old runtime's behavior), so check up front,
+  /// once.
   private static synchronized void checkRshInstalled() {
     if (checkedRsh) {
       return;
     }
-    var installed = RshCompiler.R_DIRECTORY.resolve("library/rsh/libs/rsh.so");
+    // R loads `rsh` from the first library in `R_LIBS` that has it, before its own library.
+    var rLibs = System.getenv("R_LIBS");
+    var installed =
+        Stream.concat(
+                rLibs == null ? Stream.empty() : Arrays.stream(rLibs.split(":")).map(Path::of),
+                Stream.of(RshCompiler.R_DIRECTORY.resolve("library")))
+            .map(lib -> lib.resolve("rsh/libs/rsh.so"))
+            .filter(Files::exists)
+            .findFirst()
+            .orElse(RshCompiler.R_DIRECTORY.resolve("library/rsh/libs/rsh.so"));
     if (!Files.exists(installed)) {
       throw new IllegalStateException(
           "The `rsh` package isn't installed in the vendored R ("
