@@ -1,11 +1,11 @@
 package org.prlprg.fir.opt;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
@@ -56,7 +56,7 @@ public class Optimizations {
   }
 
   public static Optimization defaultOptimizations(int threshold, boolean modifyCheckpoints) {
-    return defaultOptimizations(threshold, modifyCheckpoints, (String) null);
+    return defaultOptimizations(threshold, modifyCheckpoints, List.of());
   }
 
   /// [#defaultOptimizations()] with the individual optimization named `without` removed, e.g. to
@@ -65,27 +65,53 @@ public class Optimizations {
   ///
   /// @throws IllegalArgumentException if `without` isn't in [#individualOptimizationNames()].
   public static Optimization defaultOptimizationsWithout(String without) {
-    return defaultOptimizations(DEFAULT_THRESHOLD, true, without);
+    return defaultOptimizationsWithout(List.of(without));
+  }
+
+  /// [#defaultOptimizations()] with every individual optimization in `without` removed.
+  ///
+  /// The name lists the removed optimizations in pipeline order, so it doesn't depend on the
+  /// order of `without`, and with one name it's the name of
+  /// [#defaultOptimizationsWithout(String)].
+  ///
+  /// @throws IllegalArgumentException if a name in `without` isn't in
+  ///     [#individualOptimizationNames()].
+  public static Optimization defaultOptimizationsWithout(Collection<String> without) {
+    return defaultOptimizations(DEFAULT_THRESHOLD, true, inPipelineOrder(without));
+  }
+
+  /// `names` in pipeline order, without duplicates.
+  ///
+  /// @throws IllegalArgumentException if a name isn't in [#individualOptimizationNames()].
+  private static List<String> inPipelineOrder(Collection<String> names) {
+    var all = individualOptimizationNames();
+    var unknown = names.stream().filter(name -> !all.contains(name)).toList();
+    if (!unknown.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Not an individual optimization in the default pipeline: "
+              + Strings.join(", ", unknown)
+              + "\nExpected one of: "
+              + Strings.join(", ", all));
+    }
+    return all.stream().filter(names::contains).toList();
   }
 
   /// The [name][Optimization#name()] of every optimization in [#defaultOptimizations()] that isn't
   /// a sequence, in the (deterministic) order the pipeline is constructed in, which groups each
   /// sequence's optimizations together but is otherwise unrelated to the order they run in.
   ///
-  /// These are exactly the names [#defaultOptimizationsWithout(String)] accepts: removing a
+  /// These are exactly the names [#defaultOptimizationsWithout(Collection)] accepts: removing a
   /// sequence would remove everything inside it, so sequences aren't included.
   public static List<String> individualOptimizationNames() {
-    var filter = new Filter(null);
+    var filter = new Filter(List.of());
     var _ = defaultOptimizations(DEFAULT_THRESHOLD, true, filter);
     return List.copyOf(filter.encountered);
   }
 
+  /// @param without Individual optimization names, in pipeline order.
   private static Optimization defaultOptimizations(
-      int threshold, boolean modifyCheckpoints, @Nullable String without) {
-    var filter = new Filter(without);
-    var optimizations = defaultOptimizations(threshold, modifyCheckpoints, filter);
-    filter.checkRemovedSomething();
-    return optimizations;
+      int threshold, boolean modifyCheckpoints, List<String> without) {
+    return defaultOptimizations(threshold, modifyCheckpoints, new Filter(without));
   }
 
   private static Optimization defaultOptimizations(
@@ -162,9 +188,9 @@ public class Optimizations {
   /// the snapshot it produces (see `org.prlprg.snapshot.fir.opt.OptimizedFirQuery`), and these
   /// arguments select pipelines whose output differs a lot: without `modifyCheckpoints`, the
   /// checkpoints that stay put block promise strictification, so far fewer versions get
-  /// specialized; `without` removes an optimization outright.
+  /// specialized; `without` removes optimizations outright.
   private static String defaultName(
-      int threshold, boolean modifyCheckpoints, @Nullable String without) {
+      int threshold, boolean modifyCheckpoints, List<String> without) {
     var name = new StringBuilder("default");
     if (threshold != DEFAULT_THRESHOLD) {
       name.append("Threshold").append(threshold);
@@ -172,8 +198,8 @@ public class Optimizations {
     if (!modifyCheckpoints) {
       name.append("KeepCheckpoints");
     }
-    if (without != null) {
-      name.append("Without").append(Strings.camelCaseToPascalCase(without));
+    if (!without.isEmpty()) {
+      name.append("Without").append(Strings.join("And", Strings::camelCaseToPascalCase, without));
     }
     return name.toString();
   }
@@ -187,7 +213,7 @@ public class Optimizations {
         || optimization instanceof Specialize;
   }
 
-  /// Removes the optimization named `without` (if any) from the pipeline as it's constructed, and
+  /// Removes the optimizations named in `without` from the pipeline as it's constructed, and
   /// records the names of every optimization it could have removed.
   ///
   /// Sequences and [#NOOP] are passed through unrecorded: removing a sequence would remove
@@ -196,11 +222,10 @@ public class Optimizations {
   /// [#individualOptimizationNames()] the pipeline's own definition instead of a list that has to
   /// be kept in sync.
   private static final class Filter {
-    private final @Nullable String without;
+    private final List<String> without;
     private final LinkedHashSet<String> encountered = new LinkedHashSet<>();
-    private boolean removedSomething = false;
 
-    private Filter(@Nullable String without) {
+    private Filter(List<String> without) {
       this.without = without;
     }
 
@@ -224,21 +249,7 @@ public class Optimizations {
 
     private boolean keep(String name) {
       encountered.add(name);
-      if (!name.equals(without)) {
-        return true;
-      }
-      removedSomething = true;
-      return false;
-    }
-
-    private void checkRemovedSomething() {
-      if (without != null && !removedSomething) {
-        throw new IllegalArgumentException(
-            "Not an individual optimization in the default pipeline: "
-                + without
-                + "\nExpected one of: "
-                + Strings.join(", ", encountered));
-      }
+      return !without.contains(name);
     }
   }
 
