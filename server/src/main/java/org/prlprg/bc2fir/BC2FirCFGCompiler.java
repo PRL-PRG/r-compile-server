@@ -672,11 +672,13 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false, preStack);
 
+        // GNU-R's `getvar` rejects a binding that *is* the missing argument, then forces a promise
+        // binding and never checks the forced value (a promise may evaluate to the empty symbol).
+        insert(intrinsic("checkMissing", top()));
         pushInsert(getStr(name), new Force(true), pop());
         // The JIT records the type of the value `GETVAR` leaves on the stack, i.e. the forced one.
         recordFeedbackRegister(top());
         recordParameterRead(getVar(name));
-        insert(intrinsic("checkMissing", top()));
         tryAddCheckpoint(true, stack);
       }
       case DdVal(var name) -> {
@@ -685,8 +687,8 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, ddIndex));
         tryAddCheckpoint(false, preStack);
 
-        pushInsert(getStr(name), new Force(true), pop());
         insert(intrinsic("checkMissing", top()));
+        pushInsert(getStr(name), new Force(true), pop());
         tryAddCheckpoint(true, stack);
       }
       case SetVar(var name) -> insert(new Store(StoreType.LOCAL_VAR, getVar(name)), top());

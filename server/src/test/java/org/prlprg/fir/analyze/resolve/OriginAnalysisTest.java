@@ -636,6 +636,41 @@ class OriginAnalysisTest {
     assertEquals(new Constant(SEXPs.integer(0)), analysis.get(reg(main, "f")));
   }
 
+  /// `GETVAR` checks the loaded binding for the missing argument before it forces it. The check
+  /// only inspects the promise, so the promise body still runs for the first time at the force,
+  /// and its store replaces `a`.
+  @Test
+  void testCheckMissingBeforeForceDoesntForcePromise() {
+    var firText =
+        """
+        fun main() {
+          () -+> V {
+            mkenv;
+            pr:p(V ~) = prom<V ~>{ st a = <int 99>; return <int 0>; };
+            st p = pr;
+            st a = <int 1>;
+            q:* = ld p;
+            checkMissing< * -~> V >(q);
+            f:V = force? q;
+            r:V = ld a;
+            popenv;
+            return r;
+          }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var entry = main.body().entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 5, Variable.named("a")));
+    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "r")));
+  }
+
   /// A promise that stores to `a` is super-stored into the (untracked) global env, so it leaks: it
   /// may now be forced from anywhere. After reassigning `a` and calling a function that has the
   /// effects to force it, `a` is ambiguous — either the value stored before the call, or the one

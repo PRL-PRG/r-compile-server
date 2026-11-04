@@ -21,7 +21,7 @@ class ElideCheckMissingTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseAbstraction(
             """
             (x:I) -~> I {
-              checkMissing< V -~> V >(x);
+              checkMissing< * -~> V >(x);
               return x;
             }
             """);
@@ -40,7 +40,7 @@ class ElideCheckMissingTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseAbstraction(
             """
             (x:V) -~> V {
-              checkMissing< V -~> V >(x);
+              checkMissing< * -~> V >(x);
               return x;
             }
             """);
@@ -59,7 +59,7 @@ class ElideCheckMissingTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseAbstraction(
             """
             (x:miss) -~> V {
-              checkMissing< V -~> V >(x);
+              checkMissing< * -~> V >(x);
               return x;
             }
             """);

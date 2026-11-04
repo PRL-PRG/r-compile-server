@@ -2,7 +2,7 @@ fun checkFun(r) {
   (r:V) -~> V { ... }
 }
 fun checkMissing(r) {
-  (r:V) -~> V { ... }
+  (r:*) -~> V { ... }
 }
 fun toForSeq(r) {
   (r:V) --> V { ... }

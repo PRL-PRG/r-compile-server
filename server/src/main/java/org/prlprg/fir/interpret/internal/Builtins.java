@@ -262,7 +262,7 @@ public final class Builtins {
         "setVisible", sig(Type.ANY_VALUE_SEXP, Effects.NONE), Builtins::setVisible);
     interpreter.registerExternal(
         "checkMissing",
-        sig(Type.ANY_VALUE_SEXP, Effects.IMPURE, Type.ANY_VALUE_SEXP),
+        sig(Type.ANY_VALUE_SEXP, Effects.IMPURE, Type.ANY_SEXP),
         Builtins::checkMissing);
     interpreter.registerExternal(
         "toForSeq",

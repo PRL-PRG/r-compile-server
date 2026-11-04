@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
@@ -109,6 +110,10 @@ import org.prlprg.util.Streams;
 /// - A reflective instruction "taints" every environment; any lookup that reaches a tainted
 ///   environment is ambiguous. Static environments are always tainted.
 public final class OriginAnalysis extends AbstractInterpretation<State> implements Analysis {
+  /// Intrinsics that only compare their argument with the missing argument.
+  private static final @Unmodifiable Set<String> INSPECTING_INTRINSICS =
+      Set.of("checkMissing", "missing");
+
   private final InferType inferType;
   private final InferEffects inferEffects;
   private final Map<Register, Argument> registerOrigins = new HashMap<>();
@@ -426,6 +431,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           var constantFolded = tryConstantFold(callee, closureOrCalleeArg, callArgs);
           if (constantFolded != null) {
             yield constantFolded;
+          }
+          // These intrinsics only compare their argument with the missing argument: they don't
+          // force a promise argument, and it doesn't escape.
+          if (callee instanceof StaticFnCallee(var fn, _, _)
+              && fn.get().owner() == INTRINSICS
+              && INSPECTING_INTRINSICS.contains(fn.get().name().name())) {
+            yield null;
           }
 
           // Promise arguments. A *strict* parameter is definitely forced in the callee before
