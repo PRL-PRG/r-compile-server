@@ -161,7 +161,11 @@ a name, can load more than one module.
 The server keeps the sessions of the modules its clients run in
 [`FirModules`](../src/main/java/org/prlprg/server/FirModules.java), and serves the
 `CompileFirVersion` RPC (`proto/routes.proto`): find the session, evaluate the stub's version
-(which optimizes it, as above), and compile a *patch* with `Fir2CCompiler#compileStub`. The patch
+(which optimizes it, as above), and compile a *patch* with `Fir2CCompiler#compileStub`. Before
+it plans the patch, it also evaluates the versions of the same function that the version calls
+statically, and those that they call, and so on: a chain of specialized versions (e.g. a recursive
+function's boxed entry, which calls its unboxed copy) is then compiled in one patch, instead of one
+request, patch, and re-implementation of the caller per link. The patch
 is a C unit with an initializer that the client calls with the patch's constant pool. It defines
 the compiled version and makes its stub call it (`Fir_stub_compiled`), and, following the compiled
 version's static calls, whatever else the client doesn't have: new functions, new versions (as

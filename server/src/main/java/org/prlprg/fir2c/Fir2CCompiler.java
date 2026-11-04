@@ -149,9 +149,57 @@ public final class Fir2CCompiler {
     // Evaluated explicitly (instead of by emitting it) so that the patch is planned around the
     // evaluated version, whose signature may be narrower than the stub's.
     version.body();
+    evaluateStaticCallees(session.functionOf(version), version);
     var compiler = new Fir2CCompiler(session);
     var fallback = compiler.isRedundant(version);
     return new StubAnswer(compiler.runPatch(version), fallback);
+  }
+
+  /// Evaluate the versions of `function` that `version` calls statically (not by dispatch), the
+  /// versions of `function` that those call, and so on.
+  ///
+  /// Compiling a version compiles the versions it calls statically that the client lacks, as
+  /// stubs if they're unevaluated. Such a stub would soon request its version, whose evaluation
+  /// would retarget the caller, so that the caller is compiled again. Evaluating them first
+  /// compiles them all in one patch. Only versions of the same function, because that's where
+  /// the chains of specialized versions are (a recursive function calls its own versions).
+  private static void evaluateStaticCallees(Function function, Abstraction version) {
+    var closure = new LinkedHashSet<>(List.of(version));
+    var changed = true;
+    // Evaluating a version optimizes the module, which may retarget the calls already looked at.
+    while (changed) {
+      changed = false;
+      for (var caller : List.copyOf(closure)) {
+        if (!caller.isEvaluated() || !function.versions().contains(caller)) {
+          continue;
+        }
+        var callees =
+            caller
+                .streamCfgs()
+                .flatMap(cfg -> cfg.bbs().stream())
+                .flatMap(bb -> bb.statements().stream())
+                .<Abstraction>mapMulti(
+                    (statement, downstream) -> {
+                      if (statement.expression()
+                              instanceof
+                              Call(StaticFnCallee(var ref, var isDispatch, var signature))
+                          && !isDispatch
+                          && ref.get() == function) {
+                        var callee = function.guess(signature);
+                        if (callee != null && !callee.isStub()) {
+                          downstream.accept(callee);
+                        }
+                      }
+                    })
+                .toList();
+        for (var callee : callees) {
+          if (closure.add(callee)) {
+            callee.body();
+            changed = true;
+          }
+        }
+      }
+    }
   }
 
   /// See [#compileStub(Fir2CSession, int)].
