@@ -136,6 +136,38 @@ class InternalInterpretTest {
     assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
   }
 
+  /// `missing< * --> B >` compares a promise with the missing argument without forcing it, even if
+  /// its value is the missing argument. `missing< * --> v(L) >` reads the binding a string names.
+  @Test
+  void missingDoesntForcePromiseAndReadsStringBinding() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun onPromise() {
+              () -+> B {
+                pr: p(V ~) = prom<V ~>{ return <missing>; };
+                r: B = missing< * --> B >(pr);
+                return r;
+              }
+            }
+
+            fun onString() {
+              () -+> V {
+                mkenv;
+                st x = <missing>;
+                r: v(L) = missing< * --> v(L) >(<str "x">);
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertEquals(new Value.Bool(false), interpreter.call("onPromise"));
+    assertEquals(new Value.Sexp(SEXPs.TRUE), interpreter.call("onString"));
+  }
+
   @Test
   void checkpointSnapshotKeepsDeoptOnlyBoxedRegistersLocal() {
     var module =

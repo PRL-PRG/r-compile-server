@@ -63,6 +63,7 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
@@ -591,6 +592,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return new Value.Bool(naIsTrue ? logical != Logical.FALSE : logical == Logical.TRUE);
     }
 
+    private static boolean mayNameVariable(Kind kind) {
+      return switch (kind) {
+        // Symbols only have kind `AnySexp`.
+        case Kind.AnySexp() -> true;
+        case Kind.PrimitiveVector(var _, var primitive) -> primitive == PrimitiveKind.STRING;
+        case Kind.PrimitiveScalar(var primitive) -> primitive == PrimitiveKind.STRING;
+        default -> false;
+      };
+    }
+
     private @Nullable Argument tryConstantFold(
         Callee callee, Argument closureOrCalleeArg, List<Argument> arguments) {
       if (!(callee instanceof StaticFnCallee(var functionRef, var isDispatch, var signature))
@@ -626,11 +637,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             yield null;
           }
           var argType = inferType.of(resolve(arguments.getFirst()));
-          if (argType == null) {
+          // The `--> B` version is `x == R_MissingArg` (no force). The `--> v(L)` version is
+          // GNU-R's `missing`, which reads the binding of a symbol or string `x`, so it only folds
+          // when `x` can't be either.
+          var returnsBool = signature.returnType().kind() instanceof Kind.Boolean;
+          if (argType == null || (!returnsBool && mayNameVariable(argType.kind()))) {
             yield null;
           }
-
-          // `missing(x)` is exactly `x == R_MissingArg`
           boolean isMissing;
           if (argType.kind() instanceof Kind.Missing && argType.isValue()) {
             isMissing = true;

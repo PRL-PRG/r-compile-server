@@ -2425,29 +2425,42 @@ public final class Builtins {
   // region missing
 
   private static void registerMissing(InternalInterpreter interpreter) {
-    // v0: (*) --> v(L)
+    // v0: (*) --> v(L). Fir2C calls GNU-R's `missing`, which reads a symbol's or string's binding.
     interpreter.registerExternal(
         "missing",
         sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_SEXP),
         (runtime, _, args, _) ->
             new Value.Sexp(SEXPs.logical(isMissing(runtime, args.getFirst()))));
-    // v1: (*) --> B
+    // v1: (*) --> B. Fir2C compares the argument with the missing argument.
     interpreter.registerExternal(
         "missing",
         sig(Type.BOOLEAN, Effects.NONE, Type.ANY_SEXP),
-        (runtime, _, args, _) -> new Value.Bool(isMissing(runtime, args.getFirst())));
+        (_, _, args, _) -> new Value.Bool(isMissingArg(args.getFirst())));
   }
 
-  /// `missing(arg)`. *Not* [strict][ExternalVersion#strict] for a symbol, the unevaluated argument
-  /// of the special: it checks the symbol's binding without forcing it, like GNU-R, and a promise
-  /// of another symbol is missing if that symbol is missing in the promise's environment. Reading
-  /// that environment is reflective (it observes the caller's frame), so it's marked
-  /// [reflective][org.prlprg.fir.feedback.AbstractionFeedback#reflectiveEnvs].
+  /// Whether `arg` is the missing argument. Doesn't force a promise.
+  private static boolean isMissingArg(Value arg) {
+    return arg.equals(new Value.Sexp(SEXPs.MISSING_ARG));
+  }
+
+  /// `missing(arg)`. *Not* [strict][ExternalVersion#strict]. A symbol, the unevaluated argument
+  /// of the special, or a one-element string (GNU-R reads it as a symbol), names a variable: it
+  /// checks the variable's binding without forcing it, like GNU-R, and a promise of another symbol
+  /// is missing if that symbol is missing in the promise's environment. Reading that environment
+  /// is reflective (it observes the caller's frame), so it's marked
+  /// [reflective][org.prlprg.fir.feedback.AbstractionFeedback#reflectiveEnvs]. Any other argument
+  /// is missing only if it is the missing argument.
   private static boolean isMissing(InternalInterpreter runtime, Value arg) {
-    if (!(arg instanceof Value.Sexp(RegSymSXP symbol))) {
-      return runtime.eval(arg).equals(new Value.Sexp(SEXPs.MISSING_ARG));
+    var name =
+        switch (arg) {
+          case Value.Sexp(RegSymSXP symbol) -> symbol.name();
+          case Value.Sexp(StrSXP string) when string.size() == 1 -> string.get(0);
+          default -> null;
+        };
+    if (name == null) {
+      return isMissingArg(arg);
     }
-    SEXP binding = runtime.load(Variable.named(symbol.name()));
+    SEXP binding = runtime.load(Variable.named(name));
     while (binding instanceof PromSXP promise
         && promise.boundVal() == null
         && promise.expr() instanceof RegSymSXP promiseSymbol) {

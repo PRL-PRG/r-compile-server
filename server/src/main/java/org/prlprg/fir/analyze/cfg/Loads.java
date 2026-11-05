@@ -8,7 +8,9 @@ import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Promise;
@@ -20,6 +22,7 @@ import org.prlprg.sexp.AbstractListSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.StrSXP;
 
 /// Computes a map of [NamedVariable] to the local [Load] statements that load said variable, or to
 /// statements with symbol or language constant arguments that may load said variable when evaluated
@@ -54,9 +57,16 @@ public final class Loads implements Analysis {
         // (e.g. a GNU-R special evaluates its unevaluated arguments in the caller's environment),
         // so it may load every named variable it mentions.
         if (!(statement.expression() instanceof Promise)) {
+          // A `@readsPromise` builtin (`missing`) reads a one-element string as a symbol.
+          var readsStrings =
+              statement.expression() instanceof Call(StaticFnCallee(var fn, _, _))
+                  && fn.get().userProperties().readsPromise();
           for (var argument : statement.args()) {
             if (argument instanceof Constant(Value.Sexp(var sexp))) {
               addSymbolLoads(sexp, statement);
+              if (readsStrings && sexp instanceof StrSXP string && string.size() == 1) {
+                loads.put(Variable.named(string.get(0)), statement);
+              }
             }
           }
         }

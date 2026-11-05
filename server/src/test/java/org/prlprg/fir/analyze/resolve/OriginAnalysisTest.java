@@ -441,6 +441,43 @@ class OriginAnalysisTest {
     assertEquals(new Constant(SEXPs.NULL), analysis.get(reg(main, "result")));
   }
 
+  /// `missing< * --> B >` compares its argument with the missing argument, without forcing it.
+  /// `missing< * --> v(L) >` is GNU-R's, which reads the variable a symbol or string names (here a
+  /// missing one), so those don't fold.
+  @Test
+  void testConstantFoldMissing() {
+    var firText =
+        """
+      fun main() {
+        () -+> V {
+          mkenv;
+          st x = <missing>;
+          pr: p(V ~) = prom<V ~>{ return <missing>; };
+          onPromise: B = missing< * --> B >(pr);
+          onValue: B = missing< * --> B >(<int 1>);
+          onMissing: B = missing< * --> B >(<missing>);
+          onStringB: B = missing< * --> B >(<str "x">);
+          onString: v(L) = missing< * --> v(L) >(<str "x">);
+          onSymbol: v(L) = missing< * --> v(L) >(<sym x>);
+          popenv;
+          return onString;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    var no = new Constant(new Value.Bool(false));
+    assertEquals(no, analysis.get(reg(main, "onPromise")));
+    assertEquals(no, analysis.get(reg(main, "onValue")));
+    assertEquals(new Constant(new Value.Bool(true)), analysis.get(reg(main, "onMissing")));
+    assertEquals(no, analysis.get(reg(main, "onStringB")));
+    assertEquals(new Read(reg(main, "onString")), analysis.get(reg(main, "onString")));
+    assertEquals(new Read(reg(main, "onSymbol")), analysis.get(reg(main, "onSymbol")));
+  }
+
   @Test
   void testConstantFoldCLogical() {
     var firText =
