@@ -2784,50 +2784,57 @@ public final class Builtins {
 
   // region lapply
 
+  /// Like GNU-R, this forces `X` and `FUN`, and calls `FUN(X[[i]], ...)` with a promise of
+  /// `X[[i]]` and the unforced `...`.
   private static void registerLapply(InternalInterpreter interpreter) {
     // v0: (*, *, dots) -+> V
     interpreter.registerExternal(
         baseFunction("lapply"),
         sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.ANY_SEXP, Type.DOTS),
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              if (args.size() != 3
-                  || !(args.get(0) instanceof Value.Sexp(var x))
-                  || !(args.get(1) instanceof Value.Sexp(var fun))
-                  || !(args.get(2) instanceof Value.Sexp(var dots))) {
-                throw interpreter.fail("`lapply` takes 3 sexp arguments");
-              }
-              if (!(fun instanceof CloSXP closure)) {
-                throw interpreter.failUnsupported("Mock `lapply` only supports a closure `FUN`");
-              }
-              if (!(x instanceof VectorSXP<?> vector)
-                  || vector.attributes().keySet().stream().anyMatch(k -> !k.equals("names"))) {
-                throw interpreter.failUnsupported(
-                    "Mock `lapply` only supports a vector `X` with no attributes but names");
-              }
-              if (!(dots instanceof DotsListSXP) && dots != SEXPs.MISSING_ARG) {
-                throw interpreter.fail("`lapply` third argument must be dots");
-              }
-              List<TaggedElem> extraArgs =
-                  dots instanceof DotsListSXP ? List.of(new TaggedElem("...", dots)) : List.of();
-              var results =
-                  IntStream.range(0, vector.size())
-                      .mapToObj(
-                          i -> {
-                            var callArgs =
-                                ImmutableList.<TaggedElem>builder()
-                                    .add(new TaggedElem(interpreter.subscriptLoad(vector, i).box()))
-                                    .addAll(extraArgs)
-                                    .build();
-                            return interpreter.callClosure(closure, SEXPs.list(callArgs)).box();
-                          })
-                      .toList();
-              var names = vector.attributes().get("names");
-              return new Value.Sexp(
-                  SEXPs.vec(
-                      results,
-                      names == null ? Attributes.NONE : Attributes.NONE.including("names", names)));
-            }));
+        (_, _, args, env) -> {
+          if (args.size() != 3
+              || !(interpreter.eval(args.get(0)) instanceof Value.Sexp(var x))
+              || !(interpreter.eval(args.get(1)) instanceof Value.Sexp(var fun))
+              || !(args.get(2) instanceof Value.Sexp(var dots))) {
+            throw interpreter.fail("`lapply` takes 3 sexp arguments");
+          }
+          if (!(fun instanceof CloSXP closure)) {
+            throw interpreter.failUnsupported("Mock `lapply` only supports a closure `FUN`");
+          }
+          if (!(x instanceof VectorSXP<?> vector)
+              || vector.attributes().keySet().stream().anyMatch(k -> !k.equals("names"))) {
+            throw interpreter.failUnsupported(
+                "Mock `lapply` only supports a vector `X` with no attributes but names");
+          }
+          if (!(dots instanceof DotsListSXP) && dots != SEXPs.MISSING_ARG) {
+            throw interpreter.fail("`lapply` third argument must be dots");
+          }
+          List<TaggedElem> extraArgs =
+              dots instanceof DotsListSXP ? List.of(new TaggedElem("...", dots)) : List.of();
+          var results =
+              IntStream.range(0, vector.size())
+                  .mapToObj(
+                      i -> {
+                        var element =
+                            SEXPs.promise(
+                                SEXPs.lang(
+                                    SEXPs.symbol("[["), SEXPs.symbol("X"), SEXPs.symbol("i")),
+                                interpreter.subscriptLoad(vector, i).box(),
+                                env);
+                        var callArgs =
+                            ImmutableList.<TaggedElem>builder()
+                                .add(new TaggedElem(element))
+                                .addAll(extraArgs)
+                                .build();
+                        return interpreter.callClosure(closure, SEXPs.list(callArgs)).box();
+                      })
+                  .toList();
+          var names = vector.attributes().get("names");
+          return new Value.Sexp(
+              SEXPs.vec(
+                  results,
+                  names == null ? Attributes.NONE : Attributes.NONE.including("names", names)));
+        });
   }
 
   // endregion
