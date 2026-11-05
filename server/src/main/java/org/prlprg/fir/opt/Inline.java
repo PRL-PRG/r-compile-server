@@ -18,6 +18,7 @@ import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
@@ -25,6 +26,7 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGInliner;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Promise;
@@ -34,6 +36,7 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
@@ -335,11 +338,28 @@ public final class Inline extends AbstractionOptimization {
       callee.namedVariableTypes().forEach(scope::setNamedVariableType);
 
       // The callee's parameters have no counterpart in this scope, so the inliner substitutes each
-      // with the corresponding call argument while copying the body in. (Computed before removing
-      // the call below, since `arguments` is a view of its argument list.)
+      // with the corresponding call argument while copying the body in. A `consume` can only be
+      // used once, so it's first moved into a register (`dup consume` is a move), which is
+      // substituted instead. (Computed before removing the call below, since `arguments` is a view
+      // of its argument list.)
+      var callStmt = bb.statements().get(statementIndex);
       var substitutions = new HashMap<Register, Argument>();
       for (var i = 0; i < callee.parameters().size(); i++) {
-        substitutions.put(callee.parameters().get(i), arguments.get(i));
+        var parameter = callee.parameters().get(i);
+        var argument = arguments.get(i);
+        if (argument instanceof Consume) {
+          // A borrowed register can't be assigned, and an owned one can be used wherever a
+          // borrowed one can.
+          var type =
+              parameter.type().ownership() == Ownership.BORROWED
+                  ? parameter.type().withOwnership(Ownership.OWNED)
+                  : parameter.type();
+          var bind = new Statement(new Dup(), List.of(argument));
+          argument = new Read(bind.setAssignee(scope.freshName(parameter.name()), type));
+          bind.insertBefore(callStmt);
+          statementIndex++;
+        }
+        substitutions.put(parameter, argument);
       }
 
       // Replace the call with the inlined body (its return goes to a fresh `returnDest`).

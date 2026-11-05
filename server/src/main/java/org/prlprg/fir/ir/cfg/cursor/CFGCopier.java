@@ -40,8 +40,8 @@ public final class CFGCopier {
 
   // Old register -> the destination argument replacing it, for source registers with no copy.
   //
-  // Unlike `registerMap`, this replaces the whole argument, so a `consume r` may be replaced by
-  // a read or constant.
+  // Unlike `registerMap`, this replaces the whole argument (a `consume r` may be replaced by a
+  // `consume` or constant), except that a `consume r` replaced by a read of `r'` is `consume r'`.
   private final Map<Register, Argument> substitutions;
 
   // Every copied instruction, whose arguments are remapped in the second pass.
@@ -170,10 +170,13 @@ public final class CFGCopier {
         }
 
         var renamed = registerMap.get(oldRegister);
+        var substitution = substitutions.get(oldRegister);
         var mapped =
             renamed != null
                 ? (oldArg instanceof Consume ? new Consume(renamed) : new Read(renamed))
-                : substitutions.get(oldRegister);
+                : oldArg instanceof Consume && substitution instanceof Read(var r)
+                    ? new Consume(r)
+                    : substitution;
         if (mapped != null) {
           instr.setArg(i, mapped);
         }
