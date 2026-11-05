@@ -45,9 +45,10 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
     return attrs;
   }
 
+  /// These attributes with `key` set to `value`. An existing `key` keeps its position.
   public Attributes including(String key, SEXP value) {
     return new Attributes(
-        new ImmutableMap.Builder<String, SEXP>().putAll(attrs).put(key, value).build());
+        new ImmutableMap.Builder<String, SEXP>().putAll(attrs).put(key, value).buildKeepingLast());
   }
 
   @Override
