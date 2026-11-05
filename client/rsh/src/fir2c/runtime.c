@@ -1167,6 +1167,26 @@ static SEXP Fir_source_call(SEXP call, SEXP env) {
   return call;
 }
 
+// `R_Primitive(R_FunTab[blt_idx].name)`, which scans `R_FunTab` with `strcmp`. Cached: its results
+// are `R_NilValue` or primitives that GNU-R caches itself, so they need no protection.
+static SEXP Fir_primitive(int blt_idx) {
+  static SEXP *cache = NULL;
+  if (cache == NULL) {
+    int size = 0;
+    while (R_FunTab[size].name != NULL) {
+      size++;
+    }
+    cache = calloc(size, sizeof(SEXP));
+    if (cache == NULL) {
+      Rf_error("out of memory");
+    }
+  }
+  if (cache[blt_idx] == NULL) {
+    cache[blt_idx] = R_Primitive(R_FunTab[blt_idx].name);
+  }
+  return cache[blt_idx];
+}
+
 // `matched`: a static call, whose arguments FIŘ matched to the parameters in `builtins.fir`
 // (`Fir2CCompiler` drops the unsupplied trailing ones). A dynamic call passes the source's
 // arguments as they are.
@@ -1181,7 +1201,7 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
   // they build one message out of `...`, and it shows in their parameters not lining up with the
   // internal's arity (`Fir2CCompiler` calls those via `Fir_call_base`). Send those through the
   // closure instead.
-  if (fun.arity != -1 && fun.arity != argc && R_Primitive(fun.name) == R_NilValue) {
+  if (fun.arity != -1 && fun.arity != argc && Fir_primitive(blt_idx) == R_NilValue) {
     SEXP closure = Rf_findFun(Rf_install(fun.name), R_BaseEnv);
     return Fir_call_dynamic(closure, call, env, argc, args, names);
   }
@@ -1205,7 +1225,7 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
     }
   }
 
-  SEXP op = R_Primitive(fun.name);
+  SEXP op = Fir_primitive(blt_idx);
   if (op == R_NilValue) {
     // `fun` is an `.Internal`: `op` is its function object, so that `PRIMVAL(op)` (which selects
     // the operation of a shared `do_*`: `choose` is `do_math2` with code 5, `atan2` code 0),
