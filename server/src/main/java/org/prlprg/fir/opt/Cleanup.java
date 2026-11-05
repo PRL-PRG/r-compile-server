@@ -267,17 +267,27 @@ public final class Cleanup extends AbstractionOptimization {
         return argument;
       }
 
+      // A `consume` can only be used once, and the phi may be used more than once, so substitute
+      // the consumed register instead (which keeps each use's `consume`-ness).
       var phiArg = phiArgs.get(phiIndex);
+      if (phiArg instanceof Consume(var consumed)) {
+        if (!canSubstituteConsumed(variable, consumed)) {
+          return null;
+        }
+        phiArg = new Read(consumed);
+      }
       return switch (argument) {
         case Read _ -> phiArg;
-        case Consume _ ->
-            switch (phiArg) {
-              case Read(var register) -> new Consume(register);
-              case Consume _ -> phiArg;
-              case Constant _ -> null;
-            };
+        case Consume _ -> phiArg instanceof Read(var register) ? new Consume(register) : null;
         case Constant _ -> argument;
       };
+    }
+
+    /// Whether `register`, assigned `consume consumed`, can be substituted with `consumed` (each
+    /// use keeping its `consume`-ness), which is when that doesn't change its ownership.
+    boolean canSubstituteConsumed(Register register, Register consumed) {
+      return scope.typeOf(register).ownership() == Ownership.OWNED
+          && scope.typeOf(consumed).ownership() == Ownership.OWNED;
     }
 
     void removeSinglePredecessorPhis(BB bb) {
@@ -325,8 +335,7 @@ public final class Cleanup extends AbstractionOptimization {
         var phi = phiParams.get(i);
         var arg = phiArgs.get(i);
         if (arg instanceof Consume(var consumed)) {
-          if (phi.type().ownership() == Ownership.OWNED
-              && scope.typeOf(consumed).ownership() == Ownership.OWNED) {
+          if (canSubstituteConsumed(phi, consumed)) {
             arg = new Read(consumed);
           } else {
             var move = new Statement(new Dup(), List.of(arg));
@@ -423,8 +432,7 @@ public final class Cleanup extends AbstractionOptimization {
         // A `consume` can only be used once, so substitute the consumed register instead (which
         // keeps each use's `consume`-ness), unless that would change the register's ownership.
         if (origin instanceof Consume(var used)) {
-          if (scope.typeOf(register).ownership() != Ownership.OWNED
-              || scope.typeOf(used).ownership() != Ownership.OWNED) {
+          if (!canSubstituteConsumed(register, used)) {
             continue;
           }
           origin = new Read(used);

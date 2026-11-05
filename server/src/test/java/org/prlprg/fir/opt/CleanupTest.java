@@ -265,6 +265,36 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       assertNull(cfg(module).bb("L4"), "intermediate goto should become unreachable");
       assertNull(cfg(module).bb("L5"), "nested if should become unreachable");
     }
+
+    @Test
+    void consumedPhiArgumentPassedTwice_consumedOnce() {
+      // L3 gives `p` and `a`/`b` other origins, so origin substitution doesn't remove them first.
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (v:v(I)b, c0:B, c1:B, c:B) -~> I {
+                d: v(I)o = dup v;
+                e: v(I)o = dup v;
+                if c0 then L0() else L3();
+              L0():
+                if c then L1(consume d) else L1(consume d);
+              L3():
+                if c1 then L1(consume e) else L2(e, e);
+              L1(p: v(I)o):
+                goto L2(p, p);
+              L2(a: v(I), b: v(I)):
+                x: I = a[1];
+                y: I = b[x];
+                return y;
+              }
+              """);
+
+      assertTrue(run(abstraction), "should remove no-effect if jump");
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(printed.contains("if c then"), "the if should be removed; got:\n" + printed);
+      assertTrue(Checker.checkAll(abstraction), "should type-check; got:\n" + printed);
+    }
   }
 
   // endregion
