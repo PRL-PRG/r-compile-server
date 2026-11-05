@@ -267,6 +267,33 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
     }
 
     @Test
+    void phiUsedOutsideItsJump_notBypassed() {
+      // Origin substitution replaces `a`/`b` with `p`, so `L2` uses `L1`'s phi directly.
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (v:v(I)b, c0:B, c:B) -~> I {
+                d: v(I)o = dup v;
+                e: v(I)o = dup v;
+                if c0 then L0() else L1(consume e);
+              L0():
+                if c then L1(consume d) else L1(consume d);
+              L1(p: v(I)o):
+                goto L2(p, p);
+              L2(a: v(I), b: v(I)):
+                x: I = a[1];
+                y: I = b[x];
+                return y;
+              }
+              """);
+
+      run(abstraction);
+
+      var printed = Printer.toString(abstraction);
+      assertTrue(Checker.checkAll(abstraction), "should type-check; got:\n" + printed);
+    }
+
+    @Test
     void consumedPhiArgumentPassedTwice_consumedOnce() {
       // L3 gives `p` and `a`/`b` other origins, so origin substitution doesn't remove them first.
       var abstraction =

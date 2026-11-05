@@ -217,9 +217,13 @@ public final class Cleanup extends AbstractionOptimization {
       return exits.size() == 1 ? Iterables.getOnlyElement(exits) : null;
     }
 
+    /// Whether `bb` only forwards to its successors, so jumps to it can be redirected to them.
+    /// Its phis must only be used by its own jump, since jumps that bypass it don't define them.
     boolean isTransparentBranchBypass(BB bb) {
       return bb.statements().isEmpty()
-          && (bb.jump().expression() instanceof Goto || bb.jump().expression() instanceof If);
+          && (bb.jump().expression() instanceof Goto || bb.jump().expression() instanceof If)
+          && bb.phiParameters().stream()
+              .allMatch(phi -> phi.uses().stream().allMatch(use -> use.instruction() == bb.jump()));
     }
 
     @Nullable ImmutableList<Target> instantiatedTargets(Target incoming) {
