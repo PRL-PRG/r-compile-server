@@ -2360,7 +2360,9 @@ public final class Builtins {
 
   /// `missing(arg)`. *Not* [strict][ExternalVersion#strict] for a symbol, the unevaluated argument
   /// of the special: it checks the symbol's binding without forcing it, like GNU-R, and a promise
-  /// of another symbol is missing if that symbol is missing in the promise's environment.
+  /// of another symbol is missing if that symbol is missing in the promise's environment. Reading
+  /// that environment is reflective (it observes the caller's frame), so it's marked
+  /// [reflective][org.prlprg.fir.feedback.AbstractionFeedback#reflectiveEnvs].
   private static boolean isMissing(InternalInterpreter runtime, Value arg) {
     if (!(arg instanceof Value.Sexp(RegSymSXP symbol))) {
       return runtime.eval(arg).equals(new Value.Sexp(SEXPs.MISSING_ARG));
@@ -2369,6 +2371,7 @@ public final class Builtins {
     while (binding instanceof PromSXP promise
         && promise.boundVal() == null
         && promise.expr() instanceof RegSymSXP promiseSymbol) {
+      runtime.recordReflectiveEnv(promise.env());
       binding = promise.env().getLocal(promiseSymbol.name()).orElse(null);
     }
     return binding == SEXPs.MISSING_ARG;

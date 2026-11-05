@@ -651,6 +651,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
+- `.../examples/R/missing_promise_elided.R` — `missing` follows a promise into the caller's frame, so the caller's environment must stay materialized.
 - `.../examples/R/elided_env_parent_{after_call,promise}.R` — Regressions for the parent of an elided frame in the fir2c runtime: after an elided callee with another parent returns, and in a promise that such a callee forces.
 - `.../examples/R/{complex_assign,subset}_language.R` — Regressions for a lite special called with values in the fir2c runtime: a call or symbol vector, index, or value must not be evaluated again.
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
