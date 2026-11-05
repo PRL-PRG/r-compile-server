@@ -3,6 +3,7 @@ package org.prlprg.fir.interpret.internal;
 import com.google.common.collect.ImmutableList;
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -233,10 +234,11 @@ public final class Builtins {
     registerPrint(interpreter);
     registerCat(interpreter);
 
-    // is.na, list, lapply
+    // is.na, list, lapply, seq
     registerIsNa(interpreter);
     registerList(interpreter);
     registerLapply(interpreter);
+    registerSeq(interpreter);
 
     // unclass
     registerUnclass(interpreter);
@@ -2835,6 +2837,107 @@ public final class Builtins {
                   results,
                   names == null ? Attributes.NONE : Attributes.NONE.including("names", names)));
         });
+  }
+
+  // endregion
+
+  // region seq
+
+  /// `seq`, which dispatches to `seq.default`. Only supports `from`, `to` and optionally `by`,
+  /// each a finite numeric scalar without attributes.
+  private static void registerSeq(InternalInterpreter interpreter) {
+    // v0: (dots) -+> V
+    interpreter.registerExternal(
+        baseFunction("seq"),
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.DOTS),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof DotsListSXP dots)) {
+                throw interpreter.failUnsupported("Mock `seq` requires arguments");
+              }
+              var formals = List.of("from", "to", "by");
+              var matched = new SEXP[formals.size()];
+              var positional = new ArrayList<SEXP>();
+              for (var arg : dots) {
+                if (!arg.hasTag()) {
+                  positional.add(arg.value());
+                } else if (formals.contains(arg.tag())
+                    && matched[formals.indexOf(arg.tag())] == null) {
+                  matched[formals.indexOf(arg.tag())] = arg.value();
+                } else {
+                  throw interpreter.failUnsupported("Mock `seq` only supports `from`, `to`, `by`");
+                }
+              }
+              for (var i = 0; i < matched.length && !positional.isEmpty(); i++) {
+                if (matched[i] == null) {
+                  matched[i] = positional.removeFirst();
+                }
+              }
+              if (!positional.isEmpty() || matched[0] == null || matched[1] == null) {
+                throw interpreter.failUnsupported("Mock `seq` only supports `from`, `to`, `by`");
+              }
+              for (var arg : matched) {
+                if (arg != null
+                    && !(arg instanceof PrimVectorSXP<?> v
+                        && (v instanceof IntSXP || v instanceof RealSXP)
+                        && v.size() == 1
+                        && !v.hasAttributes()
+                        && Double.isFinite(sexpToDouble(arg, interpreter, "seq")))) {
+                  throw interpreter.failUnsupported(
+                      "Mock `seq` only supports finite numeric scalars without attributes");
+                }
+              }
+              return new Value.Sexp(seqDefault(matched[0], matched[1], matched[2], interpreter));
+            }));
+  }
+
+  /// GNU-R's `seq.default(from, to, by)`, where `by` may be missing (`null`).
+  private static SEXP seqDefault(
+      SEXP fromSexp, SEXP toSexp, @Nullable SEXP bySexp, InternalInterpreter interpreter) {
+    var from = sexpToDouble(fromSexp, interpreter, "seq");
+    var to = sexpToDouble(toSexp, interpreter, "seq");
+    if (bySexp == null) {
+      return colonSeq(from, to);
+    }
+    var by = sexpToDouble(bySexp, interpreter, "seq");
+    var isIntegerDel = fromSexp instanceof IntSXP && toSexp instanceof IntSXP;
+    var del = to - from;
+    if (del == 0 && to == 0) {
+      return toSexp;
+    }
+    var n = del / by;
+    if (!Double.isFinite(n)) {
+      if (by == 0 && del == 0) {
+        return fromSexp;
+      }
+      throw interpreter.fail("invalid '(to - from)/by' in seq(.)");
+    }
+    if (n < 0) {
+      throw interpreter.fail("wrong sign in 'by' argument");
+    }
+    if (n > Integer.MAX_VALUE) {
+      throw interpreter.fail("'by' argument is much too small");
+    }
+    if (Math.abs(del) / Math.max(Math.abs(to), Math.abs(from)) < 100 * Math.ulp(1.0)) {
+      return fromSexp;
+    }
+    if (isIntegerDel) {
+      var count = (int) n + 1;
+      if (bySexp instanceof IntSXP) {
+        var fromInt = (int) from;
+        var byInt = (int) by;
+        return SEXPs.integer(IntStream.range(0, count).map(i -> i * byInt + fromInt).toArray());
+      }
+      return SEXPs.real(IntStream.range(0, count).mapToDouble(i -> i * by + from).toArray());
+    }
+    var count = (int) (n + 1e-10) + 1;
+    return SEXPs.real(
+        IntStream.range(0, count)
+            .mapToDouble(i -> from + i * by)
+            .map(x -> by > 0 ? Math.min(x, to) : Math.max(x, to))
+            .toArray());
   }
 
   // endregion
