@@ -658,6 +658,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/mod_idiv_builtins_{int,real}.R` — `%/%` edge cases (signs, zero divisor, `NA`, `|x1 / x2| < 1`, recycling) with integer and real results, to check the interpreter mock against GNU-R.
 - `.../examples/R/mod_cat.R` — `cat` of strings, numbers, logicals, `NA` and `NULL`, with default, empty, and recycled `sep`, to check the interpreter mock against GNU-R (only the return value is compared; check the printed output by hand).
 - `.../examples/R/mod_lapply.R` — `lapply` over an integer vector (with positional and named extra arguments, and names) and a list, to check the interpreter mock against GNU-R.
+- `.../examples/R/mod_list.R` — `list` with unnamed, named, `NULL`, and no elements, to check the interpreter mock against GNU-R.
 - `.../examples/R/mod_names_assign.R` — `names<-` on a real vector and a list (equal length, shorter, `NULL`, replacing existing names), to check the interpreter mock against GNU-R.
 - `.../examples/R/mod_max_builtins_{int,real}.R` — `%%` and `max` edge cases (signs, zero divisor, `NA`/`NaN`, recycling) with integer and real results, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_na_nan_consts.R` — `` `%%`(NA_real_, y) `` and `` `%%`(NaN, y) `` in one function: the two call constants must stay apart (bytecode RDS round trip, constant pools).

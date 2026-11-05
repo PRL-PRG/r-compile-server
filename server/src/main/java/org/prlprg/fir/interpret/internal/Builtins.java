@@ -232,7 +232,8 @@ public final class Builtins {
     registerPrint(interpreter);
     registerCat(interpreter);
 
-    // lapply
+    // list, lapply
+    registerList(interpreter);
     registerLapply(interpreter);
 
     // unclass
@@ -2710,6 +2711,27 @@ public final class Builtins {
             + (exponent < 0 ? "e-" : "e+")
             + String.format("%02d", Math.abs(exponent));
     return fixed.length() <= sci.length() ? fixed : sci;
+  }
+
+  // endregion
+
+  // region list
+
+  private static void registerList(InternalInterpreter interpreter) {
+    // v0: (dots) -+> V
+    interpreter.registerExternal(
+        "list",
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.DOTS),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof DotsListSXP dots)) {
+                throw interpreter.fail("`list` takes 1 argument (dots)");
+              }
+              var list = SEXPs.vec(dots.values());
+              return new Value.Sexp(dots.hasTags() ? list.withNames(dots.names()) : list);
+            }));
   }
 
   // endregion
