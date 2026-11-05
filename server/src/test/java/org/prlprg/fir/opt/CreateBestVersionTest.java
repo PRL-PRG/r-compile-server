@@ -1,18 +1,23 @@
 package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.fir.check.Checker.checkAll;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.MockModuleFeedback;
+import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
@@ -221,5 +226,78 @@ class CreateBestVersionTest {
     var newVersion = calleeFun.versions().getFirst();
     assertEquals(Type.BOXED_INTEGER, newVersion.parameters().get(0).type());
     assertEquals(Type.BOXED_REAL, newVersion.parameters().get(1).type());
+  }
+
+  /// `swap` borrows its vector. `call` passes it `x`, a vector `main` owns.
+  private static Module swapModule(String call) {
+    return ParseUtil.parseModule(
+        """
+        fun main() {
+          () -+> V { ... }
+          () -+> V {
+            mkenv;
+            swap1: cls = clos swap;
+            x: v(I)o = dup <int 1, 2, 3>;
+            %s
+            popenv;
+            return r;
+          }
+        }
+
+        fun swap(v, i, j) {
+          (v:*, i:*, j:*) -+> V { ... }
+          (v:v(I)b, i:R, j:R) -+> v(I) {
+            mkenv;
+            sysfun: cls = ldf `sys.frame`;
+            s: V = dyn sysfun(<int 0>);
+            w: v(I)o = dup v;
+            w[0] = 9;
+            popenv;
+            return consume w;
+          }
+        }
+        """
+            .formatted(call));
+  }
+
+  private static Function swap(Module module) {
+    return Objects.requireNonNull(module.localFunction(Variable.named("swap")));
+  }
+
+  @Test
+  void readOfOwnedVector_noOwnedParameterVersion() {
+    var module = swapModule("r: v(I) = swap@swap1< v(I)b,R,R -+> v(I) >(x, 1.0, 3.0);");
+
+    new CreateBestVersion(10).run(new MockModuleFeedback(module), module);
+
+    // A read only lends `x`, so it can't be passed to an owned parameter.
+    assertEquals(2, swap(module).versions().size(), "nothing to narrow:\n" + module);
+  }
+
+  @Test
+  void consumedVector_noFreshParameterVersion() {
+    var module = swapModule("r: v(I) = swap@swap1< v(I)f,R,R -+> v(I) >(consume x, 1.0, 3.0);");
+
+    new CreateBestVersion(10).run(new MockModuleFeedback(module), module);
+
+    // A parameter can't be fresh, and making it owned is `CreateOwnedParameterVersion`'s job.
+    assertEquals(2, swap(module).versions().size(), "nothing to narrow:\n" + module);
+  }
+
+  /// A fresh-parameter version made `OptimizeCallee` and `CallOwnedVersion` swap the call between
+  /// it and the owned version forever.
+  @Test
+  void callOwnedVersion_reachesFixpoint() {
+    var module = swapModule("r: v(I) = swap@swap1< v(I)b,R,R -+> v(I) >(x, 1.0, 3.0);");
+
+    Optimizations.defaultOptimizations().run(new MockModuleFeedback(module), module);
+    module.evaluateAll();
+
+    assertTrue(checkAll(module), "the optimized module should be valid:\n" + module);
+    assertTrue(
+        swap(module).versions().stream()
+            .flatMap(version -> version.signature().parameterTypes().stream())
+            .noneMatch(type -> type.ownership() == Ownership.FRESH),
+        "no parameter should be fresh:\n" + module);
   }
 }
