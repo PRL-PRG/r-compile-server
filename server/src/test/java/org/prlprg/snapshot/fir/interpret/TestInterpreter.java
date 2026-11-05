@@ -14,7 +14,6 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.util.Strings;
 
 /// Wraps [InternalInterpreter] for tests.
 final class TestInterpreter {
@@ -32,28 +31,15 @@ final class TestInterpreter {
   }
 
   public InterpretOutput call(String functionName, SEXP... arguments) {
-    @SuppressWarnings({"DataFlowIssue"})
-    SexpResult[] result = new SexpResult[] {null};
-    var checkpointTrace =
-        interpreter
-            .checkpointTrace()
-            .track(
-                () -> {
-                  try {
-                    var argValues =
-                        Arrays.stream(arguments).map(Value.Sexp::new).toArray(Value[]::new);
-                    var resultValue = interpreter.call(functionName, argValues);
-                    result[0] = new Ok(resultValue.box());
-                  } catch (InterpretException e) {
-                    result[0] = new Error(e, e instanceof InternalInterpretUnsupportedException);
-                  }
-                });
-    var checkpointTraceStr = Strings.join("\n", checkpointTrace);
+    SexpResult result;
+    try {
+      var argValues = Arrays.stream(arguments).map(Value.Sexp::new).toArray(Value[]::new);
+      result = new Ok(interpreter.call(functionName, argValues).box());
+    } catch (InterpretException e) {
+      result = new Error(e, e instanceof InternalInterpretUnsupportedException);
+    }
     return new InterpretOutput(
-        result[0],
-        checkpointTraceStr,
-        interpreter.feedback(),
-        Printer.toString(interpreter.module()));
+        result, interpreter.feedback(), Printer.toString(interpreter.module()));
   }
 
   public MockModuleFeedback feedback() {

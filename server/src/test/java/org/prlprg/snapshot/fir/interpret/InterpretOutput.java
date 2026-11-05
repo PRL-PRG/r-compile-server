@@ -9,8 +9,7 @@ import org.prlprg.parseprint.Printer;
 ///
 /// @param module The module as it's printed after the call, which shows what the call evaluated:
 ///     an unevaluated version isn't printed (or, if it's a baseline, only its signature is).
-public record InterpretOutput(
-    SexpResult result, String checkpointTrace, MockModuleFeedback feedback, String module) {
+public record InterpretOutput(SexpResult result, MockModuleFeedback feedback, String module) {
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -21,8 +20,6 @@ public record InterpretOutput(
     var w = p.writer();
 
     p.print(result);
-    w.write("\n---\n");
-    w.write(checkpointTrace);
     w.write("\n---\n");
     p.print(feedback);
   }

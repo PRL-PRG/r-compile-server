@@ -59,22 +59,12 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
       return;
     }
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
-    // TODO: Fix
-    // assertEquals(
-    //     expected.checkpointTrace(),
-    //     actual.checkpointTrace(),
-    //     "Checkpoint trace changed\nOutput = " + expected.result());
   }
 
   @Override
   public void verifyNoRegression(
       InterpretOutput previous, InterpretOutput current, Example example, SnapshotStore store) {
     assertEquals(previous.result(), current.result(), "Return value or crash reason changed");
-    // TODO: Fix
-    // assertEquals(
-    //     previous.checkpointTrace(),
-    //     current.checkpointTrace(),
-    //     "Checkpoint trace changed\nOutput = " + previous.result());
   }
 
   @Override
@@ -88,12 +78,10 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
     var R = GNUR.instance();
     var module = store.load(example, FirQuery.INSTANCE);
 
-    var checkpointTracePath = path.resolve("trace.log");
     var feedbackPath = path.resolve("feedback.txt");
     var modulePath = path.resolve("module.fir");
 
     var result = SexpResult.read(path, R);
-    var checkpointTrace = Files.readString(checkpointTracePath);
 
     // The feedback points into `module`, which nothing else has, so whoever optimizes with it
     // has to copy it for their own module ([MockModuleFeedback#copyFor(Module)]).
@@ -103,19 +91,17 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
             MockModuleFeedback.class,
             new ModuleFeedbackParseContext(module));
 
-    return new InterpretOutput(result, checkpointTrace, feedback, Files.readString(modulePath));
+    return new InterpretOutput(result, feedback, Files.readString(modulePath));
   }
 
   @Override
   public void serialize(InterpretOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    var checkpointTracePath = path.resolve("trace.log");
     var feedbackPath = path.resolve("feedback.txt");
     var modulePath = path.resolve("module.fir");
 
     Files.createDirectories(path);
     data.result().write(path);
-    Files.writeString(checkpointTracePath, data.checkpointTrace());
     Printer.toFile(feedbackPath.toFile(), data.feedback());
     Files.writeString(modulePath, data.module());
   }
