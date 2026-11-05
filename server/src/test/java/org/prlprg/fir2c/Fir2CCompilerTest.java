@@ -410,7 +410,7 @@ class Fir2CCompilerTest {
   }
 
   /// A builtin or dynamic call passes its source call to the runtime as `call`, or `NULL` if it has
-  /// none.
+  /// none. The trailing `<missing>` padding is dropped at compile time.
   @Test
   void callPassesSourceCall() {
     var module =
@@ -428,10 +428,10 @@ class Fir2CCompilerTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
     var code = Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
     assertTrue(
-        code.matches("(?s).*Fir_call_builtin\\(\\d+, Fir_const\\(pool, \\d+\\), env, 2, .*"), code);
+        code.matches("(?s).*Fir_call_builtin\\(\\d+, Fir_const\\(pool, \\d+\\), env, 1, .*"), code);
     assertTrue(
         code.matches("(?s).*Fir_call_dynamic\\(r_f, Fir_const\\(pool, \\d+\\), env, 1, .*"), code);
-    assertTrue(code.matches("(?s).*Fir_call_builtin\\(\\d+, NULL, env, 2, .*"), code);
+    assertTrue(code.matches("(?s).*Fir_call_builtin\\(\\d+, NULL, env, 1, .*"), code);
   }
 
   /// A setter call runs in GNU-R's assignment protocol, and counts the registers that outlive it,
