@@ -18,6 +18,30 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
   }
 
   @Test
+  void scalarParameter_staysShared() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec, x) {
+              (vec:*, x:*) -+> V { ... }
+              (vec:v(R)o, x:R) -~> R {
+                r: R = vec[0];
+                return r;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    module.evaluateAll();
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("(vec:v(R)b, x:R) -~> R"),
+        "only the vector should become borrowed:\n" + printed);
+    assertTrue(Checker.checkAll(module), "the borrowed copy should type-check:\n" + printed);
+  }
+
+  @Test
   void readsOwnedParameter_createsBorrowedVersion() {
     var module =
         ParseUtil.parseModule(

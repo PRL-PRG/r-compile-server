@@ -72,6 +72,8 @@ public final class CreateBorrowedParameterVersion extends AbstractionOptimizatio
       var parameterType = newParameterTypes.get(i);
       if ((parameterType.ownership() != Ownership.OWNED
               && parameterType.ownership() != Ownership.SHARED)
+          || !parameterType.isValue()
+          || !parameterType.kind().isWellFormedWithOwnership()
           || needsOwnership(parameter)
           || isDupped(parameter)
           || escapes(parameter, escapingCfgs)) {
