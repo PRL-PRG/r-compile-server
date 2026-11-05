@@ -2,7 +2,6 @@ package org.prlprg.fir.interpret.internal;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Objects;
-import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
@@ -15,22 +14,15 @@ public class DeoptSnapshot {
   private final int pc;
   private final ImmutableList<SEXP> bcStack;
   private final EnvSXP env;
-  private final String fullStackToString;
-  private @Nullable String moduleToString = null;
   private final String toString;
 
-  DeoptSnapshot(
-      Function function,
-      int pc,
-      ImmutableList<SEXP> bcStack,
-      EnvSXP env,
-      String fullStackToString) {
+  DeoptSnapshot(Function function, int pc, ImmutableList<SEXP> bcStack, EnvSXP env) {
     this.function = function;
     this.pc = pc;
     this.bcStack = bcStack;
     this.env = env;
-    this.fullStackToString = fullStackToString;
 
+    // Print now, because `env` and `bcStack` are live and can change later.
     toString = Printer.use(this::doPrint);
   }
 
@@ -42,23 +34,12 @@ public class DeoptSnapshot {
     return bcStack;
   }
 
+  /// The environment the deopt resumes in: the checkpoint's environment, or the one the deopt
+  /// branch creates (`mkenv`). It isn't a copy, so it can change after the snapshot. The deopt
+  /// branch's stores into the checkpoint's environment are undone after the snapshot, so only
+  /// [#toString()] shows them.
   public EnvSXP env() {
     return env;
-  }
-
-  public String fullStackToString() {
-    return fullStackToString;
-  }
-
-  void unsafeSetModuleToString(@Nullable String moduleToString) {
-    if (this.moduleToString != null) {
-      throw new IllegalStateException("`moduleToString` is already set: " + this.moduleToString);
-    }
-    this.moduleToString = moduleToString;
-  }
-
-  public String moduleToString() {
-    return Objects.requireNonNull(moduleToString, "`moduleToString` was deferred and not set");
   }
 
   @Override

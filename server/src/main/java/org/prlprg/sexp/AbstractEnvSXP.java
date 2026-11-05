@@ -70,6 +70,10 @@ abstract class AbstractEnvSXP {
     bindings.put(name, value);
   }
 
+  public void remove(String name) {
+    bindings.remove(name);
+  }
+
   public void setBindings(Map<String, SEXP> bindings) {
     for (String name : bindings.keySet()) {
       if (name.isEmpty()) {

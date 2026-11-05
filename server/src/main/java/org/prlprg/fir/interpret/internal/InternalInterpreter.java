@@ -6,6 +6,7 @@ import static org.prlprg.fir.ir.cfg.iterator.BbDfs.bbDfs;
 import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -161,7 +162,7 @@ public final class InternalInterpreter implements Interpreter {
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
   private final MockModuleFeedback feedback;
-  private final CheckpointTrace checkpointTrace = new CheckpointTrace(this);
+  private final CheckpointTrace checkpointTrace = new CheckpointTrace();
 
   /// Interpret the module in a global environment containing only its functions.
   ///
@@ -1571,7 +1572,19 @@ public final class InternalInterpreter implements Interpreter {
       throw fail("Deopt target has phi arguments: " + deopt);
     }
 
-    var env = topFrame().environment().deepCopyUserEnvs();
+    // Instead of copying the environment, run the deopt branch's stores in it, print the
+    // snapshot, and then undo them.
+    var undoStores = new ArrayDeque<Runnable>();
+    try {
+      return snapshotAtCheckpoint(deopt, topFrame().environment(), undoStores);
+    } finally {
+      undoStores.forEach(Runnable::run);
+    }
+  }
+
+  private DeoptSnapshot snapshotAtCheckpoint(
+      Target deopt, EnvSXP checkpointEnv, ArrayDeque<Runnable> undoStores) {
+    var env = checkpointEnv;
     var localRegs = new LinkedHashMap<Register, Value>();
     for (var i = 0; i < deopt.bb().statements().size(); i++) {
       var stmt = deopt.bb().statements().get(i);
@@ -1601,7 +1614,15 @@ public final class InternalInterpreter implements Interpreter {
           if (!(value instanceof Value.Sexp(var valueSexp))) {
             throw fail("Can't store non-SEXP in environment: " + value);
           }
-          env.set(variable.name(), valueSexp);
+          var name = variable.name();
+          if (env == checkpointEnv) {
+            var previous = env.getLocal(name);
+            undoStores.push(
+                () ->
+                    previous.ifPresentOrElse(
+                        v -> checkpointEnv.set(name, v), () -> checkpointEnv.remove(name)));
+          }
+          env.set(name, valueSexp);
         }
         default ->
             throw fail(
@@ -1623,7 +1644,7 @@ public final class InternalInterpreter implements Interpreter {
                 })
             .collect(ImmutableList.toImmutableList());
 
-    return new DeoptSnapshot(topFrame().function(), pc, bcStack, env, stackToString());
+    return new DeoptSnapshot(topFrame().function(), pc, bcStack, env);
   }
 
   private Value runInSnapshotDeopt(Argument arg, LinkedHashMap<Register, Value> localRegs) {

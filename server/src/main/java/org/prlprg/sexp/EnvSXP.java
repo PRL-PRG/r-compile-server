@@ -6,11 +6,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.parseprint.SEXPParseContext;
-import org.prlprg.sexp.parseprint.SEXPPrintContext;
-import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.util.Collections2;
 import org.prlprg.util.Pair;
 
@@ -58,6 +53,13 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
    * @param value the value of the symbol
    */
   void set(String name, SEXP value);
+
+  /**
+   * Remove the binding of a symbol in the environment, if it has one.
+   *
+   * @param name the name of the symbol
+   */
+  void remove(String name);
 
   /**
    * Get the value of a symbol in the environment, without following the parent chain.
@@ -110,44 +112,6 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
   default boolean isBase() {
     return this instanceof BaseEnvSXP
         || this instanceof NamespaceEnvSXP ns && ns.name().equals("base");
-  }
-
-  /// `this` if it's static, its parent if it's static, it's grandparent if that's static, etc.
-  ///
-  /// Every environment at least has the empty environment as an ancestor, which is static, so
-  /// this is non-null.
-  default EnvSXP staticAncestor() {
-    EnvSXP current = this;
-    while (!(current instanceof StaticEnvSXP)) {
-      current = current.parent();
-    }
-    return current;
-  }
-
-  /// Create a deep copy of this environment and all its parents up to the static environment.
-  /// Return the static environment as-is (returns `this` if it's itself static, doesn't
-  /// copy the parent if it's static, doesn't copy the parent's parent if it's static, etc.).
-  ///
-  /// Notably, this also only copies environments referenced in bindings if they're local.
-  default EnvSXP deepCopyUserEnvs() {
-    var staticAncestor = staticAncestor();
-    if (this == staticAncestor) {
-      // Fastcase
-      return this;
-    }
-
-    // The static ancestor and its ancestors (e.g. base, the environment of builtin closures) are
-    // references, so they're kept as-is.
-    var printCtx = new SEXPPrintContext(SEXPPrintOptions.FULL);
-    var parseCtx = new SEXPParseContext();
-    var ref = 0;
-    for (var env = staticAncestor; !(env instanceof EmptyEnvSXP); env = env.parent()) {
-      printCtx.setRef(env, ref);
-      parseCtx.setRef(ref, env);
-      ref++;
-    }
-    var serialized = Printer.use(p -> p.print(this), printCtx);
-    return new Parser(serialized).withContext(parseCtx).parse(EnvSXP.class);
   }
 
   @Override
