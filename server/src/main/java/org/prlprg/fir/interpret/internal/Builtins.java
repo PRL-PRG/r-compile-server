@@ -1,9 +1,13 @@
 package org.prlprg.fir.interpret.internal;
 
 import com.google.common.collect.ImmutableList;
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
@@ -11,7 +15,9 @@ import java.util.function.IntBinaryOperator;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
@@ -21,6 +27,7 @@ import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.RMath;
+import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BuiltinOrSpecialSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ComplexSXP;
@@ -82,6 +89,13 @@ public final class Builtins {
     return numArgs == 4
         ? sig(returnType, Effects.IMPURE, x, i, valueType, Type.MISSING)
         : sig(returnType, Effects.IMPURE, x, i, valueType);
+  }
+
+  /// The [GlobalModules#BASE] copy of a closure in GNU-R's base environment, which is what a
+  /// dynamic call reaches. Its [GlobalModules#BUILTINS] copy (if any) is the `.Internal` it calls,
+  /// whose parameters differ.
+  private static Function baseFunction(String name) {
+    return Objects.requireNonNull(GlobalModules.BASE.localFunction(Variable.named(name)));
   }
 
   private static final Signature SIG_GENERIC_2 =
@@ -214,8 +228,12 @@ public final class Builtins {
     registerWarning(interpreter);
     registerStopifnot(interpreter);
 
-    // print
+    // print, cat
     registerPrint(interpreter);
+    registerCat(interpreter);
+
+    // lapply
+    registerLapply(interpreter);
 
     // unclass
     registerUnclass(interpreter);
@@ -2588,6 +2606,160 @@ public final class Builtins {
                 return args.getFirst();
               }));
     }
+  }
+
+  private static void registerCat(InternalInterpreter interpreter) {
+    // v0: (dots, *, *, *, *, *) -+> V
+    interpreter.registerExternal(
+        baseFunction("cat"),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.REFLECT,
+            Type.DOTS,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 6
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof DotsListSXP dots)) {
+                throw interpreter.fail("`cat` takes 6 arguments, the first dots");
+              }
+              var file = args.get(1).box();
+              if (!(file == SEXPs.MISSING_ARG || file.asScalarString().equals(Optional.of("")))
+                  || IntStream.range(3, 6).anyMatch(i -> args.get(i).box() != SEXPs.MISSING_ARG)) {
+                throw interpreter.failUnsupported(
+                    "Mock `cat` only supports `...` and `sep` (to stdout, no fill)");
+              }
+              var sepArg = args.get(2).box();
+              if (!(sepArg == SEXPs.MISSING_ARG || sepArg instanceof StrSXP)) {
+                throw interpreter.fail("invalid 'sep' specification");
+              }
+              var sep = sepArg instanceof StrSXP s ? s : SEXPs.string(" ");
+              System.out.print(catString(dots.values(), sep, interpreter));
+              return Value.NULL;
+            }));
+  }
+
+  /// What GNU-R's `cat` prints: the elements of `objects`, separated by `sep` (recycled), and a
+  /// newline at the end if a separator contains one.
+  private static String catString(List<SEXP> objects, StrSXP sep, InternalInterpreter interpreter) {
+    var out = new StringBuilder();
+    var ntot = 0;
+    for (var iobj = 0; iobj < objects.size(); iobj++) {
+      var object = objects.get(iobj);
+      if (iobj != 0 && !(object instanceof NilSXP)) {
+        out.append(catSep(sep, ntot++));
+      }
+      var elements = catElements(object, iobj, interpreter);
+      for (var i = 0; i < elements.size(); i++) {
+        out.append(elements.get(i));
+        if (i < elements.size() - 1) {
+          out.append(catSep(sep, ntot++));
+        }
+      }
+    }
+    if (sep.stream().anyMatch(s -> s.contains("\n"))) {
+      out.append('\n');
+    }
+    return out.toString();
+  }
+
+  private static String catSep(StrSXP sep, int ntot) {
+    return sep.isEmpty() ? "" : sep.get(ntot % sep.size());
+  }
+
+  private static List<String> catElements(SEXP object, int iobj, InternalInterpreter interpreter) {
+    return switch (object) {
+      case NilSXP _ -> List.of();
+      case RegSymSXP s -> List.of(s.name());
+      case StrSXP s -> s.stream().map(e -> Constants.isNaString(e) ? "NA" : e).toList();
+      case LglSXP l -> l.stream().map(e -> e == Logical.NA ? "NA" : e.toString()).toList();
+      case IntSXP i ->
+          i.stream().map(e -> e == Constants.NA_INT ? "NA" : String.valueOf(e)).toList();
+      case RealSXP r -> r.stream().map(Builtins::formatReal).toList();
+      case ListOrVectorSXP<?> v when v.isEmpty() -> List.of();
+      default ->
+          throw interpreter.fail(
+              "argument "
+                  + (iobj + 1)
+                  + " (type '"
+                  + object.type()
+                  + "') cannot be handled by 'cat'");
+    };
+  }
+
+  /// GNU-R's `formatReal` of one element with the default 7 significant digits: fixed notation,
+  /// unless scientific notation is shorter.
+  private static String formatReal(double x) {
+    if (Constants.isNaReal(x)) return "NA";
+    if (Double.isNaN(x)) return "NaN";
+    if (Double.isInfinite(x)) return x > 0 ? "Inf" : "-Inf";
+    if (x == 0) return "0";
+    var rounded = new BigDecimal(x).round(new MathContext(7)).stripTrailingZeros();
+    var fixed = rounded.toPlainString();
+    var digits = rounded.unscaledValue().abs().toString();
+    var exponent = rounded.precision() - rounded.scale() - 1;
+    var sci =
+        (x < 0 ? "-" : "")
+            + digits.charAt(0)
+            + (digits.length() > 1 ? "." + digits.substring(1) : "")
+            + (exponent < 0 ? "e-" : "e+")
+            + String.format("%02d", Math.abs(exponent));
+    return fixed.length() <= sci.length() ? fixed : sci;
+  }
+
+  // endregion
+
+  // region lapply
+
+  private static void registerLapply(InternalInterpreter interpreter) {
+    // v0: (*, *, dots) -+> V
+    interpreter.registerExternal(
+        baseFunction("lapply"),
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.ANY_SEXP, Type.DOTS),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 3
+                  || !(args.get(0) instanceof Value.Sexp(var x))
+                  || !(args.get(1) instanceof Value.Sexp(var fun))
+                  || !(args.get(2) instanceof Value.Sexp(var dots))) {
+                throw interpreter.fail("`lapply` takes 3 sexp arguments");
+              }
+              if (!(fun instanceof CloSXP closure)) {
+                throw interpreter.failUnsupported("Mock `lapply` only supports a closure `FUN`");
+              }
+              if (!(x instanceof VectorSXP<?> vector)
+                  || vector.attributes().keySet().stream().anyMatch(k -> !k.equals("names"))) {
+                throw interpreter.failUnsupported(
+                    "Mock `lapply` only supports a vector `X` with no attributes but names");
+              }
+              if (!(dots instanceof DotsListSXP) && dots != SEXPs.MISSING_ARG) {
+                throw interpreter.fail("`lapply` third argument must be dots");
+              }
+              List<TaggedElem> extraArgs =
+                  dots instanceof DotsListSXP ? List.of(new TaggedElem("...", dots)) : List.of();
+              var results =
+                  IntStream.range(0, vector.size())
+                      .mapToObj(
+                          i -> {
+                            var callArgs =
+                                ImmutableList.<TaggedElem>builder()
+                                    .add(new TaggedElem(interpreter.subscriptLoad(vector, i).box()))
+                                    .addAll(extraArgs)
+                                    .build();
+                            return interpreter.callClosure(closure, SEXPs.list(callArgs)).box();
+                          })
+                      .toList();
+              var names = vector.attributes().get("names");
+              return new Value.Sexp(
+                  SEXPs.vec(
+                      results,
+                      names == null ? Attributes.NONE : Attributes.NONE.including("names", names)));
+            }));
   }
 
   // endregion

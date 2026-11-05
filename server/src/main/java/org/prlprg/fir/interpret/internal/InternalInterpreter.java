@@ -956,11 +956,6 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Not a function: " + calleeValue);
         }
 
-        var function = extractClosure(cloSXP);
-        if (function == null) {
-          throw fail("Can't call function not in this interpreter: " + cloSXP);
-        }
-
         var argumentSexps =
             arguments.stream()
                 .map(
@@ -970,32 +965,45 @@ public final class InternalInterpreter implements Interpreter {
                       }
                       return argSexp;
                     });
+        var namedArguments =
+            Streams.zip(
+                    Stream.concat(
+                        argumentNames.stream(), Stream.generate(OptionalNamedVariable::empty)),
+                    argumentSexps,
+                    OptionalNamedVariable::taggedElem)
+                .collect(SEXPs.toList());
 
-        List<SEXP> matchedArgumentSexps;
-        try {
-          var namedArguments =
-              Streams.zip(
-                      Stream.concat(
-                          argumentNames.stream(), Stream.generate(OptionalNamedVariable::empty)),
-                      argumentSexps,
-                      OptionalNamedVariable::taggedElem)
-                  .collect(SEXPs.toList());
-          matchedArgumentSexps = matchArguments(cloSXP.parameters(), namedArguments);
-        } catch (MatchException e) {
-          throw fail(e.getMessage());
-        }
-        List<Value> matchedArguments = Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new);
-
-        var result = call(function, null, cloSXP.env(), matchedArguments);
+        var result = callClosure(cloSXP, namedArguments);
 
         // Only record after the call, in case the function is an unregistered stub
         if (calleeArg instanceof Read(var calleeReg)) {
-          topFrame().scopeFeedback().recordCallee(calleeReg, function);
+          topFrame()
+              .scopeFeedback()
+              .recordCallee(calleeReg, Objects.requireNonNull(extractClosure(cloSXP)));
         }
 
         yield result;
       }
     };
+  }
+
+  /// Calls `closure` (one of this interpreter's [stubs][#closureStub(Function, EnvSXP)]) like a
+  /// dynamic call does: matches `arguments` (where `...` elements are expanded) to its parameters,
+  /// then calls its best version, which records the callee's feedback.
+  public Value callClosure(CloSXP closure, ListSXP arguments) {
+    var function = extractClosure(closure);
+    if (function == null) {
+      throw fail("Can't call function not in this interpreter: " + closure);
+    }
+
+    List<SEXP> matchedArgumentSexps;
+    try {
+      matchedArgumentSexps = matchArguments(closure.parameters(), arguments);
+    } catch (MatchException e) {
+      throw fail(e.getMessage());
+    }
+    return call(
+        function, null, closure.env(), Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new));
   }
 
   /// Evaluates an [Argument] and returns its value, e.g. [#read(Register)] if it's a [Register].
