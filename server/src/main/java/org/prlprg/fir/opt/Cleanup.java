@@ -21,13 +21,16 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
@@ -314,10 +317,23 @@ public final class Cleanup extends AbstractionOptimization {
         return;
       }
 
-      // Substitute each phi parameter with the corresponding argument
-      for (var i = 0; i < phiParams.size(); i++) {
+      // Substitute each phi parameter with the corresponding argument. A `consume` can only be
+      // used once, so the phi is substituted with the consumed register (which keeps each use's
+      // `consume`-ness), or if that would change its ownership, with a register it's moved into.
+      // Iterate backwards so the moves, each prepended, stay in order.
+      for (var i = phiParams.size() - 1; i >= 0; i--) {
         var phi = phiParams.get(i);
         var arg = phiArgs.get(i);
+        if (arg instanceof Consume(var consumed)) {
+          if (phi.type().ownership() == Ownership.OWNED
+              && scope.typeOf(consumed).ownership() == Ownership.OWNED) {
+            arg = new Read(consumed);
+          } else {
+            var move = new Statement(new Dup(), List.of(arg));
+            arg = new Read(move.setAssignee(scope.freshName(phi.name()), phi.type()));
+            bb.prependStatement(move);
+          }
+        }
 
         substituter.stage(phi, arg);
       }
@@ -397,16 +413,21 @@ public final class Cleanup extends AbstractionOptimization {
 
       for (var entry : originAnalysis.registerOrigins().entrySet()) {
         var register = entry.getKey();
-        var origin = entry.getValue();
+        Argument origin = entry.getValue();
 
         // Can't substitute invalid
         if (!scope.contains(register)) {
           continue;
         }
 
-        // Can't substitute with `consume`, unless there's exactly one other occurrence.
-        if (origin instanceof Consume(var used) && used.useCount() > 2) {
-          continue;
+        // A `consume` can only be used once, so substitute the consumed register instead (which
+        // keeps each use's `consume`-ness), unless that would change the register's ownership.
+        if (origin instanceof Consume(var used)) {
+          if (scope.typeOf(register).ownership() != Ownership.OWNED
+              || scope.typeOf(used).ownership() != Ownership.OWNED) {
+            continue;
+          }
+          origin = new Read(used);
         }
 
         // Can't substitute if origin analysis is too smart, e.g. looks through promises,

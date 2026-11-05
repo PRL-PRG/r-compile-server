@@ -6,6 +6,7 @@ import static org.prlprg.fir.opt.Cleanup.cleanup;
 import java.util.Objects;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.check.Checker;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -289,6 +290,49 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var printed = Printer.toString(abstraction);
       // After phi removal and merging, y should be substituted with x
       assertTrue(printed.contains("return x"), "y should be substituted with x; got:\n" + printed);
+    }
+
+    @Test
+    void consumedOwnedPhiArgument_keepsWrite() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (v:v(I)b) -~> v(I)f {
+                d: v(I)o = dup v;
+                goto L0(consume d);
+              L0(p: v(I)o):
+                p[0] = 9;
+                return consume p;
+              }
+              """);
+
+      assertTrue(run(abstraction), "should remove single-predecessor phi");
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(printed.contains("consume d[0]"), "the write was lost; got:\n" + printed);
+      assertTrue(Checker.checkAll(abstraction), "should type-check; got:\n" + printed);
+    }
+
+    @Test
+    void consumedSharedPhiArgument_consumedOnce() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (v:v(I)b) -~> v(I)f {
+                d: v(I)o = dup v;
+                goto L0(consume d);
+              L0(p: v(I)):
+                a: I = p[1];
+                e: v(I)o = dup p;
+                e[0] = a;
+                return consume e;
+              }
+              """);
+
+      assertTrue(run(abstraction), "should remove single-predecessor phi");
+
+      var printed = Printer.toString(abstraction);
+      assertTrue(Checker.checkAll(abstraction), "should type-check; got:\n" + printed);
     }
   }
 
