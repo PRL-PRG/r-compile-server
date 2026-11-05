@@ -96,8 +96,9 @@ public final class Builtins {
     registerBinaryMathBuiltin(interpreter, "+", Double::sum, x -> x);
     registerBinaryMathBuiltin(interpreter, "-", (a, b) -> a - b, x -> -x);
     registerBinaryMathBuiltin(interpreter, "*", (a, b) -> a * b, null);
-    // Only the generic version (`builtins.fir` declares no other)
+    // Only the generic versions (`builtins.fir` declares no others)
     registerGenericBinaryMathBuiltin(interpreter, "%%", RMath::fmod, null);
+    registerGenericBinaryMathBuiltin(interpreter, "%/%", RMath::idiv, null);
 
     // Binary math operators, to real
     registerBinaryMathToRealBuiltin(interpreter, "/", (a, b) -> a / b);
@@ -418,7 +419,7 @@ public final class Builtins {
             }));
   }
 
-  /// Apply binary math op on SEXPs, preserving int type (for +, -, *, %%)
+  /// Apply binary math op on SEXPs, preserving int type (for +, -, *, %%, %/%)
   private static SEXP applyBinaryPreservingInt(
       SEXP s1, SEXP s2, DoubleBinaryOperator fn, InternalInterpreter interpreter, String ctx) {
     // Try scalar first

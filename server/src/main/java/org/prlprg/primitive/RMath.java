@@ -54,6 +54,22 @@ public final class RMath {
     return tmp - Math.floor(tmp / x2) * x2;
   }
 
+  /// GNU-R's `myfloor` (double `%/%`): `floor(x1 / x2)`, corrected so that
+  /// `x1 == x2 * idiv(x1, x2) + fmod(x1, x2)`. `x2 == 0` gives `x1 / x2` (`±Inf` or `NaN`).
+  ///
+  /// Unlike GNU-R, this computes in `double` instead of `long double`.
+  public static double idiv(double x1, double x2) {
+    var q = x1 / x2;
+    if (x2 == 0.0 || Math.abs(q) * Math.ulp(1.0) > 1 || !Double.isFinite(q)) {
+      return q;
+    }
+    if (Math.abs(q) < 1) {
+      return q < 0 ? -1 : (x1 < 0 && x2 > 0) || (x1 > 0 && x2 < 0) ? -1 : 0;
+    }
+    var tmp = x1 - Math.floor(q) * x2;
+    return Math.floor(q) + Math.floor(tmp / x2);
+  }
+
   /// GNU-R's `R_log`: negative arguments are `NaN` and zero is `-Inf`.
   public static double log(double x) {
     return x > 0 ? Math.log(x) : x == 0 ? Double.NEGATIVE_INFINITY : Double.NaN;
