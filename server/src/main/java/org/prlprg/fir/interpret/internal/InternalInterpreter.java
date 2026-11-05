@@ -975,11 +975,16 @@ public final class InternalInterpreter implements Interpreter {
 
         var result = callClosure(cloSXP, namedArguments);
 
-        // Only record after the call, in case the function is an unregistered stub
+        // Only record after the call, in case the function is an unregistered stub. Feedback names
+        // a callee, and a base closure's name resolves to `BUILTINS`' `.Internal` instead.
         if (calleeArg instanceof Read(var calleeReg)) {
-          topFrame()
-              .scopeFeedback()
-              .recordCallee(calleeReg, Objects.requireNonNull(extractClosure(cloSXP)));
+          var calleeFunction = Objects.requireNonNull(extractClosure(cloSXP));
+          var scopeFeedback = topFrame().scopeFeedback();
+          if (GlobalModules.isBaseClosure(calleeFunction)) {
+            scopeFeedback.recordUnknownCallee(calleeReg);
+          } else {
+            scopeFeedback.recordCallee(calleeReg, calleeFunction);
+          }
         }
 
         yield result;

@@ -101,6 +101,12 @@ public class AbstractionFeedback {
     callees.put(register, updatedCallee);
   }
 
+  /// Record that the register was assigned a closure whose function feedback can't name, so that
+  /// no callee is ever speculated for it.
+  public void recordUnknownCallee(Register register) {
+    callees.put(register, Optional.empty());
+  }
+
   /// Record that the register was assigned exactly `value`
   public void recordConstant(Register register, Value value) {
     var oldConstant = constants.get(register);

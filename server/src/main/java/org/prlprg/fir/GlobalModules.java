@@ -3,6 +3,7 @@ package org.prlprg.fir;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -38,6 +39,11 @@ public final class GlobalModules {
   /// Module containing intrinsic functions (non-builtins that are used in the IR, e.g. "inc").
   public static final Module INTRINSICS =
       Parser.fromResource(Path.of("../../intrinsics.fir"), Module.class);
+
+  /// The [#BASE] functions of GNU-R's base closures (e.g. `lapply`), which `builtins.fir` doesn't
+  /// define. A [#BUILTINS] function with the same name, if any, is a different function (the
+  /// `.Internal` the closure calls).
+  private static final Set<Function> BASE_CLOSURES = new HashSet<>();
 
   static {
     // Add GNU-R builtins that we don't have explicit versions for to BUILTINS and BASE
@@ -83,7 +89,10 @@ public final class GlobalModules {
                     "Unexpected class whose `SEXP#isFunction` returned true: "
                         + value.getClass().getSimpleName());
           };
-      BASE.addFunction(name, parameterNames, true);
+      var function = BASE.addFunction(name, parameterNames, true);
+      if (value instanceof CloSXP) {
+        BASE_CLOSURES.add(function);
+      }
     }
 
     // Ensure intrinsic names don't conflict with builtins.
@@ -91,6 +100,11 @@ public final class GlobalModules {
       assert BUILTINS.localFunction(function.name()) == null
           : "intrinsic function is also a builtin, it must be renamed: " + function.name();
     }
+  }
+
+  /// Whether `function` is the [#BASE] function of a GNU-R base closure (see [#BASE_CLOSURES]).
+  public static boolean isBaseClosure(Function function) {
+    return BASE_CLOSURES.contains(function);
   }
 
   public static final Function BOX_FUN =
