@@ -5,7 +5,6 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -52,9 +51,7 @@ public final class ElideConsumedDup extends AbstractionOptimization {
 
     // `vector` isn't used after this statement (that's what its `consume` guarantees), so the
     // assignee's uses can become uses of `vector` -- each keeping its own `consume`.
-    for (var use : List.copyOf(assignee.uses())) {
-      use.replaceWith(use.argument() instanceof Consume ? new Consume(vector) : new Read(vector));
-    }
+    assignee.substUsesWith(vector);
     statement.remove();
     return true;
   }

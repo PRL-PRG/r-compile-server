@@ -346,7 +346,7 @@ public final class Inline extends AbstractionOptimization {
       BlockParameter returnDest = null;
       if (assignee != null) {
         returnDest = new BlockParameter(scope.freshName(assignee.name()), assignee.type());
-        assignee.substUsesWith(new Read(returnDest));
+        assignee.substUsesWith(returnDest);
       }
       bb.statements().get(statementIndex).remove();
       inline(callee.body(), bb, statementIndex - 1, returnDest, substitutions);

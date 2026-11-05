@@ -8,6 +8,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -85,8 +86,13 @@ public sealed interface Register permits AssigneeOf, BlockParameter, FunctionPar
     }
   }
 
+  /// Replace every use of this register with a use of `register`, keeping each `consume`.
+  /// Afterwards [#uses] is empty.
   default void substUsesWith(Register register) {
-    substUsesWith(new Read(register));
+    for (var use : List.copyOf(uses())) {
+      use.replaceWith(
+          use.argument() instanceof Consume ? new Consume(register) : new Read(register));
+    }
   }
 
   default void substUsesWith(Value constant) {
