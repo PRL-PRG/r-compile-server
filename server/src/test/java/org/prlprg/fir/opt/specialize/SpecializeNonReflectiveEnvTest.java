@@ -110,6 +110,50 @@ class SpecializeNonReflectiveEnvTest {
     assertFalse(printed.contains("mkenv~"), "mkenv should remain regular; printed:\n" + printed);
   }
 
+  @Test
+  void symbolPromiseToDynamicCallee_notMarked() {
+    // The callee may call `missing` on the promise, which reads `x` in this environment.
+    var abstraction = parseWithDynamicCallOfPromise("<sym x>");
+    var feedback = recordedFeedback(abstraction);
+
+    assertFalse(
+        optimization.run(null, feedback, abstraction),
+        "an env whose symbol promise reaches a dynamic callee should not be marked");
+
+    var printed = Printer.toString(abstraction);
+    assertFalse(printed.contains("mkenv~"), "mkenv should remain regular; printed:\n" + printed);
+  }
+
+  @Test
+  void callPromiseToDynamicCallee_marked() {
+    // `missing` only follows a promise of a symbol.
+    var abstraction = parseWithDynamicCallOfPromise("<lang g(x)>");
+    var feedback = recordedFeedback(abstraction);
+
+    assertTrue(
+        optimization.run(null, feedback, abstraction), "optimization should report a change");
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("mkenv~"), "mkenv should be non-reflective; printed:\n" + printed);
+  }
+
+  private static Abstraction parseWithDynamicCallOfPromise(String promiseExpr) {
+    return ParseUtil.parseAbstraction(
+        """
+        () -+> V {
+          mkenv;
+          f: cls = ldf f;
+          p: p(I -) = prom<I ->[%s]{
+            return <int 1>;
+          };
+          r: V = dyn f(p);
+          popenv;
+          return r;
+        }
+        """
+            .formatted(promiseExpr));
+  }
+
   private static AbstractionFeedback recordedFeedback(Abstraction abstraction) {
     var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
     feedback.recordCall();

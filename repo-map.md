@@ -419,7 +419,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `SpecializeEmptyDots.java` — Passes an empty `...` to a builtin as the missing value.
 - `SpecializeLiteSpecial.java` — Makes a call to a lite special take the values of its symbol arguments.
 - `SpecializeLocalPromise.java` — Marks promises local when feedback says they never escape.
-- `SpecializeNonReflectiveEnv.java` — Marks environments non-reflective when feedback says so.
+- `SpecializeNonReflectiveEnv.java` — Marks environments non-reflective when feedback says so and no symbol promise reaches an opaque callee.
 - `SpecializeOptimization.java` — Base class of the optimizations that replace one statement.
 - `SpecializeRealIndex.java` — Converts a real subscript into an integer subscript.
 - `SpecializeSubscript.java` — Rewrites simple subscript calls into direct subscript reads and writes.
@@ -653,6 +653,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
 - `.../examples/R/missing_promise_elided.R` — `missing` follows a promise into the caller's frame, so the caller's environment must stay materialized.
+- `.../examples/R/missing_unknown_callee.R` — `seq.default` (a base closure, so a dynamic callee) calls `missing` on a promise of a symbol, which reads the caller's environment: it must not become non-reflective.
 - `.../examples/R/missing_string_branch.R` — `missing("x")` reads the binding of `x`, so its store must stay; and a default parameter's `missing` check (the `--> B` version).
 - `.../examples/R/elided_env_parent_{after_call,promise}.R` — Regressions for the parent of an elided frame in the fir2c runtime: after an elided callee with another parent returns, and in a promise that such a callee forces.
 - `.../examples/R/{complex_assign,subset}_language.R` — Regressions for a lite special called with values in the fir2c runtime: a call or symbol vector, index, or value must not be evaluated again.
