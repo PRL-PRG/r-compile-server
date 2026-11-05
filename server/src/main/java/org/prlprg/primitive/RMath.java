@@ -37,6 +37,23 @@ public final class RMath {
     return f.applyAsDouble(a, b);
   }
 
+  /// GNU-R's `myfmod` (double `%%`): the result has the sign of `x2`, and `x2 == 0` gives `NaN`.
+  ///
+  /// Unlike GNU-R, this computes in `double` instead of `long double`, and doesn't warn about a
+  /// loss of accuracy.
+  public static double fmod(double x1, double x2) {
+    if (x2 == 0.0) {
+      return Double.NaN;
+    }
+    if (Math.abs(x2) * Math.ulp(1.0) > 1 && Double.isFinite(x1) && Math.abs(x1) <= Math.abs(x2)) {
+      return Math.abs(x1) == Math.abs(x2)
+          ? 0
+          : (x1 < 0 && x2 > 0) || (x2 < 0 && x1 > 0) ? x1 + x2 : x1;
+    }
+    var tmp = x1 - Math.floor(x1 / x2) * x2;
+    return tmp - Math.floor(tmp / x2) * x2;
+  }
+
   /// GNU-R's `R_log`: negative arguments are `NaN` and zero is `-Inf`.
   public static double log(double x) {
     return x > 0 ? Math.log(x) : x == 0 ? Double.NEGATIVE_INFINITY : Double.NaN;

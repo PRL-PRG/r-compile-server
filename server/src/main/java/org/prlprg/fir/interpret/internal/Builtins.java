@@ -96,6 +96,8 @@ public final class Builtins {
     registerBinaryMathBuiltin(interpreter, "+", Double::sum, x -> x);
     registerBinaryMathBuiltin(interpreter, "-", (a, b) -> a - b, x -> -x);
     registerBinaryMathBuiltin(interpreter, "*", (a, b) -> a * b, null);
+    // Only the generic version (`builtins.fir` declares no other)
+    registerGenericBinaryMathBuiltin(interpreter, "%%", RMath::fmod, null);
 
     // Binary math operators, to real
     registerBinaryMathToRealBuiltin(interpreter, "/", (a, b) -> a / b);
@@ -152,8 +154,9 @@ public final class Builtins {
     // vector
     registerVector(interpreter);
 
-    // sum
+    // sum, max
     registerSum(interpreter);
+    registerMax(interpreter);
 
     // Unary math1, preserving int
     registerAbsBuiltin(interpreter);
@@ -319,31 +322,7 @@ public final class Builtins {
       String name,
       DoubleBinaryOperator fn,
       @Nullable DoubleUnaryOperator unaryFn) {
-    // Generic: (*, *) -+> V — covers v0, vector binary (v1-v4), and unary boxed (v9-v11 for +/-)
-    interpreter.registerExternal(
-        name,
-        SIG_GENERIC_2,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              if (args.size() != 2) {
-                throw interpreter.fail("`" + name + "` generic takes 2 args");
-              }
-              if (!(args.getFirst() instanceof Value.Sexp(var s1))) {
-                throw interpreter.fail("`" + name + "` generic takes sexp args");
-              }
-              // Handle unary case: second arg is MISSING_ARG
-              if (args.get(1) instanceof Value.Sexp(var s2m) && s2m.equals(SEXPs.MISSING_ARG)) {
-                if (unaryFn == null) {
-                  throw interpreter.fail("`" + name + "` has no unary version");
-                }
-                return new Value.Sexp(applyUnaryPreservingInt(s1, unaryFn, interpreter, name));
-              }
-              // Binary case
-              if (!(args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`" + name + "` generic takes 2 sexp args");
-              }
-              return new Value.Sexp(applyBinaryPreservingInt(s1, s2, fn, interpreter, name));
-            }));
+    registerGenericBinaryMathBuiltin(interpreter, name, fn, unaryFn);
 
     // Scalar binary: (I, I) --> I
     interpreter.registerExternal(
@@ -405,7 +384,41 @@ public final class Builtins {
     }
   }
 
-  /// Apply binary math op on SEXPs, preserving int type (for +, -, *)
+  /// Registers the generic version `(*, *) -+> V` of a binary math operator that keeps integers
+  /// (`unaryFn` is its unary version, if it has one). It covers v0, vector binary (v1-v4), and
+  /// unary boxed (v9-v11 for +/-).
+  private static void registerGenericBinaryMathBuiltin(
+      InternalInterpreter interpreter,
+      String name,
+      DoubleBinaryOperator fn,
+      @Nullable DoubleUnaryOperator unaryFn) {
+    interpreter.registerExternal(
+        name,
+        SIG_GENERIC_2,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2) {
+                throw interpreter.fail("`" + name + "` generic takes 2 args");
+              }
+              if (!(args.getFirst() instanceof Value.Sexp(var s1))) {
+                throw interpreter.fail("`" + name + "` generic takes sexp args");
+              }
+              // Handle unary case: second arg is MISSING_ARG
+              if (args.get(1) instanceof Value.Sexp(var s2m) && s2m.equals(SEXPs.MISSING_ARG)) {
+                if (unaryFn == null) {
+                  throw interpreter.fail("`" + name + "` has no unary version");
+                }
+                return new Value.Sexp(applyUnaryPreservingInt(s1, unaryFn, interpreter, name));
+              }
+              // Binary case
+              if (!(args.get(1) instanceof Value.Sexp(var s2))) {
+                throw interpreter.fail("`" + name + "` generic takes 2 sexp args");
+              }
+              return new Value.Sexp(applyBinaryPreservingInt(s1, s2, fn, interpreter, name));
+            }));
+  }
+
+  /// Apply binary math op on SEXPs, preserving int type (for +, -, *, %%)
   private static SEXP applyBinaryPreservingInt(
       SEXP s1, SEXP s2, DoubleBinaryOperator fn, InternalInterpreter interpreter, String ctx) {
     // Try scalar first
@@ -543,7 +556,9 @@ public final class Builtins {
   }
 
   private static int intResult(double result) {
-    return Math.abs(result) > Integer.MAX_VALUE ? Constants.NA_INT : (int) result;
+    return Double.isNaN(result) || Math.abs(result) > Integer.MAX_VALUE
+        ? Constants.NA_INT
+        : (int) result;
   }
 
   private static void registerBinaryMathToRealBuiltin(
@@ -1863,6 +1878,70 @@ public final class Builtins {
       }
       default ->
           throw interpreter.failUnsupported("Mock `sum` requires an int, real, or logical vector");
+    };
+  }
+
+  private static void registerMax(InternalInterpreter interpreter) {
+    // v0: (dots) -+> V
+    interpreter.registerExternal(
+        "max",
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.DOTS),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof DotsListSXP dots)) {
+                throw interpreter.fail("`max` takes 1 argument (dots)");
+              }
+              if (dots.hasTags()) {
+                throw interpreter.failUnsupported("Mock `max` doesn't support named arguments");
+              }
+              return new Value.Sexp(maxSexp(dots.values(), interpreter));
+            }));
+  }
+
+  /// GNU-R's `max` of logical, integer, and real vectors: an integer unless one is real, and
+  /// `NA` if an element is `NA` (a real `NA` trumps `NaN`).
+  private static SEXP maxSexp(List<SEXP> args, InternalInterpreter interpreter) {
+    if (!args.stream()
+        .allMatch(
+            a ->
+                a instanceof NilSXP
+                    || a instanceof LglSXP
+                    || a instanceof IntSXP
+                    || a instanceof RealSXP)) {
+      throw interpreter.failUnsupported("Mock `max` requires logical, integer, or real vectors");
+    }
+    var elems = args.stream().flatMap(a -> ((ListOrVectorSXP<?>) a).stream()).toList();
+    if (elems.isEmpty()) {
+      throw interpreter.failUnsupported("Mock `max` of no elements (GNU-R warns and gives -Inf)");
+    }
+    if (args.stream().noneMatch(a -> a instanceof RealSXP)) {
+      var ints = elems.stream().mapToInt(Builtins::elemToInt).toArray();
+      return SEXPs.integer(
+          Arrays.stream(ints).anyMatch(i -> i == Constants.NA_INT)
+              ? Constants.NA_INT
+              : Arrays.stream(ints).max().orElseThrow());
+    }
+    var max = Double.NEGATIVE_INFINITY;
+    for (var elem : elems) {
+      var x = elem instanceof Double d ? d : RMath.fromInt(elemToInt(elem));
+      if (Constants.isNaReal(max)) {
+        break;
+      } else if (Double.isNaN(x)) {
+        max = Constants.isNaReal(x) ? x : max + x;
+      } else if (x > max) {
+        max = x;
+      }
+    }
+    return SEXPs.real(max);
+  }
+
+  private static int elemToInt(Object elem) {
+    return switch (elem) {
+      case Integer i -> i;
+      case Logical l -> l.toInt();
+      default -> throw new IllegalArgumentException("Not an integer or logical: " + elem);
     };
   }
 
