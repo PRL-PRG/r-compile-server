@@ -655,6 +655,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/elided_env_parent_{after_call,promise}.R` — Regressions for the parent of an elided frame in the fir2c runtime: after an elided callee with another parent returns, and in a promise that such a callee forces.
 - `.../examples/R/{complex_assign,subset}_language.R` — Regressions for a lite special called with values in the fir2c runtime: a call or symbol vector, index, or value must not be evaluated again.
 - `.../examples/R/mod_max_builtins_{int,real}.R` — `%%` and `max` edge cases (signs, zero divisor, `NA`/`NaN`, recycling) with integer and real results, to check the interpreter mocks against GNU-R.
+- `.../examples/R/subassign_scalar.R` — Scalar `x[[i]] <- v` and `x[i] <- v` on unshared vectors, which the fir2c runtime stores directly: value and vector types, attributes, a class, growth, a real index, an alias.
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
 - `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts (`bench.R`, `optbench.R`, `synergy.R`, `ownership.R`, `promisebench.R`, which also counts `OwnershipBenchmark`'s copies), `order.txt`.
 - `server/src/test/resources/org/prlprg/gen2c/`, `bc2c/` — Build files and data for compiled-C tests.

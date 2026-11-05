@@ -1527,10 +1527,87 @@ SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, 
   return Fir_call_setter_primitive(s, PRIMOFFSET(callee), call, env, argc, args, names, false, 0);
 }
 
+// The index of `name` in `R_FunTab`, or -1.
+static int Fir_funtab_index(const char *name) {
+  for (int i = 0; R_FunTab[i].name != NULL; i++) {
+    if (strcmp(R_FunTab[i].name, name) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// GNU-R bytecode's `DO_VECSUBASSIGN` fast path (`setElementFromScalar`) for `vec[[i]] <- v` and
+// `vec[i] <- v`, where `vec` is the protocol's (unshared) value, an atomic vector without a class,
+// and `i` and `v` are scalars without attributes. Returns whether it stored `v`. A special
+// evaluates such an `i` and `v` (constant or not) to themselves; a promise falls through.
+static bool Fir_subassign_scalar(SEXP vec, SEXP idx, SEXP v) {
+  SEXPTYPE vt = TYPEOF(v);
+  if ((TYPEOF(idx) != INTSXP && TYPEOF(idx) != REALSXP) ||
+      (vt != INTSXP && vt != REALSXP && vt != LGLSXP) || OBJECT(vec) || ALTREP(vec) ||
+      MAYBE_SHARED(vec) || ATTRIB(idx) != R_NilValue || XLENGTH(idx) != 1 ||
+      ATTRIB(v) != R_NilValue || XLENGTH(v) != 1) {
+    return false;
+  }
+  R_xlen_t i;
+  if (TYPEOF(idx) == INTSXP && INTEGER(idx)[0] != NA_INTEGER) {
+    i = INTEGER(idx)[0];
+  } else if (TYPEOF(idx) == REALSXP && REAL(idx)[0] >= 1 && REAL(idx)[0] < R_XLEN_T_MAX) {
+    i = (R_xlen_t)REAL(idx)[0];
+  } else {
+    return false;
+  }
+  if (i < 1 || i > XLENGTH(vec)) {
+    return false;
+  }
+  i--;
+  switch (TYPEOF(vec)) {
+    case REALSXP:
+      switch (TYPEOF(v)) {
+        case REALSXP:
+          REAL(vec)[i] = REAL(v)[0];
+          return true;
+        case INTSXP:
+        case LGLSXP: {
+          int iv = TYPEOF(v) == INTSXP ? INTEGER(v)[0] : LOGICAL(v)[0];
+          REAL(vec)[i] = iv == NA_INTEGER ? NA_REAL : iv;
+          return true;
+        }
+        default:
+          return false;
+      }
+    case INTSXP:
+      if (TYPEOF(v) != INTSXP) {
+        return false;
+      }
+      INTEGER(vec)[i] = INTEGER(v)[0];
+      return true;
+    case LGLSXP:
+      if (TYPEOF(v) != LGLSXP) {
+        return false;
+      }
+      LOGICAL(vec)[i] = LOGICAL(v)[0];
+      return true;
+    default:
+      return false;
+  }
+}
+
 SEXP Fir_call_setter_builtin(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
                              SEXP *names, uint64_t values) {
+  static int subassign_idx = -2, subassign2_idx = -2;
+  if (subassign_idx == -2) {
+    subassign_idx = Fir_funtab_index("[<-");
+    subassign2_idx = Fir_funtab_index("[[<-");
+  }
   if (!s->active || argc == 0 || Fir_source_call(call, env) == NULL) {
     return Fir_call_builtin_values(blt_idx, call, env, argc, args, names, values);
+  }
+  // A static call has the arguments of the signature `(x, i, value, ...)`.
+  if (argc == 3 && (blt_idx == subassign_idx || blt_idx == subassign2_idx) &&
+      Fir_subassign_scalar(s->value, args[1], args[2])) {
+    R_Visible = TRUE;
+    return s->value;
   }
   return Fir_call_setter_primitive(s, blt_idx, call, env, argc, args, names, true, values);
 }
