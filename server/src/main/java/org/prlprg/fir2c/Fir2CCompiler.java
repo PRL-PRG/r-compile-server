@@ -3501,6 +3501,7 @@ public final class Fir2CCompiler {
       case Value.Sexp(var sexp) -> constantRef(pool, sexp);
       case Value.Int(var i) -> i == Constants.NA_INT ? "NA_INTEGER" : Integer.toString(i);
       case Value.Real(var d) -> realRef(d);
+      case Value.Str(var s) when Constants.isNaString(s) -> "NULL";
       case Value.Str(var s) -> Printer.use(p -> p.writer().writeQuoted('"', s));
       case Value.Lgl(var l) ->
           switch (l) {

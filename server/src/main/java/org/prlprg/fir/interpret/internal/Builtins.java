@@ -673,7 +673,7 @@ public final class Builtins {
               }
               double a = sexpToDouble(s1, interpreter, name);
               double b = sexpToDouble(s2, interpreter, name);
-              return new Value.Sexp(SEXPs.logical(pred.test(a, b)));
+              return new Value.Sexp(SEXPs.logical(compare(pred, a, b)));
             }));
     // Scalar --> L: (I, I) --> L
     interpreter.registerExternal(
@@ -787,13 +787,17 @@ public final class Builtins {
               var d1 = sexpToDoubleOpt(s1);
               var d2 = sexpToDoubleOpt(s2);
               if (d1 != null && d2 != null) {
-                boolean eq = d1.equals(d2);
-                return new Value.Sexp(SEXPs.logical(isEqual == eq));
+                return new Value.Sexp(
+                    SEXPs.logical(compare((a, b) -> (a == b) == isEqual, d1, d2)));
               }
               // Try string comparison
               if (s1.asScalarString().isPresent() && s2.asScalarString().isPresent()) {
-                boolean eq = s1.asScalarString().get().equals(s2.asScalarString().get());
-                return new Value.Sexp(SEXPs.logical(isEqual == eq));
+                var a = s1.asScalarString().get();
+                var b = s2.asScalarString().get();
+                if (Constants.isNaString(a) || Constants.isNaString(b)) {
+                  return new Value.Sexp(SEXPs.logical(Logical.NA));
+                }
+                return new Value.Sexp(SEXPs.logical(isEqual == a.equals(b)));
               }
               throw interpreter.failUnsupported(
                   "Mock `" + name + "` not implemented for these argument types");
@@ -1399,6 +1403,12 @@ public final class Builtins {
       ListOrVectorSXP<?> vector,
       int index,
       boolean outOfRangeIsNa) {
+    if (outOfRangeIsNa && vector instanceof VecSXP v && index >= 0 && index < v.size()) {
+      // `[` of a list is a list, which keeps the element's name.
+      var element = SEXPs.vec(v.get(index));
+      var names = v.names();
+      return new Value.Sexp(names.isEmpty() ? element : element.withNames(names.get(index)));
+    }
     if (!outOfRangeIsNa || (index >= 0 && index < vector.size())) {
       return interpreter.subscriptLoad(vector, index);
     }
