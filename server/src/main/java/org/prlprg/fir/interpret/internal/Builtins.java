@@ -43,6 +43,7 @@ import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
+import org.prlprg.sexp.VectorSXP;
 
 /// Java implementations of GNU-R builtins for [InternalInterpreter] (specifically
 /// [InternalInterpreter#registerExternal(String, Signature, ExternalVersion)]).
@@ -255,8 +256,9 @@ public final class Builtins {
     // inherits
     registerInherits(interpreter);
 
-    // attr
+    // attr, names<-
     registerAttr(interpreter);
+    registerNamesAssign(interpreter);
 
     // c
     registerC(interpreter);
@@ -2737,6 +2739,50 @@ public final class Builtins {
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `attr` not yet fully implemented");
             }));
+  }
+
+  private static void registerNamesAssign(InternalInterpreter interpreter) {
+    // v0: (*, *) -+> V (`builtins.fir` declares no other)
+    interpreter.registerExternal(
+        "names<-",
+        SIG_GENERIC_2,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.get(0) instanceof Value.Sexp(var x))
+                  || !(args.get(1) instanceof Value.Sexp(var value))) {
+                throw interpreter.fail("`names<-` takes 2 sexp arguments");
+              }
+              return new Value.Sexp(namesAssign(x, value, interpreter));
+            }));
+  }
+
+  /// GNU-R's `names<-` on a vector: `NULL` removes the names, and a shorter character vector is
+  /// padded with `NA`.
+  private static SEXP namesAssign(SEXP x, SEXP value, InternalInterpreter interpreter) {
+    if (!(x instanceof VectorSXP<?> vector)) {
+      throw interpreter.failUnsupported("Mock `names<-` only supports vectors, not " + x.type());
+    }
+    var attributes = vector.attributes();
+    if (value instanceof NilSXP) {
+      return vector.copy().withAttributes(attributes.excluding("names"));
+    }
+    if (!(value instanceof StrSXP names) || names.hasAttributes()) {
+      throw interpreter.failUnsupported("Mock `names<-` only supports a plain character vector");
+    }
+    if (names.size() > vector.size()) {
+      throw interpreter.fail(
+          "'names' attribute ["
+              + names.size()
+              + "] must be the same length as the vector ["
+              + vector.size()
+              + "]");
+    }
+    var padded =
+        IntStream.range(0, vector.size())
+            .mapToObj(i -> i < names.size() ? names.get(i) : Constants.NA_STRING)
+            .toList();
+    return vector.copy().withAttributes(attributes.including("names", SEXPs.string(padded)));
   }
 
   // endregion
