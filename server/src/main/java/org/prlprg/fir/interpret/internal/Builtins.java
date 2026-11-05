@@ -1916,6 +1916,7 @@ public final class Builtins {
     if (elems.isEmpty()) {
       throw interpreter.failUnsupported("Mock `max` of no elements (GNU-R warns and gives -Inf)");
     }
+    // Even an empty real argument makes the result real
     if (args.stream().noneMatch(a -> a instanceof RealSXP)) {
       var ints = elems.stream().mapToInt(Builtins::elemToInt).toArray();
       return SEXPs.integer(

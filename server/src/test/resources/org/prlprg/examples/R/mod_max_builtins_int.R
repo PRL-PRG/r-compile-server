@@ -1,7 +1,8 @@
 f <- function(i, j, z, v, l) {
   c(
     i %% j, -i %% j, i %% -j, -i %% -j, i %% z, NA_integer_ %% j, v %% j, v %% c(j, -j, j), l %% j,
-    max(i), max(i, j), max(v), max(v, NA_integer_), max(l), max(l, i), max(NULL, v, -i)
+    max(i), max(i, j), max(v), max(v, NA_integer_), max(l), max(l, i), max(NULL, v, -i),
+    max(i, vector("double", 0L))
   )
 }
 
