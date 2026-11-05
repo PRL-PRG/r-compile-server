@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.check.Checker;
 import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -62,6 +63,97 @@ class InlineTest implements AbstractionOptimizationUnitTest {
         Checker.checkAll(main(module), Checker.Exclude.STRICT_CFG),
         "the inlined code should type-check:\n" + printed);
     assertEquals(before, interpreter.call("main"), "inlining changed the output:\n" + printed);
+  }
+
+  @Test
+  void calleeCallingAnotherVersionOfItsFunction_notInlined() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -~> v(I)f {
+                d: v(I)o = dup <int 1, 2, 3>;
+                r: v(I)o = f< v(I)o -~> v(I)f >(consume d);
+                return consume r;
+              }
+            }
+
+            fun f(x) {
+              (x:v(I)b) -~> v(I)f {
+                y: v(I)o = dup x;
+                y[0] = 9;
+                z: v(I)o = f< v(I)b -~> v(I)f >(y);
+                return consume y;
+              }
+              (x:v(I)o) -~> v(I)f {
+                x[0] = 9;
+                z: v(I)o = f< v(I)b -~> v(I)f >(x);
+                return consume x;
+              }
+            }
+            """);
+
+    assertFalse(runOnMain(module), "inlining a recursive function unrolls it forever");
+  }
+
+  @Test
+  void mutuallyRecursiveCallee_notInlined() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -~> I {
+                r: I = f< I -~> I >(1);
+                return r;
+              }
+            }
+
+            fun f(x) {
+              (x:I) -~> I {
+                r: I = g< I -~> I >(x);
+                return r;
+              }
+            }
+
+            fun g(x) {
+              (x:I) -~> I {
+                r: I = f< I -~> I >(x);
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(runOnMain(module), "inlining a recursive cycle unrolls it forever");
+  }
+
+  @Test
+  void recursiveFunctionWithOwnedVersion_reachesFixpoint() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V { ... }
+              () -~> v(I)f {
+                r: v(I)o = f< v(I)b -~> v(I)f >(<int 1, 2, 3>);
+                return consume r;
+              }
+            }
+
+            fun f(x) {
+              (x:*) -+> V { ... }
+              (x:v(I)b) -~> v(I)f {
+                y: v(I)o = dup x;
+                y[0] = 9;
+                z: v(I)o = f< v(I)b -~> v(I)f >(y);
+                return consume y;
+              }
+            }
+            """);
+
+    // Fails with "Didn't reach a fixpoint" if `Inline` unrolls `f` through its owned version.
+    Optimizations.defaultOptimizations().run(new MockModuleFeedback(module), module);
+
+    assertTrue(Checker.checkAll(module), "the optimized module should type-check:\n" + module);
   }
 
   @Test

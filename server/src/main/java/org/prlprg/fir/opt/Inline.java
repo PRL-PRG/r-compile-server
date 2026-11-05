@@ -3,8 +3,10 @@ package org.prlprg.fir.opt;
 import static org.prlprg.fir.analyze.resolve.NamedVariablesOf.namedVariablesOf;
 
 import com.google.common.collect.Sets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -120,6 +122,9 @@ public final class Inline extends AbstractionOptimization {
     /// Whether there's a call that may be inlined depending on its callee's body, which is
     /// unevaluated.
     boolean sawUnevaluated = false;
+    /// Cache of [#isRecursive]. Inlining doesn't make a function recursive: it only adds calls to
+    /// functions that the function already reached.
+    private final Map<Function, Boolean> isRecursive = new HashMap<>();
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
@@ -161,6 +166,7 @@ public final class Inline extends AbstractionOptimization {
                 bb,
                 statementIndex,
                 assignee,
+                callee.function(),
                 Objects.requireNonNull(callee.exactVersion()),
                 // Call arguments follow the callee's own argument (index 0).
                 stmt.args().subList(1, stmt.argCount()));
@@ -286,6 +292,7 @@ public final class Inline extends AbstractionOptimization {
         BB bb,
         int statementIndex,
         @Nullable Register assignee,
+        Function calleeFunction,
         Abstraction callee,
         List<Argument> arguments) {
       if (!mayInline(scope, callee, arguments.size())) {
@@ -298,7 +305,8 @@ public final class Inline extends AbstractionOptimization {
       }
 
       // Also don't inline if:
-      // - Callee calls itself (another recursive case)
+      // - Callee's function is recursive (another recursive case): even if this version doesn't
+      //   call itself, inlining it may bring in a call to a version that inlines it back.
       // - Callee is too big
       // - Callee and caller load or store the same named variable
       var instructionCount =
@@ -307,20 +315,11 @@ public final class Inline extends AbstractionOptimization {
               .flatMap(cfg -> cfg.bbs().stream())
               .mapToInt(bb1 -> bb1.instructions().size())
               .sum();
-      var callsItself =
-          callee
-              .streamCfgs()
-              .flatMap(cfg -> cfg.bbs().stream())
-              .flatMap(bb1 -> bb1.statements().stream())
-              .anyMatch(
-                  s ->
-                      s.expression() instanceof Call(StaticFnCallee callee1)
-                          && callee1.exactVersion() == callee);
       var variablesClash =
           !Sets.intersection(
                   namedVariablesOf(callee), analyses.get(NamedVariablesOf.class).namedVariables())
               .isEmpty();
-      if (instructionCount > maxInlineeSize || callsItself || variablesClash) {
+      if (instructionCount > maxInlineeSize || isRecursive(calleeFunction) || variablesClash) {
         return;
       }
 
@@ -370,6 +369,43 @@ public final class Inline extends AbstractionOptimization {
       }
       bb.statements().get(statementIndex).remove();
       inline(callee.body(), bb, statementIndex - 1, returnDest, substitutions);
+    }
+
+    /// Whether `function` reaches itself through static calls in its versions' bodies. Only
+    /// considers evaluated versions: an unevaluated one is checked once inlining evaluates it.
+    private boolean isRecursive(Function function) {
+      return isRecursive.computeIfAbsent(
+          function,
+          _ -> {
+            var seen = new HashSet<Function>();
+            var worklist = new ArrayDeque<>(staticCallees(function));
+            while (!worklist.isEmpty()) {
+              var next = worklist.pop();
+              if (next == function) {
+                return true;
+              }
+              if (seen.add(next)) {
+                worklist.addAll(staticCallees(next));
+              }
+            }
+            return false;
+          });
+    }
+
+    private static List<Function> staticCallees(Function function) {
+      return function.versions().stream()
+          .filter(Abstraction::isEvaluated)
+          .flatMap(Abstraction::streamCfgs)
+          .flatMap(cfg -> cfg.bbs().stream())
+          .flatMap(bb -> bb.statements().stream())
+          .<Function>mapMulti(
+              (s, sink) -> {
+                if (s.expression() instanceof Call(StaticFnCallee callee)) {
+                  sink.accept(callee.function());
+                }
+              })
+          .distinct()
+          .toList();
     }
 
     private void inline(
