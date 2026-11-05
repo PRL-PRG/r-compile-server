@@ -389,6 +389,28 @@ public class RDSWriterTest {
     assertEquals(sexp, bcode(bc));
   }
 
+  /// Calls that differ only in `NA` vs `NaN` must not be written as one shared cell.
+  @Test
+  public void testBCKeepsNaAndNaNCallsApart() throws Exception {
+    var R = GNUR.instance();
+    var clo = (CloSXP) R.eval("function(y) c(`%%`(NA_real_, y), `%%`(NaN, y))");
+    var bc = new BCCompiler(clo, R.getSession()).compile().orElseThrow();
+
+    var output = new ByteArrayOutputStream();
+    RDSWriter.writeStream(output, bcode(bc));
+    var sexp =
+        (BCodeSXP)
+            RDSReader.readStream(R.getSession(), new ByteArrayInputStream(output.toByteArray()));
+
+    assertEquals(bcode(bc), sexp);
+    var naKinds =
+        sexp.bc().consts().stream()
+            .filter(c -> c instanceof LangSXP l && l.funName().orElse("").equals("%%"))
+            .map(c -> Constants.isNaReal(((RealSXP) ((LangSXP) c).arg(0)).get(0)))
+            .toList();
+    assertEquals(List.of(true, false), naKinds);
+  }
+
   @Test
   public void testClosureWithBCEval() {
     var R = GNUR.instance();

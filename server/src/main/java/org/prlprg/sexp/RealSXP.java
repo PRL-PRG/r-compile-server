@@ -1,6 +1,5 @@
 package org.prlprg.sexp;
 
-import com.google.common.math.DoubleMath;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
@@ -11,7 +10,11 @@ import org.prlprg.parseprint.Printer;
 @Immutable
 public sealed interface RealSXP extends NumericSXP<Double>
     permits EmptyRealSXPImpl, RealSXPImpl, ScalarRealSXP {
-  double DOUBLE_CMP_DELTA = 0.000001d;
+  /// Whether `a` and `b` have the same bits, so `NA` differs from the other `NaN`s and `0` from
+  /// `-0`. [RealSXP#equals(Object)] compares elements with this.
+  static boolean sameBits(double a, double b) {
+    return Double.doubleToRawLongBits(a) == Double.doubleToRawLongBits(b);
+  }
 
   /**
    * The data contained in this vector. Note that if it's an empty or scalar, those aren't actually
@@ -105,7 +108,7 @@ record RealSXPImpl(double[] data, Attributes attributes) implements RealSXP {
       return false;
     }
     for (int i = 0; i < data.length; i++) {
-      if (!DoubleMath.fuzzyEquals(data[i], data1[i], DOUBLE_CMP_DELTA)) {
+      if (!RealSXP.sameBits(data[i], data1[i])) {
         return false;
       }
     }
@@ -114,8 +117,7 @@ record RealSXPImpl(double[] data, Attributes attributes) implements RealSXP {
 
   @Override
   public int hashCode() {
-    // Can't hash `data` because approximates are equal.
-    return Objects.hash(attributes);
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override
@@ -167,7 +169,7 @@ final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof ScalarRealSXP that)) return false;
-    return DoubleMath.fuzzyEquals(data, that.data, DOUBLE_CMP_DELTA);
+    return RealSXP.sameBits(data, that.data);
   }
 
   @Override

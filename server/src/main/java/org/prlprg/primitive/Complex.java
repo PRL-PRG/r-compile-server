@@ -7,6 +7,19 @@ import org.prlprg.parseprint.Printer;
 
 /** Complex number */
 public record Complex(double real, double imag) {
+  /// Compares the parts' bits, so `NA` differs from the other `NaN`s (the record default doesn't).
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof Complex(var r, var i)
+        && Double.doubleToRawLongBits(real) == Double.doubleToRawLongBits(r)
+        && Double.doubleToRawLongBits(imag) == Double.doubleToRawLongBits(i);
+  }
+
+  @Override
+  public int hashCode() {
+    return 31 * Double.hashCode(real) + Double.hashCode(imag);
+  }
+
   public static Complex fromReal(double x) {
     return new Complex(x, 0);
   }
