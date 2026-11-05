@@ -636,6 +636,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../fir2c/Fir2CCompilerTest.java` — FIŘ→C unit tests.
 - `.../fir2c/FallbackEquivalentVersionTest.java` — Redundant versions: the stub keeps its fallback, and compiled ones are reverted.
 - `.../parseprint/`, `.../primitive/`, `.../rds/`, `.../sexp/`, `.../util/` — Unit and property tests of utilities.
+- `.../sexp/AllEqual.java` — R's `all.equal` for test oracles: compares our computed SEXP with GNU-R's (real/complex tolerance 1.5e-8; NA, NaN, infinities and everything else exact).
 - `.../server/FirTestServer.java` — The in-JVM compile server of the tests.
 - `.../server/ServerTests.java` — RPC tests (`Compile`, `CompileFirVersion`, `CompileFirClosure`).
 - `.../server/JitTieringTest.java` — End-to-end test of the JIT tiers with an R process.

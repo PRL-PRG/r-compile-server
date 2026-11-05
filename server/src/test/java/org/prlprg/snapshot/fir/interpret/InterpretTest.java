@@ -1,7 +1,7 @@
 package org.prlprg.snapshot.fir.interpret;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.prlprg.sexp.AllEqual.assertAllEqual;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -42,11 +42,10 @@ class InterpretTest {
 
     switch (evalOutput.result()) {
       case Ok(var evalValue) when interpretOutput.result() instanceof Ok(var interpretValue) ->
-          assertEquals(
-              new Ok(withoutClosureDetails(evalValue, new IdentityHashMap<>()))
-                  .withoutCompiledCode(),
-              new Ok(withoutClosureDetails(interpretValue, new IdentityHashMap<>()))
-                  .withoutCompiledCode(),
+          assertAllEqual(
+              withoutClosureDetails(evalValue, new IdentityHashMap<>()),
+              withoutClosureDetails(interpretValue, new IdentityHashMap<>()),
+              (e, i) -> new Ok(e).withoutCompiledCode().equals(new Ok(i).withoutCompiledCode()),
               "Return value changed");
       case Ok(var evalValue)
           when interpretOutput.result() instanceof Error(var interpretError, var _) ->
