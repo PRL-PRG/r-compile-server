@@ -39,6 +39,7 @@ import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.PrimVectorSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.RealSXP;
@@ -232,7 +233,8 @@ public final class Builtins {
     registerPrint(interpreter);
     registerCat(interpreter);
 
-    // list, lapply
+    // is.na, list, lapply
+    registerIsNa(interpreter);
     registerList(interpreter);
     registerLapply(interpreter);
 
@@ -2711,6 +2713,40 @@ public final class Builtins {
             + (exponent < 0 ? "e-" : "e+")
             + String.format("%02d", Math.abs(exponent));
     return fixed.length() <= sci.length() ? fixed : sci;
+  }
+
+  // endregion
+
+  // region is.na
+
+  private static void registerIsNa(InternalInterpreter interpreter) {
+    // v0: (*) -+> V
+    interpreter.registerExternal(
+        "is.na",
+        SIG_GENERIC_1,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1
+                  || !(args.getFirst() instanceof Value.Sexp(var x)
+                      && x instanceof PrimVectorSXP<?> vector
+                      && !(x instanceof ComplexSXP || x instanceof RawSXP)
+                      && !x.hasAttributes())) {
+                throw interpreter.failUnsupported(
+                    "Mock `is.na` only supports a logical, integer, real, or string vector without attributes");
+              }
+              return new Value.Sexp(
+                  SEXPs.logical(
+                      vector.stream()
+                          .map(
+                              e ->
+                                  e == Logical.NA
+                                          || (e instanceof Integer i && i == Constants.NA_INT)
+                                          || (e instanceof Double d && d.isNaN())
+                                          || (e instanceof String s && Constants.isNaString(s))
+                                      ? Logical.TRUE
+                                      : Logical.FALSE)
+                          .toList()));
+            }));
   }
 
   // endregion
