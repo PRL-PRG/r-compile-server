@@ -1023,11 +1023,16 @@ public final class Fir2CCompiler {
           for (var i = 0; i < versions.size(); i++) {
             var version = versions.get(i);
 
-            var typeEmit = emitType(version.parameters().get(j).type());
+            var type = version.parameters().get(j).type();
+            if (type.equals(Type.ANY_SEXP)) {
+              // Every argument matches the top type.
+              continue;
+            }
+            var typeEmit = emitType(type);
 
-            var chain = j == 0 ? "" : "incompatible[%d] || ".formatted(i);
             cCode.stmt(
-                "incompatible[%d] = %s!Fir_value_matches(%s, %s);", i, chain, argName, typeEmit);
+                "incompatible[%d] = incompatible[%d] || !Fir_value_matches(%s, %s);",
+                i, i, argName, typeEmit);
           }
         }
 
@@ -2955,7 +2960,10 @@ public final class Fir2CCompiler {
                 bb.statements().stream()
                     .filter(s -> s.assignee() != null && registerRepr(s.assignee()) == Repr.SEXP)
                     .count();
-            cCode.stmt("UNPROTECT(%s);", numLiveIn + phiProtected + stmtProtected);
+            var count = numLiveIn + phiProtected + stmtProtected;
+            if (count > 0) {
+              cCode.stmt("UNPROTECT(%s);", count);
+            }
           }
 
           private String emitSignature(Signature signature) {
