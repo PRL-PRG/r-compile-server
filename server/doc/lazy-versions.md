@@ -336,13 +336,17 @@ server gives it to the optimizations, which use it as the minimum number of hits
 - `FirQuery` and `OptimizedFirQuery` are *transient* (`Query#isTransient`): every load recomputes
   the module, since using it evaluates parts of it. Their snapshots are of a separately computed
   copy with the baselines evaluated (`FirQuery`) or the baseline and best version of every function
-  evaluated (`OptimizedFirQuery`), and are only compared against.
+  evaluated (`OptimizedFirQuery`, which also evaluates the baselines of the functions that adds,
+  so the snapshot parses), and are only compared against.
 - `ForcedFirQuery` wraps one of them and evaluates everything. The FIŘ→C compile tests
   (`Fir2CTest#test`, `FirAfterOpt2CTest#test`) snapshot the C of the forced module.
 - `EvalQuery` runs the *lazy* module instead (`Fir2CQuery#forEval`), with its stubs connected to
   the in-JVM test server (`FirTestServer`), in a second R process that has `rsh` loaded
   (`GNUR#rshInstance`), calling `main` three times with a stub threshold of 1 (fallback, compiled
   version, what it calls compiled). It saves the module as the run left it (`module.fir` next to the output).
+  For a `#? benchmark:` example, whose `main` is only the warmup, `main` runs `threshold + 1` times
+  instead, and then the benchmark call runs once; its value is saved (`benchValue.rds`) and
+  compared like `main`'s (the `noBenchEval` option skips the call).
   `InterpretQuery` does the same for the interpreter. When rcp is available, `EvalQuery`'s R
   process also returns the raw recordings of the module's baselines (`Fir_serialized_feedback`),
   and `EvalQuery` translates them with `BcRecordingFeedback`, the same code that the server uses.

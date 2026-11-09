@@ -7,6 +7,7 @@ import org.prlprg.examples.SexpResult;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXP;
 
 /// What running a compiled module did.
 ///
@@ -14,13 +15,16 @@ import org.prlprg.parseprint.Printer;
 ///     server evaluated (and optimized) to answer the stubs (an unevaluated version isn't printed,
 ///     or, if it's a baseline, only its signature is). Only saved, not compared: it's what the run
 ///     left behind, not what it did.
+/// @param benchValue For a `#? benchmark:` example, the value of its benchmark call, which runs
+///     once after `main` (`result` is then `main`'s, `NULL`); otherwise `null`.
 // we do not persist the performance counters
 public record EvalOutput(
     SexpResult result,
     String outputLog,
     @Nullable MockModuleFeedback feedback,
     PerformanceCounters pc,
-    @Nullable String module) {
+    @Nullable String module,
+    @Nullable SEXP benchValue) {
   /// Ignore `pc` and `module` in comparison
   @Override
   public boolean equals(Object o) {
@@ -29,13 +33,14 @@ public record EvalOutput(
     }
     return Objects.equals(result, that.result)
         && Objects.equals(behaviorOutputLog(), that.behaviorOutputLog())
-        && Objects.equals(feedback, that.feedback);
+        && Objects.equals(feedback, that.feedback)
+        && Objects.equals(benchValue, that.benchValue);
   }
 
   /// Ignore `pc` and `module` in comparison
   @Override
   public int hashCode() {
-    return Objects.hash(result, behaviorOutputLog(), feedback);
+    return Objects.hash(result, behaviorOutputLog(), feedback, benchValue);
   }
 
   /// The scratch files [org.prlprg.session.gnur.GNUR#capturingEval] hands to R get a fresh random
@@ -104,6 +109,10 @@ public record EvalOutput(
     var w = p.writer();
 
     p.print(result);
+    if (benchValue != null) {
+      w.write("\n--- benchmark\n");
+      p.print(benchValue);
+    }
     w.write("\n---\n");
     w.write(outputLog);
     if (feedback != null) {

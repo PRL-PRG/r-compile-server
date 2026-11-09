@@ -19,21 +19,29 @@ import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
 import org.prlprg.fir2c.Fir2CSession;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.rds.RDSReader;
+import org.prlprg.rds.RDSWriter;
 import org.prlprg.server.FirTestServer;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
+import org.prlprg.snapshot.bench.BenchmarkQuery;
 import org.prlprg.snapshot.fir2c.Fir2CQuery;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
+///
+/// A `#? benchmark:` example's `main` is only the warmup, so after it the benchmark call runs once,
+/// and its value is compared too (see [EvalOutput#benchValue()]), unless the example has the
+/// `noBenchEval` option (e.g. `#? [opt.fir2c.opt.eval]noBenchEval` for one build).
 ///
 /// @param stubThreshold How many calls a stub of a module with stubs runs its fallback before it
 ///     requests its version (the client's `Fir_jit_threshold`).
@@ -54,8 +62,9 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
     return moduleQuery.name() + ".eval" + (stubThreshold == 1 ? "" : ".threshold" + stubThreshold);
   }
 
-  /// How many times a FIŘ module's `main` is called: enough for a version's stub to run its
-  /// fallback (the first call, with [#stubThreshold()] 1), then the compiled version (the second,
+  /// How many times a FIŘ module's `main` is called, unless the example has a benchmark call:
+  /// enough for a version's stub to run its fallback (the first call, with [#stubThreshold()] 1),
+  // then the compiled version (the second,
   /// which in the deterministic mode the tests use waits for it), then what it calls compiled (the
   /// third). Not for BC2C modules, whose tests count what one call does.
   private static final int FIR_RUNS = 3;
@@ -66,8 +75,12 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
       throw new SkipQueryException(name());
     }
 
-    var runs = moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
-    var run = run(example, store, moduleQuery, stubThreshold, runs, "");
+    var isBench =
+        example.text().contains("#? benchmark:") && !example.hasOption(name(), "noBenchEval");
+    var runs = isBench ? 1 : moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
+    var definitions =
+        isBench ? "bench_call <- quote(%s)\n".formatted(BenchmarkQuery.benchmarkCall(example)) : "";
+    var run = run(example, store, moduleQuery, stubThreshold, runs, definitions);
     var session = run.session();
     var error = run.error();
     if (error != null) {
@@ -76,7 +89,8 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
           run.outputLog(),
           null,
           PerformanceCounters.EMPTY,
-          moduleAfter(session));
+          moduleAfter(session),
+          null);
     }
 
     var v = Objects.requireNonNull(run.value());
@@ -95,7 +109,9 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
               "recorded feedback for a module without bytecode");
       feedback = BcRecordingFeedback.translate(module, bytecodes, recordings);
     }
-    return new EvalOutput(new Ok(res), run.outputLog(), feedback, pc, moduleAfter(session));
+    var benchValue = isBench ? ((VecSXP) v.get(3)).get(3) : null;
+    return new EvalOutput(
+        new Ok(res), run.outputLog(), feedback, pc, moduleAfter(session), benchValue);
   }
 
   /// What one run of a module by `eval.R` did.
@@ -114,7 +130,8 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
   /// Run the module that `moduleQuery` compiles for `example` (the one for
   /// [CompiledModuleQuery#forEval()]) with `eval.R`, and then remove it from the compile server.
   ///
-  /// @param runs How many times `eval.R` calls `main` (or the benchmark call).
+  /// @param runs How many times `eval.R` calls `main`, or the benchmark call if `definitions` sets
+  ///     `bench_call` (then `main` runs `stubThreshold + 1` times).
   /// @param definitions R code that runs before `eval.R`, e.g. to set its optional variables.
   public static Run run(
       Example example,
@@ -264,6 +281,12 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
         expected.result().withoutCompiledCode(),
         actual.result().withoutCompiledCode(),
         "Return value or crash reason changed");
+    if (example.hasOption(name(), "noBenchEval") == example.hasOption(oracleName, "noBenchEval")) {
+      assertEquals(
+          withoutCompiledCode(expected.benchValue()),
+          withoutCompiledCode(actual.benchValue()),
+          "Benchmark value changed");
+    }
     if (!example.hasOption("", "nondeterministic")) {
       // `expected` may come from a different compilation of this example (the oracle), where R
       // names a different call in its errors and warnings, so compare without those. Comparing the
@@ -288,6 +311,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
   public void verifyNoRegression(
       EvalOutput previous, EvalOutput current, Example example, SnapshotStore store) {
     assertEquals(previous.result(), current.result(), "Return value or crash reason changed");
+    assertEquals(previous.benchValue(), current.benchValue(), "Benchmark value changed");
     if (!example.hasOption("", "nondeterministic")) {
       assertEquals(
           previous.outputLogWithoutAddresses(),
@@ -358,6 +382,10 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
     }
   }
 
+  private static @Nullable String withoutCompiledCode(@Nullable SEXP value) {
+    return value == null ? null : new Ok(value).withoutCompiledCode();
+  }
+
   private static void assertNoSlow(
       PerformanceCounters pc, Function<PerformanceCounters, Integer> metric, String message) {
     assertEquals(0, metric.apply(pc), message);
@@ -371,6 +399,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
     var outputLogPath = path.resolve("output.log");
     var feedbackPath = path.resolve("feedback.txt");
     var modulePath = path.resolve("module.fir");
+    var benchPath = path.resolve("benchValue.rds");
 
     var result = SexpResult.read(path, R);
     var outputLog = Files.readString(outputLogPath);
@@ -381,8 +410,11 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
       feedback = Parser.fromFile(feedbackPath.toFile(), MockModuleFeedback.class, parseCtx);
     }
     var module = Files.exists(modulePath) ? Files.readString(modulePath) : null;
+    var benchValue =
+        Files.exists(benchPath) ? RDSReader.readFile(R.getSession(), benchPath.toFile()) : null;
 
-    return new EvalOutput(result, outputLog, feedback, PerformanceCounters.EMPTY, module);
+    return new EvalOutput(
+        result, outputLog, feedback, PerformanceCounters.EMPTY, module, benchValue);
   }
 
   @Override
@@ -404,6 +436,12 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
       Files.deleteIfExists(modulePath);
     } else {
       Files.writeString(modulePath, data.module());
+    }
+    var benchPath = path.resolve("benchValue.rds");
+    if (data.benchValue() == null) {
+      Files.deleteIfExists(benchPath);
+    } else {
+      RDSWriter.writeFile(benchPath.toFile(), data.benchValue());
     }
   }
 }

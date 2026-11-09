@@ -62,11 +62,12 @@ reseed <- function() {
     set.seed(seed, kind = "default", normal.kind = "default", sample.kind = "default")
   }
 }
-# A benchmark (`VersionBenchmarkQuery`) sets `bench_call` to the example's quoted `#? benchmark:`
-# call. Then the module's main (the example's warmup) runs `threshold + 1` times, each in an
-# environment that keeps what it defines, like `bench.R`'s `cc`. The last run is compiled, so the
-# closures it defines are the module's functions (the earlier runs run main's stub, whose fallback
-# runs the bytecode, which defines GNU-R closures). The call runs `runs` times in its environment.
+# A benchmark (`VersionBenchmarkQuery`, and `EvalQuery` for a `#? benchmark:` example) sets
+# `bench_call` to the example's quoted `#? benchmark:` call. Then the module's main (the example's
+# warmup) runs `threshold + 1` times, each in an environment that keeps what it defines, like
+# `bench.R`'s `cc`. The last run is compiled, so the closures it defines are the module's functions
+# (the earlier runs run main's stub, whose fallback runs the bytecode, which defines GNU-R
+# closures). The call runs `runs` times in its environment.
 if (!exists("bench_call")) bench_call <- NULL
 bench <- NULL
 if (is.null(bench_call)) {
@@ -80,20 +81,23 @@ if (is.null(bench_call)) {
     bench_env <- new.env(parent = main_env)
     invisible(.Call(paste0("Fir_", prefix, "fun_from_r_main"), bench_env, constantPool))
   }
-  # Each run's wall time and CPU time (user), and the module's version call counters
-  # (`Fir_stats_versions_get`) before the first run and after each.
+  # Each run's wall time and CPU time (user), the module's version call counters
+  # (`Fir_stats_versions_get`, `NULL` without `rsh`) before the first run and after each, and the
+  # last run's value.
   bench <- list(times = numeric(runs), calls = vector("list", runs + 1L), cpu = numeric(runs))
   calls <- function() {
-    all <- .Call("Fir_stats_versions_get")
-    all[startsWith(names(all), prefix)]
+    all <- tryCatch(.Call("Fir_stats_versions_get"), error = \(e) NULL)
+    if (is.null(all)) NULL else all[startsWith(names(all), prefix)]
   }
-  bench$calls[[1L]] <- calls()
+  bench$calls[1L] <- list(calls())
   for (i in seq_len(runs)) {
-    time <- system.time(eval(bench_call, bench_env))
+    reseed()
+    time <- system.time(value <- eval(bench_call, bench_env))
     bench$times[[i]] <- time[["elapsed"]]
     bench$cpu[[i]] <- time[["user.self"]]
-    bench$calls[[i + 1L]] <- calls()
+    bench$calls[i + 1L] <- list(calls())
   }
+  bench["value"] <- list(value)
   res <- NULL
 }
 

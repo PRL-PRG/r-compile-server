@@ -83,7 +83,8 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
   }
 
   /// The module with the baseline and the best version of every function evaluated, which is what
-  /// a program that calls each function often enough ends up running.
+  /// a program that calls each function often enough ends up running. The functions that this adds
+  /// only have their baselines evaluated.
   ///
   /// It's optimized again instead of evaluating `data`, which whoever loaded it still wants
   /// unevaluated.
@@ -105,6 +106,8 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
           best.body();
         }
       }
+      // Evaluating a baseline adds its inner closures, whose unevaluated baselines don't parse.
+      module.evaluateBaselines();
       // The baselines aren't optimized, so nothing cleaned them up since BC->FIŘ.
       cleanup(module);
     } finally {

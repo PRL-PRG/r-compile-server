@@ -80,7 +80,7 @@ public class BenchmarkQuery implements BenchmarkOutputQuery {
   }
 
   /// The R call the example wants benchmarked, from its `#? benchmark:` line.
-  static String benchmarkCall(Example example) {
+  public static String benchmarkCall(Example example) {
     var benchmarkLine =
         example
             .text()
