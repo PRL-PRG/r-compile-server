@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -125,6 +126,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// The number of environments where each analyzed [Promise] is created, by identity.
   private final Map<Promise, Integer> promiseEnvDepths = new IdentityHashMap<>();
 
+  /// The [State#bodyParts] of each [CFG], while the constructor runs the analysis (the IR may
+  /// change after it).
+  private Map<CFG, List<BodyPart>> bodyParts = new HashMap<>();
+
+  private static final Map<CFG, List<BodyPart>> NO_BODY_PARTS = Map.of();
+
+  /// The count of [CFG]s whose statements [State#bodyParts] scanned (for tests).
+  int bodyScans = 0;
+
   /// Creates and runs the analysis.
   public OriginAnalysis(Abstraction scope) {
     this(scope, new InferType(scope), new InferEffects(scope));
@@ -138,6 +148,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     this.inferEffects = inferEffects;
 
     run(new State());
+    bodyParts = NO_BODY_PARTS;
   }
 
   @Override
@@ -644,7 +655,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     private void force(PromiseOrigin po) {
       if (po.forced != Maybe.YES) {
         var replace = po.forced == Maybe.NO;
-        runPromiseBody(po, replace);
+        if (!runPromiseBody(po, replace)) {
+          return;
+        }
         po.forced = Maybe.YES;
         if (replace) {
           state()
@@ -656,14 +669,14 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     /// Maybe-forces `po`: it may or may not run here, so its body's effects are *merged*.
+    ///
+    /// A maybe-forced `po` still runs its body with the current state. `po` may stand for a
+    /// fresh promise that [#incorporate] merged with an earlier loop iteration's instance of the
+    /// same [Promise], which is then not forced, and its body would read the current bindings.
+    /// The body's own [OnCfg] doesn't re-run when this state adds nothing, and [#runPromiseBody]
+    /// doesn't re-enter a body that's running (see [State#mayRunBody]), so this terminates.
     private void maybeForce(PromiseOrigin po) {
-      if (po.forced != Maybe.NO) {
-        // Already (maybe-)forced: its body's effects were already merged into this state. Running
-        // it again would only repeat the same merge, and since promise bodies can (via a force of
-        // an unknown value) trigger `maybeForceLeaked`, which maybe-forces sibling leaked promises,
-        // re-running maybe-forced promises would mutually re-trigger each other and never
-        // terminate. The outer CFG worklist re-runs from a fresh state when bindings actually
-        // change, so we don't lose soundness by not re-running here.
+      if (po.forced == Maybe.YES) {
         return;
       }
       runPromiseBody(po, false);
@@ -673,15 +686,18 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// Runs `po.promise`'s body sub-analysis with the current state, then either replaces the
     /// current environment bindings with the result (the body definitely ran) or merges them
     /// (it may have). Sets `po.value` to the return origin.
-    private void runPromiseBody(PromiseOrigin po, boolean replace) {
+    ///
+    /// Returns `false` iff the body's analysis is already running.
+    private boolean runPromiseBody(PromiseOrigin po, boolean replace) {
       var subAnalysis = (OnCfg) onCfg(po.promise.code());
 
       if (subAnalysis.isRunning()) {
-        // The promise's body is already being analyzed higher on the stack, so forcing it here is a
-        // recursive force (a "promise already under evaluation" runtime error). Re-entering would
-        // corrupt the in-progress analysis (the shared `OnCfg` reuses its state/cursor and nulls
-        // its state on exit), so bail out and conservatively treat the forced value as unknown.
-        return;
+        // The body's analysis is higher on the stack, but `po` can be another instance of the
+        // promise (e.g. one of an earlier loop iteration that leaked). Re-entering would corrupt
+        // the analysis in progress (the shared `OnCfg` reuses its state and cursor).
+        state().mayRunBody(po.promise);
+        po.value = null;
+        return false;
       }
 
       // The body runs in the environment where the promise is created, not in the environments
@@ -714,6 +730,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         state().taintViaReflection();
       }
       po.value = subAnalysis.returnOrigin();
+      return true;
     }
 
     /// `naToFalse(x)` is true only for `TRUE`; `naToTrue(x)` is true for everything but `FALSE`.
@@ -1201,6 +1218,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
         var info = frame.variables.get(variable);
 
+        if (info != null && info.unknown) {
+          return null;
+        }
         if (info != null) {
           candidates.addAll(info.origins);
         }
@@ -1230,6 +1250,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
         var info = frame.variables.get(variable);
 
+        if (info != null && info.unknown) {
+          return null;
+        }
         var mayBeAbsent = info == null || info.mayBeAbsent;
         if (info != null) {
           for (var origin : info.origins) {
@@ -1296,6 +1319,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           // Definitely present, (if ambiguous, maybe-)store here
           if (!isAmbiguous) {
             info.origins.clear();
+            info.unknown = false;
           }
           info.origins.add(value);
           return;
@@ -1366,6 +1390,105 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       }
     }
 
+    /// Applies the effects that a run of `promise`'s body may have, without its analysis.
+    ///
+    /// The body may force each leaked promise, and each promise that it reads from a register or
+    /// variable, so these become maybe-forced and leaked, and their bodies may run too. Each
+    /// variable that one of these bodies stores may then hold anything, and each promise that
+    /// they create leaks.
+    private void mayRunBody(Promise promise) {
+      var effects = promise.effects();
+      var seen = Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>());
+      var reached = new ArrayList<PromiseOrigin>();
+      var cfgs = new ArrayList<CFG>(List.of(promise.code()));
+      Consumer<@Nullable PromiseOrigin> reach =
+          po -> {
+            if (po != null && po.promise.effects().isSubsetOf(effects) && seen.add(po)) {
+              reached.add(po);
+              cfgs.add(po.promise.code());
+            }
+          };
+      leakedPromises.forEach(reach);
+
+      var stored = new LinkedHashSet<NamedVariable>();
+      for (var i = 0; i < cfgs.size(); i++) {
+        if (!seen.add(cfgs.get(i))) {
+          continue;
+        }
+        for (var part : bodyParts(cfgs.get(i))) {
+          switch (part) {
+            case BodyPart.Stored(var variable) -> stored.add(variable);
+            case BodyPart.Loaded(var variable) ->
+                envs.forEach(env -> reach.accept(env.variablePromises.get(variable)));
+            case BodyPart.Created(var created) ->
+                leakedPromises.add(new PromiseOrigin(created, Maybe.MAYBE, null));
+            case BodyPart.Used(var register) -> reach.accept(registerPromises.get(register));
+          }
+        }
+      }
+
+      for (var po : reached) {
+        if (po.forced == Maybe.NO) {
+          po.forced = Maybe.MAYBE;
+        }
+        leakedPromises.add(po);
+      }
+      for (var variable : stored) {
+        for (var env : envs) {
+          var po = env.variablePromises.remove(variable);
+          if (po != null) {
+            leakedPromises.add(po);
+          }
+          var info = env.variables.get(variable);
+          if (info == null && env == envs.getLast()) {
+            info = new VariableInfo();
+            info.mayBeAbsent = true;
+            env.variables.put(variable, info);
+          }
+          if (info != null) {
+            info.origins.clear();
+            info.unknown = true;
+          }
+        }
+      }
+      if (effects.reflect()) {
+        taintViaReflection();
+      }
+    }
+
+    /// The stores, loads, promises and register arguments of the statements in `root` and the
+    /// promises in it, in order and without repeats (a repeat has no effect in [#mayRunBody]).
+    private List<BodyPart> bodyParts(CFG root) {
+      var cached = bodyParts.get(root);
+      if (cached != null) {
+        return cached;
+      }
+      bodyScans++;
+      var parts = new LinkedHashSet<BodyPart>();
+      Abstraction.streamCfgs(root)
+          .flatMap(cfg -> cfg.bbs().stream())
+          .flatMap(bb -> bb.statements().stream())
+          .forEach(
+              statement -> {
+                switch (statement.expression()) {
+                  case Store(_, var variable) -> parts.add(new BodyPart.Stored(variable));
+                  case Load(_, var variable) -> parts.add(new BodyPart.Loaded(variable));
+                  case Promise created -> parts.add(new BodyPart.Created(created));
+                  default -> {}
+                }
+                for (var arg : statement.args()) {
+                  if (arg.variable() instanceof Register r) {
+                    parts.add(new BodyPart.Used(r));
+                  }
+                }
+              });
+      var result = List.copyOf(parts);
+      if (bodyParts != NO_BODY_PARTS) {
+        bodyParts.put(root, result);
+      }
+      return result;
+    }
+
     /// The variables that are definitely in each environment, by the statement that creates it.
     private Map<Statement, Set<NamedVariable>> present() {
       var present = new LinkedHashMap<Statement, Set<NamedVariable>>();
@@ -1401,12 +1524,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     /// Each variable of an environment that a closure captures may hold anything after the
-    /// closure runs, which it may if it's `called` here or escaped. So the environment is tainted.
+    /// closure runs, which it may if it's `called` here or escaped.
     private void runCapturingClosures(boolean called) {
       for (var env : envs) {
         if (env.captured && (called || env.closureEscaped)) {
           leakedPromises.addAll(env.variablePromises.values());
-          env.taint();
+          env.variablePromises.clear();
+          for (var info : env.variables.values()) {
+            info.origins.clear();
+            info.unknown = true;
+          }
         }
       }
     }
@@ -1694,30 +1821,58 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     final TreeSet<Argument> origins = new TreeSet<>(Comparator.comparing(Argument::toString));
     /// True iff on at least one reaching path the variable was not stored in this frame.
     boolean mayBeAbsent = false;
+    /// True iff the variable may hold anything, besides [#origins] (see [State#mayRunBody]).
+    boolean unknown = false;
 
     VariableInfo copy() {
       var copy = new VariableInfo();
       copy.origins.addAll(origins);
       copy.mayBeAbsent = mayBeAbsent;
+      copy.unknown = unknown;
       return copy;
     }
 
     void merge(VariableInfo other) {
       origins.addAll(other.origins);
       mayBeAbsent |= other.mayBeAbsent;
+      unknown |= other.unknown;
     }
 
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
       if (!(o instanceof VariableInfo other)) return false;
-      return mayBeAbsent == other.mayBeAbsent && origins.equals(other.origins);
+      return mayBeAbsent == other.mayBeAbsent
+          && unknown == other.unknown
+          && origins.equals(other.origins);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(origins, mayBeAbsent);
+      return Objects.hash(origins, mayBeAbsent, unknown);
     }
+  }
+
+  /// A part of a statement that [State#mayRunBody] reads.
+  private sealed interface BodyPart {
+    record Stored(NamedVariable variable) implements BodyPart {}
+
+    record Loaded(NamedVariable variable) implements BodyPart {}
+
+    /// Equal iff the promise is the same object (see [PromiseOrigin#equals]).
+    record Created(Promise promise) implements BodyPart {
+      @Override
+      public boolean equals(Object o) {
+        return o instanceof Created(var other) && promise == other;
+      }
+
+      @Override
+      public int hashCode() {
+        return System.identityHashCode(promise);
+      }
+    }
+
+    record Used(Register register) implements BodyPart {}
   }
 
   /// `null` iff unknown.

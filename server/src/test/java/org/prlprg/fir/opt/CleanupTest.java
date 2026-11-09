@@ -528,6 +528,64 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
   }
   */
 
+  /// `bench_ai_awf_queens`'s `solve_queens`: a promise made in a loop reads `board`, which the loop
+  /// then rebinds, and a block boundary lies between the promise and the call it's passed to. The
+  /// load reads the parameter only on the first iteration, so it must not become the parameter.
+  @Test
+  void loadInLoopPromise_afterRebinding_notSubstitutedWithFirstIterationValue() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun solve(board, n) {
+              (board:*, n:*) -+> V { ... }
+              (board:p(v(R) +), n:I) -+> I {
+                mkenv~;
+                st board = board;
+                goto L1(0);
+              L1(k: I):
+                k1: I = `+`< I,I --> I >(k, 1);
+                c: L = `<`< I,I --> L >(k1, n);
+                c1: B = naToFalse< L --> B >(c);
+                if c1 then L2() else L4();
+              L2():
+                p: p(v(R) +) = prom<v(R) +>{
+                  board1: * = ld board;
+                  board2: V = force? board1;
+                  board3: v(R) = board2 ?: v(R);
+                  return board3;
+                };
+                goto L3();
+              L3():
+                r: V = isSafe< p(v(R) +) -+> V >(p);
+                board4: v(R) = mk< -+> v(R) >();
+                st board = board4;
+                goto L1(k1);
+              L4():
+                popenv;
+                return k1;
+              }
+            }
+
+            fun isSafe(b) {
+              (b:p(v(R) +)) -+> V { ... }
+            }
+
+            fun mk() {
+              () -+> v(R) { ... }
+            }
+            """);
+
+    run(module);
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("board1: * = ld board;"),
+        "the promise must still load `board`; got:\n" + printed);
+    assertFalse(
+        printed.contains("force? board;"),
+        "the promise must not read the parameter `board`; got:\n" + printed);
+  }
+
   // endregion
 
   // region Remove unused locals

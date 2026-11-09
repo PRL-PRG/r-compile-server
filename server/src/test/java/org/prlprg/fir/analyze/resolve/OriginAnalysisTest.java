@@ -968,8 +968,8 @@ class OriginAnalysisTest {
         analysis.getPossible(l2, 5, Variable.named("list")));
   }
 
-  /// `p` leaks into a dots vector. The definite force of `q` doesn't forget it, so `h` may still
-  /// force `p`, which stores 9 into `x`.
+  /// `p` leaks into `g`. The definite force of `q` doesn't forget it, so `h` may still force `p`,
+  /// which stores 9 into `x`.
   @Test
   void testLeakedPromiseMaybeForcedAfterDefiniteForce() {
     var module =
@@ -983,7 +983,7 @@ class OriginAnalysisTest {
                   st x = <int 9>;
                   return <int 9>;
                 };
-                d: dots = dots[p];
+                g< p(v1(I) +) -+> V >(p);
                 st x = <int 2>;
                 q: p(v1(I) ~) = prom<v1(I) ~>{
                   return <int 3>;
@@ -994,6 +994,10 @@ class OriginAnalysisTest {
                 popenv;
                 return x1;
               }
+            }
+
+            fun g(x) {
+              (x:p(v1(I) +)) -+> V { ... }
             }
 
             fun h() {
@@ -1076,6 +1080,112 @@ class OriginAnalysisTest {
     var five = Set.of(new Constant(SEXPs.integer(5)));
     assertEquals(five, analysis.getPossible(body, 0, Variable.named("x")));
     assertEquals(five, analysis.getPossible(entry, 3, Variable.named("x")));
+  }
+
+  /// Each iteration leaks a promise into `g`. In the body of the second one, `h` may force the
+  /// first one, whose body stores 2 into `board`, while the analysis of the same body is running.
+  /// (The branch before the call merges the promise with the leaked one.)
+  @Test
+  void testReentrantForceOfSamePromiseCode() {
+    var module =
+        parseModule(
+            """
+            fun main(n) {
+              (n:I) -+> V {
+                mkenv~;
+                st board = <int 0>;
+                goto L1(0);
+              L1(k: I):
+                k1: I = `+`< I,I --> I >(k, 1);
+                c: L = `<`< I,I --> L >(k1, n);
+                c1: B = naToFalse< L --> B >(c);
+                if c1 then L2() else L3();
+              L2():
+                st board = <int 1>;
+                p: p(V +) = prom<V +>{
+                  h1: V = h< -+> V >();
+                  b1: * = ld board;
+                  b2: V = force? b1;
+                  st board = <int 2>;
+                  return b2;
+                };
+                if c1 then L4() else L5();
+              L4():
+                goto L6();
+              L5():
+                goto L6();
+              L6():
+                r: V = g< p(V +) -+> V >(p);
+                goto L1(k1);
+              L3():
+                popenv;
+                return <int 0>;
+              }
+            }
+
+            fun g(x) {
+              (x:p(V +)) -+> V { ... }
+            }
+
+            fun h() {
+              () -+> V { ... }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var l2 = Objects.requireNonNull(main.body().bb("L2"));
+    var body = ((Promise) l2.statements().get(1).expression()).code().entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    var board = analysis.getPossible(body, 0, Variable.named("board"));
+    assertTrue(board.isEmpty() || board.contains(new Constant(SEXPs.integer(2))), board::toString);
+  }
+
+  /// Four promises leak, and each call in their bodies may force each of them, also one whose
+  /// body's analysis is running. Each such force applies the effects that the body may have,
+  /// which needs the statements of the body: the analysis scans each body only once.
+  @Test
+  void testEachPromiseBodyIsScannedOnce() {
+    var promise =
+        """
+            prom<V +>{
+              h1: V = h< -+> V >();
+              h2: V = h< -+> V >();
+              st x = <int 2>;
+              return h2;
+            }""";
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                st x = <int 0>;
+                p1: p(V +) = %1$s;
+                p2: p(V +) = %1$s;
+                p3: p(V +) = %1$s;
+                p4: p(V +) = %1$s;
+                r: V = g< p(V +),p(V +),p(V +),p(V +) -+> V >(p1, p2, p3, p4);
+                r1: V = h< -+> V >();
+                popenv;
+                return r1;
+              }
+            }
+
+            fun g(a, b, c, d) {
+              (a:p(V +), b:p(V +), c:p(V +), d:p(V +)) -+> V { ... }
+            }
+
+            fun h() {
+              () -+> V { ... }
+            }
+            """
+                .formatted(promise));
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertTrue(analysis.bodyScans <= 4, () -> analysis.bodyScans + " scans");
   }
 
   /// A state's set of leaked promises still finds a promise after its forced status changes.
