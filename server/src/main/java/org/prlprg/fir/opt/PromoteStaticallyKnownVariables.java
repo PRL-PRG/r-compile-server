@@ -422,9 +422,11 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
             originAnalysis.getPossible(bb, -1, variable).stream()
                 .map(scope::typeOf)
                 .reduce(
-                    Type.ANY_SEXP,
+                    (Type) null,
                     (left, right) -> Type.union(left, right == null ? Type.ANY_SEXP : right));
-        var phi = new BlockParameter(scope.freshName(variable.name()), phiType);
+        var phi =
+            new BlockParameter(
+                scope.freshName(variable.name()), phiType == null ? Type.ANY_SEXP : phiType);
         bb.appendPhiParameter(phi);
         phis.put(bb, phi);
       }
