@@ -775,7 +775,11 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
     *saved = Rsh_ElidedEnv;
     if (*env_ptr != Rsh_ElidedEnv) {
       *saved = ENCLOS(Rsh_ElidedEnv);
-      SET_ENCLOS(Rsh_ElidedEnv, *env_ptr);
+      // `SET_ENCLOS` walks the parent chain to reject cycles, and a recursive call often sets the
+      // parent it already has, so skip that no-op.
+      if (*saved != *env_ptr) {
+        SET_ENCLOS(Rsh_ElidedEnv, *env_ptr);
+      }
       *env_ptr = Rsh_ElidedEnv;
     }
     PROTECT(*saved);
@@ -812,7 +816,10 @@ void Fir_pop_env(SEXP *env_ptr, bool pushed, SEXP saved) {
     if (saved != Rsh_ElidedEnv) {
       *env_ptr = ENCLOS(Rsh_ElidedEnv);
       // Before the first push, the parent is `R_NilValue`, which `SET_ENCLOS` rejects.
-      SET_ENCLOS(Rsh_ElidedEnv, saved == R_NilValue ? R_EmptyEnv : saved);
+      SEXP parent = saved == R_NilValue ? R_EmptyEnv : saved;
+      if (*env_ptr != parent) {
+        SET_ENCLOS(Rsh_ElidedEnv, parent);
+      }
     }
     return;
   }
@@ -1033,7 +1040,8 @@ SEXP Fir_from_r_arg(SEXP env, SEXP symbol, bool keep_promise) {
   if (!R_VARLOC_IS_NULL(loc) && MISSING(loc.cell)) {
     return R_MissingArg;
   }
-  SEXP value = Rf_findVarInFrame(env, symbol);
+  // `R_GetVarLocValue` returns `R_UnboundValue` for a null location, like `Rf_findVarInFrame`.
+  SEXP value = R_GetVarLocValue(loc);
   return keep_promise ? value : Fir_safe_force(value);
 }
 
