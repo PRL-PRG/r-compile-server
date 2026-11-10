@@ -1019,9 +1019,11 @@ public final class Fir2CCompiler {
       debugComment(cCode, "# Suppress inner mkenv (if present) because R makes it");
       cCode.stmt("SEXP outer_env;");
       cCode.stmt("bool push_suppressed;");
+      cCode.stmt("int outer_depth;");
       cCode.stmt("SEXP outer_parent;");
       cCode.stmt(
-          "Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed, &outer_parent);", VAR_ENV);
+          "Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed, &outer_depth, &outer_parent);",
+          VAR_ENV);
       cCode.stmt("PROTECT(outer_parent);");
 
       var baseline = function.baseline();
@@ -1076,7 +1078,8 @@ public final class Fir2CCompiler {
       }
 
       debugComment(cCode, "# Un-suppress inner mkenv");
-      cCode.stmt("Fir_unset_env_pushed_from_r(outer_env, push_suppressed, outer_parent);");
+      cCode.stmt(
+          "Fir_unset_env_pushed_from_r(outer_env, push_suppressed, outer_depth, outer_parent);");
       cCode.stmt("UNPROTECT(1);");
 
       cCode = cFunction.add();
@@ -2908,7 +2911,9 @@ public final class Fir2CCompiler {
                 // tracking list and the env slots (from `emitPromiseTrackingSetup` and
                 // `emitEnvPushedDeclaration`).
                 if (createsPromises) {
-                  cCode.stmt("Fir_mark_promises_escaped(%s);", VAR_LOCAL_PROMISES);
+                  cCode.stmt(
+                      "if (%s != R_NilValue) Fir_mark_promises_escaped(%s);",
+                      VAR_LOCAL_PROMISES, VAR_LOCAL_PROMISES);
                 }
                 var numFrameProtects =
                     (createsPromises ? 1 : 0) + (hasEnvOps ? 1 + (int) numMkEnvs : 0);

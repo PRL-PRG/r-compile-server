@@ -660,6 +660,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/eval_compiled_body_in_live_frame.R` — `eval` of a compiled closure's body in a live frame: its pop must not mark that frame as returned (`FIR_FRAME_RETURNED`).
 - `.../examples/R/closure_called_from_inlined_frame_in_elided_frame.R` — A closure made in a real frame inside an elided frame, called with its own elided frame: no cycle in the parent chain.
 - `.../examples/R/closure_from_frame_nested_in_elided_frame.R` — A closure from a real frame that an elided frame contains: its lookups reach the elided frame's parent, not the elided environment's current parent.
+- `.../examples/R/elided_callee_env_collected.R` — After the outermost elided frame returns, the elided environment doesn't keep its parent alive: `gc()` runs the parent's finalizer.
 - `.../examples/R/elided_frame_after_caught_error.R` — An elided frame whose callee, called from R, catches an error past a pushed elided frame: the from-R exit restores the elided environment's parent.
 - `.../examples/R/attributes_fail_type_guard.R` — A value with attributes (a name) fails the type guard of a version typed from plain values (`Fir_value_kind_matches`), and deopts.
 - `.../examples/R/length_object_deopts.R` — The unboxed `length` deopts for an object, which can dispatch a `length` method.
@@ -695,6 +696,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/missing_promise_elided.R` — `missing` follows a promise into the caller's frame, so the caller's environment must stay materialized.
 - `.../examples/R/missing_unknown_callee.R` — `seq.default` (a base closure, so a dynamic callee) calls `missing` on a promise of a symbol, which reads the caller's environment: it must not become non-reflective.
 - `.../examples/R/missing_string_branch.R` — `missing("x")` reads the binding of `x`, so its store must stay; and a default parameter's `missing` check (the `--> B` version).
+- `.../examples/R/elided_frame_after_error_caught_in_callee.R` — An error caught in an elided frame skips its pop; the jump to the catching context restores the elided depth and parent, so a later `gc()` collects that frame's parent.
 - `.../examples/R/elided_env_parent_{after_call,promise}.R` — Regressions for the parent of an elided frame in the fir2c runtime: after an elided callee with another parent returns, and in a promise that such a callee forces.
 - `.../examples/R/empty_name_subscript.R` — `[`, `[[`, `[<-`, and `[[<-` with the name `""`, which GNU-R never matches, so that the interpreter mocks read it out of range and append it.
 - `.../examples/R/ls_after_parent_frame.R` — `ls` of a frame after `parent.frame` reflects on it lists only its bindings (the vendored R keeps its reflection mark out of them).

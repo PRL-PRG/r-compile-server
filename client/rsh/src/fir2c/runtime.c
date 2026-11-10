@@ -78,20 +78,6 @@ static SEXP Fir_base_function(SEXP symbol) {
   return Rf_findFun(symbol, R_BaseEnv);
 }
 
-bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
-  if (TYPEOF(value) != CLOSXP) {
-    return false;
-  }
-  SEXP body = BODY(value);
-  if (TYPEOF(body) != EXTPTRSXP || !IS_RSH_CODE(body)) {
-    return false;
-  }
-  SEXP cp = R_ExternalPtrProtected(body);
-  ASSERT(Fir_const(cp, 0) != R_NilValue, "Closure data not set");
-  *data = (Fir_FunctionData*) STDVEC_DATAPTR(Fir_const(cp, 0));
-  return true;
-}
-
 bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data) {
   if (TYPEOF(value) != PROMSXP) {
     return false;
@@ -100,7 +86,7 @@ bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fi
   if (TYPEOF(body) != EXTPTRSXP || !IS_RSH_CODE(body)) {
     return false;
   }
-  SEXP data = R_ExternalPtrProtected(body);
+  SEXP data = EXTPTR_PROT(body);
   SEXP cp = Fir_prom_cp(data);
   ASSERT(Fir_const(cp, 0) != R_NilValue, "Promise data not set");
   *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(cp, 0));
@@ -643,17 +629,20 @@ SEXP Fir_env_pushed_from_r = NULL;
 bool Fir_env_push_suppressed = false;
 
 void Fir_set_env_pushed_from_r(
-    SEXP env, SEXP* outer_env, bool* push_suppressed, SEXP* outer_parent) {
+    SEXP env, SEXP* outer_env, bool* push_suppressed, int* outer_depth, SEXP* outer_parent) {
   *outer_env = Fir_env_pushed_from_r;
   *push_suppressed = Fir_env_push_suppressed;
+  *outer_depth = Rsh_ElidedDepth;
   *outer_parent = ENCLOS(Rsh_ElidedEnv);
   Fir_env_pushed_from_r = env;
   Fir_env_push_suppressed = false;
 }
 
-void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed, SEXP outer_parent) {
+void Fir_unset_env_pushed_from_r(
+    SEXP outer_env, bool push_suppressed, int outer_depth, SEXP outer_parent) {
   Fir_env_pushed_from_r = outer_env;
   Fir_env_push_suppressed = push_suppressed;
+  Rsh_ElidedDepth = outer_depth;
   // A caught error in the call skips the pops of elided frames that it pushed.
   if (ENCLOS(Rsh_ElidedEnv) != outer_parent && outer_parent != R_NilValue) {
     SET_ENCLOS(Rsh_ElidedEnv, outer_parent);
@@ -668,9 +657,11 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed, SEXP oute
 //
 // Every elided frame is the singleton `Rsh_ElidedEnv`, and its `ENCLOS` is the parent of the
 // innermost one. The push saves the previous parent in `*saved` and the pop restores it, so a frame
-// reads its own parent again after an elided callee returns. A promise, closure or real frame made
-// in an elided frame has the parent instead: the frame has no bindings, and the singleton's parent
-// changes. The push of such a real frame saves `Rsh_ElidedEnv`, and its pop restores it.
+// reads its own parent again after an elided callee returns. The pop of the outermost one
+// (`Rsh_ElidedDepth`) sets `R_EmptyEnv`, so the singleton, a GC root, doesn't keep the parent
+// alive. A promise, closure or real frame made in an elided frame has the parent instead: the frame
+// has no bindings, and the singleton's parent changes. The push of such a real frame saves
+// `Rsh_ElidedEnv`, and its pop restores it.
 bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
   ASSERT(saved || type != FIR_MKENV_ELIDED, "elided push_env requires a slot to save the parent");
@@ -695,6 +686,7 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
         SET_ENCLOS(Rsh_ElidedEnv, *env_ptr);
       }
       *env_ptr = Rsh_ElidedEnv;
+      Rsh_ElidedDepth++;
     }
     return true;
   }
@@ -710,8 +702,8 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
     RSH_SET_NON_REFLECTIVE(new_env);
   }
   UNPROTECT(1);
-  *env_ptr = new_env;
   Fir_push_frame(new_env);
+  *env_ptr = new_env;
   return true;
 }
 
@@ -746,7 +738,7 @@ void Fir_pop_env(SEXP *env_ptr, bool pushed, SEXP saved) {
     if (saved != Rsh_ElidedEnv) {
       *env_ptr = ENCLOS(Rsh_ElidedEnv);
       // Before the first push, the parent is `R_NilValue`, which `SET_ENCLOS` rejects.
-      SEXP parent = saved == R_NilValue ? R_EmptyEnv : saved;
+      SEXP parent = --Rsh_ElidedDepth == 0 || saved == R_NilValue ? R_EmptyEnv : saved;
       if (*env_ptr != parent) {
         SET_ENCLOS(Rsh_ElidedEnv, parent);
       }
@@ -2168,15 +2160,6 @@ void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env) {
   (void)env;
 
   Rf_error("FIŘ deoptimization triggered at pc=%d (unsupported)", pc);
-}
-
-bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
-  Fir_FunctionData *data = NULL;
-  if (!Fir_is_compiled_closure(value, &data)) {
-    return false;
-  }
-
-  return data->dispatch == dispatch;
 }
 
 bool Fir_assume_builtin_function(SEXP value, int blt_idx) {

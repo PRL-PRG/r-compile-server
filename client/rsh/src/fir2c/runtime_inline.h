@@ -18,7 +18,6 @@
 
 #define ASSERT(x, msg, ...) \
   if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
-
 /// The offset `x[[i]]` reads for the 0-based `index` (`i - 1`, `NA` for `NA`): `index` itself if
 /// it's in `vector`, else `Fir_subscript_offset_slow`'s.
 static inline R_xlen_t Fir_subscript_offset(SEXP vector, int index) {
@@ -122,7 +121,6 @@ static inline SEXP Fir_check_missing(SEXP value, SEXP symbol) {
   }
   return R_NilValue;
 }
-
 
 DEFINE_INLINE_INTRINSIC(SEXP, missing, any_fx_none_ret_vec1_logical, SEXP value) {
   return value == R_MissingArg ? R_TrueValue : R_FalseValue;
@@ -959,6 +957,7 @@ static ALWAYS_INLINE bool Fir_push_env_elided(SEXP *env, SEXP *saved, PROTECT_IN
     REPROTECT(parent, saved_idx);
   }
   *env = Rsh_ElidedEnv;
+  Rsh_ElidedDepth++;
   return true;
 }
 
@@ -971,10 +970,29 @@ static ALWAYS_INLINE void Fir_pop_env_inline(SEXP *env, bool pushed, SEXP saved)
   Rsh_FrameCount--;
   if (saved != Rsh_ElidedEnv) {
     *env = ENCLOS(Rsh_ElidedEnv);
-    // Before the first push, the parent is `R_NilValue`, which `SET_ENCLOS` rejects.
-    SEXP parent = saved == R_NilValue ? R_EmptyEnv : saved;
+    SEXP parent = --Rsh_ElidedDepth == 0 || saved == R_NilValue ? R_EmptyEnv : saved;
     if (*env != parent) {
       SET_ENCLOS(Rsh_ElidedEnv, parent);
     }
   }
+}
+
+// Inline, because `Fir_assume_function` guards each call of a known closure.
+static ALWAYS_INLINE bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
+  if (TYPEOF(value) != CLOSXP) {
+    return false;
+  }
+  SEXP body = BODY(value);
+  if (!IS_RSH_CODE(body)) {
+    return false;
+  }
+  SEXP cp = EXTPTR_PROT(body);
+  ASSERT(Fir_const(cp, 0) != R_NilValue, "Closure data not set");
+  *data = (Fir_FunctionData *)STDVEC_DATAPTR(Fir_const(cp, 0));
+  return true;
+}
+
+static ALWAYS_INLINE bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
+  Fir_FunctionData *data;
+  return Fir_is_compiled_closure(value, &data) && data->dispatch == dispatch;
 }

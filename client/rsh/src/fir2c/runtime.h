@@ -317,7 +317,6 @@ bool Fir_is_subeffects(Fir_Effects a, Fir_Effects b);
 Fir_Effects Fir_effects_union(Fir_Effects a, Fir_Effects b);
 Fir_Effects Fir_effects_intersect(Fir_Effects a, Fir_Effects b);
 
-bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data);
 bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data,
                              Fir_PromiseLocalData **local_data);
 
@@ -515,11 +514,12 @@ SEXP Fir_load_dots(int index, SEXP env);
 /// skipped it (`Fir_push_env`). Read by the inline push.
 extern SEXP Fir_env_pushed_from_r;
 extern bool Fir_env_push_suppressed;
-/// The from-R entry also saves the parent of `Rsh_ElidedEnv` (`outer_parent`, which the caller
-/// protects), and the exit restores it.
+/// The from-R entry saves and restores them, `Rsh_ElidedDepth`, and the parent of `Rsh_ElidedEnv`
+/// (`outer_parent`, which the caller protects).
 void Fir_set_env_pushed_from_r(
-    SEXP env, SEXP* outer_env, bool* push_suppressed, SEXP* outer_parent);
-void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed, SEXP outer_parent);
+    SEXP env, SEXP* outer_env, bool* push_suppressed, int* outer_depth, SEXP* outer_parent);
+void Fir_unset_env_pushed_from_r(
+    SEXP outer_env, bool push_suppressed, int outer_depth, SEXP outer_parent);
 /// Returns whether it pushed a new environment. Returns false when the environment is the one R
 /// made for the current from-R call, which `Fir_pop_env` must not pop. An elided push saves the
 /// parent it replaces in `*saved`. A real frame in an elided one gets the elided one's parent, and
@@ -538,10 +538,9 @@ static inline void Fir_push_frame(SEXP env) {
   Rsh_Frames[Rsh_FrameCount++] = env;
 }
 /// `pushed` is what the matching `Fir_push_env` returned, and `saved` what it saved. Popping an
-/// elided frame restores the parent the push replaced. A non-local exit between them (a caught
-/// error) skips the restore. The from-R exit restores the parent. If no from-R exit is between the
-/// catch and a live elided frame (a direct call of a compiled closure, a forced promise, GNU-R code
-/// that the frame calls), that frame reads a callee's parent, and its pop sets `*env` to it.
+/// elided frame restores the parent the push replaced, or `R_EmptyEnv` if it's the outermost one
+/// (`Rsh_ElidedDepth`). A non-local exit between them (a caught error) skips the restore, but the
+/// jump to the catching context restores both (the vendored R's `R_restore_globals`).
 void Fir_pop_env(SEXP *env, bool pushed, SEXP saved);
 /// If `*env` is the elided environment, replaces it with a new empty one whose
 /// parent is `closure_env`, the environment the version received. A deopt branch calls it:
@@ -622,7 +621,6 @@ SEXP Fir_call_setter_builtin(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, in
 /// Run a baseline version that is the function's original GNU-R bytecode.
 SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
-bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
 bool Fir_assume_builtin_function(SEXP value, int blt_idx);
 bool Fir_assume_base_function(SEXP value, SEXP symbol);
 bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* found_ref);
