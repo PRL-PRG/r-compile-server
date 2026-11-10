@@ -1456,6 +1456,34 @@ public final class Builtins {
     return (ListOrVectorSXP<?>) concatToType(SEXPs.dots(vector), valueRank, interpreter);
   }
 
+  /// `vector` grown to `size` like GNU-R grows a sub-assignment target: padded with `NA` (`NULL`
+  /// in a list), and its names with `""`.
+  private static ListOrVectorSXP<?> enlarged(
+      InternalInterpreter interpreter, String name, ListOrVectorSXP<?> vector, int size) {
+    if (!(vector instanceof VecSXP || atomicRank(vector) != -1)
+        || vector.attributes().keySet().stream().anyMatch(k -> !k.equals("names"))) {
+      throw interpreter.failUnsupported(
+          "Mock `" + name + "` only grows a list or atomic vector without attributes but names");
+    }
+    var elements =
+        IntStream.range(0, size)
+            .mapToObj(
+                i ->
+                    i < vector.size()
+                        ? valueToSexp(interpreter.subscriptLoad(vector, i))
+                        : vector instanceof VecSXP
+                            ? SEXPs.NULL
+                            : valueToSexp(subscriptLoad(interpreter, vector, i, true)))
+            .toArray(SEXP[]::new);
+    var result = (ListOrVectorSXP<?>) buildVector(elements, vector);
+    var names = vector.names();
+    if (names.isEmpty()) {
+      return result;
+    }
+    var padded = IntStream.range(0, size).mapToObj(i -> i < names.size() ? names.get(i) : "");
+    return result.withAttributes(Attributes.NONE.including("names", SEXPs.string(padded.toList())));
+  }
+
   /// The element that a generic sub-assignment of `value` stores into a list: `[[<-` stores
   /// `value`, `[<-` the element of a length-1 `value`.
   private static Value listElement(InternalInterpreter interpreter, String name, SEXP value) {
@@ -1546,6 +1574,9 @@ public final class Builtins {
               int idx = positionSubscript(interpreter, name, args.get(1).box());
               var value = args.get(2).box();
               var result = subAssignTarget(interpreter, name, vector, value);
+              if (idx > result.size()) {
+                result = enlarged(interpreter, name, result, idx);
+              }
               checkInRange(interpreter, name, result, idx);
               interpreter.subscriptStore(
                   result,
