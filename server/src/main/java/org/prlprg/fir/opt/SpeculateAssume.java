@@ -1,10 +1,15 @@
 package org.prlprg.fir.opt;
 
+import com.google.common.base.Suppliers;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
@@ -18,16 +23,23 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
+import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
+import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Insert assumptions that feedback suggests will always pass.
@@ -46,6 +58,10 @@ import org.prlprg.fir.ir.variable.Register;
 /// and that isn't dominated by another such checkpoint. There's usually only one, although we
 /// handle the case where there's multiple. A checkpoint is skipped if its success block dominates
 /// no use of the register, since the assumption would replace nothing.
+///
+/// Also, a `ldf` of a `builtins.fir` function that never ran in a version with enough calls gets
+/// an [AssumeFunction] of the builtin (see [#neverRunBuiltinCallee]), so a cold call of e.g.
+/// `bitwXor` is static and doesn't keep the environment reflective.
 ///
 /// By default, this optimization doesn't run on baseline versions, since if we deoptimize from
 /// baseline we don't have anywhere to go that isn't FIŘ.
@@ -80,6 +96,58 @@ public final class SpeculateAssume extends AbstractionOptimization {
               var useBb = use.parentBB();
               return useBb != null && domTree.dominates(bb, -1, useBb, use.indexInBB());
             });
+  }
+
+  /// The `builtins.fir` function to assume for `register` if it's a `ldf` that never ran in a
+  /// version with a profile, otherwise `null`.
+  ///
+  /// The `ldf` must be used only as the callee of `dyn` calls, and no module function may define or
+  /// store its name. The builtin must run no R code ([GlobalModules#runsNoRCode]): no feedback
+  /// recorded what code it would run, e.g. a method that writes to `parent.frame()`. A wrong
+  /// assumption only deoptimizes, so the other conditions only avoid a sure deopt.
+  private @Nullable Function neverRunBuiltinCallee(
+      Register register,
+      AbstractionFeedback feedback,
+      Abstraction scope,
+      Supplier<Set<NamedVariable>> storedNames) {
+    if (!(register instanceof AssigneeOf assignee
+            && assignee.statement().expression() instanceof Load(var loadType, var name)
+            && loadType == LoadType.LOCAL_FUN)
+        || feedback.numCalls() < threshold
+        || feedback.times(register) != 0
+        || feedback.callees.containsKey(register)
+        || scope.module().localFunction(name) != null) {
+      return null;
+    }
+    var builtin = GlobalModules.BUILTINS.localFunction(name);
+    if (builtin == null || !GlobalModules.runsNoRCode(builtin)) {
+      return null;
+    }
+    var onlyDynamicCallee =
+        register.uses().stream()
+            .allMatch(
+                use ->
+                    use.index() == 0
+                        && use.instruction() instanceof Statement s
+                        && s.expression() instanceof Call(DynamicCallee _));
+    return onlyDynamicCallee && !storedNames.get().contains(name) ? builtin : null;
+  }
+
+  /// The names that a `st` in an evaluated version of `module` stores (including parameters).
+  private static Set<NamedVariable> storedNames(Module module) {
+    return module.localFunctions().stream()
+        .flatMap(function -> function.versions().stream())
+        .filter(Abstraction::isEvaluated)
+        .flatMap(Abstraction::streamCfgs)
+        .flatMap(cfg -> cfg.bbs().stream())
+        .flatMap(bb -> bb.statements().stream())
+        .<NamedVariable>mapMulti(
+            (statement, out) -> {
+              if (statement.expression() instanceof Store(_, var variable)) {
+                out.accept(variable);
+              }
+            })
+        .collect(Collectors.toUnmodifiableSet());
   }
 
   @Override
@@ -119,8 +187,10 @@ public final class SpeculateAssume extends AbstractionOptimization {
     // target is the assume statement's argument, no longer part of the assumption).
     record Spec(Assumption assumption, Register target) {}
     var assumptionsToInsert = new LinkedHashMap<BB, List<Spec>>();
+    var storedNames = Suppliers.memoize(() -> storedNames(scope.module()));
     for (var register : scope.streamRegisters().filter(r -> !scope.isParameter(r)).toList()) {
-      if (feedback.times(register) < threshold) {
+      var neverRunCallee = neverRunBuiltinCallee(register, feedback, scope, storedNames);
+      if (neverRunCallee == null && feedback.times(register) < threshold) {
         continue;
       }
 
@@ -134,7 +204,7 @@ public final class SpeculateAssume extends AbstractionOptimization {
         continue;
       }
 
-      var calleeFeedback = feedback.callee(register);
+      var calleeFeedback = neverRunCallee != null ? neverRunCallee : feedback.callee(register);
       var constantFeedback = feedback.constant(register);
       var typeFeedback = feedback.type(register).union();
 

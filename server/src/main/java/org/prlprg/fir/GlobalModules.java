@@ -45,6 +45,10 @@ public final class GlobalModules {
   /// `.Internal` the closure calls).
   private static final Set<Function> BASE_CLOSURES = new HashSet<>();
 
+  /// The [#BUILTINS] functions that `builtins.fir` defines, without the FUNTAB entries added below.
+  private static final @Unmodifiable Set<Function> DEFINED_BUILTINS =
+      ImmutableSet.copyOf(BUILTINS.localFunctions());
+
   static {
     // Add GNU-R builtins that we don't have explicit versions for to BUILTINS and BASE
     var funTab = GNURSession.readFunTab();
@@ -105,6 +109,52 @@ public final class GlobalModules {
   /// Whether `function` is the [#BASE] function of a GNU-R base closure (see [#BASE_CLOSURES]).
   public static boolean isBaseClosure(Function function) {
     return BASE_CLOSURES.contains(function);
+  }
+
+  /// The `builtins.fir` functions that run no R code: no method they dispatch to, no condition
+  /// handler, and no expression they evaluate. Checked against GNU-R: primitives that aren't
+  /// generic, and closures that only call such an `.Internal`. `print` (`UseMethod`), `stop`,
+  /// `warning` and `stopifnot` (handlers, `eval`), `xor` (`|` dispatches), the subscripts and `$`
+  /// (internal dispatch), `seq_along` (dispatches `length`), and `.Call` aren't.
+  private static final @Unmodifiable Set<String> RUN_NO_R_CODE =
+      ImmutableSet.of(
+          ":",
+          "&&",
+          "||",
+          "attr",
+          "bitwAnd",
+          "bitwNot",
+          "bitwOr",
+          "bitwShiftL",
+          "bitwShiftR",
+          "bitwXor",
+          "inherits",
+          "is.character",
+          "is.complex",
+          "is.double",
+          "is.environment",
+          "is.function",
+          "is.integer",
+          "is.list",
+          "is.logical",
+          "is.null",
+          "is.object",
+          "is.raw",
+          "is.symbol",
+          "is.vector",
+          "seq_len",
+          "unclass");
+
+  /// Whether `function` is a `builtins.fir` function that runs no R code (see [#RUN_NO_R_CODE]),
+  /// so a call of it can't read its caller's frame or the expression of a promise it gets.
+  public static boolean runsNoRCode(Function function) {
+    return isDefinedBuiltin(function) && RUN_NO_R_CODE.contains(function.name().name());
+  }
+
+  /// Whether `function` is a [#BUILTINS] function that `builtins.fir` defines (not a FUNTAB entry
+  /// without a definition, e.g. the `.Internal` of a base closure).
+  public static boolean isDefinedBuiltin(Function function) {
+    return DEFINED_BUILTINS.contains(function);
   }
 
   public static final Function BOX_FUN =
