@@ -267,4 +267,37 @@ class SimpleInternalInterpretTest {
     assertFalse(thread.isAlive());
     assertInstanceOf(CancellationException.class, thrown.get(), () -> String.valueOf(thrown.get()));
   }
+
+  /// `goto H(b, a, k2)` swaps `a` and `b`: phis are assigned in parallel.
+  @Test
+  void phiArgumentThatIsAnotherPhiOfTheTarget_readsTheOldValue() {
+    var parsed =
+        ParseUtil.parseModule(
+            """
+            fun f(n) {
+              (n:*) -+> V { ... }
+              (n:I) -+> v1(I) {
+                goto H(1, 2, 0);
+              H(a: I, b: I, k: I):
+                c: L = `<`< I,I --> L >(k, n);
+                t: B = naToFalse< L --> B >(c);
+                if t then B1() else E();
+              B1():
+                k2: I = `+`< I,I --> I >(k, 1);
+                goto H(b, a, k2);
+              E():
+                d: I = `*`< I,I --> I >(a, 10);
+                e: I = `+`< I,I --> I >(d, b);
+                r: v1(I) = box< I --> v1(I) >(e);
+                return r;
+              }
+            }
+            """);
+    var swapper = new InternalInterpreter(parsed);
+    registerBuiltins(swapper);
+    assertEquals(
+        new Value.Sexp(SEXPs.integer(21)), swapper.call("f", new Value.Int(1)), "one swap");
+    assertEquals(
+        new Value.Sexp(SEXPs.integer(12)), swapper.call("f", new Value.Int(2)), "two swaps");
+  }
 }

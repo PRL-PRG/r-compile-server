@@ -3080,14 +3080,39 @@ public final class Fir2CCompiler {
 
             debugComment(cCode, "* - <%s>", target);
 
+            // Phis are assigned in parallel: if an argument reads another phi of the target, read
+            // every argument into a temporary first.
+            var isParallel =
+                IntStream.range(0, phiArgs.size())
+                    .anyMatch(
+                        i -> {
+                          var read = phiArgs.get(i).variable();
+                          return read != null
+                              && parameters.contains(read)
+                              && parameters.indexOf(read) != i;
+                        });
+            if (isParallel) {
+              cCode.stmt(indentLevel, "{");
+              for (var i = 0; i < parameters.size(); i++) {
+                cCode.stmt(
+                    indentLevel + 1,
+                    "%s _phi%d = %s;",
+                    reprCType(registerRepr(parameters.get(i))),
+                    i,
+                    emitArgument(phiArgs.get(i)));
+              }
+            }
             for (var i = 0; i < parameters.size(); i++) {
               var phi = parameters.get(i);
               var arg = phiArgs.get(i);
 
               var dest = registerPlace(phi);
-              var value = emitArgument(arg);
+              var value = isParallel ? "_phi" + i : emitArgument(arg);
 
-              cCode.stmt(indentLevel, "%s = %s;", dest, value);
+              cCode.stmt(indentLevel + (isParallel ? 1 : 0), "%s = %s;", dest, value);
+            }
+            if (isParallel) {
+              cCode.stmt(indentLevel, "}");
             }
 
             cCode.stmt(indentLevel, "goto %s;", labelCName(target.bb()));

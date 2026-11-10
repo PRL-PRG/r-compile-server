@@ -685,9 +685,11 @@ public final class InternalInterpreter implements Interpreter {
               + arguments.size());
     }
 
+    // Phis are assigned in parallel: an argument can read another phi of the target.
+    var values = arguments.stream().map(this::run).toList();
     for (int i = 0; i < parameters.size(); i++) {
       var phiVar = parameters.get(i);
-      var phiValue = run(arguments.get(i));
+      var phiValue = values.get(i);
 
       topFrame().put(phiVar, phiValue);
 
