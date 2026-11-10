@@ -6,7 +6,10 @@ import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -53,6 +56,7 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.sexp.VectorSXP;
 
@@ -293,6 +297,8 @@ public final class Builtins {
     // Reflective environment access
     registerSubstitute(interpreter);
     registerSysFrame(interpreter);
+    registerEnvironment(interpreter);
+    registerLs(interpreter);
 
     // Intrinsics
     interpreter.registerExternal(
@@ -3778,6 +3784,73 @@ public final class Builtins {
               var env = which == 0 ? runtime.globalEnv() : runtime.relativeFrameEnvironment(which);
               runtime.recordReflectiveEnv(env);
               return new Value.Sexp(env);
+            }));
+  }
+
+  // endregion
+
+  private static void registerEnvironment(InternalInterpreter interpreter) {
+    // (*) -+> V
+    interpreter.registerExternal(
+        baseFunction("environment"),
+        SIG_GENERIC_1,
+        ExternalVersion.strict(
+            (runtime, _, args, _) -> {
+              var fun = args.getFirst().box();
+              if (!(fun == SEXPs.MISSING_ARG || fun instanceof NilSXP)) {
+                throw interpreter.failUnsupported("Mock `environment` only supports `fun = NULL`");
+              }
+              // The caller's frame (a promise's code runs in the frame that created it).
+              var env = runtime.relativeFrameEnvironment(0);
+              runtime.recordReflectiveEnv(env);
+              return new Value.Sexp(env);
+            }));
+  }
+
+  private static void registerLs(InternalInterpreter interpreter) {
+    // (name, pos, envir, all.names, pattern, sorted) -+> V
+    var params = new Type[6];
+    Arrays.fill(params, Type.ANY_SEXP);
+    interpreter.registerExternal(
+        baseFunction("ls"),
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, params),
+        ExternalVersion.strict(
+            (runtime, _, args, _) -> {
+              var sexps = args.stream().map(Value::box).toList();
+              var env = sexps.get(0) == SEXPs.MISSING_ARG ? sexps.get(2) : sexps.get(0);
+              var allNames = sexps.get(3);
+              var sorted = sexps.get(5);
+              if (!(env instanceof UserEnvSXP userEnv)
+                  || sexps.get(1) != SEXPs.MISSING_ARG
+                  || sexps.get(0) != SEXPs.MISSING_ARG && sexps.get(2) != SEXPs.MISSING_ARG
+                  || !(allNames == SEXPs.MISSING_ARG || allNames.equals(SEXPs.FALSE))
+                  || sexps.get(4) != SEXPs.MISSING_ARG
+                  || !(sorted == SEXPs.MISSING_ARG || sorted.equals(SEXPs.TRUE))) {
+                throw interpreter.failUnsupported(
+                    "Mock `ls` only supports a local environment as `name` or `envir`, without"
+                        + " `pos`, `all.names`, `pattern`, or `sorted`");
+              }
+              runtime.recordReflectiveEnv(userEnv);
+              var names =
+                  userEnv.bindings().stream()
+                      .map(Map.Entry::getKey)
+                      .filter(n -> !n.startsWith("."))
+                      .sorted()
+                      .toList();
+              // GNU-R sorts in the locale's collation order. It agrees with Java's code-point order
+              // in the C and the common UTF-8 locales when ignoring case and `_` doesn't reorder
+              // the names.
+              var collated =
+                  names.stream()
+                      .sorted(
+                          Comparator.comparing(n -> n.replace("_", "").toLowerCase(Locale.ROOT)))
+                      .toList();
+              if (!names.equals(collated)
+                  || names.stream().anyMatch(n -> !n.matches("[A-Za-z0-9_]+"))) {
+                throw interpreter.failUnsupported(
+                    "Mock `ls` only sorts alphanumeric names whose order doesn't depend on case");
+              }
+              return new Value.Sexp(SEXPs.string(names));
             }));
   }
 

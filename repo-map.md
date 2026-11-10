@@ -683,6 +683,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/elided_env_parent_{after_call,promise}.R` — Regressions for the parent of an elided frame in the fir2c runtime: after an elided callee with another parent returns, and in a promise that such a callee forces.
 - `.../examples/R/empty_name_subscript.R` — `[`, `[[`, `[<-`, and `[[<-` with the name `""`, which GNU-R never matches, so that the interpreter mocks read it out of range and append it.
 - `.../examples/R/ls_after_parent_frame.R` — `ls` of a frame after `parent.frame` reflects on it lists only its bindings (the vendored R keeps its reflection mark out of them).
+- `.../examples/R/ls_unmarked_frame.R` — `ls` of a frame that `sys.frame` returns, to check the interpreter mocks against GNU-R.
 - `.../examples/R/sys_frame_of_caller_without_context.R` — `sys.frame(-1)` in a callee counts its caller's frame, which a static call pushed without a GNU-R context.
 - `.../examples/R/body_of_compiled_closure.R` — `body`, `formals`, `deparse`, `identical` and `print` of a closure of compiled FIŘ code see its source, as with a bytecode body.
 - `.../examples/R/reflection_after_failed_warmup.R` — A warm-up that fails in an unmocked builtin before a closure reflects: the optimizer must not speculate from the partial feedback that it never reflects.
@@ -701,6 +702,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/mod_subscript_names.R` — `[`, `[[`, `[<-`, and `[[<-` with a name subscript (present, absent, appended) on a named real vector and list, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_arith_names.R` — arithmetic, comparison, unary minus, and `abs` of named vectors (which operand's names the result keeps), to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_matrix.R` — `matrix` (missing `data`, `nrow` or `ncol`, recycled `data`) and `[[`, `[`, `[[<-`, `[<-` with a row and column subscript, to check the interpreter mocks against GNU-R.
+- `.../examples/R/mod_ls.R` — `ls` of frames from `environment()` (`name` and `envir`, hidden names), to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_max_builtins_{int,real}.R` — `%%` and `max` edge cases (signs, zero divisor, `NA`/`NaN`, recycling) with integer and real results, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_na_nan_consts.R` — `` `%%`(NA_real_, y) `` and `` `%%`(NaN, y) `` in one function: the two call constants must stay apart (bytecode RDS round trip, constant pools).
 - `.../examples/R/subassign_scalar.R` — Scalar `x[[i]] <- v` and `x[i] <- v` on unshared vectors, which the fir2c runtime stores directly: value and vector types, attributes, a class, growth, a real index, an alias.
