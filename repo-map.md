@@ -402,13 +402,13 @@ Paths are from the repository root. Keep this file current when you add, move, o
 
 ### `fir/opt/specialize/` — Optimizations that replace individual expressions with those that are faster and/or have better types.
 
-- `DefiniteForce.java` — Makes maybe-forces definite, or removes them, by static type.
+- `DefiniteForce.java` — Makes maybe-forces definite, or removes them, by static type; forwards a force to a dominating force of the same SEXP.
 - `ElideBuiltinClosure.java` — Removes the closure argument from static builtin and intrinsic calls.
 - `ElideCheckMissing.java` — Removes checkMissing calls on values that can't be missing.
 - `ElideDeadStore.java` — Optimization that removes Stores in non-reflective contexts which are never loaded after.
 - `ElideEnv.java` — Marks unnecessary environments as elided.
 - `ElideRedundantAssumeLoad.java` — Removes load assumptions that an identical one dominates.
-- `ElideTrivialAssume.java` — Optimization that removes Assumes that statically succeed.
+- `ElideTrivialAssume.java` — Optimization that removes Assumes that statically succeed, also unused maybe-promise type assumptions after a dominating force.
 - `ElideTrivialCast.java` — Optimization that removes Casts that statically succeed.
 - `ElideUseSubscriptWrite.java` — Removes subscript writes on values that are consumed.
 - `ImproveSignatures.java` — Narrows the return types, effects, and strictness of promises and versions.
@@ -659,6 +659,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/length_object_deopts.R` — The unboxed `length` deopts for an object, which can dispatch a `length` method.
 - `.../examples/R/unused_length_runs_method.R` — An unused `length(o)` stays (`@signals`), since GNU-R dispatches it to a `length` method that prints.
 - `.../examples/R/missing_argument_error_names_it.R` — The error for a missing argument names it (`checkMissing`), also in a compiled version.
+- `.../examples/R/missing_arg_forced_in_branch.R` — `if (b) a` forces a missing `a` or its default after a warmup that passed `a` only with a TRUE `b`: the type assumption that elided `checkMissing` and the force must stay.
 - `.../examples/R/logical_operand_type_error.R` — `&&` and `||` raise GNU-R's errors for an operand that isn't a number (a string, a factor) or is longer than 1, in optimized code.
 - `.../examples/R/as_logical_one.R` — The unboxed `as.logical` deopts where the result isn't one logical (a version that speculates on `v1(L)`, and `&&`).
 - `.../examples/R/for_seq_object.R` — A `for` loop over a factor or another object (`toForSeq`): the labels, no `length` or `[[` dispatch, and the error for an environment (`gcTorture`).
@@ -712,6 +713,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/unused_call_keeps_warning.R` — An unused `sqrt(x)` call still warns "NaNs produced" (`@signals`, `Cleanup`).
 - `.../examples/R/unused_load_unbound_variable.R` — An unused load of an unbound variable still raises "object 'y' not found" (`InferEffects#maySignal`, `Cleanup`).
 - `.../examples/R/unused_print_constant.R` — An unused `print(5L)` still prints, in a loop too (the typed `print` versions are reflective).
+- `.../examples/R/unforced_promise_overflow.R` — A promise `d + 1L` that would overflow, passed to a callee that returns without forcing it, warns nowhere (`StrictifyPromise`).
 - `.../examples/R/cold_print_method_writes_caller.R` — A `print` call that never ran in the warmup dispatches to a method that writes to `parent.frame()` (`SpeculateAssume`, `GlobalModules#runsNoRCode`).
 - `.../examples/R/forwarded_promise_substitute_closure.R` — A closure keeps the frame of a callee that got a promise parameter, so `StrictifyPromise` must not forward the caller's own promise.
 - `.../examples/R/cold_shadowed_builtin_guard.R` — A cold `bitwXor` call that the user shadows after the warmup: the assumption that it's the builtin must stay checked (`DeferIntoPromise`).
