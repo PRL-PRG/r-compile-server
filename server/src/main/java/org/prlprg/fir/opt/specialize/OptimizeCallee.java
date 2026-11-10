@@ -1,5 +1,7 @@
 package org.prlprg.fir.opt.specialize;
 
+import static org.prlprg.fir.GlobalModules.INTRINSICS;
+
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.Objects;
@@ -140,8 +142,9 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                               .allMatch(b -> b);
                     });
 
-    // ...if so (`!isBestAtRuntime`), dispatch
-    return new StaticFnCallee(calleeFun, !isBestAtRuntime, newBestSignature);
+    // ...if so (`!isBestAtRuntime`), dispatch. An intrinsic has no dispatch (fir2c rejects it).
+    return new StaticFnCallee(
+        calleeFun, !isBestAtRuntime && calleeFun.owner() != INTRINSICS, newBestSignature);
   }
 
   /// Returns the callee's signature with the types replaced by `argumentTypes`, i.e. the best
