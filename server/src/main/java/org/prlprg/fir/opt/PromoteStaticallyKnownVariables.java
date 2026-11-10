@@ -38,6 +38,7 @@ import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Noop;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -139,9 +140,9 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
     }
 
     /// Whether the abstraction makes one environment. Then each store goes to the frame that holds
-    /// the variable, and its origins go from known to unknown only where paths merge, at a block
-    /// entry (with more frames, also where a frame is tainted or popped), which is where [#rename]
-    /// looks for the end of the region where it's bound.
+    /// the variable, so a store at the end of the region where it's bound (at a block entry where
+    /// paths merge, or where [#lostAt] says the analysis loses track of it) puts back the binding
+    /// that the removed stores left.
     private boolean hasOneEnv() {
       return scope
               .streamCfgs()
@@ -482,8 +483,18 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
       var unknownAtEnd =
           writeBack
               && originAnalysis.getPossible(bb, bb.statements().size() - 1, variable).isEmpty();
-      for (var i = 0; i < bb.statements().size(); i++) {
-        var statement = bb.statements().get(i);
+      var lost = writeBack ? lostAt(bb, variable, originAnalysis) : null;
+      var statements = bb.statements();
+      for (var i = 0; i < statements.size(); i++) {
+        var statement = statements.get(i);
+        // The region also ends inside a block, e.g. at a force of a promise that the analysis
+        // doesn't know.
+        if (lost != null && lost[i] && current != null) {
+          if (!(statement.expression() instanceof PopEnv)) {
+            store(variable, current).insertBefore(statement);
+          }
+          current = null;
+        }
         current = rewriteStatement(bb, i, statement, variable, current, originAnalysis);
       }
       // E.g. after a `popenv`, where a store would go to the enclosing environment.
@@ -506,6 +517,20 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
               .toList()) {
         rename(child, variable, current, phis, writeBack, originAnalysis, dominatorTree);
       }
+    }
+
+    /// For each statement of `bb`, whether [OriginAnalysis] knows what `variable` holds before the
+    /// statement but not after it. E.g. a force of a promise that the analysis doesn't know taints
+    /// the environment.
+    private static boolean[] lostAt(BB bb, NamedVariable variable, OriginAnalysis originAnalysis) {
+      var lost = new boolean[bb.statements().size()];
+      var known = !originAnalysis.getPossible(bb, -1, variable).isEmpty();
+      for (var i = 0; i < lost.length; i++) {
+        var knownAfter = !originAnalysis.getPossible(bb, i, variable).isEmpty();
+        lost[i] = known && !knownAfter;
+        known = knownAfter;
+      }
+      return lost;
     }
 
     /// Stores `current` to `variable` on each edge from `bb` to a block where it's not known to be

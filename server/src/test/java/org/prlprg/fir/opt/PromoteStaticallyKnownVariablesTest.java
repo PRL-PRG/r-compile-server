@@ -646,6 +646,87 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
   }
 
   @Test
+  void bindingKeptAcrossAMaybeForce_isWrittenBackAtTheRegionEnd() {
+    // `p` leaks into `f`, so the pure call `+` may force it, and the analysis merges in the state
+    // that `p`'s body ended with in `f`, where `x` wasn't bound yet. The body can't remove `x`, so
+    // `x` stays known after the call: D1 gets the binding, and S2 stores it back before H, where
+    // `x` may be unbound.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(cond, n) {
+              (cond:B, n:R) -+> V { ... }
+              (cond:B, n:R) -+> V {
+                mkenv~;
+                p: p(V -) = prom-<V ->{ return <int 7>; };
+                r: V = f< p(V -) -+> V >(p);
+                goto H();
+              H():
+                check B() else D0();
+              B():
+                if cond then S() else E();
+              S():
+                st x = <int 1>;
+                x1: V = ld x;
+                y: R = `+`< R,R --> R >(n, 1.0);
+                check S2() else D1();
+              S2():
+                goto H();
+              E():
+                popenv;
+                return r;
+              D0():
+                deopt 0 [];
+              D1():
+                deopt 1 [x1];
+              }
+            }
+
+            fun f(r) {
+              (r:*@!) -+> V { ... }
+              (r:p(V -)) -+> V { ... }
+            }
+            """);
+
+    assertTrue(run(module), Printer.toString(module));
+    var printed = Printer.toString(module);
+    assertFalse(printed.contains("ld x"), printed);
+    assertFalse(block(printed, "S").contains("st x"), printed);
+    assertTrue(block(printed, "S2").contains("st x = <int 1>;"), printed);
+    assertTrue(block(printed, "D1").contains("st x = <int 1>;"), printed);
+  }
+
+  /// A `force` of a promise that the analysis doesn't know taints the environment, so `x` is
+  /// unknown after it, in the middle of the block. The store of `x` goes back before the force,
+  /// because D0 needs the binding.
+  @Test
+  void bindingLostAtAForceOfAnUnknownPromise_isWrittenBackThere() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (p:p(V ~)) -~> V {
+              mkenv;
+              st x = <int 1>;
+              x1: V = ld x;
+              v: V = force p;
+              check L1() else D0();
+            L1():
+              popenv;
+              return x1;
+            D0():
+              deopt 0 [v];
+            }
+            """);
+
+    assertTrue(run(abstraction), Printer.toString(abstraction));
+    var printed = Printer.toString(abstraction);
+    assertFalse(printed.contains("ld x"), printed);
+    assertEquals(1, ParseUtil.countOccurrences(printed, "st x = <int 1>;"), printed);
+    assertTrue(printed.indexOf("st x") < printed.indexOf("force p"), printed);
+    assertFalse(run(abstraction), "a second run should change nothing:\n" + printed);
+  }
+
+  @Test
   void variableLoadedWhereItIsMaybeBound_isLeftAlone() {
     var abstraction =
         ParseUtil.parseAbstraction(
