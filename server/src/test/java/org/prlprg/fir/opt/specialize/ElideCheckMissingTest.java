@@ -71,4 +71,58 @@ class ElideCheckMissingTest implements AbstractionOptimizationUnitTest {
         printed.contains("checkMissing"),
         "checkMissing should remain for missing type; printed:\n" + printed);
   }
+
+  /// `bench_shootout_binarytrees_naive` `check`: the promise parameter is widened to a
+  /// maybe-promise, but it's still the promise.
+  @Test
+  void typeAssumptionOfPromise_elided() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:p(V +)) -~> V {
+              x1: p?(V -) = x ?: p?(V -);
+              checkMissing< p?(V -) -~> V >(x1);
+              return <int 1>;
+            }
+            """);
+
+    assertTrue(run(abstraction), "optimization should report a change");
+    var printed = Printer.toString(abstraction);
+    assertFalse(printed.contains("checkMissing"), "checkMissing should be elided:\n" + printed);
+  }
+
+  /// The assumption itself guarantees the value isn't missing, although what it's of may be.
+  @Test
+  void narrowingTypeAssumptionOfMaybeMissing_elided() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*) -~> V {
+              x1: v1(I) = x ?: v1(I);
+              checkMissing< v1(I) -~> V >(x1);
+              return <int 1>;
+            }
+            """);
+
+    assertTrue(run(abstraction), "optimization should report a change");
+    var printed = Printer.toString(abstraction);
+    assertFalse(printed.contains("checkMissing"), "checkMissing should be elided:\n" + printed);
+  }
+
+  @Test
+  void typeAssumptionOfMaybeMissing_notElided() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*) -~> V {
+              x1: p?(V -) = x ?: p?(V -);
+              checkMissing< p?(V -) -~> V >(x1);
+              return <int 1>;
+            }
+            """);
+
+    run(abstraction);
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("checkMissing"), "checkMissing should remain:\n" + printed);
+  }
 }
