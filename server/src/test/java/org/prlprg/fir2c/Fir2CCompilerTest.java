@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
@@ -555,6 +556,61 @@ class Fir2CCompilerTest {
   @Test
   void needsContextCallOfUnboxedVersionThrows() {
     assertThrows(IllegalArgumentException.class, () -> compileNeedsContextCall("I --> I"));
+  }
+
+  /// A deopt stub compiles to one promise for its site, so the version tracks no promise.
+  @Test
+  void deoptStubsInNonReflectiveEnvAreShared() {
+    var code = compileDeoptStubs("mkenv~");
+    assertEquals(2, count(code, "Fir_mk_stub_promise("), code);
+    assertFalse(code.contains("Fir_track_promise("), code);
+    assertFalse(code.contains("local_promises"), code);
+  }
+
+  /// `missing` reads the environment of a promise whose expression is a symbol, so in a version
+  /// with a `REGULAR` environment such a stub keeps a promise for each execution.
+  @Test
+  void symbolDeoptStubInRegularEnvIsNotShared() {
+    var code = compileDeoptStubs("mkenv");
+    assertEquals(1, count(code, "Fir_mk_stub_promise("), code);
+    assertEquals(1, count(code, "Fir_track_promise(Fir_mk_promise("), code);
+  }
+
+  private static String compileDeoptStubs(String mkEnv) {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (x:V) -+> V {
+                %s;
+                p: p(V +) = prom<V +>[<lang g(x)>]{
+                  deopt 0 [];
+                };
+                q: p(V +) = prom<V +>[<sym x>]{
+                  deopt 0 [];
+                };
+                r: V = f< p(V +),p(V +) -+> V >(p, q);
+                popenv;
+                return r;
+              }
+            }
+
+            fun f(a, b) {
+              (a:*, b:*) -+> V {
+                return <int 1>;
+              }
+              (a:p(V +), b:p(V +)) -+> V {
+                return <int 1>;
+              }
+            }
+            """
+                .formatted(mkEnv));
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    return Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+  }
+
+  private static int count(String code, String part) {
+    return code.split(Pattern.quote(part), -1).length - 1;
   }
 
   private static String compileMainToC() {

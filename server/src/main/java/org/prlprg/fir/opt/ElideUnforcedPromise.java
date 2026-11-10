@@ -36,34 +36,29 @@ public final class ElideUnforcedPromise extends AbstractionOptimization {
       for (int i = 0; i < bb.statements().size(); i++) {
         var stmt = bb.statements().get(i);
         var assignee = stmt.assignee();
-        if (!(stmt.expression()
-            instanceof Promise(var valueType, var effects, var code, var local, var promExpr))) {
+        if (!(stmt.expression() instanceof Promise promise)) {
           continue;
         }
 
         if (assignee != null
             && (feedback.times(assignee) >= threshold && feedback.forceCount(assignee) == 0)) {
           // Promise was never forced, so replace with immedidate deopt to elide effects
-          if (effects == Effects.NONE
-              && code.bbs().size() == 1
-              && code.entry().statements().isEmpty()
-              && code.entry().jump().expression() instanceof Deopt(var pc)
-              && pc == 0
-              && code.entry().jump().args().isEmpty()) {
+          if (promise.effects() == Effects.NONE && promise.isDeoptStub()) {
             // It's already elided
             continue;
           }
 
           var newCode = new CFG(scope);
           newCode.entry().setJump(new Jump(new Deopt(0), List.of()));
-          var newPromise = new Promise(valueType, Effects.NONE, newCode, false, promExpr);
+          var newPromise =
+              new Promise(promise.valueType(), Effects.NONE, newCode, false, promise.expr());
           stmt.setExpression(newPromise);
           changed = true;
           continue;
         }
 
         // Recurse into promise body for nested promises
-        changed |= run(feedback, scope, code);
+        changed |= run(feedback, scope, promise.code());
       }
     }
     return changed;

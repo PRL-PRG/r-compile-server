@@ -3,6 +3,7 @@ package org.prlprg.fir.ir.expression;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
@@ -48,5 +49,15 @@ public record Promise(Type valueType, Effects effects, CFG code, boolean local, 
       return null;
     }
     return reg;
+  }
+
+  /// Whether the body is only `deopt 0 []`, which `ElideUnforcedPromise` gives a promise that is
+  /// never forced. The body reads no register and no variable.
+  public boolean isDeoptStub() {
+    return code.bbs().size() == 1
+        && code.entry().statements().isEmpty()
+        && code.entry().jump().expression() instanceof Deopt(var pc)
+        && pc == 0
+        && code.entry().jump().args().isEmpty();
   }
 }

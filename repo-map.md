@@ -376,7 +376,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `DeferIntoPromise.java` — Defers pure instructions that only affect registers used inside a promise into that promise.
 - `ElideConsumedDup.java` — Removes a dup that only moves one owned vector into another.
 - `ElideRedundantBoxUnbox.java` — Elides redundant `box`/`unbox` calls by substituting their results with an equivalent register.
-- `ElideUnforcedPromise.java` — Replaces promises that are never forced with a deopt.
+- `ElideUnforcedPromise.java` — Replaces promises that are never forced with a deopt stub (`Promise#isDeoptStub`), which fir2c usually compiles to one promise for the site.
 - `ElideUnusedCheckpoints.java` — Removes checkpoint jumps whose success BB has no Assume statements.
 - `Inline.java` — Inline forces, maybe-forces, and static calls when possible.
 - `LazyCopy.java` — Creates lazy copies of versions, and optimizes them when evaluated.
@@ -671,6 +671,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/as_integer_real_range.R` — The unboxed `as.integer` of a real at the ends of the integer range, with the warning out of it; a real subscript there is silent (`realToIndex`).
 - `.../examples/R/sign_nan.R` — The unboxed `sign` returns `NaN` and `NA` unchanged.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
+- `.../examples/R/promise_shared_stub.R` — A deopt stub that compiles to one promise for its site (`Fir_mk_stub_promise`), run under `gctorture`.
 - `.../examples/R/closure_super_assigns_defining_frame.R` — A closure stores into a variable of its defining frame with `<<-` (`OriginAnalysis` must not keep the variable's origin across the call).
 - `.../examples/R/closure_captures_promise_argument.R` — An inlined callee's closure captures its environment, which holds a promise argument that a later call forces (`OriginAnalysis` must leak the promise).
 - `.../examples/R/callee_closure_sees_global_not_caller.R` — A closure that a callee creates looks up names in the callee's closure environment, not in the caller's frame (`Inline` must not inline a callee that creates a non-static closure or uses `<<-`).
@@ -680,6 +681,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/promise_store_in_inlined_callee.R` — The argument promise `x <- 2` of an inlined callee stores into the caller's environment, not the callee's (`Inline` must not inline the force there, and `OriginAnalysis` must run the body without the callee's environment).
 - `.../examples/R/promise_of_copied_vector_subscript.R` — A kept promise `w[1]` of a constant vector: the folded subscript of a `v1(R)` version is a boxed constant (`OriginAnalysis` constant folding).
 - `.../examples/R/promise_capture_{outlives_frame,param_closure,wrapper_rebound}.R` — A promise that reads a register of its frame is forced after the frame returns, so it must keep a copy of the register (`Fir_mk_promise`).
+- `.../examples/R/subscript_default_method.R` — Subscripts that the fir2c runtime sends straight to the default method of `[`, `[[`, `[<-` and `[[<-`, and S3 targets that must still dispatch (`gcTorture`).
 - `.../examples/R/missing_promise_elided.R` — `missing` follows a promise into the caller's frame, so the caller's environment must stay materialized.
 - `.../examples/R/missing_unknown_callee.R` — `seq.default` (a base closure, so a dynamic callee) calls `missing` on a promise of a symbol, which reads the caller's environment: it must not become non-reflective.
 - `.../examples/R/missing_string_branch.R` — `missing("x")` reads the binding of `x`, so its store must stay; and a default parameter's `missing` check (the `--> B` version).

@@ -215,6 +215,9 @@ public final class Fir2CCompiler {
   private static final String VAR_DATA = "data";
   /// The slot of a promise's constant pool that holds its source expression.
   private static final int PROMISE_EXPR_INDEX = 1;
+
+  /// The pool slot of a shared deopt stub's promise (see [VersionEmitter#isSharedStub]).
+  private static final int PROMISE_STUB_INDEX = 2;
   private static final String VAR_CAPTURES = "captures";
   private static final String VAR_POOL = "pool";
   private static final String VAR_SIGNATURE = "signature";
@@ -1355,6 +1358,9 @@ public final class Fir2CCompiler {
       /// Each promise CFG to the CFG whose frame creates it. The version's own body CFG isn't a
       /// key, so a lookup chain from any CFG terminates there.
       private final Map<CFG, CFG> enclosingCfgs = new LinkedHashMap<>();
+      /// Whether a frame of this version may be an environment that `missing` reads: the version
+      /// has a `MkEnv` of type `REGULAR`, or none (its code runs in an environment from R).
+      private final boolean mayHaveRegularEnv;
 
       /// Declares a stub version (a declaration without code, e.g. a builtin) as `extern`: it's
       /// defined elsewhere (the runtime).
@@ -1392,6 +1398,29 @@ public final class Fir2CCompiler {
         }
 
         prepare();
+
+        var mkEnvTypes =
+            streamCfgs()
+                .flatMap(cfg -> cfg.bbs().stream())
+                .flatMap(bb -> bb.statements().stream())
+                .<MkEnvType>mapMulti(
+                    (s, sink) -> {
+                      if (s.expression() instanceof MkEnv(var type)) {
+                        sink.accept(type);
+                      }
+                    })
+                .toList();
+        mayHaveRegularEnv = mkEnvTypes.isEmpty() || mkEnvTypes.contains(MkEnvType.REGULAR);
+      }
+
+      /// Whether `promise` compiles to one promise that every execution of its site gives
+      /// (`Fir_mk_stub_promise`, with `PRENV = Rsh_ElidedEnv`). The body of a deopt stub needs no
+      /// state of the activation. Only `missing` reads `PRENV` of an unforced promise, and only
+      /// when the expression is a symbol, so a symbol stub is shared only if `missing` can't read
+      /// a real environment through it.
+      private boolean isSharedStub(Promise promise) {
+        return promise.isDeoptStub()
+            && (!(promise.expr() instanceof RegSymSXP) || !mayHaveRegularEnv);
       }
 
       private Stream<CFG> streamCfgs() {
@@ -1547,6 +1576,7 @@ public final class Fir2CCompiler {
       private final class PromiseEmitter {
         // Input
         private final Promise promise;
+        private final boolean shared;
 
         // Output
         private final String constantsCName;
@@ -1557,10 +1587,12 @@ public final class Fir2CCompiler {
 
         PromiseEmitter(
             Promise promise,
+            boolean shared,
             CFunction initCFunction,
             CFunction fromRCFunction,
             CFunction evalCFunction) {
           this.promise = promise;
+          this.shared = shared;
 
           constantsCName = promiseConstantsCName(promise);
           this.initCFunction = initCFunction;
@@ -1615,6 +1647,19 @@ public final class Fir2CCompiler {
           var exprIdx =
               pool.internUnique(promise.expr() != null ? promise.expr() : SEXPs.UNBOUND_VALUE);
           assert exprIdx == PROMISE_EXPR_INDEX;
+
+          if (shared) {
+            var stubIdx = pool.internSpace();
+            assert stubIdx == PROMISE_STUB_INDEX;
+            cCode.stmt(
+                "Fir_set_const(%s, %d, Fir_mk_stub_promise(%s, %s, Fir_const(%s, %d)));",
+                VAR_POOL,
+                stubIdx,
+                promiseFromRCName(promise),
+                VAR_POOL,
+                VAR_POOL,
+                PROMISE_EXPR_INDEX);
+          }
         }
 
         private void emitFromR() {
@@ -1696,7 +1741,7 @@ public final class Fir2CCompiler {
           createsPromises =
               cfg.bbs().stream()
                   .flatMap(bb -> bb.statements().stream())
-                  .anyMatch(s -> s.expression() instanceof Promise);
+                  .anyMatch(s -> s.expression() instanceof Promise p && !isSharedStub(p));
           hasEnvOps =
               cfg.bbs().stream()
                   .flatMap(bb -> bb.statements().stream())
@@ -1937,6 +1982,7 @@ public final class Fir2CCompiler {
                       .formatted(registerPlace(Objects.requireNonNull(promise.wrappedValue())));
               case Promise promise -> {
                 // Compile the promise
+                var shared = isSharedStub(promise);
 
                 var initCName = promiseInitCName(promise);
                 var fromRCName = promiseFromRCName(promise);
@@ -1973,6 +2019,7 @@ public final class Fir2CCompiler {
                 var cpSxp =
                     new PromiseEmitter(
                             promise,
+                            shared,
                             promiseInitCFunction,
                             promiseFromRCFunction,
                             promiseEvalCFunction)
@@ -1987,6 +2034,10 @@ public final class Fir2CCompiler {
                     version.signature(),
                     bb.label());
                 initCCode.stmt("%s(%s);", initCName, cp);
+
+                if (shared) {
+                  yield "Fir_const(%s, %d)".formatted(cp, PROMISE_STUB_INDEX);
+                }
 
                 // Emit the runtime constructor
 

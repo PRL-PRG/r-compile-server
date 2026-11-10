@@ -432,18 +432,9 @@ static void Fir_copy_captures(void **captures, const char *capture_reprs, SEXP d
   }
 }
 
-SEXP Fir_mk_promise(
-    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr) {
-  ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
-#ifdef FIR_STATS
-  // Before the elided frame is replaced by its parent below.
-  bool elided = Fir_stats_is_elided(env);
-#endif
-  // See `Fir_push_env`.
-  if (env == Rsh_ElidedEnv) {
-    env = ENCLOS(env);
-  }
-
+// The `PRCODE` of a compiled promise (see `Fir_mk_promise` in `runtime.h`).
+static SEXP Fir_promise_code(
+    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP expr) {
   int num_captures = (int)strlen(capture_reprs);
   int num_sexps = 0;
   for (int i = 0; i < num_captures; i++) {
@@ -459,9 +450,27 @@ SEXP Fir_mk_promise(
   void **copies = num_captures > 0 ? (void **)(local_data + 1) : NULL;
   *local_data = (Fir_PromiseLocalData) {.captures = copies, .escaped = false};
   Fir_copy_captures(captures, capture_reprs, data, copies);
+  SEXP ext = R_MakeExternalPtr((void *)evalFromR, Rsh_CodeTag, data);
+  UNPROTECT(1); // data
+  return ext;
+}
+
+SEXP Fir_mk_promise(
+    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr) {
+  ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
+#ifdef FIR_STATS
+  // Before the elided frame is replaced by its parent below.
+  bool elided = Fir_stats_is_elided(env);
+#endif
+  // See `Fir_push_env`.
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+
+  SEXP ext = PROTECT(Fir_promise_code(evalFromR, cp, captures, capture_reprs, expr));
 #ifdef FIR_STATS
   Fir_PromiseGlobalData *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(cp, 0));
-  ((Fir_PromiseLocalData *)STDVEC_DATAPTR(local_data_sexp))->elided = elided;
+  Fir_prom_local(R_ExternalPtrProtected(ext))->elided = elided;
   Fir_stats.created++;
   if (global_data->may_reflect) {
     Fir_stats.created_may_reflect++;
@@ -471,10 +480,16 @@ SEXP Fir_mk_promise(
   }
 #endif
 
-  SEXP ext = PROTECT(R_MakeExternalPtr((void *)evalFromR, Rsh_CodeTag, data));
   SEXP promise = Rf_mkPROMISE(ext, env);
-  UNPROTECT(2); // data + ext
+  UNPROTECT(1); // ext
 
+  return promise;
+}
+
+SEXP Fir_mk_stub_promise(Rsh_code evalFromR, SEXP cp, SEXP expr) {
+  SEXP ext = PROTECT(Fir_promise_code(evalFromR, cp, NULL, "", expr));
+  SEXP promise = Rf_mkPROMISE(ext, Rsh_ElidedEnv);
+  UNPROTECT(1); // ext
   return promise;
 }
 

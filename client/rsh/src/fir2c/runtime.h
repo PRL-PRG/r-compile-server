@@ -437,6 +437,10 @@ void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_F
 /// `local_data` after the `Fir_PromiseLocalData` and the pointers to the copies.
 SEXP Fir_mk_promise(
     Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr);
+/// The one compiled promise of a site whose code is only a deopt: it has no captures and
+/// `PRENV = Rsh_ElidedEnv`, so every execution of the site can give it. Not tracked, so never
+/// escaped, and not counted by the `FIR_STATS` counters.
+SEXP Fir_mk_stub_promise(Rsh_code evalFromR, SEXP cp, SEXP expr);
 #define Fir_prom_expr(data) VECTOR_ELT((data), 0)
 #define Fir_prom_cp(data) VECTOR_ELT((data), 1)
 #define Fir_prom_local(data) ((Fir_PromiseLocalData *)STDVEC_DATAPTR(VECTOR_ELT((data), 2)))
