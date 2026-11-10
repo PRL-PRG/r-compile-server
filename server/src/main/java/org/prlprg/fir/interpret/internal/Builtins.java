@@ -9,7 +9,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.IntBinaryOperator;
@@ -450,14 +452,56 @@ public final class Builtins {
                 if (unaryFn == null) {
                   throw interpreter.fail("`" + name + "` has no unary version");
                 }
-                return new Value.Sexp(applyUnaryPreservingInt(s1, unaryFn, interpreter, name));
+                return new Value.Sexp(
+                    withArithNames(
+                        interpreter,
+                        name,
+                        s1,
+                        SEXPs.NULL,
+                        (a, _) -> applyUnaryPreservingInt(a, unaryFn, interpreter, name)));
               }
               // Binary case
               if (!(args.get(1) instanceof Value.Sexp(var s2))) {
                 throw interpreter.fail("`" + name + "` generic takes 2 sexp args");
               }
-              return new Value.Sexp(applyBinaryPreservingInt(s1, s2, fn, interpreter, name));
+              return new Value.Sexp(
+                  withArithNames(
+                      interpreter,
+                      name,
+                      s1,
+                      s2,
+                      (a, b) -> applyBinaryPreservingInt(a, b, fn, interpreter, name)));
             }));
+  }
+
+  /// `op` of `s1` and `s2` (`NULL` for a unary `op`) without their names, named like GNU-R names
+  /// an arithmetic or comparison result: after `s1` if it's as long as the result, otherwise after
+  /// `s2` if it is.
+  private static SEXP withArithNames(
+      InternalInterpreter interpreter, String ctx, SEXP s1, SEXP s2, BinaryOperator<SEXP> op) {
+    var args = new SEXP[] {s1, s2};
+    if (Arrays.stream(args).map(Builtins::withoutNames).anyMatch(SEXP::hasAttributes)) {
+      throw interpreter.failUnsupported(
+          "Mock `" + ctx + "` doesn't implement arguments with attributes but names");
+    }
+    var result = op.apply(withoutNames(s1), withoutNames(s2));
+    if (!(result instanceof VectorSXP<?> resultVector)) {
+      return result;
+    }
+    return Arrays.stream(args)
+        .filter(a -> a.attributes() != null && !a.names().isEmpty())
+        .filter(a -> a.names().size() == resultVector.size())
+        .findFirst()
+        .map(a -> result.withNames(a.names()))
+        .orElse(result);
+  }
+
+  /// `sexp` without its attributes if they're only names.
+  private static SEXP withoutNames(SEXP sexp) {
+    var attributes = sexp.attributes();
+    return attributes != null && attributes.keySet().equals(Set.of("names"))
+        ? sexp.withAttributes(Attributes.NONE)
+        : sexp;
   }
 
   /// Apply binary math op on SEXPs, preserving int type (for +, -, *, %%, %/%)
@@ -643,9 +687,17 @@ public final class Builtins {
                       && args.get(1) instanceof Value.Sexp(var s2))) {
                 throw interpreter.fail("`" + name + "` generic takes 2 sexp-scalar numbers");
               }
-              double a = sexpToDouble(s1, interpreter, name);
-              double b = sexpToDouble(s2, interpreter, name);
-              return new Value.Sexp(SEXPs.real(fn.applyAsDouble(a, b)));
+              return new Value.Sexp(
+                  withArithNames(
+                      interpreter,
+                      name,
+                      s1,
+                      s2,
+                      (a, b) ->
+                          SEXPs.real(
+                              fn.applyAsDouble(
+                                  sexpToDouble(a, interpreter, name),
+                                  sexpToDouble(b, interpreter, name)))));
             }));
     // Scalar: (I, I) --> R
     interpreter.registerExternal(
@@ -716,9 +768,18 @@ public final class Builtins {
                       && args.get(1) instanceof Value.Sexp(var s2))) {
                 throw interpreter.fail("`" + name + "` generic takes 2 sexp-scalar numbers");
               }
-              double a = sexpToDouble(s1, interpreter, name);
-              double b = sexpToDouble(s2, interpreter, name);
-              return new Value.Sexp(SEXPs.logical(compare(pred, a, b)));
+              return new Value.Sexp(
+                  withArithNames(
+                      interpreter,
+                      name,
+                      s1,
+                      s2,
+                      (a, b) ->
+                          SEXPs.logical(
+                              compare(
+                                  pred,
+                                  sexpToDouble(a, interpreter, name),
+                                  sexpToDouble(b, interpreter, name)))));
             }));
     // Scalar --> L: (I, I) --> L
     interpreter.registerExternal(
@@ -1299,6 +1360,7 @@ public final class Builtins {
               if (vector instanceof NilSXP) {
                 return new Value.Sexp(SEXPs.NULL);
               }
+              var index = args.get(1).box();
               // `drop` (of `[`) or `exact` (of `[[`); `FALSE` only changes a matrix subscript or a
               // partial name match.
               var option = args.get(3).box();
@@ -1311,17 +1373,33 @@ public final class Builtins {
                         + (outOfRangeIsNa ? "drop" : "exact")
                         + " = FALSE` with one subscript");
               }
-              int idx = positionSubscript(interpreter, name, args.get(1).box());
-              if (!outOfRangeIsNa && idx < 0 && idx != Constants.NA_INT) {
+              int idx =
+                  index instanceof StrSXP
+                      ? nameSubscript(interpreter, name, vector, index)
+                      : positionSubscript(interpreter, name, index);
+              if (!isDefault
+                  && !outOfRangeIsNa
+                  && index instanceof StrSXP s
+                  && idx > vector.size()) {
+                idx = partialNameSubscript(vector, s.get(0), idx);
+              }
+              if (idx < (outOfRangeIsNa ? 1 : 0) && idx != Constants.NA_INT) {
                 throw interpreter.failUnsupported(
-                    "Mock `" + name + "` doesn't implement a negative subscript");
+                    "Mock `" + name + "` doesn't implement a negative (or `[` zero) subscript");
               }
               if (!outOfRangeIsNa && idx == Constants.NA_INT && vector instanceof VecSXP) {
                 // `[[` of a list reads `NA` as `NULL`.
                 return new Value.Sexp(SEXPs.NULL);
               }
-              return new Value.Sexp(
-                  subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa).box());
+              var loaded = subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa).box();
+              // `[` of a named vector keeps the element's name (`subscriptLoad` names a list's).
+              var names = vector.names();
+              if (outOfRangeIsNa && !(vector instanceof VecSXP) && !names.isEmpty()) {
+                loaded =
+                    loaded.withNames(
+                        idx >= 1 && idx <= names.size() ? names.get(idx - 1) : Constants.NA_STRING);
+              }
+              return new Value.Sexp(loaded);
             }));
     // v5-9: (v(T)b, I, miss, miss) --> T for T = L, I, R, S. `[` with a length-1 index can't fail
     // (out of range reads as `NA`), so it's pure; `[[` fails, so it isn't (see `builtins.fir`).
@@ -1412,6 +1490,31 @@ public final class Builtins {
           "Mock `" + name + "` doesn't implement a logical subscript");
     }
     return sexpToInt(index, interpreter, name);
+  }
+
+  /// The 1-based position of the first element of `vector` named `index`, a string scalar, or the
+  /// position past the end if none is (where GNU-R's sub-assignment appends it). Like in GNU-R,
+  /// `""` never matches.
+  private static int nameSubscript(
+      InternalInterpreter interpreter, String name, ListOrVectorSXP<?> vector, SEXP index) {
+    var indexName = index.asScalarString().filter(n -> !n.equals(Constants.NA_STRING));
+    if (indexName.isEmpty()) {
+      throw interpreter.failUnsupported(
+          "Mock `" + name + "` only implements a non-NA string scalar name subscript");
+    }
+    var position = indexName.get().isEmpty() ? -1 : vector.names().indexOf(indexName.get());
+    return position == -1 ? vector.size() + 1 : position + 1;
+  }
+
+  /// The 1-based position of the only element of `vector` whose name starts with `prefix`, for
+  /// `[[` with `exact = FALSE`, or `absent` if none or several do.
+  private static int partialNameSubscript(ListOrVectorSXP<?> vector, String prefix, int absent) {
+    var names = vector.names();
+    var matches =
+        IntStream.range(0, names.size())
+            .filter(i -> !prefix.isEmpty() && names.get(i).startsWith(prefix))
+            .toArray();
+    return matches.length == 1 ? matches[0] + 1 : absent;
   }
 
   /// Reject a sub-assignment subscript these versions don't implement.
@@ -1571,19 +1674,34 @@ public final class Builtins {
                 throw interpreter.failUnsupported(
                     "Mock `" + name + "` not implemented for non-vector objects");
               }
-              int idx = positionSubscript(interpreter, name, args.get(1).box());
+              var index = args.get(1).box();
+              int idx =
+                  index instanceof StrSXP
+                      ? nameSubscript(interpreter, name, vector, index)
+                      : positionSubscript(interpreter, name, index);
               var value = args.get(2).box();
               var result = subAssignTarget(interpreter, name, vector, value);
               if (idx > result.size()) {
                 result = enlarged(interpreter, name, result, idx);
               }
               checkInRange(interpreter, name, result, idx);
+              if (index instanceof StrSXP s && vector.names().indexOf(s.get(0)) == -1) {
+                // GNU-R appends an element with a name that isn't there.
+                var names =
+                    new ArrayList<>(
+                        result.names().isEmpty()
+                            ? Collections.nCopies(result.size(), "")
+                            : result.names());
+                names.set(idx - 1, s.get(0));
+                result = (ListOrVectorSXP<?>) result.withNames(names);
+              }
               interpreter.subscriptStore(
                   result,
                   idx - 1,
                   result instanceof VecSXP
                       ? listElement(interpreter, name, value)
-                      : sexpToValueOfType(value, result.type(), interpreter, name));
+                      // An atomic target ignores the value's names.
+                      : sexpToValueOfType(withoutNames(value), result.type(), interpreter, name));
               return new Value.Sexp(result);
             }));
 
@@ -2122,20 +2240,27 @@ public final class Builtins {
         SIG_GENERIC_1,
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
+              if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var arg))) {
                 throw interpreter.fail("`abs` generic takes 1 sexp-scalar number");
               }
-              if (sexp.asScalarInteger().isPresent()) {
-                return new Value.Sexp(SEXPs.integer(Math.abs(sexp.asScalarInteger().get())));
-              } else if (sexp.asScalarReal().isPresent()) {
-                return new Value.Sexp(SEXPs.real(Math.abs(sexp.asScalarReal().get())));
-              } else if (sexp.asScalarLogical().isPresent()) {
-                var l = sexp.asScalarLogical().get();
-                return new Value.Sexp(
-                    SEXPs.integer(l == Logical.NA ? Constants.NA_INT : l.toInt()));
-              }
-              throw interpreter.failUnsupported(
-                  "Mock `abs` generic only takes a logical, integer, or real scalar");
+              return new Value.Sexp(
+                  withArithNames(
+                      interpreter,
+                      "abs",
+                      arg,
+                      SEXPs.NULL,
+                      (sexp, _) -> {
+                        if (sexp.asScalarInteger().isPresent()) {
+                          return SEXPs.integer(Math.abs(sexp.asScalarInteger().get()));
+                        } else if (sexp.asScalarReal().isPresent()) {
+                          return SEXPs.real(Math.abs(sexp.asScalarReal().get()));
+                        } else if (sexp.asScalarLogical().isPresent()) {
+                          var l = sexp.asScalarLogical().get();
+                          return SEXPs.integer(l == Logical.NA ? Constants.NA_INT : l.toInt());
+                        }
+                        throw interpreter.failUnsupported(
+                            "Mock `abs` generic only takes a logical, integer, or real scalar");
+                      }));
             }));
     // (I) --> I
     interpreter.registerExternal(
@@ -2550,7 +2675,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
-              return new Value.Lgl(sexpToLogical(sexp, interpreter, "as.logical"));
+              return new Value.Lgl(sexpToLogical(withoutNames(sexp), interpreter, "as.logical"));
             }));
     // v3: (V, miss) --> B
     interpreter.registerExternal(
@@ -2560,7 +2685,8 @@ public final class Builtins {
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
               return new Value.Bool(
-                  condition(sexpToLogical(sexp, interpreter, "as.logical"), interpreter));
+                  condition(
+                      sexpToLogical(withoutNames(sexp), interpreter, "as.logical"), interpreter));
             }));
     // v3: (L, miss) --> B
     interpreter.registerExternal(

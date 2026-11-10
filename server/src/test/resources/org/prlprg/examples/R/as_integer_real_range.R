@@ -5,7 +5,7 @@ f <- function(x) as.integer(x)
 g <- function(x, i) x[i]
 for (i in 1:12) {
   f(i + 0.5)
-  g(c(10, 20, 30), i %% 3 + 1.5)
+  g(c(10, 20, 30), i %% 3 + 0.5)
 }
 print(f(2147483647.5))
 print(f(3e9))
