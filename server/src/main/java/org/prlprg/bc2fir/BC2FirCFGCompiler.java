@@ -121,6 +121,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
@@ -128,6 +129,7 @@ import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.cfg.cursor.JumpInsertion;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
@@ -389,6 +391,10 @@ public final class BC2FirCFGCompiler {
           ensureBbAt(new BcLabel(labelPos));
         }
       }
+      return;
+    }
+    // A guard falls through to its label (the fallback deoptimizes).
+    if (instr instanceof BaseGuard) {
       return;
     }
 
@@ -1127,10 +1133,10 @@ public final class BC2FirCFGCompiler {
       case Colon(var _) -> pushInsertThenCp(mkBinop(":"));
       case SeqAlong(var _) -> pushInsertThenCp(builtin("seq_along", pop()));
       case SeqLen(var _) -> pushInsertThenCp(builtin("seq_len", pop()));
-      case BaseGuard(var exprIdx, var after) -> {
-        // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
-        var expr = get(exprIdx);
-        var fun = Variable.named(((RegSymSXP) expr.fun()).name());
+      case BaseGuard(var exprIdx, var _) -> {
+        // The guard is an assumption: if the function isn't the base one, deoptimize to the
+        // `BASEGUARD`, which then evaluates the call. The two loads are safe to do again.
+        var fun = Variable.named(((RegSymSXP) get(exprIdx).fun()).name());
         var sym = insertAndReturn("_sym", new Load(LoadType.LOCAL_FUN, fun));
         var base = insertAndReturn("_base", new Load(LoadType.BASE_FUN, fun));
         var guard =
@@ -1142,35 +1148,8 @@ public final class BC2FirCFGCompiler {
                         ImmutableList.of(Type.CLOSURE, Type.CLOSURE), Type.BOOLEAN, Effects.NONE),
                     sym,
                     base));
-
-        var safeBb = cfg.addBB();
-        var fallbackBb = cfg.addBB();
-        var afterBb = bbAt(after);
-        setJump(branch(guard, safeBb, fallbackBb));
-
-        moveTo(fallbackBb);
-        // Compile a call.
-        // Also, pass `Constant`s containing symbols and language objects to arguments,
-        // expecting them to be `eval`ed, like in `CallSpecial`.
-        var argNames =
-            expr.args().names().stream()
-                .map(OptionalNamedVariable::ofString)
-                .collect(ImmutableList.toImmutableList());
-        var args =
-            expr.args().values().stream()
-                .map(v -> (Argument) new Constant(v))
-                .collect(ImmutableList.toImmutableList());
-        var fallback =
-            insertAndReturn(
-                inferDescriptiveName(Register.DEFAULT_NAME),
-                new Built(
-                    new org.prlprg.fir.ir.expression.Call(new DynamicCallee(argNames)),
-                    prependArg(base, args)));
-        ((AssigneeOf) ((Read) fallback).variable()).statement().setSource(expr);
-        push(fallback);
-        setJump(goto_(afterBb));
-
-        moveTo(safeBb);
+        tryAddCheckpoint(false, stack);
+        insert(new Assume(new AssumeConstant(new Value.Bool(true))), guard);
       }
       // Inlined subscripts. GNU-R dispatches on an object vector in the start instruction (and then
       // jumps to its label), otherwise the next instruction runs the default subscript on the
@@ -1495,7 +1474,8 @@ public final class BC2FirCFGCompiler {
   /// position
   ///
   /// - If `afterBcInstr = false`, `stack` must be the stack before the bytecode was compiled,
-  ///   and every FIŘ instruction emitted for the bytecode so far must be pure.
+  ///   and every FIŘ instruction emitted for the bytecode so far must be pure or safe to do
+  ///   again.
   /// - If `afterBcInstr = true`, `stack` must be the current stack, and no more FIŘ
   ///   instructions can be emitted for this bytecode instruction.
   private void tryAddCheckpoint(boolean afterBcInstr, List<Argument> stack) {

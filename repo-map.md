@@ -626,10 +626,11 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `server/src/test/java/org/prlprg/` — `TestConfig` (environment variables of the tests), `TestOrderer`.
 - `.../bc/` — Bytecode compiler tests (`BCCompilerTest`, `ConstantFoldingTest`, `ConstPoolTest`, ...).
 - `.../bc2fir/NeedsContextTest.java` — Which closures `bc2fir` marks `@needsContext` and `@needsPromises`, and the properties' parse/print round trip.
+- `.../bc2fir/BaseGuardTest.java` — `bc2fir` compiles a `BASEGUARD` into an assumption whose deopt is the guard.
 - `.../bc2fir/GnurBytecodeTest.java` — `bc2fir` compiles the inlined subscripts of GNU-R compiler bytecode (what the rsh JIT sends) into static calls.
 - `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples), and their per-test timeout (`ExampleTimeout`).
 - `.../fir/analyze/`, `.../fir/check/`, `.../fir/feedback/`, `.../fir/ir/` — Unit tests of FIŘ analyses, checkers, feedback, and IR.
-- `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises, mocks of builtins against GNU-R).
+- `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises, deopt into a baseline with a base-function guard, mocks of builtins against GNU-R).
 - `.../fir/opt/`, `.../fir/opt/specialize/` — One unit test class per optimization (`AbstractionOptimizationUnitTest`, `OptimizationUnitTest`), and `OptimizationsTest` (pipeline variants, `REQUIRES`).
 - `.../fir2c/BytecodeBaselineFeedbackTest.java` — Recording translation and baseline pool layout.
 - `.../fir2c/Fir2CCompilerTest.java` — FIŘ→C unit tests.
