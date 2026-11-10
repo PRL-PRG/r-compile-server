@@ -1274,11 +1274,9 @@ SEXP Fir_mk_dots_values(int count, SEXP *elems, SEXP const *names, uint64_t valu
   return result;
 }
 
-// The default method of `R_FunTab[blt_idx]` if it is `[`, `[[`, `[<-` or `[[<-`, else `NULL`.
-static CCODE Fir_subscript_default(int blt_idx) {
+// Which of `[`, `[[`, `[<-` and `[[<-` (0 to 3) `R_FunTab[blt_idx]` is, or -1.
+static ALWAYS_INLINE int Fir_subscript_kind(int blt_idx) {
   static int idx[4] = {-2, -2, -2, -2};
-  static CCODE const dflt[4] = {do_subset_dflt, do_subset2_dflt, do_subassign_dflt,
-                                do_subassign2_dflt};
   if (idx[0] == -2) {
     static char const *const names[4] = {"[", "[[", "[<-", "[[<-"};
     for (int k = 0; k < 4; k++) {
@@ -1287,10 +1285,198 @@ static CCODE Fir_subscript_default(int blt_idx) {
   }
   for (int k = 0; k < 4; k++) {
     if (blt_idx == idx[k]) {
-      return dflt[k];
+      return k;
     }
   }
-  return NULL;
+  return -1;
+}
+
+// The value of a subscript operand: itself, or a forced promise's value. `NULL` if it is not known
+// without an evaluation (an unforced promise, or an expression the special evaluates).
+static ALWAYS_INLINE SEXP Fir_operand_value(SEXP arg, bool value) {
+  if (TYPEOF(arg) == PROMSXP) {
+    return PRVALUE(arg) == R_UnboundValue ? NULL : PRVALUE(arg);
+  }
+  return value || !Fir_is_expression(arg) ? arg : NULL;
+}
+
+// The operands after the target of a subscript call, with `...` spliced: 1 or 2 untagged (or `i`,
+// `j`) indices into `idx`, and for an assignment the last operand, tagged `value`, into `*value`.
+// Returns the number of indices, or 0 for any other shape. Bit `i` of `values` says that `args[i]`
+// is a value.
+static SEXP Fir_sym_i = NULL, Fir_sym_j = NULL, Fir_sym_value = NULL;
+
+static int Fir_subscript_operands(int argc, SEXP const *args, SEXP const *names, uint64_t values,
+                                  bool assign, SEXP idx[2], SEXP *value) {
+  SEXP sym_i = Fir_sym_i, sym_j = Fir_sym_j, sym_value = Fir_sym_value;
+  int nidx = 0;
+  for (int k = 0; k < argc; k++) {
+    if (names[k] == R_DotsSymbol) {
+      if (args[k] == R_MissingArg) {
+        continue;
+      }
+      for (SEXP h = args[k]; h != R_NilValue; h = CDR(h)) {
+        SEXP v = Fir_operand_value(CAR(h), false);
+        if (v == NULL || TAG(h) != R_NilValue || nidx == 2) {
+          return 0;
+        }
+        idx[nidx++] = v;
+      }
+      continue;
+    }
+    SEXP v = Fir_operand_value(args[k], k < 64 && ((values >> k) & 1));
+    if (v == NULL) {
+      return 0;
+    }
+    if (assign && k == argc - 1 && names[k] == sym_value) {
+      *value = v;
+      return nidx;
+    }
+    if ((names[k] != R_MissingArg && names[k] != sym_i && names[k] != sym_j) || nidx == 2) {
+      return 0;
+    }
+    idx[nidx++] = v;
+  }
+  return assign ? 0 : nidx;
+}
+
+// GNU-R bytecode's `bcStackIndex`: a scalar integer or real index without attributes, or -1.
+static ALWAYS_INLINE R_xlen_t Fir_scalar_index(SEXP idx) {
+  if ((TYPEOF(idx) != INTSXP && TYPEOF(idx) != REALSXP) || XLENGTH(idx) != 1 ||
+      ATTRIB(idx) != R_NilValue) {
+    return -1;
+  }
+  if (TYPEOF(idx) == INTSXP) {
+    int i = INTEGER_ELT(idx, 0);
+    return i == NA_INTEGER ? -1 : i;
+  }
+  double d = REAL_ELT(idx, 0);
+  return !ISNAN(d) && d <= R_XLEN_T_MAX && d > 0 ? (R_xlen_t)d : -1;
+}
+
+// The 0-based element of `x` that 1 or 2 scalar indices name, or -1 if one is out of range or not
+// scalar, or 2 indices and `x` isn't a matrix (as `getMatrixDim` in GNU-R's `eval.c`).
+static ALWAYS_INLINE R_xlen_t Fir_subscript_element(SEXP x, int nidx, SEXP const *idx) {
+  R_xlen_t i = Fir_scalar_index(idx[0]);
+  if (nidx == 1) {
+    return i >= 1 && i <= XLENGTH(x) ? i - 1 : -1;
+  }
+  SEXP attr = ATTRIB(x);
+  SEXP dim = TAG(attr) == R_DimSymbol ? CAR(attr) : Rf_getAttrib(x, R_DimSymbol);
+  if (TYPEOF(dim) != INTSXP || LENGTH(dim) != 2) {
+    return -1;
+  }
+  R_xlen_t j = Fir_scalar_index(idx[1]);
+  R_xlen_t nrow = INTEGER(dim)[0], ncol = INTEGER(dim)[1];
+  return i >= 1 && j >= 1 && i <= nrow && j <= ncol ? i - 1 + nrow * (j - 1) : -1;
+}
+
+// GNU-R bytecode's `DO_FAST_VECELT`: element `k` of `x` (a `[` keeps no attribute but `dim`).
+static ALWAYS_INLINE bool Fir_subset_element(bool subset2, SEXP x, R_xlen_t k, SEXP *result) {
+  if (!subset2 && !(ATTRIB(x) == R_NilValue ||
+                    (TAG(ATTRIB(x)) == R_DimSymbol && CDR(ATTRIB(x)) == R_NilValue))) {
+    return false;
+  }
+  switch (TYPEOF(x)) {
+    case REALSXP:
+      *result = Rf_ScalarReal(REAL_ELT(x, k));
+      return true;
+    case INTSXP:
+      *result = Rf_ScalarInteger(INTEGER_ELT(x, k));
+      return true;
+    case LGLSXP:
+      *result = Rf_ScalarLogical(LOGICAL_ELT(x, k));
+      return true;
+    case VECSXP: {
+      SEXP elt = VECTOR_ELT(x, k);
+      RAISE_NAMED(elt, NAMED(x));
+      if (subset2) {
+        *result = elt;
+      } else {
+        PROTECT(elt);
+        *result = Rf_allocVector(VECSXP, 1);
+        SET_VECTOR_ELT(*result, 0, elt);
+        UNPROTECT(1);
+      }
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+// GNU-R bytecode's `DO_FAST_SETVECELT`: store `v` as element `k` of `x`, which is the setter
+// protocol's value, if it is unshared and not ALTREP, and `v` is a scalar of a type that `x` holds
+// without a coercion (or, for `[[<-` on a list, any value but `NULL` or a promise).
+static ALWAYS_INLINE bool Fir_subassign_element(bool subassign2, SEXP x, R_xlen_t k, SEXP v) {
+  if (MAYBE_SHARED(x) || ALTREP(x)) {
+    return false;
+  }
+  SEXPTYPE vt = TYPEOF(v);
+  if ((vt == REALSXP || vt == INTSXP || vt == LGLSXP) && XLENGTH(v) == 1 &&
+      ATTRIB(v) == R_NilValue) {
+    switch (TYPEOF(x)) {
+      case REALSXP:
+        if (vt == REALSXP) {
+          REAL(x)[k] = REAL(v)[0];
+        } else {
+          int iv = vt == INTSXP ? INTEGER(v)[0] : LOGICAL(v)[0];
+          REAL(x)[k] = iv == NA_INTEGER ? NA_REAL : iv;
+        }
+        return true;
+      case INTSXP:
+      case LGLSXP:
+        if (vt != TYPEOF(x)) {
+          break;
+        }
+        if (vt == INTSXP) {
+          INTEGER(x)[k] = INTEGER(v)[0];
+        } else {
+          LOGICAL(x)[k] = LOGICAL(v)[0];
+        }
+        return true;
+      default:
+        break;
+    }
+  }
+  if (subassign2 && TYPEOF(x) == VECSXP && v != R_NilValue && vt != PROMSXP) {
+    if (MAYBE_REFERENCED(v) && VECTOR_ELT(x, k) != v) {
+      v = R_FixupRHS(x, v);
+    }
+    SET_VECTOR_ELT(x, k, v);
+    return true;
+  }
+  return false;
+}
+
+// The scalar paths of GNU-R bytecode for `[`, `[[` (`kind` 0, 1) and `[<-`, `[[<-` (2, 3; `x` is
+// the setter protocol's value), on a target `x` that is not an object: one or two scalar indices,
+// no argument list. `args[0]` is ignored. Returns whether it applied.
+static bool Fir_subscript_scalar(int kind, SEXP x, int argc, SEXP const *args, SEXP const *names,
+                                 uint64_t values, SEXP *result) {
+  if (Fir_sym_i == NULL) {
+    Fir_sym_i = Rf_install("i");
+    Fir_sym_j = Rf_install("j");
+    Fir_sym_value = Rf_install("value");
+  }
+  SEXP idx[2], value = NULL;
+  int nidx = Fir_subscript_operands(argc - 1, args + 1, names + 1, values >> 1, kind >= 2, idx,
+                                    &value);
+  if (nidx == 0 || OBJECT(x)) {
+    return false;
+  }
+  R_xlen_t k = Fir_subscript_element(x, nidx, idx);
+  if (k < 0) {
+    return false;
+  }
+  if (kind < 2) {
+    return Fir_subset_element(kind == 1, x, k, result);
+  }
+  if (!Fir_subassign_element(kind == 3, x, k, value)) {
+    return false;
+  }
+  *result = x;
+  return true;
 }
 
 // What the special `[`, `[[`, `[<-` or `[[<-` does when its target is not an object
@@ -1301,8 +1487,10 @@ static CCODE Fir_subscript_default(int blt_idx) {
 // `...`, or the special would evaluate an argument in `env`.
 static bool Fir_call_subscript_default(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
                                        SEXP *names, uint64_t values, SEXP x, SEXP *result) {
-  CCODE dflt = Fir_subscript_default(blt_idx);
-  if (dflt == NULL || argc == 0 || names[0] == R_DotsSymbol) {
+  static CCODE const dflts[4] = {do_subset_dflt, do_subset2_dflt, do_subassign_dflt,
+                                 do_subassign2_dflt};
+  int kind = Fir_subscript_kind(blt_idx);
+  if (kind < 0 || argc == 0 || names[0] == R_DotsSymbol) {
     return false;
   }
   for (int i = x == NULL ? 0 : 1; i < argc; i++) {
@@ -1348,21 +1536,26 @@ static bool Fir_call_subscript_default(int blt_idx, SEXP call, SEXP env, int arg
     }
   }
 
+  // The scalar paths, which assign only through the setter protocol.
+  if ((kind < 2) == (x == NULL) &&
+      Fir_subscript_scalar(kind, forced[0], argc, forced, names, ~0ULL, result)) {
+    R_Visible = TRUE;
+    return true;
+  }
+
   // Outside the setter protocol, the special's argument list would count the target, so that
   // `do_subassign_dflt` copies one that something else references (a non-local variable, which
   // GNU-R's `EnsureLocal` copies, or a direct call's argument).
   int protect_count = 0;
   SEXP arglist = Fir_build_arglist(argc, forced, names, true, true,
-                                   (dflt == do_subassign_dflt || dflt == do_subassign2_dflt) && x == NULL
-                                       ? FIR_NR_REST
-                                       : FIR_NR_ALL,
+                                   kind >= 2 && x == NULL ? FIR_NR_REST : FIR_NR_ALL,
                                    &protect_count);
   SEXP source = Fir_source_call(call, env);
   if (source == NULL) {
     source = PROTECT(Rf_lcons(Rf_install(R_FunTab[blt_idx].name), arglist));
     protect_count++;
   }
-  *result = dflt(source, Fir_primitive(blt_idx), arglist, env);
+  *result = dflts[kind](source, Fir_primitive(blt_idx), arglist, env);
   UNPROTECT(protect_count);
   R_Visible = TRUE;
   return true;
@@ -1654,77 +1847,29 @@ SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, 
                                    values);
 }
 
-// GNU-R bytecode's `DO_VECSUBASSIGN` fast path (`setElementFromScalar`) for `vec[[i]] <- v` and
-// `vec[i] <- v`, where `vec` is the protocol's (unshared) value, an atomic vector without a class,
-// and `i` and `v` are scalars without attributes. Returns whether it stored `v`. A special
-// evaluates such an `i` and `v` (constant or not) to themselves; a promise falls through.
-static bool Fir_subassign_scalar(SEXP vec, SEXP idx, SEXP v) {
-  SEXPTYPE vt = TYPEOF(v);
-  if ((TYPEOF(idx) != INTSXP && TYPEOF(idx) != REALSXP) ||
-      (vt != INTSXP && vt != REALSXP && vt != LGLSXP) || OBJECT(vec) || ALTREP(vec) ||
-      MAYBE_SHARED(vec) || ATTRIB(idx) != R_NilValue || XLENGTH(idx) != 1 ||
-      ATTRIB(v) != R_NilValue || XLENGTH(v) != 1) {
-    return false;
-  }
-  R_xlen_t i;
-  if (TYPEOF(idx) == INTSXP && INTEGER(idx)[0] != NA_INTEGER) {
-    i = INTEGER(idx)[0];
-  } else if (TYPEOF(idx) == REALSXP && REAL(idx)[0] >= 1 && REAL(idx)[0] < R_XLEN_T_MAX) {
-    i = (R_xlen_t)REAL(idx)[0];
-  } else {
-    return false;
-  }
-  if (i < 1 || i > XLENGTH(vec)) {
-    return false;
-  }
-  i--;
-  switch (TYPEOF(vec)) {
-    case REALSXP:
-      switch (TYPEOF(v)) {
-        case REALSXP:
-          REAL(vec)[i] = REAL(v)[0];
-          return true;
-        case INTSXP:
-        case LGLSXP: {
-          int iv = TYPEOF(v) == INTSXP ? INTEGER(v)[0] : LOGICAL(v)[0];
-          REAL(vec)[i] = iv == NA_INTEGER ? NA_REAL : iv;
-          return true;
-        }
-        default:
-          return false;
-      }
-    case INTSXP:
-      if (TYPEOF(v) != INTSXP) {
-        return false;
-      }
-      INTEGER(vec)[i] = INTEGER(v)[0];
-      return true;
-    case LGLSXP:
-      if (TYPEOF(v) != LGLSXP) {
-        return false;
-      }
-      LOGICAL(vec)[i] = LOGICAL(v)[0];
-      return true;
-    default:
-      return false;
-  }
-}
-
 SEXP Fir_call_setter_builtin(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
                              SEXP *names, uint64_t values) {
-  static int subassign_idx = -2, subassign2_idx = -2;
-  if (subassign_idx == -2) {
-    subassign_idx = Fir_funtab_index("[<-");
-    subassign2_idx = Fir_funtab_index("[[<-");
-  }
   if (!s->active || argc == 0 || Fir_source_call(call, env) == NULL) {
     return Fir_call_builtin_values(blt_idx, call, env, argc, args, names, values);
   }
-  // A static call has the arguments of the signature `(x, i, value, ...)`.
-  if (argc == 3 && (blt_idx == subassign_idx || blt_idx == subassign2_idx) &&
-      Fir_subassign_scalar(s->value, args[1], args[2])) {
-    R_Visible = TRUE;
-    return s->value;
+  int kind = Fir_subscript_kind(blt_idx);
+  if (kind >= 2) {
+    // The static call `x[[i]] <- value` (the signature's order) takes a short path, which keeps
+    // this function small; any other shape takes the general one.
+    SEXP x = s->value;
+    if (argc == 3 && names[1] != R_DotsSymbol) {
+      R_xlen_t i = OBJECT(x) || ((values >> 2) & 1) == 0 ? -1 : Fir_scalar_index(args[1]);
+      if (i >= 1 && i <= XLENGTH(x) && Fir_subassign_element(kind == 3, x, i - 1, args[2])) {
+        R_Visible = TRUE;
+        return x;
+      }
+    } else {
+      SEXP result;
+      if (Fir_subscript_scalar(kind, x, argc, args, names, values, &result)) {
+        R_Visible = TRUE;
+        return result;
+      }
+    }
   }
   return Fir_call_setter_primitive(s, blt_idx, call, env, argc, args, names, true, values);
 }
