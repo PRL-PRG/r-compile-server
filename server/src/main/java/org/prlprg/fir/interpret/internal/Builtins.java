@@ -1397,10 +1397,19 @@ public final class Builtins {
                 // `[[` of a list reads `NA` as `NULL`.
                 return new Value.Sexp(SEXPs.NULL);
               }
+              var inRange = idx >= 1 && idx <= vector.size();
+              if (!outOfRangeIsNa
+                  && !inRange
+                  && index instanceof StrSXP
+                  && vector instanceof VecSXP) {
+                // `[[` of a list reads an absent name as `NULL`.
+                return new Value.Sexp(SEXPs.NULL);
+              }
               var loaded = subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa).box();
-              // `[` of a named vector keeps the element's name (`subscriptLoad` names a list's).
+              // `[` of a named vector keeps the element's name, `NA` out of range
+              // (`subscriptLoad` names a list's element in range).
               var names = vector.names();
-              if (outOfRangeIsNa && !(vector instanceof VecSXP) && !names.isEmpty()) {
+              if (outOfRangeIsNa && (!(vector instanceof VecSXP) || !inRange) && !names.isEmpty()) {
                 loaded =
                     loaded.withNames(
                         idx >= 1 && idx <= names.size() ? names.get(idx - 1) : Constants.NA_STRING);

@@ -1,5 +1,5 @@
 f <- function(x, l) {
-  r <- vector("list", 10L)
+  r <- vector("list", 12L)
   names(x) <- c("a", "b", "c")
   r[[1L]] <- x["b"]
   r[[2L]] <- x[["c"]]
@@ -18,6 +18,8 @@ f <- function(x, l) {
   y <- c(1, 2)
   y["p"] <- 3
   r[[10L]] <- y
+  r[[11L]] <- l["zz"]
+  r[[12L]] <- list(l[["zz"]])
   r
 }
 
