@@ -381,6 +381,52 @@ class OriginAnalysisTest {
     assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
   }
 
+  /// A `...` subscript is a matrix column, which the fold doesn't implement, so `m[[1, 2]]` and
+  /// `m[1, 2] <- 9` mustn't fold as `m[[1]]` and `m[1] <- 9`.
+  @Test
+  void testConstantFoldSkipsMatrixSubscripts() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          col: dots = dots[<int 2>];
+          read: I = `[[`< V,I,dots,miss --> I >(<int 1, 2, 3, 4 | dim=<int 2, 2>>, 1, col, <missing>);
+          write: V = `[<-`< V,I,I,dots --> V >(<int 1, 2, 3, 4 | dim=<int 2, 2>>, 1, 9, col);
+          return write;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertInstanceOf(Read.class, analysis.get(reg(main, "read")));
+    assertInstanceOf(Read.class, analysis.get(reg(main, "write")));
+  }
+
+  /// `[` keeps the element's name, which a scalar constant can't.
+  @Test
+  void testConstantFoldSkipsNamedSubscript() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          result: I = `[`< V,I,miss,miss --> I >(<int 1, 2 | names=<str "a", "b">>, 1, <missing>, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
+  }
+
   @Test
   void testConstantFoldSubscriptWrite() {
     var firText =

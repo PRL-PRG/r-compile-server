@@ -748,6 +748,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       };
     }
 
+    private static boolean isMissing(Argument argument) {
+      return argument instanceof Constant(Value.Sexp(var sexp)) && sexp == SEXPs.MISSING_ARG;
+    }
+
     private static @Nullable Constant box(Value value) {
       return switch (value) {
         case Value.Lgl(var l) -> new Constant(SEXPs.logical(l));
@@ -969,12 +973,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
               });
         }
         case "[", "[[" -> {
-          if (arguments.size() != 4) yield null;
+          // A `...` subscript is a matrix column.
+          if (arguments.size() != 4 || !isMissing(resolve(arguments.get(2)))) yield null;
           var vectorArg = resolve(arguments.get(0));
           var idxArg = resolve(arguments.get(1));
 
           if (!(vectorArg instanceof Constant(Value.Sexp(var vSexp))
-              && vSexp instanceof ListOrVectorSXP<?> vector)) yield null;
+                  && vSexp instanceof ListOrVectorSXP<?> vector)
+              // `[` keeps the element's name.
+              || (name.equals("[") && !vector.names().isEmpty())) yield null;
 
           int idx;
           if (idxArg instanceof Constant(Value.Int(var i))) {
@@ -1006,7 +1013,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
                   : box(elementValue);
         }
         case "[<-" -> {
-          if (arguments.size() != 4) yield null;
+          // A `...` subscript is a matrix column.
+          if (arguments.size() != 4 || !isMissing(resolve(arguments.get(3)))) yield null;
           var vectorArg = resolve(arguments.get(0));
           var idxArg = resolve(arguments.get(1));
           var valueArg = resolve(arguments.get(2));
