@@ -261,12 +261,6 @@ void Fir_stub_compiled(Fir_Stub *stub, void *compiled);
 /// the client when the server answers so.
 void Fir_stub_fallback(Fir_Stub *stub);
 
-extern Fir_Kind Fir_kind_any_value;
-extern Fir_Kind Fir_kind_closure;
-extern Fir_Kind Fir_kind_dots;
-extern Fir_Kind Fir_kind_missing;
-extern Fir_Kind Fir_kind_boolean;
-
 /// How many calls a closure or a stub runs before the JIT moves it to the next tier. The rsh
 /// package sets it (`rsh_jit_enable`, `rsh_fir_connect`); the last setter wins.
 extern int Fir_jit_threshold;
@@ -323,19 +317,104 @@ bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data);
 bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data,
                              Fir_PromiseLocalData **local_data);
 
-Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind);
-Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind);
-Fir_Kind Fir_kind_primitive_vector1(Fir_PrimitiveKind primitive_kind);
-
-extern Fir_Promisity Fir_promisity_value;
-Fir_Promisity Fir_promisity_maybe(Fir_Effects effects);
-Fir_Promisity Fir_promisity_promise(Fir_Effects effects);
-
-Fir_Type Fir_type(Fir_Kind kind, Fir_Promisity promisity, Fir_Ownership ownership, bool definite);
 bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type);
-bool Fir_value_matches(SEXP value, Fir_Type type);
+/// `Fir_value_matches` of a promise whose type isn't a value type: the slow path.
+bool Fir_promise_value_matches(SEXP promise, Fir_Type type);
 
-Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects);
+#ifndef __cplusplus
+// Inline, with constant arguments, so the C compiler reduces a type test to the `TYPEOF` and length
+// tests it needs.
+#define Fir_kind_any_value ((Fir_Kind){.tag = FIR_KIND_ANY_VALUE})
+#define Fir_kind_closure ((Fir_Kind){.tag = FIR_KIND_CLOSURE})
+#define Fir_kind_dots ((Fir_Kind){.tag = FIR_KIND_DOTS})
+#define Fir_kind_missing ((Fir_Kind){.tag = FIR_KIND_MISSING})
+#define Fir_kind_boolean ((Fir_Kind){.tag = FIR_KIND_BOOLEAN})
+#define Fir_promisity_value ((Fir_Promisity){.tag = FIR_PROMISITY_VALUE, .effects = FIR_EFFECTS_NONE})
+
+static ALWAYS_INLINE Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind) {
+  return (Fir_Kind){.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = primitive_kind}};
+}
+
+static ALWAYS_INLINE Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind) {
+  return (Fir_Kind){.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = primitive_kind}};
+}
+
+static ALWAYS_INLINE Fir_Kind Fir_kind_primitive_vector1(Fir_PrimitiveKind primitive_kind) {
+  return (Fir_Kind){.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = primitive_kind}};
+}
+
+static ALWAYS_INLINE Fir_Promisity Fir_promisity_maybe(Fir_Effects effects) {
+  return (Fir_Promisity){.tag = FIR_PROMISITY_MAYBE, .effects = effects};
+}
+
+static ALWAYS_INLINE Fir_Promisity Fir_promisity_promise(Fir_Effects effects) {
+  return (Fir_Promisity){.tag = FIR_PROMISITY_PROMISE, .effects = effects};
+}
+
+static ALWAYS_INLINE Fir_Type Fir_type(Fir_Kind kind, Fir_Promisity promisity, Fir_Ownership ownership, bool definite) {
+  return (Fir_Type){.kind = kind, .promisity = promisity, .ownership = ownership, .definite = definite};
+}
+
+static ALWAYS_INLINE Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects) {
+  return (Fir_Signature){.return_type = return_type, .param_count = param_count, .param_types = param_types, .effects = effects};
+}
+
+static ALWAYS_INLINE SEXPTYPE Fir_primitive_sexptype(int primitive) {
+  return primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+       : primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+       : primitive == FIR_PRIMITIVE_REAL ? REALSXP
+       : STRSXP;
+}
+
+/// Whether `value`, which isn't a promise, has kind `kind`. (A vector of 2^31 or more elements
+/// isn't a scalar.)
+static ALWAYS_INLINE bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
+  // A primitive kind means no attributes, as in the server's `Type.of`.
+  if ((kind.tag == FIR_KIND_PRIMITIVE_SCALAR || kind.tag == FIR_KIND_PRIMITIVE_VECTOR1 ||
+       kind.tag == FIR_KIND_PRIMITIVE_VECTOR || kind.tag == FIR_KIND_BOOLEAN) &&
+      ATTRIB(value) != R_NilValue)
+    return false;
+  switch (kind.tag) {
+  case FIR_KIND_ANY_VALUE:
+    return true;
+  // Unboxed scalars are represented as length-1 SEXP vectors at the C level (for now)
+  case FIR_KIND_PRIMITIVE_SCALAR:
+  case FIR_KIND_PRIMITIVE_VECTOR1:
+    return TYPEOF(value) == Fir_primitive_sexptype(kind.as.primitive.primitive) && XLENGTH(value) == 1;
+  case FIR_KIND_PRIMITIVE_VECTOR:
+    return TYPEOF(value) == Fir_primitive_sexptype(kind.as.primitive.primitive);
+  case FIR_KIND_BOOLEAN:
+    // A boolean is a logical scalar that is not NA
+    return TYPEOF(value) == LGLSXP && XLENGTH(value) == 1 && LOGICAL(value)[0] != NA_LOGICAL;
+  case FIR_KIND_CLOSURE:
+    return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP || TYPEOF(value) == SPECIALSXP;
+  case FIR_KIND_DOTS:
+    // `NULL` is the empty dots list, and it's what the server's `Type.of` calls `dots` (so a
+    // speculation from interpreter feedback on a `NULL` value is `?: dots`).
+    return TYPEOF(value) == DOTSXP || value == R_MissingArg || value == R_NilValue;
+  case FIR_KIND_MISSING:
+    return value == R_MissingArg;
+  }
+  return false;
+}
+
+static ALWAYS_INLINE bool Fir_value_matches(SEXP value, Fir_Type type) {
+  switch (type.promisity.tag) {
+  case FIR_PROMISITY_VALUE:
+    return TYPEOF(value) != PROMSXP && Fir_value_kind_matches(value, type.kind);
+  case FIR_PROMISITY_MAYBE:
+    return TYPEOF(value) != PROMSXP ? Fir_value_kind_matches(value, type.kind)
+                                    : Fir_promise_value_matches(value, type);
+  case FIR_PROMISITY_PROMISE:
+    return TYPEOF(value) == PROMSXP && Fir_promise_value_matches(value, type);
+  }
+  return false;
+}
+
+static ALWAYS_INLINE bool Fir_assume_type(SEXP value, Fir_Type type) {
+  return Fir_value_matches(value, type);
+}
+#endif
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
 /// The vendored R's `Rsh_ClosureBodyExpr`: the source expression of `body`, the body of a closure
@@ -539,7 +618,6 @@ bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* f
 bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found_ref);
 bool Fir_assume_load_base_fun(SEXP symbol, SEXP env, SEXP base_symbol, SEXP* found_ref);
 bool Fir_assume_load_var(SEXP symbol, SEXP env, SEXP constant);
-bool Fir_assume_type(SEXP value, Fir_Type type);
 
 void Fir_dbg_comment(const char* comment);
 void Fir_dbg_sexp(const char* name, SEXP value);

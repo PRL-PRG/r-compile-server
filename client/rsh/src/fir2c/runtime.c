@@ -17,63 +17,6 @@
 #define ASSERT(x, msg, ...) \
   if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
 
-Fir_Kind Fir_kind_any_value = {.tag = FIR_KIND_ANY_VALUE};
-Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
-Fir_Kind Fir_kind_dots = {.tag = FIR_KIND_DOTS};
-Fir_Kind Fir_kind_missing = {.tag = FIR_KIND_MISSING};
-Fir_Kind Fir_kind_boolean = {.tag = FIR_KIND_BOOLEAN};
-
-static Fir_Kind const PRIMITIVE_SCALAR_KINDS[4] = {
-  {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
-  {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
-  {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
-  {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
-};
-
-static Fir_Kind const PRIMITIVE_VECTOR_KINDS[4] = {
-  {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
-  {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
-  {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
-  {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
-};
-
-static Fir_Kind const PRIMITIVE_VECTOR1_KINDS[4] = {
-  {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
-  {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
-  {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
-  {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
-};
-
-Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind) {
-  return PRIMITIVE_SCALAR_KINDS[primitive_kind];
-}
-
-Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind) {
-  return PRIMITIVE_VECTOR_KINDS[primitive_kind];
-}
-
-Fir_Kind Fir_kind_primitive_vector1(Fir_PrimitiveKind primitive_kind) {
-  return PRIMITIVE_VECTOR1_KINDS[primitive_kind];
-}
-
-Fir_Promisity Fir_promisity_value = {.tag = FIR_PROMISITY_VALUE, .effects = FIR_EFFECTS_NONE};
-
-Fir_Promisity Fir_promisity_maybe(Fir_Effects effects) {
-  return (Fir_Promisity) {.tag = FIR_PROMISITY_MAYBE, .effects = effects};
-}
-
-Fir_Promisity Fir_promisity_promise(Fir_Effects effects) {
-  return (Fir_Promisity) {.tag = FIR_PROMISITY_PROMISE, .effects = effects};
-}
-
-Fir_Type Fir_type(Fir_Kind kind, Fir_Promisity promisity, Fir_Ownership ownership, bool definite) {
-  return (Fir_Type) {.kind = kind, .promisity = promisity, .ownership = ownership, .definite = definite};
-}
-
-Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects) {
-  return (Fir_Signature) {.return_type = return_type, .param_count = param_count, .param_types = param_types, .effects = effects};
-}
-
 static const Fir_StubCompiler *stub_compiler = NULL;
 
 int Fir_jit_threshold = 10;
@@ -215,61 +158,7 @@ bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type) {
       && (this_type.definite || !other_type.definite);
 }
 
-static bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
-  // A primitive kind means no attributes, as in the server's `Type.of`.
-  if ((kind.tag == FIR_KIND_PRIMITIVE_SCALAR || kind.tag == FIR_KIND_PRIMITIVE_VECTOR1 ||
-       kind.tag == FIR_KIND_PRIMITIVE_VECTOR || kind.tag == FIR_KIND_BOOLEAN) &&
-      ATTRIB(value) != R_NilValue)
-    return false;
-  switch (kind.tag) {
-  case FIR_KIND_ANY_VALUE:
-    return true;
-  case FIR_KIND_PRIMITIVE_SCALAR: {
-      // Unboxed scalars are represented as length-1 SEXP vectors at the C level (for now)
-      SEXPTYPE expected
-          = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
-          : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
-          : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
-          : STRSXP;
-      if (TYPEOF(value) != expected) {
-        return false;
-      }
-      return Rf_length(value) == 1;
-  }
-  case FIR_KIND_PRIMITIVE_VECTOR: {
-      SEXPTYPE expected
-          = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
-          : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
-          : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
-          : STRSXP;
-      return TYPEOF(value) == expected;
-  }
-  case FIR_KIND_PRIMITIVE_VECTOR1: {
-      SEXPTYPE expected
-          = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
-          : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
-          : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
-          : STRSXP;
-      return TYPEOF(value) == expected && Rf_length(value) == 1;
-  }
-  case FIR_KIND_BOOLEAN:
-    // A boolean is a logical scalar that is not NA
-    return TYPEOF(value) == LGLSXP && Rf_length(value) == 1
-        && LOGICAL(value)[0] != NA_LOGICAL;
-  case FIR_KIND_CLOSURE:
-    return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP ||
-           TYPEOF(value) == SPECIALSXP;
-  case FIR_KIND_DOTS:
-    // `NULL` is the empty dots list, and it's what the server's `Type.of` calls `dots` (so a
-    // speculation from interpreter feedback on a `NULL` value is `?: dots`).
-    return TYPEOF(value) == DOTSXP || value == R_MissingArg || value == R_NilValue;
-  case FIR_KIND_MISSING:
-    return value == R_MissingArg;
-  }
-  return false;
-}
-
-static bool Fir_promise_value_matches(SEXP promise, Fir_Type type) {
+bool Fir_promise_value_matches(SEXP promise, Fir_Type type) {
   // If safe-forceable, it's an already-evaluated promise - check inner value type
   SEXP forced = Fir_safe_force(promise);
   if (TYPEOF(forced) != PROMSXP) {
@@ -288,23 +177,6 @@ static bool Fir_promise_value_matches(SEXP promise, Fir_Type type) {
   // GNU-R promise with eval body.
   // We have no information except that the inner type is never another promise.
   return type.kind.tag == FIR_KIND_ANY_VALUE;
-}
-
-bool Fir_value_matches(SEXP value, Fir_Type type) {
-  switch (type.promisity.tag) {
-  case FIR_PROMISITY_VALUE:
-    if (TYPEOF(value) == PROMSXP) return false;
-    return Fir_value_kind_matches(value, type.kind);
-  case FIR_PROMISITY_MAYBE:
-    if (TYPEOF(value) != PROMSXP) {
-      return Fir_value_kind_matches(value, type.kind);
-    }
-    return Fir_promise_value_matches(value, type);
-  case FIR_PROMISITY_PROMISE:
-    if (TYPEOF(value) != PROMSXP) return false;
-    return Fir_promise_value_matches(value, type);
-  }
-  return false;
 }
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
@@ -2169,9 +2041,6 @@ bool Fir_assume_load_var(SEXP symbol, SEXP env, SEXP constant) {
   return false;
 }
 
-bool Fir_assume_type(SEXP value, Fir_Type type) {
-  return Fir_value_matches(value, type);
-}
 
 void Fir_dbg_comment(const char* comment) {
   fprintf(stderr, "%s\n", comment);
