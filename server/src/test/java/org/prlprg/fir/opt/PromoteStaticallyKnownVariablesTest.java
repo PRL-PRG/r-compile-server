@@ -3,8 +3,13 @@ package org.prlprg.fir.opt;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
+import java.util.List;
+import java.util.regex.Pattern;
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.prlprg.fir.check.Checker;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.value.Value;
@@ -181,10 +186,10 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
   }
 
   @Test
-  void maybeBoundAtDeopt_isLeftAlone() {
+  void maybeBoundAtDeopt_isWrittenBackAtTheMerge() {
     // `x` is only stored on one of the two paths into L2, so at D0 it may or may not be bound. The
-    // promoted register has no value to restore there, and dropping the store would leave the
-    // bytecode we deopt into without the binding the storing path gave it.
+    // load is promoted, and the store stays on the edge into L2 (the write-back), so the bytecode
+    // we deopt into still finds the binding the storing path gave it.
     var abstraction =
         ParseUtil.parseAbstraction(
             """
@@ -205,10 +210,12 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
             }
             """);
 
-    assertFalse(run(abstraction), "maybe-bound-at-deopt variable should not be promoted");
-    assertTrue(
-        Printer.toString(abstraction).contains("st x ="),
-        "store should remain:\n" + Printer.toString(abstraction));
+    assertTrue(run(abstraction), Printer.toString(abstraction));
+    var printed = Printer.toString(abstraction);
+    assertFalse(printed.contains("ld x"), printed);
+    assertTrue(block(printed, "L1").contains("st x = <int 1>;"), printed);
+    assertFalse(block(printed, "D0").contains("st x"), printed);
+    assertFalse(run(abstraction), "a second run should change nothing:\n" + printed);
   }
 
   @Test
@@ -456,6 +463,368 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
         }
       }
       """;
+
+  /// The shape of sieve's `j`: stored in an `if` of an outer loop, read in an inner loop.
+  @Test
+  void variableBoundInAnInnerLoop_isPromotedThereAndWrittenBackAtItsExit() {
+    var module = ParseUtil.parseModule(innerLoop(3, 0, 99, 99));
+
+    assertTrue(run(module), Printer.toString(module));
+    var full = Printer.toString(module);
+    var printed = full.substring(full.indexOf("(n:v1(I))"));
+    assertTrue(Checker.checkAll(module), "should type-check:\n" + printed);
+    assertFalse(printed.contains("ld j"), printed);
+    for (var label : List.of("IH", "IB", "IBody", "IB2", "Set", "Next", "Exit", "DH", "DX")) {
+      assertFalse(block(printed, label).contains("st j"), label + " in:\n" + printed);
+    }
+    for (var label : List.of("IExit", "DI", "DI2")) {
+      assertTrue(block(printed, label).contains("st j"), label + " in:\n" + printed);
+    }
+    assertFalse(run(module), "a second run should change nothing:\n" + printed);
+  }
+
+  @Test
+  void writeBackOnAnIfEdge_splitsTheEdge() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (cond:B, cond2:B) -+> V {
+              mkenv;
+              if cond then L1() else L2();
+            L1():
+              st x = <int 1>;
+              x1: V = ld x;
+              if cond2 then L2() else L3();
+            L2():
+              check L3() else D0();
+            L3():
+              popenv;
+              return <nil>;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    assertTrue(run(abstraction), Printer.toString(abstraction));
+    var printed = Printer.toString(abstraction);
+    assertTrue(Checker.checkAll(abstraction), "should type-check:\n" + printed);
+    assertFalse(printed.contains("ld x"), printed);
+    assertFalse(block(printed, "L1").contains("st x"), printed);
+    // Both edges out of L1 end the region (L2 and L3 merge), so each gets its own block.
+    assertEquals(2, printed.split("st x = <int 1>;", -1).length - 1, printed);
+  }
+
+  @Test
+  void writeBackOnACheckEdge_storesBeforeTheCheck() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (cond:B) -+> V {
+              mkenv;
+              if cond then L1() else L2();
+            L1():
+              st x = <int 1>;
+              x1: V = ld x;
+              check L2() else D1();
+            L2():
+              check L3() else D0();
+            L3():
+              popenv;
+              return <nil>;
+            D0():
+              deopt 0 [];
+            D1():
+              deopt 1 [];
+            }
+            """);
+
+    assertTrue(run(abstraction), Printer.toString(abstraction));
+    var printed = Printer.toString(abstraction);
+    assertTrue(Checker.checkAll(abstraction), "should type-check:\n" + printed);
+    assertFalse(printed.contains("ld x"), printed);
+    assertTrue(block(printed, "L1").contains("st x = <int 1>;"), printed);
+  }
+
+  /// L3 is in the region until its `popenv`, and L4 is not, so the edge L3 -> L4 would get a
+  /// write-back after the frame is gone.
+  @Test
+  void regionThatEndsWithPopenv_getsNoWriteBackAfterIt() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (cond:B, cond2:B) -+> V {
+              mkenv;
+              if cond then L1() else L5();
+            L1():
+              st x = <int 1>;
+              x1: V = ld x;
+              if cond2 then L5() else L3();
+            L5():
+              check L6() else D0();
+            L6():
+              popenv;
+              goto L4();
+            L3():
+              popenv;
+              goto L4();
+            L4():
+              return <nil>;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    assertTrue(run(abstraction), Printer.toString(abstraction));
+    var printed = Printer.toString(abstraction);
+    assertTrue(Checker.checkAll(abstraction), "should type-check:\n" + printed);
+    assertFalse(block(printed, "L3").contains("st x"), printed);
+    // Only the split edge L1 -> L5 stores.
+    assertEquals(2, printed.split("st x = ", -1).length, printed);
+  }
+
+  @Test
+  void variableLoadedWhereItIsMaybeBound_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (cond:B) --> V {
+              mkenv;
+              if cond then L1() else L2();
+            L1():
+              st x = <int 1>;
+              goto L2();
+            L2():
+              x1: V = ld x;
+              check L3() else D0();
+            L3():
+              popenv;
+              return x1;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// With a second environment (an inlined callee's), a store can go to a frame other than the one
+  /// that holds the variable.
+  @Test
+  void maybeBoundVariableWithTwoEnvironments_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (cond:B) --> V {
+              mkenv;
+              if cond then L1() else L2();
+            L1():
+              st x = <int 1>;
+              x1: V = ld x;
+              goto L2();
+            L2():
+              mkenv;
+              popenv;
+              check L3() else D0();
+            L3():
+              popenv;
+              return <nil>;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// Runs [#innerLoop] with the outer loop run 0, 1 and 3 times, the `if` never, always, or only
+  /// from the second trip taken, and an assumption that fails in the inner loop, at the outer
+  /// loop head before the first store, or at the outer loop head after one inner loop. The result
+  /// and every checkpoint snapshot (including the baseline's after a deopt) are the same before
+  /// and after the promotion.
+  @ParameterizedTest
+  @CsvSource({
+    "0, 0, 99, 99",
+    "1, 0, 99, 99",
+    "3, 0, 99, 99",
+    "3, 99, 99, 99",
+    "3, 1, 99, 99",
+    "3, 0, 99, 2",
+    "3, 0, 0, 99",
+    "3, 0, 1, 99",
+    "3, 1, 2, 99",
+  })
+  void variableBoundInAnInnerLoop_keepsTheDeoptState(
+      int outer, int skip, int failOuter, int failInner) {
+    var module = ParseUtil.parseModule(innerLoop(outer, skip, failOuter, failInner));
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+    var argument = new Value.Sexp(SEXPs.integer(1));
+
+    var before = new Value[1];
+    var after = new Value[1];
+    var beforeTrace =
+        interpreter.checkpointTrace().track(() -> before[0] = interpreter.call("f", argument));
+    assertTrue(run(module));
+    var afterTrace =
+        interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("f", argument));
+
+    var printed = Printer.toString(module);
+    assertEquals(new Value.Sexp(SEXPs.integer(outer)), after[0], printed);
+    assertEquals(before[0], after[0], printed);
+    assertEquals(beforeTrace, afterTrace, printed);
+    // The frame at the exit (pc 3), or at the outer loop head after the first inner loop (pc 0),
+    // has the `j` that the inner loop left, which only the write-back stores.
+    if (skip == 0 && failInner == 99 && (failOuter == 1 || (outer > 0 && failOuter == 99))) {
+      var pc = failOuter == 1 ? 0 : 3;
+      assertTrue(
+          afterTrace.stream().anyMatch(s -> s.pc() == pc && s.toString().contains("j=4")),
+          afterTrace.toString());
+    }
+  }
+
+  /// `f` has an outer loop of `outer` trips (counter `i1` = 1, 2, ...); a trip with `skip < i1`
+  /// stores `j = i1` and runs an inner loop that increments `j` while it's less than 4. The
+  /// version's assumptions fail at the outer loop head when `i >= failOuter`, and in the inner loop
+  /// when `j >= failInner`. Both versions return `outer`.
+  private static String innerLoop(int outer, int skip, int failOuter, int failInner) {
+    return """
+        fun f(n) {
+          (n:*) -+> V {
+            mkenv;
+            goto H(0);
+          H(i: I):
+            check HB() else DH();
+          HB():
+            l: L = `<`< I,I --> L >(i, %1$d);
+            c: B = naToFalse< L --> B >(l);
+            if c then Body() else Exit();
+          Body():
+            i1: I = `+`< I,I --> I >(i, 1);
+            t: L = `<`< I,I --> L >(%2$d, i1);
+            tc: B = naToFalse< L --> B >(t);
+            if tc then Set() else Next();
+          Set():
+            jb: v1(I) = box< I --> v1(I) >(i1);
+            st j = jb;
+            goto IH();
+          IH():
+            jl: * = ld j;
+            check IB() else DI();
+          IB():
+            jv: v1(I) = jl ?: v1(I);
+            ju: I = unbox< v1(I) --> I >(jv);
+            m: L = `<`< I,I --> L >(ju, 4);
+            mc: B = naToFalse< L --> B >(m);
+            if mc then IBody() else IExit();
+          IBody():
+            check IB2() else DI2();
+          IB2():
+            j2: I = `+`< I,I --> I >(ju, 1);
+            j2b: v1(I) = box< I --> v1(I) >(j2);
+            st j = j2b;
+            goto IH();
+          IExit():
+            goto Next();
+          Next():
+            goto H(i1);
+          Exit():
+            check X() else DX();
+          X():
+            rb: v1(I) = box< I --> v1(I) >(i);
+            popenv;
+            return rb;
+          DH():
+            ib: v1(I) = box< I --> v1(I) >(i);
+            deopt 0 [ib];
+          DI():
+            ib1: v1(I) = box< I --> v1(I) >(i1);
+            deopt 1 [ib1];
+          DI2():
+            ib2: v1(I) = box< I --> v1(I) >(i1);
+            jub: v1(I) = box< I --> v1(I) >(ju);
+            deopt 2 [ib2, jub];
+          DX():
+            ib3: v1(I) = box< I --> v1(I) >(i);
+            deopt 3 [ib3];
+          }
+          (n:v1(I)) -+> V {
+            mkenv;
+            goto H(0);
+          H(i: I):
+            fo: L = `<`< I,I --> L >(i, %3$d);
+            fob: B = naToFalse< L --> B >(fo);
+            check HB() else DH();
+          HB():
+            fob ?= TRUE;
+            l: L = `<`< I,I --> L >(i, %1$d);
+            c: B = naToFalse< L --> B >(l);
+            if c then Body() else Exit();
+          Body():
+            i1: I = `+`< I,I --> I >(i, 1);
+            t: L = `<`< I,I --> L >(%2$d, i1);
+            tc: B = naToFalse< L --> B >(t);
+            if tc then Set() else Next();
+          Set():
+            jb: v1(I) = box< I --> v1(I) >(i1);
+            st j = jb;
+            goto IH();
+          IH():
+            jl: * = ld j;
+            check IB() else DI();
+          IB():
+            jv: v1(I) = jl ?: v1(I);
+            ju: I = unbox< v1(I) --> I >(jv);
+            m: L = `<`< I,I --> L >(ju, 4);
+            mc: B = naToFalse< L --> B >(m);
+            if mc then IBody() else IExit();
+          IBody():
+            fi: L = `<`< I,I --> L >(ju, %4$d);
+            fib: B = naToFalse< L --> B >(fi);
+            check IB2() else DI2();
+          IB2():
+            fib ?= TRUE;
+            j2: I = `+`< I,I --> I >(ju, 1);
+            j2b: v1(I) = box< I --> v1(I) >(j2);
+            st j = j2b;
+            goto IH();
+          IExit():
+            goto Next();
+          Next():
+            goto H(i1);
+          Exit():
+            check X() else DX();
+          X():
+            rb: v1(I) = box< I --> v1(I) >(i);
+            popenv;
+            return rb;
+          DH():
+            ib: v1(I) = box< I --> v1(I) >(i);
+            deopt 0 [ib];
+          DI():
+            ib1: v1(I) = box< I --> v1(I) >(i1);
+            deopt 1 [ib1];
+          DI2():
+            ib2: v1(I) = box< I --> v1(I) >(i1);
+            jub: v1(I) = box< I --> v1(I) >(ju);
+            deopt 2 [ib2, jub];
+          DX():
+            ib3: v1(I) = box< I --> v1(I) >(i);
+            deopt 3 [ib3];
+          }
+        }
+        """
+        .formatted(outer, skip, failOuter, failInner);
+  }
+
+  /// The printed block `label`, from its header to the next block header.
+  private static String block(String printed, String label) {
+    var matcher =
+        Pattern.compile(
+                "(?ms)^ *" + Pattern.quote(label) + "\\(.*?\\):\n(.*?)(?=^ *\\w+\\(.*\\):$|^ *}$)")
+            .matcher(printed);
+    assertTrue(matcher.find(), "no block " + label + " in:\n" + printed);
+    return matcher.group(1);
+  }
 
   private static void assertNoVariableTraffic(String printed, String variable) {
     assertFalse(printed.contains("st " + variable + " ="), "store should be removed:\n" + printed);
