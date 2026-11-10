@@ -6,9 +6,18 @@ f <- function(y) {
   environment()
 }
 
+id <- function(e) e
+
+# `environment()` in a promise reflects on the frame that created it, like in
+# `bench_simple_promise_reflect`.
+k <- function() {
+  w <- 1
+  id(environment())
+}
+
 g <- function() {
   e <- f(1)
-  list(ls(e), ls(envir = f(2)), length(ls(f(3))))
+  list(ls(e), ls(envir = f(2)), length(ls(f(3))), ls(k()))
 }
 
 g()

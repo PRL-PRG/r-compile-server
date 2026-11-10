@@ -3846,15 +3846,17 @@ public final class Builtins {
                       .filter(n -> !n.startsWith("."))
                       .sorted()
                       .toList();
-              // GNU-R sorts in the locale's collation order. It agrees with Java's code-point order
-              // in the C and the common UTF-8 locales when ignoring case and `_` doesn't reorder
-              // the names.
+              // GNU-R sorts in the locale's collation order: code points in the C locale, and
+              // ignoring case with `_` before digits in the UTF-8 ones. Only accept names that both
+              // sort the same.
               var collated =
                   names.stream()
                       .sorted(
-                          Comparator.comparing(n -> n.replace("_", "").toLowerCase(Locale.ROOT)))
+                          Comparator.comparing(n -> n.toLowerCase(Locale.ROOT).replace('_', ' ')))
                       .toList();
               if (!names.equals(collated)
+                  || names.stream().map(n -> n.toLowerCase(Locale.ROOT)).distinct().count()
+                      != names.size()
                   || names.stream().anyMatch(n -> !n.matches("[A-Za-z0-9_]+"))) {
                 throw interpreter.failUnsupported(
                     "Mock `ls` only sorts alphanumeric names whose order doesn't depend on case");
