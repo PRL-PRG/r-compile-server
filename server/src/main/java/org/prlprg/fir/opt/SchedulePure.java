@@ -223,6 +223,14 @@ public final class SchedulePure extends AbstractionOptimization {
         targets.add(position);
       }
 
+      // Not to a use in a checkpoint's assumptions: the statement would have to go before them, and
+      // the checkpoint only checks (and, for a load, assigns) the leading run of `assume`s, so one
+      // that ends up after another statement is never checked.
+      if (targets.stream()
+          .anyMatch(target -> target instanceof Statement s && s.expression() instanceof Assume)) {
+        return null;
+      }
+
       var loops = analyses.get(targetCfg, Loops.class);
       var home = Objects.requireNonNull(statement.parentBB());
       for (var target : targets) {
@@ -310,12 +318,9 @@ public final class SchedulePure extends AbstractionOptimization {
 
     /// Move `statements` to just before `target`, keeping the ones already sitting there put.
     private boolean placeBefore(Instruction target, List<Statement> statements) {
-      // Not into a checkpoint's assumptions: if the target is one of them, before all of them.
+      // The target is never an assumption (see `deferral`), so this keeps a checkpoint's leading
+      // assumptions leading. Skip the run of statements already immediately before the target.
       var point = target;
-      while (point.prev() instanceof Statement prev && prev.expression() instanceof Assume) {
-        point = prev;
-      }
-      // Skip the run of statements already immediately before the target.
       while (point.prev() instanceof Statement placed && statements.remove(placed)) {
         point = placed;
       }

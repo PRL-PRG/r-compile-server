@@ -53,6 +53,55 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void boxIsntDeferredInFrontOfACheckpointsAssumptions() {
+    // The first use after the assumptions is the deferral target; a `box` in front of the
+    // assumptions would make them not leading, so the checkpoint would never check them.
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*, n:I) -+> v1(I) {
+              boxed: v1(I) = box< I --> v1(I) >(n);
+              check L1() else D0();
+            L1():
+              x1: v1(I) = x ?: v1(I);
+              return boxed;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "x ?: v1(I);", "boxed: v1(I) = box< I --> v1(I) >(n);");
+  }
+
+  @Test
+  void boxUsedByAnAssumptionStaysBeforeTheCheckpoint() {
+    // Its only use is an assumption, and no place in the success block is both before that use and
+    // after the leading assumptions.
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*, n:I) -+> I {
+              boxed: v1(I) = box< I --> v1(I) >(n);
+              check L1() else D0();
+            L1():
+              x ?: v1(I);
+              boxed ?= <int 5>;
+              return n;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "boxed: v1(I) = box< I --> v1(I) >(n);", "check L1() else D0();");
+  }
+
+  @Test
   void boxIsDeferredAcrossBasicBlocks() {
     var abstraction =
         ParseUtil.parseAbstraction(
