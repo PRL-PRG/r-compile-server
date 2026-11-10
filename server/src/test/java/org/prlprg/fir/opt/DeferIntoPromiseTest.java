@@ -88,6 +88,51 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     assertDoesNotThrow(() -> run(abstraction));
   }
 
+  /// `y[0] = 5` writes `y` in place, so the read before it must stay before it.
+  @Test
+  void readOfAnOwnedVector_notDeferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:v(I)) -~> I {
+              y: v(I)o = dup x;
+              a: I = y[0];
+              y[0] = 5;
+              p: p(v1(I) -) = prom<v1(I) ->{
+                ab: v1(I) = box< I --> v1(I) >(a);
+                return ab;
+              };
+              st p = p;
+              return 0;
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// `dup x` can reuse `x`'s vector if nothing else counts it, so `y[0] = 5` can change what a
+  /// deferred `x[0]` reads.
+  @Test
+  void readOfASharedVector_notDeferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:v(I)) -~> I {
+              a: I = x[0];
+              y: v(I)o = dup x;
+              y[0] = 5;
+              p: p(v1(I) -) = prom<v1(I) ->{
+                ab: v1(I) = box< I --> v1(I) >(a);
+                return ab;
+              };
+              st p = p;
+              return 0;
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
   @Test
   void impureInstruction_notDeferred() {
     var abstraction =
@@ -170,36 +215,6 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var boxIdx = printed.indexOf("box<");
     var dupIdx = printed.indexOf("dup ");
     assertTrue(boxIdx > promIdx, "box should be inside the promise; printed:\n" + printed);
-    assertTrue(dupIdx > promIdx, "dup should be inside the promise; printed:\n" + printed);
-  }
-
-  @Test
-  void chainBrokenByOutsideUse_partialDefer() {
-    // nb is used by both nc (movable) and outside (st nb = nb). nc is used only in the promise.
-    // nb can't move, but nc can still move because its dependency (nb) is in the outer scope
-    // which is readable from within the promise.
-    var abstraction =
-        ParseUtil.parseAbstraction(
-            """
-            (n:R) -~> R {
-              nb: v1(R) = box< R --> v1(R) >(n);
-              nc: v1(R) = dup nb;
-              p: p(v1(R) -) = prom<v1(R) ->{
-                return nc;
-              };
-              st nb = nb;
-              st p = p;
-              return n;
-            }
-            """);
-
-    assertTrue(run(abstraction), "nc should still be deferred even if nb can't be");
-
-    var printed = Printer.toString(abstraction);
-    var promIdx = printed.indexOf("prom<");
-    var boxIdx = printed.indexOf("box<");
-    var dupIdx = printed.indexOf("dup ");
-    assertTrue(boxIdx < promIdx, "box should remain outside the promise; printed:\n" + printed);
     assertTrue(dupIdx > promIdx, "dup should be inside the promise; printed:\n" + printed);
   }
 
@@ -408,7 +423,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               na: v1(R) = box< R --> v1(R) >(n);
-              nb: v1(R) = dup na;
+              nb: v1(R) = box< R --> v1(R) >(n);
               check L0() else D0();
             L0():
               x: R = unbox< v1(R) --> R >(na);
@@ -427,10 +442,12 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
 
     var printed = Printer.toString(abstraction);
     var promIdx = printed.indexOf("prom<");
-    var boxIdx = printed.indexOf("box<");
-    var dupIdx = printed.indexOf("dup ");
-    assertTrue(boxIdx < promIdx, "box should remain outside the promise; printed:\n" + printed);
-    assertTrue(dupIdx > promIdx, "dup should be inside the promise; printed:\n" + printed);
+    assertTrue(
+        printed.indexOf("na: v1(R) = box") < promIdx,
+        "na should remain outside the promise; printed:\n" + printed);
+    assertTrue(
+        printed.indexOf("nb: v1(R) = box") > promIdx,
+        "nb should be inside the promise; printed:\n" + printed);
   }
 
   @Test

@@ -21,6 +21,7 @@ import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Defers pure instructions that only affect registers used inside a promise into that promise.
@@ -36,6 +37,8 @@ import org.prlprg.fir.ir.variable.Register;
 /// - Instructions used outside the promise (in other not-moved instructions)
 /// - Impure or hoisted instructions, instructions that can warn or raise an error, assumptions,
 ///   and instructions whose result is unused
+/// - Instructions that read a vector that a not-moved instruction makes, since a later write can
+///   change it in place (a `dup` of a shared vector can reuse it)
 ///
 /// Because the deferred instructions are pure, *moving* them into the promise body (rather than
 /// copying the control-flow subgraph) computes the same values, only lazily.
@@ -64,13 +67,16 @@ public final class DeferIntoPromise extends AbstractionOptimization {
     return changed;
   }
 
-  /// Whether every register `stmt` reads is still readable once it's moved into the promise body.
+  /// Whether every register `stmt` reads is still readable, with the same value, once it's moved
+  /// into the promise body.
   ///
-  /// Either another kept instruction defines it -- and travels with this one -- or its definition
-  /// already reaches the promise. Being kept doesn't imply the instruction dominates the promise:
+  /// Either another kept instruction defines it -- and travels with this one -- or it isn't a
+  /// vector (which a later write can change in place) and its definition already reaches the
+  /// promise. Being kept doesn't imply the instruction dominates the promise:
   /// one whose only uses are *other* kept instructions is kept wherever it sits, so its own
   /// arguments can come from a block on a different path entirely.
   private static boolean argumentsReachPromise(
+      Abstraction scope,
       Statement stmt,
       Set<Statement> kept,
       Map<Register, Statement> defOf,
@@ -81,7 +87,10 @@ public final class DeferIntoPromise extends AbstractionOptimization {
       if (register == null || kept.contains(defOf.get(register))) {
         continue;
       }
-      if (register.definingBB() == null || !domTree.dominates(register, promiseStmt)) {
+      if (register.definingBB() == null
+          || !domTree.dominates(register, promiseStmt)
+          || scope.typeOf(register).kind() instanceof Kind.PrimitiveVector
+          || scope.typeOf(register).kind() instanceof Kind.AnySexp) {
         return false;
       }
     }
@@ -138,7 +147,7 @@ public final class DeferIntoPromise extends AbstractionOptimization {
         var stmt = it.next();
         assert stmt.assignee() != null;
 
-        if (!argumentsReachPromise(stmt, candidates, defOf, domTree, promiseStmt)) {
+        if (!argumentsReachPromise(scope, stmt, candidates, defOf, domTree, promiseStmt)) {
           it.remove();
           changedSet = true;
           continue;
