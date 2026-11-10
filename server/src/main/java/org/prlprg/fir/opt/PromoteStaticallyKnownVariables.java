@@ -467,9 +467,14 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
         boolean writeBack,
         OriginAnalysis originAnalysis,
         CfgDominatorTree dominatorTree) {
+      var entryOrigins = originAnalysis.getPossible(bb, -1, variable);
       if (phis.containsKey(bb)) {
         current = new Read(phis.get(bb));
-      } else if (writeBack && originAnalysis.getPossible(bb, -1, variable).isEmpty()) {
+      } else if (entryOrigins.size() == 1) {
+        // Paths that stored the same value merge here without a phi, and the dominator may be
+        // before the stores.
+        current = entryOrigins.iterator().next();
+      } else if (writeBack && entryOrigins.isEmpty()) {
         current = null;
       }
 

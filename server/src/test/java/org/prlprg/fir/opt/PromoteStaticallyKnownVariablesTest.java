@@ -93,6 +93,41 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
         "both predecessors should pass values into the second phi:\n" + printed);
   }
 
+  /// F merges two equal stores, so it gets no phi. M is only in F's dominance frontier, and merges
+  /// 0 and 1.
+  @Test
+  void mergeWithoutPhi_stillPutsAPhiInItsFrontier() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (c0:B, c1:B) --> * {
+              mkenv~;
+              st x = <real 0.0>;
+              if c0 then P() else M();
+            P():
+              if c1 then A() else B();
+            A():
+              st x = <real 1.0>;
+              goto F();
+            B():
+              st x = <real 1.0>;
+              goto F();
+            F():
+              goto M();
+            M():
+              x1: * = ld x;
+              return x1;
+            }
+            """);
+
+    assertTrue(run(abstraction));
+
+    var printed = Printer.toString(abstraction);
+    assertNoVariableTraffic(printed, "x");
+    assertTrue(printed.contains("M(x"), "M should have a phi:\n" + printed);
+    assertFalse(printed.contains("return <real 0.0>"), printed);
+  }
+
   @Test
   void loopHeader_getsPhiWhenBackedgeChangesValue() {
     var abstraction =
@@ -580,6 +615,34 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     assertFalse(block(printed, "L3").contains("st x"), printed);
     // Only the split edge L1 -> L5 stores.
     assertEquals(2, printed.split("st x = ", -1).length, printed);
+  }
+
+  /// Both branches store the same value, so the merge has one origin and no phi.
+  @Test
+  void sameValueStoredInBothBranches_isPromotedAfterTheMerge() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (cond:B) --> V {
+              mkenv;
+              if cond then L1() else L2();
+            L1():
+              st x = <int 1>;
+              goto L3();
+            L2():
+              st x = <int 1>;
+              goto L3();
+            L3():
+              x1: V = ld x;
+              popenv;
+              return x1;
+            }
+            """);
+
+    assertTrue(run(abstraction), Printer.toString(abstraction));
+    var printed = Printer.toString(abstraction);
+    assertNoVariableTraffic(printed, "x");
+    assertTrue(printed.contains("return <int 1>;"), printed);
   }
 
   @Test
