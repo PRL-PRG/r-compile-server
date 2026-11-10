@@ -180,7 +180,21 @@ DEFINE_INLINE_INTRINSIC(bool, naToFalse, scalar_logical_fx_none_ret_bool, Rboole
   return value == TRUE;
 }
 
-// `&&` short-circuits on `FALSE` only, so its guard sends `NA` the other way.
+// The `int64_t` form lets the C compiler fold a loop that does nothing.
+static inline int Fir_for_index(int index) {
+  if (index == NA_INTEGER) return NA_INTEGER;
+  int64_t next = (int64_t) index + 1;
+  return next > INT_MAX ? NA_INTEGER : (int) next;
+}
+
+DEFINE_INLINE_INTRINSIC(int, forIndex, scalar_int_fx_none_ret_scalar_int, int index) {
+  return Fir_for_index(index);
+}
+
+DEFINE_INLINE_INTRINSIC(SEXP, forIndex, vec1_int_fx_none_ret_vec1_int, SEXP index) {
+  return Rf_ScalarInteger(Fir_for_index(INTEGER(index)[0]));
+}
+
 // An operand of `&&` or `||`, with the checks of GNU-R's `do_logic3`.
 static inline int Fir_logical_operand(SEXP value, const char* arg, const char* op) {
   if (TYPEOF(value) == LGLSXP && XLENGTH(value) == 1 && ATTRIB(value) == R_NilValue)
@@ -216,6 +230,7 @@ DEFINE_INLINE_INTRINSIC(Rboolean, logicalOperand,
   return value;
 }
 
+// `&&` short-circuits on `FALSE` only, so its guard sends `NA` the other way.
 DEFINE_INLINE_INTRINSIC(bool, naToTrue, vec1_logical_fx_none_ret_bool, SEXP value) {
   // Compare the element, not the pointer, for the same reason as `naToFalse`.
   return LOGICAL(value)[0] != FALSE;

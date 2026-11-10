@@ -554,14 +554,11 @@ public final class BC2FirCFGCompiler {
         var index1 =
             insertAndReturn(
                 "_idx",
-                builtin(
-                    "+",
+                intrinsic(
+                    "forIndex",
                     new Signature(
-                        ImmutableList.of(Type.BOXED_INTEGER, Type.BOXED_INTEGER),
-                        Type.BOXED_INTEGER,
-                        Effects.NONE),
-                    index,
-                    new Constant(SEXPs.integer(1))));
+                        ImmutableList.of(Type.BOXED_INTEGER), Type.BOXED_INTEGER, Effects.NONE),
+                    index));
         push(index1);
         // Compare the index to the length
         var cond =
@@ -575,11 +572,12 @@ public final class BC2FirCFGCompiler {
                         Effects.NONE),
                     length,
                     index1));
+        // The index is `NA` after `INT_MAX` trips, and then the loop ends, as GNU-R's.
         var cond1 =
             insertAndReturn(
                 "_cond1",
                 intrinsic(
-                    "naToFalse",
+                    "naToTrue",
                     new Signature(ImmutableList.of(Type.BOXED_LOGICAL), Type.BOOLEAN, Effects.NONE),
                     cond));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)

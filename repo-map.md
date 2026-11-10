@@ -628,6 +628,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `server/src/test/java/org/prlprg/` — `TestConfig` (environment variables of the tests), `TestOrderer`.
 - `.../bc/` — Bytecode compiler tests (`BCCompilerTest`, `ConstantFoldingTest`, `ConstPoolTest`, ...).
 - `.../bc2fir/NeedsContextTest.java` — Which closures `bc2fir` marks `@needsContext` and `@needsPromises`, and the properties' parse/print round trip.
+- `.../bc2fir/ForLoopTest.java` — A `for` loop's index is `forIndex` (no overflow warning), and the loop ends when it is `NA` (`naToTrue`).
 - `.../bc2fir/BaseGuardTest.java` — `bc2fir` compiles a `BASEGUARD` into an assumption whose deopt is the guard.
 - `.../bc2fir/GnurBytecodeTest.java` — `bc2fir` compiles the inlined subscripts of GNU-R compiler bytecode (what the rsh JIT sends) into static calls.
 - `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples), and their per-test timeout (`ExampleTimeout`).

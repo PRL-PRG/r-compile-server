@@ -313,6 +313,18 @@ public final class Builtins {
     interpreter.registerExternal(
         "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToFalse1);
     interpreter.registerExternal(
+        "forIndex",
+        sig(Type.BOXED_INTEGER, Effects.NONE, Type.BOXED_INTEGER),
+        (_, _, args, _) ->
+            new Value.Sexp(
+                SEXPs.integer(
+                    forIndex(
+                        ((Value.Sexp) args.getFirst()).value().asScalarInteger().orElseThrow()))));
+    interpreter.registerExternal(
+        "forIndex",
+        sig(Type.INTEGER, Effects.NONE, Type.INTEGER),
+        (_, _, args, _) -> new Value.Int(forIndex(((Value.Int) args.getFirst()).value())));
+    interpreter.registerExternal(
         "logicalOperand",
         sig(Type.BOXED_LOGICAL, Effects.NONE, Type.ANY_VALUE_SEXP, Type.STRING, Type.STRING),
         (_, _, args, _) -> new Value.Sexp(SEXPs.logical(logicalOperand(interpreter, args))));
@@ -3897,6 +3909,10 @@ public final class Builtins {
                   .toList()));
     }
     return new Value.Sexp(vector.withAttributes(Attributes.NONE));
+  }
+
+  private static int forIndex(int index) {
+    return index == Integer.MAX_VALUE || index == Constants.NA_INT ? Constants.NA_INT : index + 1;
   }
 
   private static Value naToFalse0(
