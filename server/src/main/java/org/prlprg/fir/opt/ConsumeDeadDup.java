@@ -10,6 +10,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.variable.Register;
@@ -36,7 +37,7 @@ public final class ConsumeDeadDup extends AbstractionOptimization {
           var statement = bb.statements().get(index);
           if (!(statement.expression() instanceof Dup)
               || !(statement.arg(0) instanceof Read(var vector))
-              || !isMovableFrom(scope, cfg, vector)) {
+              || !isMovableFrom(scope, cfg, vector, statement)) {
             continue;
           }
 
@@ -58,7 +59,9 @@ public final class ConsumeDeadDup extends AbstractionOptimization {
   /// Whether `vector` is an owned vector that this CFG's [Liveness] fully describes, i.e. it's
   /// defined here and no promise captures it (a captured register can't be `consume`d, and its
   /// capture may outlive the point liveness reports as its last use).
-  private static boolean isMovableFrom(Abstraction scope, CFG cfg, Register vector) {
+  ///
+  /// `move` is the instruction that moves `vector` (its use there doesn't count).
+  static boolean isMovableFrom(Abstraction scope, CFG cfg, Register vector, Instruction move) {
     var type = scope.typeOf(vector);
     return type.ownership() == Ownership.OWNED
         && type.isValue()
@@ -74,7 +77,8 @@ public final class ConsumeDeadDup extends AbstractionOptimization {
                   // `deopt` argument is a hand-off, after which nothing runs.
                   return useBb != null
                       && useBb.owner() == cfg
-                      && (!Provenance.shares(instruction, use.index())
+                      && (instruction == move
+                          || !Provenance.shares(instruction, use.index())
                           || use.argument() instanceof Consume
                           || instruction == useBb.jump()
                               && useBb.jump().expression() instanceof Deopt);

@@ -269,6 +269,7 @@ public class Optimizations {
                                     new DeferIntoPromise(),
                                     new StrictifyPromise(),
                                     new CallOwnedVersion(),
+                                    new OwnPhiWeb(),
                                     new ConsumeDeadDup(),
                                     new ElideConsumedDup(),
                                     new Cleanup(false))),

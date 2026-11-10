@@ -386,6 +386,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `MergeConsecutiveCheckpoints.java` — Merge consecutive checkpoints whose deopt branches are effectively the same.
 - `Optimization.java` — An optimization that runs on a Function.
 - `Optimizations.java` — The default optimization pipeline, variants of it without some optimizations, and `REQUIRES` (which removals make others no-ops).
+- `OwnPhiWeb.java` — Gives the owned type to a web of loop phis that only moves owned vectors, so `ConsumeDeadDup` and `ElideConsumedDup` remove the copy before a write.
 - `PromoteStaticallyKnownVariables.java` — Promotes local named variables into registers when every direct load is statically known.
 - `SchedulePure.java` — Hoists and defers specific pure instructions.
 - `Specialize.java` — Groups SpecializeOptimizations into one pass.
@@ -678,7 +679,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/as_integer_real_range.R` — The unboxed `as.integer` of a real at the ends of the integer range, with the warning out of it; a real subscript there is silent (`realToIndex`).
 - `.../examples/R/sign_nan.R` — The unboxed `sign` returns `NaN` and `NA` unchanged.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
-- `.../examples/R/loop_owned_vector{,_capture}.R` — Loops that write a vector in place (`OwnPhiWeb`): an element read across the inner loop, an alias, a deopt, phis assigned in parallel; and (C only) closures and a lazy argument that read the vector.
+- `.../examples/R/loop_owned_vector{,_capture}.R` — Loops that write a vector in place (`OwnPhiWeb`): an element read across the inner loop, an alias, an element type that changes in the last call, the vector as the return value, phis assigned in parallel; and (C only) closures and a lazy argument that read the vector.
 - `.../examples/R/promise_shared_stub.R` — A deopt stub that compiles to one promise for its site (`Fir_mk_stub_promise`), run under `gctorture`.
 - `.../examples/R/closure_super_assigns_defining_frame.R` — A closure stores into a variable of its defining frame with `<<-` (`OriginAnalysis` must not keep the variable's origin across the call).
 - `.../examples/R/closure_captures_promise_argument.R` — An inlined callee's closure captures its environment, which holds a promise argument that a later call forces (`OriginAnalysis` must leak the promise).
