@@ -1776,7 +1776,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return info;
     }
 
-    final TreeSet<Argument> origins = new TreeSet<>(Comparator.comparing(Argument::toString));
+    /// Ordered by the printed argument. A [Read] prints as its register's name, which is much
+    /// cheaper to get than the printer's output.
+    final TreeSet<Argument> origins =
+        new TreeSet<>(
+            Comparator.comparing(a -> a instanceof Read(var r) ? r.name() : a.toString()));
     /// True iff on at least one reaching path the variable was not stored in this frame.
     boolean mayBeAbsent = false;
     /// True iff the variable may hold anything, besides [#origins] (see [State#mayRunBody]).
