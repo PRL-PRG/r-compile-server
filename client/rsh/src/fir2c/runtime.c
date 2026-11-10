@@ -792,12 +792,11 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
     *saved = Rsh_ElidedEnv;
     parent = ENCLOS(Rsh_ElidedEnv);
   }
-  SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, parent);
+  SEXP new_env = PROTECT(Rf_NewEnvironment(R_NilValue, R_NilValue, parent));
   if (type == FIR_MKENV_NON_REFLECTIVE) {
     RSH_SET_NON_REFLECTIVE(new_env);
   }
   *env_ptr = new_env;
-  PROTECT(*env_ptr);
   Fir_push_frame(new_env);
   return true;
 }

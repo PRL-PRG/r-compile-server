@@ -1,3 +1,4 @@
+#? gcTorture
 # `a` has an elided environment and passes `x` lazily to `b`, which has an elided environment with
 # another parent. `b` forces the promise, which loads `x` from `a`'s parent (1), not `b`'s (100).
 make_b <- function() {

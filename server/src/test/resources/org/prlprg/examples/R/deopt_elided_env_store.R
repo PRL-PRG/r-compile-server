@@ -1,3 +1,4 @@
+#? gcTorture
 #? [opt.fir2c.opt.eval]crashes("deoptimization triggered")
 # `g` doesn't store its parameters, so its optimized version elides its environment. The warmup
 # makes `f` return a numeric vector, so the version speculates on it. The last call makes `f`
