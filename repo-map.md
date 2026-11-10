@@ -721,6 +721,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/cold_shadowed_builtin_guard.R` — A cold `bitwXor` call that the user shadows after the warmup: the assumption that it's the builtin must stay checked (`DeferIntoPromise`).
 - `.../examples/R/missing_default_after_supplied.R` — `missing` of parameters with a default (a promise, a constant) after a warm-up that supplied them, and after an assignment.
 - `.../examples/R/quote_empty_arg.R` — `quote(expr = )`: a supplied empty argument of a builtin call.
+- `.../examples/R/subassign_nonlocal_marked_call.R` — `x[[i]] <- 0` on a global `x` after a run in the setter protocol marked the call as an assignment: the global must not change.
 - `.../examples/R/subscript_symbol_value.R` — A subscript whose value is a symbol, in a static call's `...` and in a dynamic call: the special must not evaluate it again.
 - `.../examples/R/s3_matrix_subassign_untagged.R` — Static `x[i, j] <- v` and `x[[i, j]] <- v` on an S3 object: the method gets the subscripts untagged.
 - `.../examples/R/s3_method_substitute.R` — `substitute(x)` in a compiled S3 method after `UseMethod` forced `x`: the method still sees the caller's expression.

@@ -997,10 +997,11 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
 
 /// Splices a `...` argument as a copy of its cells, in order: the callee may modify the cells
 /// (`applyClosure` with `unpromise` clears them), and the caller may pass the same `...` again.
-/// `force_dots` forces each element, as `evalList` does for a builtin. `nr_first` builds the first
-/// cell with `CONS_NR`, which doesn't count a reference to its value.
+/// `force_dots` forces each element, as `evalList` does for a builtin. `nr` says which cells are
+/// built with `CONS_NR`, which doesn't count a reference to its value.
+typedef enum { FIR_NR_NONE, FIR_NR_FIRST, FIR_NR_REST, FIR_NR_ALL } Fir_NrCells;
 static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, bool is_builtin,
-                              bool force_dots, bool nr_first, int *protect_count) {
+                              bool force_dots, Fir_NrCells nr, int *protect_count) {
   SEXP list = R_NilValue;
   for (int i = argc - 1; i >= 0; --i) {
     SEXP arg = args[i];
@@ -1015,7 +1016,8 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
       SEXP last = R_NilValue;
       for (SEXP h = arg; h != R_NilValue; h = CDR(h)) {
         SEXP elem = force_dots ? Fir_maybe_force(CAR(h)) : CAR(h);
-        SEXP node = PROTECT(Rf_cons(elem, R_NilValue));
+        SEXP node = PROTECT(nr == FIR_NR_ALL || nr == FIR_NR_REST ? CONS_NR(elem, R_NilValue)
+                                                                  : Rf_cons(elem, R_NilValue));
         (*protect_count)++;
         SET_TAG(node, TAG(h));
         if (last == R_NilValue) {
@@ -1028,7 +1030,9 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
       SETCDR(last, list);
       list = head;
     } else {
-      SEXP node = PROTECT(i == 0 && nr_first ? CONS_NR(arg, list) : Rf_cons(arg, list));
+      SEXP node = PROTECT(nr == FIR_NR_ALL || nr == (i == 0 ? FIR_NR_FIRST : FIR_NR_REST)
+                            ? CONS_NR(arg, list)
+                            : Rf_cons(arg, list));
       (*protect_count)++;
       // Builtins have unnamed arguments, but those don't exist in FIR.
       // We use names that start with dots as a workaround,
@@ -1059,6 +1063,16 @@ static SEXP Fir_source_call(SEXP call, SEXP env) {
     }
   }
   return call;
+}
+
+// The index of `name` in `R_FunTab`, or -1.
+static int Fir_funtab_index(const char *name) {
+  for (int i = 0; R_FunTab[i].name != NULL; i++) {
+    if (strcmp(R_FunTab[i].name, name) == 0) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 // `R_Primitive(R_FunTab[blt_idx].name)`, which scans `R_FunTab` with `strcmp`. Cached: its results
@@ -1138,7 +1152,8 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
   R_Visible = (Rboolean)(visibility != 1);
 
   int protect_count = 0;
-  SEXP arglist = Fir_build_arglist(argc, args, names, true, fun.eval % 10 == 1, nr_first, &protect_count);
+  SEXP arglist = Fir_build_arglist(argc, args, names, true, fun.eval % 10 == 1,
+                                   nr_first ? FIR_NR_FIRST : FIR_NR_NONE, &protect_count);
 
   call = Fir_source_call(call, env);
   if (call == NULL) {
@@ -1180,13 +1195,17 @@ static int Fir_wrap_values(int blt_idx, int argc, SEXP *args, SEXP *names, uint6
   return protect_count;
 }
 
+// Whether a special evaluates `arg` to something other than `arg`.
+static bool Fir_is_expression(SEXP arg) {
+  return (TYPEOF(arg) == SYMSXP && arg != R_MissingArg) || TYPEOF(arg) == LANGSXP ||
+         TYPEOF(arg) == BCODESXP;
+}
+
 SEXP Fir_mk_dots_values(int count, SEXP *elems, SEXP const *names, uint64_t values) {
   int protect_count = 0;
   for (int i = 0; i < count && i < 64; i++) {
-    SEXP elem = elems[i];
-    if (((values >> i) & 1) && ((TYPEOF(elem) == SYMSXP && elem != R_MissingArg) ||
-                                TYPEOF(elem) == LANGSXP || TYPEOF(elem) == BCODESXP)) {
-      elems[i] = PROTECT(R_mkEVPROMISE(elem, elem));
+    if (((values >> i) & 1) && Fir_is_expression(elems[i])) {
+      elems[i] = PROTECT(R_mkEVPROMISE(elems[i], elems[i]));
       protect_count++;
     }
   }
@@ -1195,11 +1214,109 @@ SEXP Fir_mk_dots_values(int count, SEXP *elems, SEXP const *names, uint64_t valu
   return result;
 }
 
+// The default method of `R_FunTab[blt_idx]` if it is `[`, `[[`, `[<-` or `[[<-`, else `NULL`.
+static CCODE Fir_subscript_default(int blt_idx) {
+  static int idx[4] = {-2, -2, -2, -2};
+  static CCODE const dflt[4] = {do_subset_dflt, do_subset2_dflt, do_subassign_dflt,
+                                do_subassign2_dflt};
+  if (idx[0] == -2) {
+    static char const *const names[4] = {"[", "[[", "[<-", "[[<-"};
+    for (int k = 0; k < 4; k++) {
+      idx[k] = Fir_funtab_index(names[k]);
+    }
+  }
+  for (int k = 0; k < 4; k++) {
+    if (blt_idx == idx[k]) {
+      return dflt[k];
+    }
+  }
+  return NULL;
+}
+
+// What the special `[`, `[[`, `[<-` or `[[<-` does when its target is not an object
+// (`R_DispatchOrEvalSP`, then the default method), without the special: force the arguments once,
+// in order, and call the default method with a list of `CONS_NR` cells. `x` is the target, or
+// `NULL` for `args[0]`; bit `i` of `values` says that `args[i]` is a value, not an expression.
+// Returns whether it made the call. It doesn't if the target is an object, the first argument is
+// `...`, or the special would evaluate an argument in `env`.
+static bool Fir_call_subscript_default(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
+                                       SEXP *names, uint64_t values, SEXP x, SEXP *result) {
+  CCODE dflt = Fir_subscript_default(blt_idx);
+  if (dflt == NULL || argc == 0 || names[0] == R_DotsSymbol) {
+    return false;
+  }
+  for (int i = x == NULL ? 0 : 1; i < argc; i++) {
+    if (names[i] == R_DotsSymbol) {
+      if (args[i] != R_MissingArg) {
+        for (SEXP h = args[i]; h != R_NilValue; h = CDR(h)) {
+          if (Fir_is_expression(CAR(h))) {
+            return false;
+          }
+        }
+      }
+    } else if (!(i < 64 && ((values >> i) & 1)) && Fir_is_expression(args[i])) {
+      return false;
+    }
+  }
+  SEXP forced[argc];
+  forced[0] = x != NULL ? x : Fir_maybe_force(args[0]);
+  if (forced[0] == R_MissingArg || OBJECT(forced[0])) {
+    return false;
+  }
+
+  // As `R_DispatchOrEvalSP` and `evalListKeepMissing`: each value counts as a link while the later
+  // arguments are forced.
+  INCREMENT_LINKS(forced[0]);
+  for (int i = 1; i < argc; i++) {
+    forced[i] = args[i];
+    if (names[i] != R_DotsSymbol) {
+      forced[i] = Fir_maybe_force(args[i]);
+      INCREMENT_LINKS(forced[i]);
+    } else if (args[i] != R_MissingArg) {
+      for (SEXP h = args[i]; h != R_NilValue; h = CDR(h)) {
+        INCREMENT_LINKS(Fir_maybe_force(CAR(h)));
+      }
+    }
+  }
+  for (int i = 0; i < argc; i++) {
+    if (names[i] != R_DotsSymbol) {
+      DECREMENT_LINKS(forced[i]);
+    } else if (args[i] != R_MissingArg) {
+      for (SEXP h = args[i]; h != R_NilValue; h = CDR(h)) {
+        DECREMENT_LINKS(Fir_maybe_force(CAR(h)));
+      }
+    }
+  }
+
+  // Outside the setter protocol, the special's argument list would count the target, so that
+  // `do_subassign_dflt` copies one that something else references (a non-local variable, which
+  // GNU-R's `EnsureLocal` copies, or a direct call's argument).
+  int protect_count = 0;
+  SEXP arglist = Fir_build_arglist(argc, forced, names, true, true,
+                                   (dflt == do_subassign_dflt || dflt == do_subassign2_dflt) && x == NULL
+                                       ? FIR_NR_REST
+                                       : FIR_NR_ALL,
+                                   &protect_count);
+  SEXP source = Fir_source_call(call, env);
+  if (source == NULL) {
+    source = PROTECT(Rf_lcons(Rf_install(R_FunTab[blt_idx].name), arglist));
+    protect_count++;
+  }
+  *result = dflt(source, Fir_primitive(blt_idx), arglist, env);
+  UNPROTECT(protect_count);
+  R_Visible = TRUE;
+  return true;
+}
+
 // `Fir_call_builtin_values`, where `matched` is as in `Fir_call_primitive`.
 static SEXP Fir_call_primitive_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
                                       SEXP *names, uint64_t values, bool matched) {
+  SEXP result;
+  if (Fir_call_subscript_default(blt_idx, call, env, argc, args, names, values, NULL, &result)) {
+    return result;
+  }
   int protect_count = Fir_wrap_values(blt_idx, argc, args, names, values);
-  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, matched, false);
+  result = Fir_call_primitive(blt_idx, call, env, argc, args, names, matched, false);
   UNPROTECT(protect_count);
   return result;
 }
@@ -1305,7 +1422,7 @@ SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *a
       }
 
       int protect_count = 0;
-      SEXP arglist = Fir_build_arglist(argc, args, names, false, false, false, &protect_count);
+      SEXP arglist = Fir_build_arglist(argc, args, names, false, false, FIR_NR_NONE, &protect_count);
 
       call = Fir_source_call(call, env);
       if (call == NULL) {
@@ -1446,6 +1563,11 @@ SEXP Fir_setter_end(Fir_Setter *s, SEXP result) {
 static SEXP Fir_call_setter_primitive(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc,
                                       SEXP *args, SEXP *names, bool matched, uint64_t values) {
   MARK_ASSIGNMENT_CALL(call);
+  SEXP result;
+  if (Fir_call_subscript_default(blt_idx, call, env, argc, args, names, values & ~1ULL, s->value,
+                                 &result)) {
+    return result;
+  }
   SEXP setter_args[argc];
   memcpy(setter_args, args, argc * sizeof(SEXP));
   int protect_count = Fir_wrap_values(blt_idx, argc, setter_args, names, values & ~1ULL);
@@ -1457,8 +1579,7 @@ static SEXP Fir_call_setter_primitive(Fir_Setter *s, int blt_idx, SEXP call, SEX
   } else {
     setter_args[0] = s->value;
   }
-  SEXP result =
-    Fir_call_primitive(blt_idx, call, env, argc, setter_args, names, matched, !special);
+  result = Fir_call_primitive(blt_idx, call, env, argc, setter_args, names, matched, !special);
   UNPROTECT(protect_count);
   return result;
 }
@@ -1471,16 +1592,6 @@ SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, 
   }
   return Fir_call_setter_primitive(s, PRIMOFFSET(callee), call, env, argc, args, names, false,
                                    values);
-}
-
-// The index of `name` in `R_FunTab`, or -1.
-static int Fir_funtab_index(const char *name) {
-  for (int i = 0; R_FunTab[i].name != NULL; i++) {
-    if (strcmp(R_FunTab[i].name, name) == 0) {
-      return i;
-    }
-  }
-  return -1;
 }
 
 // GNU-R bytecode's `DO_VECSUBASSIGN` fast path (`setElementFromScalar`) for `vec[[i]] <- v` and
