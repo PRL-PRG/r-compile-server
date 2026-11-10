@@ -16,6 +16,7 @@ if (!exists("fir_port")) fir_port <- NULL
 if (!exists("runs")) runs <- 1L
 if (!exists("stdlib_pkg")) stdlib_pkg <- NULL
 if (!exists("seed")) seed <- NULL
+if (!exists("gc_torture")) gc_torture <- FALSE
 
 # A module with stubs needs the `rsh` package: the runtime (which the module doesn't bring, unlike
 # a standalone one, so that there's one copy) and the connection to the compile server (see
@@ -54,6 +55,14 @@ main <-
     bquote(function() .Call(.(paste0("Fir_", prefix, "fun_from_r_main")), environment(), .(constantPool))),
     main_env)
 
+# Run `f()` with a GC at each allocation if `gc_torture`. The R session is shared between
+# examples, so switch the torture off also on an error.
+tortured <- function(f) {
+  if (!gc_torture) return(f())
+  gctorture2(1)
+  tryCatch(f(), finally = gctorture(FALSE))
+}
+
 # Call the compiled closure
 # A seeded example gets the same random numbers in every run, so the baseline run and the compiled
 # runs compute the same values. The kinds reset an `RNGkind` that an earlier example changed.
@@ -73,13 +82,13 @@ bench <- NULL
 if (is.null(bench_call)) {
   for (i in seq_len(runs)) {
     reseed()
-    res <- main()
+    res <- tortured(main)
   }
 } else {
   for (i in seq_len(threshold + 1L)) {
     reseed()
     bench_env <- new.env(parent = main_env)
-    invisible(.Call(paste0("Fir_", prefix, "fun_from_r_main"), bench_env, constantPool))
+    invisible(tortured(\() .Call(paste0("Fir_", prefix, "fun_from_r_main"), bench_env, constantPool)))
   }
   # Each run's wall time and CPU time (user), the module's version call counters
   # (`Fir_stats_versions_get`, `NULL` without `rsh`) before the first run and after each, and the

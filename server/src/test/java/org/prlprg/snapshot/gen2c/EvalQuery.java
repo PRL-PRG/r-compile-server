@@ -43,6 +43,10 @@ import org.prlprg.util.Paths;
 /// and its value is compared too (see [EvalOutput#benchValue()]), unless the example has the
 /// `noBenchEval` option (e.g. `#? [opt.fir2c.opt.eval]noBenchEval` for one build).
 ///
+/// A `#? gcTorture` example runs `main` with a GC at each allocation (`gctorture`), so a value that
+/// compiled code doesn't protect is collected and the run crashes or changes its result. The
+/// benchmark call doesn't run under it.
+///
 /// @param stubThreshold How many calls a stub of a module with stubs runs its fallback before it
 ///     requests its version (the client's `Fir_jit_threshold`).
 public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
@@ -79,7 +83,10 @@ public record EvalQuery(CompiledModuleQuery moduleQuery, int stubThreshold)
         example.text().contains("#? benchmark:") && !example.hasOption(name(), "noBenchEval");
     var runs = isBench ? 1 : moduleQuery.runtime() == RuntimeVariant.FIR2C ? FIR_RUNS : 1;
     var definitions =
-        isBench ? "bench_call <- quote(%s)\n".formatted(BenchmarkQuery.benchmarkCall(example)) : "";
+        (isBench
+                ? "bench_call <- quote(%s)\n".formatted(BenchmarkQuery.benchmarkCall(example))
+                : "")
+            + (example.hasOption(name(), "gcTorture") ? "gc_torture <- TRUE\n" : "");
     var run = run(example, store, moduleQuery, stubThreshold, runs, definitions);
     var session = run.session();
     var error = run.error();
