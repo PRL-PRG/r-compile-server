@@ -11,6 +11,11 @@
 #ifndef USE_RINTERNALS
 #define USE_RINTERNALS
 #endif
+// Makes `Rinternals.h` include `Rinlinedfuns.h`, so `PROTECT`, `REAL`, `XLENGTH`, ... are inline
+// at -O1+ instead of calls into libR. Not in C++, where its names collide with LLVM's.
+#if !defined(__cplusplus) && !defined(RSH)
+#define RSH
+#endif
 #ifdef R_NO_REMAP
 #undef R_NO_REMAP
 #include <Rinternals.h>
