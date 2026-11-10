@@ -2900,14 +2900,23 @@ static double Fir_sign(double value) {
   }
 }
 
+// Like GNU-R's `math1`, warn when a number becomes NaN.
+static double Fir_math1_result(double value, double result) {
+  if (ISNAN(result) && !ISNAN(value)) {
+    Rf_warning("NaNs produced");
+  }
+  return result;
+}
+
 // math1: v1=I→R, v2=R→R
 #define V(name, func) \
   DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_int_fx_none_ret_scalar_real, int value) {\
-    return func(Fir_i2r(value));\
+    double real = Fir_i2r(value);\
+    return Fir_math1_result(real, func(real));\
   }\
   \
   DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_real_fx_none_ret_scalar_real, double value) {\
-    return func(value);\
+    return Fir_math1_result(value, func(value));\
   }
 DEFINE_MATH1_BUILTINS(V)
 #undef V
