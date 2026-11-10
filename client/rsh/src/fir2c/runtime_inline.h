@@ -195,6 +195,12 @@ DEFINE_INLINE_INTRINSIC(SEXP, forIndex, vec1_int_fx_none_ret_vec1_int, SEXP inde
   return Rf_ScalarInteger(Fir_for_index(INTEGER(index)[0]));
 }
 
+// `int64_t`, so a call that the C compiler moves out of bounds has no undefined behavior.
+DEFINE_INLINE_INTRINSIC(int, rangeElement, scalar_int_scalar_int_scalar_int_fx_none_ret_scalar_int,
+                        int from, int k, int step) {
+  return (int) ((int64_t) from + ((int64_t) k - 1) * step);
+}
+
 // An operand of `&&` or `||`, with the checks of GNU-R's `do_logic3`.
 static inline int Fir_logical_operand(SEXP value, const char* arg, const char* op) {
   if (TYPEOF(value) == LGLSXP && XLENGTH(value) == 1 && ATTRIB(value) == R_NilValue)

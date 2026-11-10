@@ -375,6 +375,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `CreateOwnedParameterVersion.java` — Creates a version that owns a vector parameter it duplicates.
 - `DeferIntoPromise.java` — Defers pure instructions that only affect registers used inside a promise into that promise.
 - `ElideConsumedDup.java` — Removes a dup that only moves one owned vector into another.
+- `ElideRangeRead.java` — Replaces the element read of a `for` loop over a scalar `:` range with `rangeElement(from, k, step)`, which can't warn.
 - `ElideRedundantBoxUnbox.java` — Elides redundant `box`/`unbox` calls by substituting their results with an equivalent register.
 - `ElideUnforcedPromise.java` — Replaces promises that are never forced with a deopt stub (`Promise#isDeoptStub`), which fir2c usually compiles to one promise for the site.
 - `ElideUnusedCheckpoints.java` — Removes checkpoint jumps whose success BB has no Assume statements.
@@ -654,6 +655,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/bench_simple_promise_reflect.R` — A benchmark whose argument promises reflect (`environment()`) and exit by an error (`stop`), to check the promise benchmark's reflection detection.
 - `.../examples/R/complex_assign_aliasing.R` — Setter calls on vectors that something else holds (a variable, a parameter, a closure, the index or value), which the assignment protocol must copy.
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
+- `.../examples/R/for_colon_ranges.R` — `for` loops over `a:b` that count up, down, once, or from a real bound, and nested ranges (`ElideRangeRead`).
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
 - `.../examples/R/eval_compiled_body_in_live_frame.R` — `eval` of a compiled closure's body in a live frame: its pop must not mark that frame as returned (`FIR_FRAME_RETURNED`).
 - `.../examples/R/closure_called_from_inlined_frame_in_elided_frame.R` — A closure made in a real frame inside an elided frame, called with its own elided frame: no cycle in the parent chain.
@@ -667,6 +669,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/logical_operand_type_error.R` — `&&` and `||` raise GNU-R's errors for an operand that isn't a number (a string, a factor) or is longer than 1, in optimized code.
 - `.../examples/R/as_logical_one.R` — The unboxed `as.logical` deopts where the result isn't one logical (a version that speculates on `v1(L)`, and `&&`).
 - `.../examples/R/for_seq_object.R` — A `for` loop over a factor or another object (`toForSeq`): the labels, no `length` or `[[` dispatch, and the error for an environment (`gcTorture`).
+- `.../examples/R/for_colon_nan_error.R` — A `for` loop over `a:NaN` is an error, not a descending loop (`ElideRangeRead`).
 - `.../examples/R/colon_real_bounds.R` — The unboxed `:` of reals (GNU-R's `seq_colon`): the end of a real `to`, `NA`/`NaN` errors, and a deopt where a `v(I)` version's range is real.
 - `.../examples/R/subscript_nonpositive.R` — Scalar subscript reads with an index below 1: GNU-R's results and errors, or a deopt where `x[i]` isn't one element.
 - `.../examples/R/box_na_string.R` — `box` of the unboxed string `NA` is `NA_character_`.

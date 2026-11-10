@@ -28,6 +28,11 @@ fun forIndex(r) {
   (r:v1(I)) --> v1(I) { ... }
   (r:I) --> I { ... }
 }
+# Element `k` (1-based) of an integer `from:to` whose `step` is 1 or -1: `from + (k - 1) * step`.
+# Only for a `k` in bounds (`ElideRangeRead`), so it never overflows and has no warning.
+fun rangeElement(from, k, step) {
+  (from:I, k:I, step:I) --> I { ... }
+}
 # The operand of `&&` or `||` (GNU-R's `do_logic3`): one logical, `NA` for a vector of
 # length 0, and an error for a value that isn't a number or is longer (`arg` and `op` name the
 # operand and the operator in the message).

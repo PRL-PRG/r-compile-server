@@ -263,6 +263,7 @@ public class Optimizations {
                                     new StrictifyPhi(),
                                     new UnboxPhi(),
                                     new ElideRedundantBoxUnbox(),
+                                    new ElideRangeRead(),
                                     new SchedulePure(),
                                     new Inline(1000),
                                     new DeferIntoPromise(),

@@ -325,6 +325,15 @@ public final class Builtins {
         sig(Type.INTEGER, Effects.NONE, Type.INTEGER),
         (_, _, args, _) -> new Value.Int(forIndex(((Value.Int) args.getFirst()).value())));
     interpreter.registerExternal(
+        "rangeElement",
+        sig(Type.INTEGER, Effects.NONE, Type.INTEGER, Type.INTEGER, Type.INTEGER),
+        (_, _, args, _) -> {
+          var from = ((Value.Int) args.get(0)).value();
+          var k = ((Value.Int) args.get(1)).value();
+          var step = ((Value.Int) args.get(2)).value();
+          return new Value.Int(from + (k - 1) * step);
+        });
+    interpreter.registerExternal(
         "logicalOperand",
         sig(Type.BOXED_LOGICAL, Effects.NONE, Type.ANY_VALUE_SEXP, Type.STRING, Type.STRING),
         (_, _, args, _) -> new Value.Sexp(SEXPs.logical(logicalOperand(interpreter, args))));
