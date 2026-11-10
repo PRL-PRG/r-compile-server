@@ -456,7 +456,7 @@ class OriginAnalysisTest {
         () --> v(I) {
           mkenv;
           vec: v1(I) = box< I --> v1(I) >(42);
-          result: v(I) = `[[<-`< v(I),I,I --> v(I) >(vec, 1, 99);
+          result: v(I) = `[[<-`< v(I),I,I,miss --> v(I) >(vec, 1, 99, <missing>);
           return result;
         }
       }
@@ -688,7 +688,7 @@ class OriginAnalysisTest {
         () --> v(I) {
           mkenv;
           vec: v1(I) = box< I --> v1(I) >(42);
-          result: v(I) = `[[<-`< v(I),I,I --> v(I) >(vec, 2, 99);
+          result: v(I) = `[[<-`< v(I),I,I,miss --> v(I) >(vec, 2, 99, <missing>);
           return result;
         }
       }

@@ -472,6 +472,28 @@ class Fir2CCompilerTest {
     assertFalse(code.contains("t_setter_1"), code);
   }
 
+  /// `[[<-` is `(x, i, value, ...)`, so `x[[i, j]] <- v` matches `j` to the `...`, but the
+  /// primitive takes the last argument as the value.
+  @Test
+  void subassignPassesValueLast() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                j: dots = dots[<int 2>];
+                r: V = `[[<-`%< *@!,*,*,dots -+> V >(<int 1, 2, 3, 4 | dim=<int 2, 2>>, <int 1>, <int 3>, j);
+                return r;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    var code = Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+    assertTrue(code.contains("t_args_0[2] = r_j;"), code);
+    assertTrue(code.contains("t_arg_names_0[2] = R_DotsSymbol;"), code);
+    assertTrue(code.contains("t_args_0, t_arg_names_0, 0x4ULL)"), "`j` is the value bit:\n" + code);
+  }
+
   @Test
   void needsContextCallGoesThroughApplyClosure() {
     var code = compileNeedsContextCall("* -+> V");

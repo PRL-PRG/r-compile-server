@@ -3241,28 +3241,28 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_scalar_int_scalar
 }
 
 // === [[<- (scalar index write, 1-based) ===
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value, SEXP ddd) {
   return Fir_subassign_logical(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value, SEXP ddd) {
   return Fir_subassign_logical(x, i, value, true);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value, SEXP ddd) {
   return Fir_subassign_int(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value, SEXP ddd) {
   return Fir_subassign_int(x, i, value, true);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value, SEXP ddd) {
   return Fir_subassign_real(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value, SEXP ddd) {
   return Fir_subassign_real(x, i, value, true);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value, SEXP ddd) {
   return Fir_subassign_string(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value, SEXP ddd) {
   return Fir_subassign_string(x, i, value, true);
 }
 
@@ -3388,28 +3388,28 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_vec_int_vec_strin
 }
 
 // === [[<- (vector index write, 1-based) ===
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_subassign_vector_logical(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_subassign_vector_logical(x, i, value, true);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_int_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_subassign_vector_int(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_int_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_subassign_vector_int(x, i, value, true);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_int_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_subassign_vector_real(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_int_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_subassign_vector_real(x, i, value, true);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_int_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_subassign_vector_string(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_int_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_subassign_vector_string(x, i, value, true);
 }
 
@@ -3486,53 +3486,53 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_scalar_real_scala
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
   return Fir_ver_call__u5b_u3c_u2d_vec_string_owned_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh(env, x, i, value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_real_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_borrowed_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh(env, x, Fir_index_from_real(i), value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_real_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_borrowed_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh(env, x, Fir_index_from_real(i), value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_real_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_borrowed_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh(env, x, i, value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_real_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_borrowed_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh(env, x, i, value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_real_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_owned_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh(env, x, Fir_index_from_real(i), value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_real_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_owned_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh(env, x, Fir_index_from_real(i), value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_real_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_owned_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh(env, x, i, value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_real_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_owned_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh(env, x, i, value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_real_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_borrowed_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh(env, x, Fir_index_from_real(i), value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_real_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_borrowed_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh(env, x, Fir_index_from_real(i), value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_real_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_borrowed_vec_int_vec_int_fx_impure_ret_vec_int_fresh(env, x, i, value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_real_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_borrowed_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh(env, x, i, value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_real_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_owned_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh(env, x, Fir_index_from_real(i), value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_real_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_owned_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh(env, x, Fir_index_from_real(i), value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_real_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_owned_vec_int_vec_int_fx_impure_ret_vec_int_fresh(env, x, i, value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_real_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_owned_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh(env, x, i, value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_real_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_borrowed_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh(env, x, Fir_index_from_real(i), value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_real_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_borrowed_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh(env, x, Fir_index_from_real(i), value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_real_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_borrowed_vec_int_vec_real_fx_impure_ret_vec_real_fresh(env, x, i, value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_real_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_borrowed_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh(env, x, i, value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_real_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_owned_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh(env, x, Fir_index_from_real(i), value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_real_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_owned_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh(env, x, Fir_index_from_real(i), value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_real_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_owned_vec_int_vec_real_fx_impure_ret_vec_real_fresh(env, x, i, value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_real_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_owned_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh(env, x, i, value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_real_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_borrowed_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh(env, x, Fir_index_from_real(i), value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_real_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_borrowed_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh(env, x, Fir_index_from_real(i), value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_real_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_borrowed_vec_int_vec_string_fx_impure_ret_vec_string_fresh(env, x, i, value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_borrowed_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh(env, x, i, value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_real_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_owned_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh(env, x, Fir_index_from_real(i), value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_real_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_owned_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh(env, x, Fir_index_from_real(i), value, ddd);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_real_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value) {
-  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_owned_vec_int_vec_string_fx_impure_ret_vec_string_fresh(env, x, i, value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_owned_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh(env, x, i, value, ddd);
 }
 
 // === as.integer(x) (real overloads) ===

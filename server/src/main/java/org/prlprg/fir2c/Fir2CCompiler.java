@@ -2380,6 +2380,17 @@ public final class Fir2CCompiler {
                     names.pointer());
           }
 
+          /// The arguments (or parameters) of a static builtin call, in the order the primitive
+          // takes
+          /// them. `[<-` and `[[<-` are `(x, i, value, ...)`, where the `...` has the subscripts
+          /// after the first, but the primitive takes the last argument as the value.
+          private static <T> List<T> valueLast(Function calleeFun, List<T> passed) {
+            var name = calleeFun.name().name();
+            return passed.size() == 4 && (name.equals("[<-") || name.equals("[[<-"))
+                ? List.of(passed.get(0), passed.get(1), passed.get(3), passed.get(2))
+                : passed;
+          }
+
           /// The tags of a static builtin call's first `present` arguments, in parameter order:
           /// those of the source call, which GNU-R passes (an S3 method of `x[i]` sees `i`
           /// untagged), or the parameter names if the source isn't a call of the builtin.
@@ -2441,9 +2452,13 @@ public final class Fir2CCompiler {
                 && c.equals(new Value.Sexp(SEXPs.MISSING_ARG))) {
               present--;
             }
-            var arguments = emitArgumentArray("args", Repr.SEXP, callArgs.subList(0, present));
+            var passedArgs = valueLast(calleeFun, callArgs.subList(0, present));
+            var arguments = emitArgumentArray("args", Repr.SEXP, passedArgs);
             var names =
-                emitArray("arg_names", "SEXP", builtinArgumentTags(calleeFun, statement, present));
+                emitArray(
+                    "arg_names",
+                    "SEXP",
+                    valueLast(calleeFun, builtinArgumentTags(calleeFun, statement, present)));
 
             // A `@readsContext` builtin's `.Internal` must run in the base closure's frame. An
             // `.Internal` whose arity differs from the signature (`stop`, `warning`) needs its
@@ -2453,7 +2468,7 @@ public final class Fir2CCompiler {
             var values =
                 calleeFun.userProperties().liteSpecial() && present <= 64
                     ? IntStream.range(0, present)
-                        .filter(i -> !(callArgs.get(i) instanceof Constant))
+                        .filter(i -> !(passedArgs.get(i) instanceof Constant))
                         .mapToLong(i -> 1L << i)
                         .sum()
                     : 0;

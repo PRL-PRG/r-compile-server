@@ -1390,12 +1390,18 @@ public final class BC2FirCFGCompiler {
   }
 
   /// Whether matching the arguments of a call of the subscript builtin `name` keeps their order.
-  /// The primitive takes its arguments by position, except `drop`, `exact`, and the last `value`,
-  /// and `[<-` takes the value after the indices that match its `...`.
+  /// The primitive takes its arguments by position, except `drop` and `exact`, and the value is the
+  /// last argument. `[<-` and `[[<-` match the subscripts after the first to their `...`, which
+  /// follows `value` (`fir2c` passes `value` last again), so `value` must be the last argument and
+  /// named, unless it's the third of three.
   private static boolean isPositional(String name, List<String> argNames) {
-    var tags = name.endsWith("<-") ? Set.of("value") : Set.of("drop", "exact");
-    return argNames.stream().allMatch(n -> n.isEmpty() || tags.contains(n))
-        && (!name.equals("[<-") || argNames.stream().filter(String::isEmpty).count() <= 2);
+    if (name.endsWith("<-")) {
+      var unnamed = argNames.subList(0, Math.max(argNames.size() - 1, 0));
+      var last = argNames.isEmpty() ? "" : argNames.getLast();
+      return unnamed.stream().allMatch(String::isEmpty)
+          && (last.equals("value") || (last.isEmpty() && argNames.size() <= 3));
+    }
+    return argNames.stream().allMatch(n -> n.isEmpty() || n.equals("drop") || n.equals("exact"));
   }
 
   /// A lite special evaluates its arguments, so a constant whose evaluation isn't itself (a symbol

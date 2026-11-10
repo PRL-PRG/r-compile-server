@@ -441,52 +441,52 @@ fun `[<-`(x, i, value, `...`) {
 }
 
 @liteSpecial
-fun `[[<-`(x, i, value) {
-  (x:*@!, i:*, value:*) -+> V { ... }
+fun `[[<-`(x, i, value, `...`) {
+  (x:*@!, i:*, value:*, ddd:dots) -+> V { ... }
 
   # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
   # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
   # the call site. Both backends route them to the baseline, the interpreter because it registers
   # its generic implementation for every version that signature covers, `fir2c` because
   # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
-  (x:v(L), i:*@!, value:*) -~> V { ... }
-  (x:v(I), i:*@!, value:*) -~> V { ... }
-  (x:v(R), i:*@!, value:*) -~> V { ... }
-  (x:v(S), i:*@!, value:*) -~> V { ... }
-  (x:v(L)b, i:v(I), value:v(L)) -~> v(L)f { ... }
-  (x:v(I)b, i:v(I), value:v(I)) -~> v(I)f { ... }
-  (x:v(R)b, i:v(I), value:v(R)) -~> v(R)f { ... }
-  (x:v(S)b, i:v(I), value:v(S)) -~> v(S)f { ... }
-  (x:v(L)b, i:I, value:L) -~> v(L)f { ... }
-  (x:v(I)b, i:I, value:I) -~> v(I)f { ... }
-  (x:v(R)b, i:I, value:R) -~> v(R)f { ... }
-  (x:v(S)b, i:I, value:S) -~> v(S)f { ... }
-  (x:v(L)o, i:v(I), value:v(L)) -~> v(L)f { ... }
-  (x:v(I)o, i:v(I), value:v(I)) -~> v(I)f { ... }
-  (x:v(R)o, i:v(I), value:v(R)) -~> v(R)f { ... }
-  (x:v(S)o, i:v(I), value:v(S)) -~> v(S)f { ... }
-  (x:v(L)o, i:I, value:L) -~> v(L)f { ... }
-  (x:v(I)o, i:I, value:I) -~> v(I)f { ... }
-  (x:v(R)o, i:I, value:R) -~> v(R)f { ... }
-  (x:v(S)o, i:I, value:S) -~> v(S)f { ... }
+  (x:v(L), i:*@!, value:*, ddd:dots) -~> V { ... }
+  (x:v(I), i:*@!, value:*, ddd:dots) -~> V { ... }
+  (x:v(R), i:*@!, value:*, ddd:dots) -~> V { ... }
+  (x:v(S), i:*@!, value:*, ddd:dots) -~> V { ... }
+  (x:v(L)b, i:v(I), value:v(L), ddd:miss) -~> v(L)f { ... }
+  (x:v(I)b, i:v(I), value:v(I), ddd:miss) -~> v(I)f { ... }
+  (x:v(R)b, i:v(I), value:v(R), ddd:miss) -~> v(R)f { ... }
+  (x:v(S)b, i:v(I), value:v(S), ddd:miss) -~> v(S)f { ... }
+  (x:v(L)b, i:I, value:L, ddd:miss) -~> v(L)f { ... }
+  (x:v(I)b, i:I, value:I, ddd:miss) -~> v(I)f { ... }
+  (x:v(R)b, i:I, value:R, ddd:miss) -~> v(R)f { ... }
+  (x:v(S)b, i:I, value:S, ddd:miss) -~> v(S)f { ... }
+  (x:v(L)o, i:v(I), value:v(L), ddd:miss) -~> v(L)f { ... }
+  (x:v(I)o, i:v(I), value:v(I), ddd:miss) -~> v(I)f { ... }
+  (x:v(R)o, i:v(I), value:v(R), ddd:miss) -~> v(R)f { ... }
+  (x:v(S)o, i:v(I), value:v(S), ddd:miss) -~> v(S)f { ... }
+  (x:v(L)o, i:I, value:L, ddd:miss) -~> v(L)f { ... }
+  (x:v(I)o, i:I, value:I, ddd:miss) -~> v(I)f { ... }
+  (x:v(R)o, i:I, value:R, ddd:miss) -~> v(R)f { ... }
+  (x:v(S)o, i:I, value:S, ddd:miss) -~> v(S)f { ... }
 
   # Real indices: coerce to integer and forward to the version above.
-  (x:v(L)b, i:v(R), value:v(L)) -~> v(L)f { ... }
-  (x:v(I)b, i:v(R), value:v(I)) -~> v(I)f { ... }
-  (x:v(R)b, i:v(R), value:v(R)) -~> v(R)f { ... }
-  (x:v(S)b, i:v(R), value:v(S)) -~> v(S)f { ... }
-  (x:v(L)b, i:R, value:L) -~> v(L)f { ... }
-  (x:v(I)b, i:R, value:I) -~> v(I)f { ... }
-  (x:v(R)b, i:R, value:R) -~> v(R)f { ... }
-  (x:v(S)b, i:R, value:S) -~> v(S)f { ... }
-  (x:v(L)o, i:v(R), value:v(L)) -~> v(L)f { ... }
-  (x:v(I)o, i:v(R), value:v(I)) -~> v(I)f { ... }
-  (x:v(R)o, i:v(R), value:v(R)) -~> v(R)f { ... }
-  (x:v(S)o, i:v(R), value:v(S)) -~> v(S)f { ... }
-  (x:v(L)o, i:R, value:L) -~> v(L)f { ... }
-  (x:v(I)o, i:R, value:I) -~> v(I)f { ... }
-  (x:v(R)o, i:R, value:R) -~> v(R)f { ... }
-  (x:v(S)o, i:R, value:S) -~> v(S)f { ... }
+  (x:v(L)b, i:v(R), value:v(L), ddd:miss) -~> v(L)f { ... }
+  (x:v(I)b, i:v(R), value:v(I), ddd:miss) -~> v(I)f { ... }
+  (x:v(R)b, i:v(R), value:v(R), ddd:miss) -~> v(R)f { ... }
+  (x:v(S)b, i:v(R), value:v(S), ddd:miss) -~> v(S)f { ... }
+  (x:v(L)b, i:R, value:L, ddd:miss) -~> v(L)f { ... }
+  (x:v(I)b, i:R, value:I, ddd:miss) -~> v(I)f { ... }
+  (x:v(R)b, i:R, value:R, ddd:miss) -~> v(R)f { ... }
+  (x:v(S)b, i:R, value:S, ddd:miss) -~> v(S)f { ... }
+  (x:v(L)o, i:v(R), value:v(L), ddd:miss) -~> v(L)f { ... }
+  (x:v(I)o, i:v(R), value:v(I), ddd:miss) -~> v(I)f { ... }
+  (x:v(R)o, i:v(R), value:v(R), ddd:miss) -~> v(R)f { ... }
+  (x:v(S)o, i:v(R), value:v(S), ddd:miss) -~> v(S)f { ... }
+  (x:v(L)o, i:R, value:L, ddd:miss) -~> v(L)f { ... }
+  (x:v(I)o, i:R, value:I, ddd:miss) -~> v(I)f { ... }
+  (x:v(R)o, i:R, value:R, ddd:miss) -~> v(R)f { ... }
+  (x:v(S)o, i:R, value:S, ddd:miss) -~> v(S)f { ... }
 }
 
 @signals

@@ -1012,59 +1012,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
                   ? new Constant(elementValue)
                   : box(elementValue);
         }
-        case "[<-" -> {
+        case "[<-", "[[<-" -> {
           // A `...` subscript is a matrix column.
           if (arguments.size() != 4 || !isMissing(resolve(arguments.get(3)))) yield null;
-          var vectorArg = resolve(arguments.get(0));
-          var idxArg = resolve(arguments.get(1));
-          var valueArg = resolve(arguments.get(2));
-
-          if (!(vectorArg instanceof Constant(Value.Sexp(var vSexp))
-              && vSexp instanceof ListOrVectorSXP<?> vector)) yield null;
-
-          int idx;
-          if (idxArg instanceof Constant(Value.Int(var i))) {
-            idx = i;
-          } else if (idxArg instanceof Constant(Value.Sexp(var iSexp))
-              && iSexp instanceof IntSXP iVec
-              && iVec.size() == 1) {
-            idx = iVec.get(0);
-          } else {
-            yield null;
-          }
-
-          if (idx < 1 || idx > vector.size()) yield null;
-
-          var copied = vector.copy();
-          boolean stored =
-              switch (copied) {
-                case LglSXP l -> {
-                  if (!(valueArg instanceof Constant(Value.Lgl(var v)))) yield false;
-                  l.set(idx - 1, v);
-                  yield true;
-                }
-                case IntSXP iv -> {
-                  if (!(valueArg instanceof Constant(Value.Int(var v)))) yield false;
-                  iv.set(idx - 1, v);
-                  yield true;
-                }
-                case RealSXP rv -> {
-                  if (!(valueArg instanceof Constant(Value.Real(var v)))) yield false;
-                  rv.set(idx - 1, v);
-                  yield true;
-                }
-                case StrSXP sv -> {
-                  if (!(valueArg instanceof Constant(Value.Str(var v)))) yield false;
-                  sv.set(idx - 1, v);
-                  yield true;
-                }
-                default -> false;
-              };
-
-          yield stored ? new Constant(copied) : null;
-        }
-        case "[[<-" -> {
-          if (arguments.size() != 3) yield null;
           var vectorArg = resolve(arguments.get(0));
           var idxArg = resolve(arguments.get(1));
           var valueArg = resolve(arguments.get(2));

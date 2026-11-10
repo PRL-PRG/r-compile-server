@@ -90,13 +90,9 @@ public final class Builtins {
     return Arrays.stream(types).map(t -> t.withOwnership(Ownership.BORROWED)).toArray(Type[]::new);
   }
 
-  /// Signature of a non-generic `[<-` (`numArgs == 4`, which takes a trailing missing `...`) or
-  /// `[[<-` (`numArgs == 3`) version.
-  private static Signature subAssignSig(
-      Type returnType, int numArgs, Type x, Type i, Type valueType) {
-    return numArgs == 4
-        ? sig(returnType, Effects.IMPURE, x, i, valueType, Type.MISSING)
-        : sig(returnType, Effects.IMPURE, x, i, valueType);
+  /// Signature of a non-generic `[<-` or `[[<-` version, which takes a trailing missing `...`.
+  private static Signature subAssignSig(Type returnType, Type x, Type i, Type valueType) {
+    return sig(returnType, Effects.IMPURE, x, i, valueType, Type.MISSING);
   }
 
   /// The [GlobalModules#BASE] copy of a closure in GNU-R's base environment, which is what a
@@ -165,9 +161,8 @@ public final class Builtins {
     registerIndex(interpreter, "[[");
 
     // Sub-assignment operators
-    registerSubAssign(interpreter, "[<-", 4);
-    registerSubAssign(interpreter, "[[<-", 3);
-    registerMatrixSubAssign2(interpreter);
+    registerSubAssign(interpreter, "[<-");
+    registerSubAssign(interpreter, "[[<-");
 
     // Dollar access
     registerDollar(interpreter);
@@ -1741,25 +1736,29 @@ public final class Builtins {
     return new Value.Sexp(result);
   }
 
-  private static void registerSubAssign(InternalInterpreter interpreter, String name, int numArgs) {
-    // Generic: (*, *, *, *) -+> V for `[<-`, (*, *, *) -+> V for `[[<-`
-    var genericParams = new Type[numArgs];
-    Arrays.fill(genericParams, Type.ANY_SEXP);
+  private static void registerSubAssign(InternalInterpreter interpreter, String name) {
+    // Generic: (*, *, *, *) -+> V
     interpreter.registerExternal(
         name,
-        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, genericParams),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.REFLECT,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, strictArgs, _) -> {
               var args = specialArgs(interpreter, strictArgs);
-              if (args.size() != numArgs) {
-                throw interpreter.fail("`" + name + "` generic takes " + numArgs + " arguments");
+              if (args.size() != 4) {
+                throw interpreter.fail("`" + name + "` generic takes 4 arguments");
               }
               return genericSubAssign(
                   interpreter,
                   name,
                   args.getFirst().box(),
                   args.get(1).box(),
-                  numArgs == 4 ? column(interpreter, name, args.get(3)) : null,
+                  column(interpreter, name, args.get(3)),
                   args.get(2).box());
             }));
 
@@ -1789,7 +1788,7 @@ public final class Builtins {
         for (var indexType : List.of(Type.INTEGER, Type.REAL)) {
           interpreter.registerExternal(
               name,
-              subAssignSig(returnType, numArgs, x, indexType, scalarTypes[t]),
+              subAssignSig(returnType, x, indexType, scalarTypes[t]),
               ExternalVersion.strict(
                   (_, _, args, _) -> {
                     var vector = (ListOrVectorSXP<?>) args.getFirst().box();
@@ -1809,7 +1808,7 @@ public final class Builtins {
         for (var indexType : List.of(Type.SHARED_INTEGER_VECTOR, Type.SHARED_REAL_VECTOR)) {
           interpreter.registerExternal(
               name,
-              subAssignSig(returnType, numArgs, x, indexType, vecTypes[t]),
+              subAssignSig(returnType, x, indexType, vecTypes[t]),
               ExternalVersion.strict(
                   (_, _, args, _) -> {
                     var vector = (ListOrVectorSXP<?>) args.getFirst().box();
@@ -1836,29 +1835,6 @@ public final class Builtins {
         }
       }
     }
-  }
-
-  // endregion
-
-  /// `x[[i, j]] <- value`, which doesn't match `[[<-`'s parameters (`builtins.fir` declares one
-  /// subscript), so only a dynamic call does it.
-  private static void registerMatrixSubAssign2(InternalInterpreter interpreter) {
-    interpreter.registerUnmatchedExternal(
-        baseFunction("[[<-"),
-        arguments -> {
-          var args =
-              arguments.values().stream()
-                  .map(a -> interpreter.eval(new Value.Sexp(evalSpecialArg(interpreter, a))).box())
-                  .toList();
-          if (args.size() != 4
-              || arguments.stream().limit(3).anyMatch(TaggedElem::hasTag)
-              || arguments.get(3).hasTag() && !arguments.get(3).tag().equals("value")) {
-            throw interpreter.failUnsupported(
-                "Mock `[[<-` only takes `x`, one or two subscripts, and `value`");
-          }
-          return genericSubAssign(
-              interpreter, "[[<-", args.get(0), args.get(1), args.get(2), args.get(3));
-        });
   }
 
   // endregion

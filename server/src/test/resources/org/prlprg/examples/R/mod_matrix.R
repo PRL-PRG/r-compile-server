@@ -1,5 +1,5 @@
 f <- function(n) {
-  r <- vector("list", 11L)
+  r <- vector("list", 13L)
   r[[1L]] <- matrix(nrow = n, ncol = n)
   r[[2L]] <- matrix(1:6, nrow = 2)
   r[[3L]] <- matrix(c(1.5, 2.5), ncol = 4)
@@ -15,6 +15,13 @@ f <- function(n) {
   m[1, 2] <- 4
   r[[10L]] <- m
   r[[11L]] <- `[[<-`(m, 1, 1, value = 3)
+  # The subscripts and the values are all valid subscripts, so passing them in another order
+  # assigns somewhere else.
+  s <- matrix(0, 3, 3)
+  s[[1, 2]] <- 3
+  s[2, 3] <- 1
+  r[[12L]] <- s
+  r[[13L]] <- c(s[[1, 2]], s[2, 3], `[[<-`(s, 3, 1, value = 2)[[3, 1]])
   r
 }
 
