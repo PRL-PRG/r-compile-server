@@ -2,7 +2,7 @@
 
 // The runtime functions that generated code calls on unboxed values: the scalar builtins and
 // intrinsics (arithmetic, comparisons, `box`, `unbox`, `naToFalse`, the `is.*` tests, ...) and the
-// subscript reads and writes. They are `static inline`, so the C compiler inlines them into the
+// subscript reads and writes, and the push and pop of an elided frame. They are `static inline`, so the C compiler inlines them into the
 // module instead of calling `runtime.o` or `rsh.so`. C only: `runtime.h` includes this at its end.
 
 #pragma clang diagnostic push
@@ -904,3 +904,44 @@ DEFINE_INLINE_BUILTIN(bool, is_u2esymbol, value_fx_none_ret_bool, SEXP value) {
   return TYPEOF(value) == SYMSXP;
 }
 
+// `Fir_push_env` for `FIR_MKENV_ELIDED`. It doesn't `REPROTECT` the env: its protect slot keeps the
+// env of the push, which the singleton's parent then is, and the singleton is a root. It
+// `REPROTECT`s `*saved` in `saved_idx` only if the push replaces the parent, else the env slot or a
+// root (the singleton, `R_NilValue`) keeps it.
+static ALWAYS_INLINE bool Fir_push_env_elided(SEXP *env, SEXP *saved, PROTECT_INDEX saved_idx) {
+  if (Fir_env_pushed_from_r == *env && !Fir_env_push_suppressed) {
+    Fir_env_push_suppressed = true;
+    *saved = R_NilValue;
+    return false;
+  }
+  Fir_push_frame(Rsh_ElidedEnv);
+  if (*env == Rsh_ElidedEnv) {
+    *saved = Rsh_ElidedEnv;
+    return true;
+  }
+  SEXP parent = ENCLOS(Rsh_ElidedEnv);
+  *saved = parent;
+  if (parent != *env) {
+    SET_ENCLOS(Rsh_ElidedEnv, *env);
+    REPROTECT(parent, saved_idx);
+  }
+  *env = Rsh_ElidedEnv;
+  return true;
+}
+
+// `Fir_pop_env`, with the pop of an elided frame inline.
+static ALWAYS_INLINE void Fir_pop_env_inline(SEXP *env, bool pushed, SEXP saved) {
+  if (!pushed || *env != Rsh_ElidedEnv) {
+    Fir_pop_env(env, pushed, saved);
+    return;
+  }
+  Rsh_FrameCount--;
+  if (saved != Rsh_ElidedEnv) {
+    *env = ENCLOS(Rsh_ElidedEnv);
+    // Before the first push, the parent is `R_NilValue`, which `SET_ENCLOS` rejects.
+    SEXP parent = saved == R_NilValue ? R_EmptyEnv : saved;
+    if (*env != parent) {
+      SET_ENCLOS(Rsh_ElidedEnv, parent);
+    }
+  }
+}

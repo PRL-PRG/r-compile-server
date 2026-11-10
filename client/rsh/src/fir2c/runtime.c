@@ -639,8 +639,8 @@ SEXP Fir_load_dots(int index, SEXP env) {
   return ddfind(index, env);
 }
 
-static SEXP Fir_env_pushed_from_r = NULL;
-static bool Fir_env_push_suppressed = false;
+SEXP Fir_env_pushed_from_r = NULL;
+bool Fir_env_push_suppressed = false;
 
 void Fir_set_env_pushed_from_r(
     SEXP env, SEXP* outer_env, bool* push_suppressed, SEXP* outer_parent) {

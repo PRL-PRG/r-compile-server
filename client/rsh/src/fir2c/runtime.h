@@ -511,6 +511,10 @@ SEXP Fir_from_r_arg(SEXP env, SEXP symbol, bool keep_promise);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_fun(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);
+/// The frame R made for the current from-R call, and whether its version's first push already
+/// skipped it (`Fir_push_env`). Read by the inline push.
+extern SEXP Fir_env_pushed_from_r;
+extern bool Fir_env_push_suppressed;
 /// The from-R entry also saves the parent of `Rsh_ElidedEnv` (`outer_parent`, which the caller
 /// protects), and the exit restores it.
 void Fir_set_env_pushed_from_r(

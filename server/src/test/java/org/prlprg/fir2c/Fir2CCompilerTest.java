@@ -497,7 +497,8 @@ class Fir2CCompilerTest {
 
   /// A pushed frame outlives the block that pushes it, whose `UNPROTECT` counts only the block's
   /// own protects. So the frame and each saved parent are in protect slots of the activation,
-  /// which the env operations `REPROTECT` and the return releases.
+  /// which the env operations `REPROTECT` and the return releases. The elided push is inline and
+  /// `REPROTECT`s in the runtime.
   @Test
   void pushedFramesAreInActivationProtectSlots() {
     var module =
@@ -528,9 +529,8 @@ class Fir2CCompilerTest {
     assertTrue(
         code.contains(
             """
-            Fir_push_env(&env, FIR_MKENV_ELIDED, &env_saved[env_depth]);
-              REPROTECT(env, env_idx);
-              REPROTECT(env_saved[env_depth], env_idx + 1 + env_depth);"""),
+            Fir_push_env_elided(&env, &env_saved[env_depth], env_idx + 1 + env_depth);
+              env_depth++;"""),
         code);
     assertTrue(
         code.contains(
@@ -541,7 +541,8 @@ class Fir2CCompilerTest {
         code);
     assertEquals(
         2,
-        code.split("Fir_pop_env\\([^\\n]*\\n\\s*REPROTECT\\(env, env_idx\\);", -1).length - 1,
+        code.split("Fir_pop_env_inline\\([^\\n]*\\n\\s*REPROTECT\\(env, env_idx\\);", -1).length
+            - 1,
         code);
     assertTrue(code.contains("UNPROTECT(3);\n  return r_v;"), code);
   }

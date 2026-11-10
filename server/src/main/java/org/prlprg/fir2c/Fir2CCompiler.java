@@ -2173,6 +2173,21 @@ public final class Fir2CCompiler {
                     case BASE_FUN ->
                         "Rf_findFun(%s, R_BaseEnv)".formatted(nvSymbolRef(pool, variable));
                   };
+              case MkEnv(var type) when type == MkEnvType.ELIDED -> {
+                // Inline, and it `REPROTECT`s what it must itself.
+                cCode.stmt(
+                    "%s = (%s << 1) | Fir_push_env_elided(&%s, &%s[%s], %s + 1 + %s);",
+                    VAR_ENV_PUSHED,
+                    VAR_ENV_PUSHED,
+                    VAR_ENV,
+                    VAR_ENV_SAVED,
+                    VAR_ENV_DEPTH,
+                    VAR_ENV_IDX,
+                    VAR_ENV_DEPTH);
+                cCode.stmt("%s++;", VAR_ENV_DEPTH);
+                debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
+                yield null;
+              }
               case MkEnv(var type) -> {
                 cCode.stmt(
                     "%s = (%s << 1) | Fir_push_env(&%s, %s, &%s[%s]);",
@@ -2183,11 +2198,6 @@ public final class Fir2CCompiler {
                     VAR_ENV_SAVED,
                     VAR_ENV_DEPTH);
                 cCode.stmt("REPROTECT(%s, %s);", VAR_ENV, VAR_ENV_IDX);
-                if (type == MkEnvType.ELIDED) {
-                  cCode.stmt(
-                      "REPROTECT(%s[%s], %s + 1 + %s);",
-                      VAR_ENV_SAVED, VAR_ENV_DEPTH, VAR_ENV_IDX, VAR_ENV_DEPTH);
-                }
                 cCode.stmt("%s++;", VAR_ENV_DEPTH);
                 debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
                 yield null;
@@ -2221,7 +2231,7 @@ public final class Fir2CCompiler {
               case Noop() -> null;
               case PopEnv() -> {
                 cCode.stmt(
-                    "Fir_pop_env(&%s, %s & 1, %s[--%s]);",
+                    "Fir_pop_env_inline(&%s, %s & 1, %s[--%s]);",
                     VAR_ENV, VAR_ENV_PUSHED, VAR_ENV_SAVED, VAR_ENV_DEPTH);
                 cCode.stmt("REPROTECT(%s, %s);", VAR_ENV, VAR_ENV_IDX);
                 cCode.stmt("%s >>= 1;", VAR_ENV_PUSHED);
