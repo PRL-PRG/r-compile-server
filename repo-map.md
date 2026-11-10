@@ -688,6 +688,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/reflection_after_failed_warmup.R` — A warm-up that fails in an unmocked builtin before a closure reflects: the optimizer must not speculate from the partial feedback that it never reflects.
 - `.../examples/R/real_to_string.R` — A real coerced to a string by `c`, `[<-`, and `as.character` (15 significant digits, scientific notation if shorter), to check the interpreter mocks against GNU-R.
 - `.../examples/R/sum_abs_edges.R` — An integer `sum` that does not fit (real in GNU-R) and `abs` of a logical, to check the interpreter mocks against GNU-R.
+- `.../examples/R/matrix_empty_data.R` — `matrix` of empty data with missing dimensions, to check the interpreter mock against GNU-R.
 - `.../examples/R/subscript_null_na.R` — `[` and `[[` of `NULL`, and `[[` of a list with an `NA` subscript, to check the interpreter mocks against GNU-R.
 - `.../examples/R/{complex_assign,subset}_language.R` — Regressions for a lite special called with values in the fir2c runtime: a call or symbol vector, index, or value must not be evaluated again.
 - `.../examples/R/mod_idiv_builtins_{int,real}.R` — `%/%` edge cases (signs, zero divisor, `NA`, `|x1 / x2| < 1`, recycling) with integer and real results, to check the interpreter mock against GNU-R.
@@ -699,6 +700,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/mod_subassign_grow.R` — `[[<-` and `[<-` past the end of a list and of integer, real, and named string vectors, to check the interpreter mock's growth against GNU-R.
 - `.../examples/R/mod_subscript_names.R` — `[`, `[[`, `[<-`, and `[[<-` with a name subscript (present, absent, appended) on a named real vector and list, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_arith_names.R` — arithmetic, comparison, unary minus, and `abs` of named vectors (which operand's names the result keeps), to check the interpreter mocks against GNU-R.
+- `.../examples/R/mod_matrix.R` — `matrix` (missing `data`, `nrow` or `ncol`, recycled `data`) and `[[`, `[`, `[[<-`, `[<-` with a row and column subscript, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_max_builtins_{int,real}.R` — `%%` and `max` edge cases (signs, zero divisor, `NA`/`NaN`, recycling) with integer and real results, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_na_nan_consts.R` — `` `%%`(NA_real_, y) `` and `` `%%`(NaN, y) `` in one function: the two call constants must stay apart (bytecode RDS round trip, constant pools).
 - `.../examples/R/subassign_scalar.R` — Scalar `x[[i]] <- v` and `x[i] <- v` on unshared vectors, which the fir2c runtime stores directly: value and vector types, attributes, a class, growth, a real index, an alias.

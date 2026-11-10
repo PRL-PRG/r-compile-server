@@ -163,6 +163,7 @@ public final class Builtins {
     // Sub-assignment operators
     registerSubAssign(interpreter, "[<-", 4);
     registerSubAssign(interpreter, "[[<-", 3);
+    registerMatrixSubAssign2(interpreter);
 
     // Dollar access
     registerDollar(interpreter);
@@ -241,6 +242,7 @@ public final class Builtins {
     registerList(interpreter);
     registerLapply(interpreter);
     registerSeq(interpreter);
+    registerMatrix(interpreter);
 
     // unclass
     registerUnclass(interpreter);
@@ -1361,11 +1363,12 @@ public final class Builtins {
                 return new Value.Sexp(SEXPs.NULL);
               }
               var index = args.get(1).box();
+              var column = column(interpreter, name, args.get(2));
               // `drop` (of `[`) or `exact` (of `[[`); `FALSE` only changes a matrix subscript or a
               // partial name match.
               var option = args.get(3).box();
               var isDefault = option == SEXPs.MISSING_ARG || option.equals(SEXPs.TRUE);
-              if (!isDefault && !option.equals(SEXPs.FALSE)) {
+              if (!isDefault && !(option.equals(SEXPs.FALSE) && column == null)) {
                 throw interpreter.failUnsupported(
                     "Mock `"
                         + name
@@ -1373,10 +1376,7 @@ public final class Builtins {
                         + (outOfRangeIsNa ? "drop" : "exact")
                         + " = FALSE` with one subscript");
               }
-              int idx =
-                  index instanceof StrSXP
-                      ? nameSubscript(interpreter, name, vector, index)
-                      : positionSubscript(interpreter, name, index);
+              int idx = subscript(interpreter, name, vector, index, column);
               if (!isDefault
                   && !outOfRangeIsNa
                   && index instanceof StrSXP s
@@ -1481,6 +1481,31 @@ public final class Builtins {
     }
   }
 
+  /// The 1-based position in `vector` that a generic `[`, `[[`, `[<-`, or `[[<-` subscript selects:
+  /// `index` is a name or position, or the row of a matrix if there's a `column`.
+  private static int subscript(
+      InternalInterpreter interpreter,
+      String name,
+      ListOrVectorSXP<?> vector,
+      SEXP index,
+      @Nullable SEXP column) {
+    if (column == null) {
+      return index instanceof StrSXP
+          ? nameSubscript(interpreter, name, vector, index)
+          : positionSubscript(interpreter, name, index);
+    }
+    if (!(vector.attributes().get("dim") instanceof IntSXP dim) || dim.size() != 2) {
+      throw interpreter.failUnsupported("Mock `" + name + "` only takes 2 subscripts of a matrix");
+    }
+    var row = positionSubscript(interpreter, name, index);
+    var col = positionSubscript(interpreter, name, column);
+    if (row < 1 || row > dim.get(0) || col < 1 || col > dim.get(1)) {
+      throw interpreter.failUnsupported(
+          "Mock `" + name + "` only takes matrix subscripts within the matrix");
+    }
+    return row + (col - 1) * dim.get(0);
+  }
+
   /// The position that the numeric scalar subscript `index` of a generic `[`, `[[`, `[<-`, or
   /// `[[<-` selects. A logical `[[` subscript selects like an integer one; a logical `[` one is a
   /// mask, which this doesn't implement.
@@ -1490,6 +1515,17 @@ public final class Builtins {
           "Mock `" + name + "` doesn't implement a logical subscript");
     }
     return sexpToInt(index, interpreter, name);
+  }
+
+  /// The second subscript in a `...` argument of a generic `[`, `[[`, or `[<-`, or `null` if
+  /// there's none.
+  private static @Nullable SEXP column(InternalInterpreter interpreter, String name, Value dots) {
+    return switch (dots.box()) {
+      case DotsListSXP d when d.size() == 1 && !d.get(0).hasTag() -> d.get(0).value();
+      case DotsListSXP d when !d.isEmpty() ->
+          throw interpreter.failUnsupported("Mock `" + name + "` takes at most 2 subscripts");
+      default -> null;
+    };
   }
 
   /// The 1-based position of the first element of `vector` named `index`, a string scalar, or the
@@ -1552,11 +1588,9 @@ public final class Builtins {
     if (vectorRank == -1 || valueRank <= vectorRank) {
       return vector.copy();
     }
-    if (vector.hasAttributes()) {
-      throw interpreter.failUnsupported(
-          "Mock `" + name + "` doesn't coerce a vector with attributes");
-    }
-    return (ListOrVectorSXP<?>) concatToType(SEXPs.dots(vector), valueRank, interpreter);
+    return (ListOrVectorSXP<?>)
+        concatToType(SEXPs.dots(vector.withAttributes(Attributes.NONE)), valueRank, interpreter)
+            .withAttributes(vector.attributes());
   }
 
   /// `vector` grown to `size` like GNU-R grows a sub-assignment target: padded with `NA` (`NULL`
@@ -1656,6 +1690,42 @@ public final class Builtins {
 
   // region sub-assignment operators
 
+  /// The generic `[<-` or `[[<-` of `value` into `x` at `index` (and `column` of a matrix).
+  private static Value genericSubAssign(
+      InternalInterpreter interpreter,
+      String name,
+      SEXP x,
+      SEXP index,
+      @Nullable SEXP column,
+      SEXP value) {
+    if (!(x instanceof ListOrVectorSXP<?> vector)) {
+      throw interpreter.failUnsupported(
+          "Mock `" + name + "` not implemented for non-vector objects");
+    }
+    int idx = subscript(interpreter, name, vector, index, column);
+    var result = subAssignTarget(interpreter, name, vector, value);
+    if (idx > result.size()) {
+      result = enlarged(interpreter, name, result, idx);
+    }
+    checkInRange(interpreter, name, result, idx);
+    if (index instanceof StrSXP s && vector.names().indexOf(s.get(0)) == -1) {
+      // GNU-R appends an element with a name that isn't there.
+      var names =
+          new ArrayList<>(
+              result.names().isEmpty() ? Collections.nCopies(result.size(), "") : result.names());
+      names.set(idx - 1, s.get(0));
+      result = (ListOrVectorSXP<?>) result.withNames(names);
+    }
+    interpreter.subscriptStore(
+        result,
+        idx - 1,
+        result instanceof VecSXP
+            ? listElement(interpreter, name, value)
+            // An atomic target ignores the value's names.
+            : sexpToValueOfType(withoutNames(value), result.type(), interpreter, name));
+    return new Value.Sexp(result);
+  }
+
   private static void registerSubAssign(InternalInterpreter interpreter, String name, int numArgs) {
     // Generic: (*, *, *, *) -+> V for `[<-`, (*, *, *) -+> V for `[[<-`
     var genericParams = new Type[numArgs];
@@ -1669,40 +1739,13 @@ public final class Builtins {
               if (args.size() != numArgs) {
                 throw interpreter.fail("`" + name + "` generic takes " + numArgs + " arguments");
               }
-              if (!(args.getFirst() instanceof Value.Sexp(var sexp)
-                  && sexp instanceof ListOrVectorSXP<?> vector)) {
-                throw interpreter.failUnsupported(
-                    "Mock `" + name + "` not implemented for non-vector objects");
-              }
-              var index = args.get(1).box();
-              int idx =
-                  index instanceof StrSXP
-                      ? nameSubscript(interpreter, name, vector, index)
-                      : positionSubscript(interpreter, name, index);
-              var value = args.get(2).box();
-              var result = subAssignTarget(interpreter, name, vector, value);
-              if (idx > result.size()) {
-                result = enlarged(interpreter, name, result, idx);
-              }
-              checkInRange(interpreter, name, result, idx);
-              if (index instanceof StrSXP s && vector.names().indexOf(s.get(0)) == -1) {
-                // GNU-R appends an element with a name that isn't there.
-                var names =
-                    new ArrayList<>(
-                        result.names().isEmpty()
-                            ? Collections.nCopies(result.size(), "")
-                            : result.names());
-                names.set(idx - 1, s.get(0));
-                result = (ListOrVectorSXP<?>) result.withNames(names);
-              }
-              interpreter.subscriptStore(
-                  result,
-                  idx - 1,
-                  result instanceof VecSXP
-                      ? listElement(interpreter, name, value)
-                      // An atomic target ignores the value's names.
-                      : sexpToValueOfType(withoutNames(value), result.type(), interpreter, name));
-              return new Value.Sexp(result);
+              return genericSubAssign(
+                  interpreter,
+                  name,
+                  args.getFirst().box(),
+                  args.get(1).box(),
+                  numArgs == 4 ? column(interpreter, name, args.get(3)) : null,
+                  args.get(2).box());
             }));
 
     Type[] vecTypes = {
@@ -1778,6 +1821,29 @@ public final class Builtins {
         }
       }
     }
+  }
+
+  // endregion
+
+  /// `x[[i, j]] <- value`, which doesn't match `[[<-`'s parameters (`builtins.fir` declares one
+  /// subscript), so only a dynamic call does it.
+  private static void registerMatrixSubAssign2(InternalInterpreter interpreter) {
+    interpreter.registerUnmatchedExternal(
+        baseFunction("[[<-"),
+        arguments -> {
+          var args =
+              arguments.values().stream()
+                  .map(a -> interpreter.eval(new Value.Sexp(evalSpecialArg(interpreter, a))).box())
+                  .toList();
+          if (args.size() != 4
+              || arguments.stream().limit(3).anyMatch(TaggedElem::hasTag)
+              || arguments.get(3).hasTag() && !arguments.get(3).tag().equals("value")) {
+            throw interpreter.failUnsupported(
+                "Mock `[[<-` only takes `x`, one or two subscripts, and `value`");
+          }
+          return genericSubAssign(
+              interpreter, "[[<-", args.get(0), args.get(1), args.get(2), args.get(3));
+        });
   }
 
   // endregion
@@ -3218,6 +3284,85 @@ public final class Builtins {
             .mapToDouble(i -> from + i * by)
             .map(x -> by > 0 ? Math.min(x, to) : Math.max(x, to))
             .toArray());
+  }
+
+  // endregion
+
+  // region matrix
+
+  private static void registerMatrix(InternalInterpreter interpreter) {
+    // v0: (*, *, *, *, *) -+> V
+    interpreter.registerExternal(
+        baseFunction("matrix"),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.REFLECT,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 5) {
+                throw interpreter.fail("`matrix` takes 5 arguments");
+              }
+              var sexps = args.stream().map(Value::box).toList();
+              var data =
+                  sexps.get(0) == SEXPs.MISSING_ARG ? SEXPs.logical(Logical.NA) : sexps.get(0);
+              var byrow = sexps.get(3);
+              var dimnames = sexps.get(4);
+              if (!(data instanceof PrimVectorSXP<?> vector)
+                  || atomicRank(vector) == -1
+                  || vector.hasAttributes()
+                  || !(byrow == SEXPs.MISSING_ARG || byrow.equals(SEXPs.FALSE))
+                  || !(dimnames == SEXPs.MISSING_ARG || dimnames instanceof NilSXP)) {
+                throw interpreter.failUnsupported(
+                    "Mock `matrix` only supports a logical, integer, real, or string vector `data`"
+                        + " without attributes, and no `byrow` or `dimnames`");
+              }
+              var length = vector.size();
+              var nrowArg = matrixDim(interpreter, sexps.get(1));
+              var ncolArg = matrixDim(interpreter, sexps.get(2));
+              if (Integer.valueOf(0).equals(nrowArg) && ncolArg == null
+                  || Integer.valueOf(0).equals(ncolArg) && nrowArg == null) {
+                throw interpreter.failUnsupported("Mock `matrix` needs both of a zero dimension");
+              }
+              int nrow =
+                  nrowArg != null
+                      ? nrowArg
+                      : ncolArg == null ? length : (int) Math.ceil((double) length / ncolArg);
+              int ncol =
+                  ncolArg != null
+                      ? ncolArg
+                      : nrowArg == null ? 1 : (int) Math.ceil((double) length / nrow);
+              var size = nrow * ncol;
+              // GNU-R warns about the other cases.
+              if (length == 0 ? size != 0 : size % length != 0 || size == 0 && length > 1) {
+                throw interpreter.failUnsupported(
+                    "Mock `matrix` only supports a `data` length that divides the non-zero matrix"
+                        + " size");
+              }
+              var elements =
+                  IntStream.range(0, size)
+                      .mapToObj(i -> valueToSexp(interpreter.subscriptLoad(vector, i % length)))
+                      .toArray(SEXP[]::new);
+              return new Value.Sexp(
+                  buildVector(elements, vector)
+                      .withAttributes(Attributes.NONE.including("dim", SEXPs.integer(nrow, ncol))));
+            }));
+  }
+
+  /// A `nrow` or `ncol` argument of `matrix`, or `null` if it's missing.
+  private static @Nullable Integer matrixDim(InternalInterpreter interpreter, SEXP arg) {
+    if (arg == SEXPs.MISSING_ARG) {
+      return null;
+    }
+    var dim = sexpToInt(arg, interpreter, "matrix");
+    if (dim < 0 || dim == Constants.NA_INT) {
+      throw interpreter.fail("invalid 'nrow' or 'ncol' value");
+    }
+    return dim;
   }
 
   // endregion

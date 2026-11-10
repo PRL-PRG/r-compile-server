@@ -19,19 +19,34 @@ class LogicalSubscriptMockTest {
         "`[<-`%< *@!,*,*,dots -+> V >(x, <lgl TRUE>, <real 9.0>, d)"
       })
   void logicalSubscriptIsUnsupported(String call) {
-    var module =
-        ParseUtil.parseModule(
-            """
-            fun main() {
-              () -+> V {
-                x: v(R)o = v(R)[1.0, 2.0];
-                d: dots = dots[];
-                r: V = %s;
-                return r;
-              }
-            }
-            """
-                .formatted(call));
+    assertUnsupported(
+        """
+        x: v(R)o = v(R)[1.0, 2.0];
+        d: dots = dots[];
+        r: V = %s;
+        """
+            .formatted(call));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "`[`%< *@!,*,dots,*@! -+> V >(x, <lgl TRUE>, d, <missing>)",
+        "`[<-`%< *@!,*,*,dots -+> V >(x, <lgl TRUE>, <real 9.0>, d)"
+      })
+  void logicalMatrixSubscriptIsUnsupported(String call) {
+    assertUnsupported(
+        """
+        mf: cls = ldf matrix;
+        x: V = dyn mf(<real 1.0>, <int 2>, <int 2>);
+        d: dots = dots[<int 1>];
+        r: V = %s;
+        """
+            .formatted(call));
+  }
+
+  private static void assertUnsupported(String body) {
+    var module = ParseUtil.parseModule("fun main() {\n  () -+> V {\n" + body + "return r;\n}\n}");
     var interpreter = new InternalInterpreter(module);
     registerBuiltins(interpreter);
 

@@ -127,6 +127,8 @@ public final class InternalInterpreter implements Interpreter {
   // Input
   private final Module module;
   private final Map<Abstraction, ExternalVersion> externalVersions = new HashMap<>();
+  private final Map<Function, java.util.function.Function<ListSXP, Value>> unmatchedExternals =
+      new HashMap<>();
   /// Unevaluated versions whose fallback ran during the current top-level call. They're
   /// evaluated once it returns (see [#call(String, Value...)]), like the compiler compiles a
   /// version while the client runs its stub's fallback.
@@ -316,6 +318,14 @@ public final class InternalInterpreter implements Interpreter {
               + version);
     }
     externalVersions.put(version, javaClosure);
+  }
+
+  /// Run `javaClosure` on the arguments of a dynamic call to `function` that don't match its
+  /// parameters, which is how GNU-R builtins with irregular arguments (e.g. `x[[i, j]] <- value`)
+  /// are called.
+  public void registerUnmatchedExternal(
+      Function function, java.util.function.Function<ListSXP, Value> javaClosure) {
+    unmatchedExternals.put(function, javaClosure);
   }
 
   @Override
@@ -1015,7 +1025,11 @@ public final class InternalInterpreter implements Interpreter {
     try {
       matchedArgumentSexps = matchArguments(closure.parameters(), arguments);
     } catch (MatchException e) {
-      throw fail(e.getMessage());
+      var unmatched = unmatchedExternals.get(function);
+      if (unmatched == null) {
+        throw fail(e.getMessage());
+      }
+      return unmatched.apply(arguments);
     }
     return call(
         function, null, closure.env(), Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new));
