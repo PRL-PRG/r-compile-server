@@ -1076,6 +1076,18 @@ public final class Builtins {
               var b = sexpToLogical(s2, interpreter, name);
               return new Value.Sexp(SEXPs.logical(op.apply(a, b)));
             }));
+    // (L, L) --> L
+    interpreter.registerExternal(
+        name,
+        sig(Type.LOGICAL, Effects.NONE, Type.LOGICAL, Type.LOGICAL),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (!(args.getFirst() instanceof Value.Lgl(var a)
+                  && args.get(1) instanceof Value.Lgl(var b))) {
+                throw interpreter.fail("`" + name + "` (L, L) takes 2 logicals");
+              }
+              return new Value.Lgl(op.apply(a, b));
+            }));
     // (B, B) --> B
     interpreter.registerExternal(
         name,
@@ -2765,6 +2777,17 @@ public final class Builtins {
               return new Value.Bool(
                   condition(
                       sexpToLogical(withoutNames(sexp), interpreter, "as.logical"), interpreter));
+            }));
+    // (L, miss) --> L
+    interpreter.registerExternal(
+        "as.logical",
+        sig(Type.LOGICAL, Effects.NONE, Type.LOGICAL, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (!(args.getFirst() instanceof Value.Lgl lgl)) {
+                throw interpreter.fail("`as.logical` first argument must be logical");
+              }
+              return lgl;
             }));
     // v3: (L, miss) --> B
     interpreter.registerExternal(

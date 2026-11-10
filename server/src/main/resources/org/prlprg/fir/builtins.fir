@@ -218,6 +218,7 @@ fun `&`(lhs, rhs) {
 fun `&&`(lhs, rhs) {
   (lhs:*@!, rhs:*) -+> V { ... }
   (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:L, rhs:L) --> L { ... }
   (lhs:B, rhs:B) --> B { ... }
 }
 
@@ -231,6 +232,7 @@ fun `|`(lhs, rhs) {
 fun `||`(lhs, rhs) {
   (lhs:*@!, rhs:*) -+> V { ... }
   (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
+  (lhs:L, rhs:L) --> L { ... }
   (lhs:B, rhs:B) --> B { ... }
 }
 
@@ -870,6 +872,7 @@ fun `as.logical`(x, `...`) {
   (x:V, ddd:miss) --> v1(L) { ... }
   (x:V, ddd:miss) --> L { ... }
   (x:V, ddd:miss) --> B { ... }
+  (x:L, ddd:miss) --> L { ... }
   (x:L, ddd:miss) --> B { ... }
 }
 

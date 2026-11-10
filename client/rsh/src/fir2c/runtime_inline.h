@@ -588,6 +588,14 @@ DEFINE_INLINE_BUILTIN(int, as_u2einteger, value_missing_fx_none_ret_scalar_int, 
   return Rf_asInteger(value);
 }
 
+// `&&` and `||` on two logical scalars, with R's NA rules (`NA_LOGICAL` is not 0, so not C's).
+DEFINE_INLINE_BUILTIN(Rboolean, _u26_u26, scalar_logical_scalar_logical_fx_none_ret_scalar_logical, Rboolean a, Rboolean b) {
+  return a == FALSE || b == FALSE ? FALSE : a == TRUE && b == TRUE ? TRUE : NA_LOGICAL;
+}
+DEFINE_INLINE_BUILTIN(Rboolean, _u7c_u7c, scalar_logical_scalar_logical_fx_none_ret_scalar_logical, Rboolean a, Rboolean b) {
+  return a == TRUE || b == TRUE ? TRUE : a == FALSE && b == FALSE ? FALSE : NA_LOGICAL;
+}
+
 // as.logical
 // V,miss→L: deopts where `as.logical(x)` isn't one logical (or dispatches), since a version that
 // returns `v1(L)` calls this without a check.
@@ -615,6 +623,10 @@ DEFINE_INLINE_BUILTIN(bool, as_u2elogical, value_missing_fx_none_ret_bool, SEXP 
              : "argument is not interpretable as logical");
   }
   return cond;
+}
+// L,miss→L
+DEFINE_INLINE_BUILTIN(Rboolean, as_u2elogical, scalar_logical_missing_fx_none_ret_scalar_logical, Rboolean value, SEXP missing) {
+  return value;
 }
 // L,miss→B
 DEFINE_INLINE_BUILTIN(bool, as_u2elogical, scalar_logical_missing_fx_none_ret_bool, Rboolean value, SEXP missing) {
