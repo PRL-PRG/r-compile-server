@@ -590,7 +590,7 @@ public final class InternalInterpreter implements Interpreter {
           // baseline.
           var deoptRestoreCfg =
               deoptRestore == null || deoptRestore.isStub() ? null : deoptRestore.body();
-          if (cfg == deoptRestoreCfg) {
+          if (cursor.cfg() == deoptRestoreCfg) {
             throw fail("Can't restore from the same CFG we deoptimized from");
           }
 
