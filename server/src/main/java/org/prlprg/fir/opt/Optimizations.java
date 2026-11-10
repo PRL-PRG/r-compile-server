@@ -274,6 +274,7 @@ public class Optimizations {
                             new CreateBestVersion(9),
                             new CreateOwnedParameterVersion(9),
                             new CreateBorrowedParameterVersion(9))),
+                    modifyCheckpoints ? new HoistLoopAssume() : NOOP,
                     modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
                     modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP))));
   }

@@ -378,6 +378,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `ElideRedundantBoxUnbox.java` — Elides redundant `box`/`unbox` calls by substituting their results with an equivalent register.
 - `ElideUnforcedPromise.java` — Replaces promises that are never forced with a deopt stub (`Promise#isDeoptStub`), which fir2c usually compiles to one promise for the site.
 - `ElideUnusedCheckpoints.java` — Removes checkpoint jumps whose success BB has no Assume statements.
+- `HoistLoopAssume.java` — Moves the loop-invariant assumptions of a loop header's checkpoint to a new checkpoint on the loop's entry edge.
 - `Inline.java` — Inline forces, maybe-forces, and static calls when possible.
 - `LazyCopy.java` — Creates lazy copies of versions, and optimizes them when evaluated.
 - `MergeAssumeLoadVar.java` — Merges a load and an assumption into a load assumption.
