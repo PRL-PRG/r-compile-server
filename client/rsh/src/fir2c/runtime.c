@@ -434,7 +434,8 @@ static void Fir_copy_captures(void **captures, const char *capture_reprs, SEXP d
 
 // The `PRCODE` of a compiled promise (see `Fir_mk_promise` in `runtime.h`).
 static SEXP Fir_promise_code(
-    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP expr) {
+    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP expr,
+    bool frame_tested) {
   int num_captures = (int)strlen(capture_reprs);
   int num_sexps = 0;
   for (int i = 0; i < num_captures; i++) {
@@ -448,15 +449,16 @@ static SEXP Fir_promise_code(
   SET_VECTOR_ELT(data, 2, local_data_sexp);
   Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData *)STDVEC_DATAPTR(local_data_sexp);
   void **copies = num_captures > 0 ? (void **)(local_data + 1) : NULL;
-  *local_data = (Fir_PromiseLocalData) {.captures = copies, .escaped = false};
+  *local_data = (Fir_PromiseLocalData) {.captures = copies, .escaped = false, .frame_tested = frame_tested};
   Fir_copy_captures(captures, capture_reprs, data, copies);
   SEXP ext = R_MakeExternalPtr((void *)evalFromR, Rsh_CodeTag, data);
   UNPROTECT(1); // data
   return ext;
 }
 
-SEXP Fir_mk_promise(
-    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr) {
+static SEXP Fir_mk_promise_with(
+    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr,
+    bool frame_tested) {
   ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
 #ifdef FIR_STATS
   // Before the elided frame is replaced by its parent below.
@@ -467,7 +469,7 @@ SEXP Fir_mk_promise(
     env = ENCLOS(env);
   }
 
-  SEXP ext = PROTECT(Fir_promise_code(evalFromR, cp, captures, capture_reprs, expr));
+  SEXP ext = PROTECT(Fir_promise_code(evalFromR, cp, captures, capture_reprs, expr, frame_tested));
 #ifdef FIR_STATS
   Fir_PromiseGlobalData *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(cp, 0));
   Fir_prom_local(R_ExternalPtrProtected(ext))->elided = elided;
@@ -486,11 +488,36 @@ SEXP Fir_mk_promise(
   return promise;
 }
 
+SEXP Fir_mk_promise(
+    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr) {
+  return Fir_mk_promise_with(evalFromR, cp, captures, capture_reprs, env, expr, false);
+}
+
 SEXP Fir_mk_stub_promise(Rsh_code evalFromR, SEXP cp, SEXP expr) {
-  SEXP ext = PROTECT(Fir_promise_code(evalFromR, cp, NULL, "", expr));
+  SEXP ext = PROTECT(Fir_promise_site_code(evalFromR, cp, expr, false));
   SEXP promise = Rf_mkPROMISE(ext, Rsh_ElidedEnv);
   UNPROTECT(1); // ext
   return promise;
+}
+
+SEXP Fir_promise_site_code(Rsh_code evalFromR, SEXP cp, SEXP expr, bool frame_tested) {
+  return Fir_promise_code(evalFromR, cp, NULL, "", expr, frame_tested);
+}
+
+SEXP Fir_mk_promise_shared(SEXP site_code, SEXP env) {
+#ifdef FIR_STATS
+  SEXP data = R_ExternalPtrProtected(site_code);
+  return Fir_mk_promise_with(
+      (Rsh_code)R_ExternalPtrAddr(site_code), Fir_prom_cp(data), NULL, "", env, Fir_prom_expr(data),
+      Fir_prom_local(data)->frame_tested);
+#else
+  ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
+  // See `Fir_push_env`.
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+  return Rf_mkPROMISE(site_code, env);
+#endif
 }
 
 SEXP Fir_mk_value_promise(SEXP value) {
@@ -517,8 +544,10 @@ void Fir_mark_promises_escaped(SEXP tracked_list) {
 
 /// If the promise escaped its creating frame, either record the escape (as `ESCAPED` global
 /// feedback) or, if it was speculated local, crash. No-op if it hasn't escaped.
-static void Fir_handle_escape(Fir_PromiseGlobalData *global_data, Fir_PromiseLocalData *local_data) {
-  if (!local_data->escaped) {
+static void Fir_handle_escape(
+    Fir_PromiseGlobalData *global_data, Fir_PromiseLocalData *local_data, SEXP env) {
+  if (!local_data->escaped
+      && !(local_data->frame_tested && TYPEOF(env) == ENVSXP && (LEVELS(env) & FIR_FRAME_RETURNED))) {
     return;
   }
   switch (global_data->escaped) {
@@ -550,10 +579,10 @@ SEXP Fir_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data) {
   return value;
 }
 
-void Fir_check_promise_escaped(SEXP data) {
+void Fir_check_promise_escaped(SEXP data, SEXP env) {
   Fir_PromiseGlobalData *global_data =
       (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(Fir_prom_cp(data), 0));
-  Fir_handle_escape(global_data, Fir_prom_local(data));
+  Fir_handle_escape(global_data, Fir_prom_local(data), env);
 }
 
 SEXP Fir_cast(SEXP value, Fir_Type type) {
@@ -686,10 +715,28 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
   return true;
 }
 
+extern RCNTXT *R_GlobalContext;
+
+// Whether `env` is the frame of the innermost closure call. `eval` makes a function context whose
+// `cloenv` is the environment it evaluates in, but whose `callfun` is a builtin.
+static bool Fir_is_closure_frame(SEXP env) {
+  RCNTXT *context = R_GlobalContext;
+  while (context->nextcontext != NULL && !(context->callflag & CTXT_FUNCTION)) {
+    context = context->nextcontext;
+  }
+  return (context->callflag & CTXT_FUNCTION) && context->cloenv == env
+      && TYPEOF(context->callfun) == CLOSXP;
+}
+
 void Fir_pop_env(SEXP *env_ptr, bool pushed, SEXP saved) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "pop_env requires a pointer to an environment");
 
   if (!pushed) {
+    // The frame R made for the from-R call. It returns only if `applyClosure` made it, not if
+    // `eval` runs the code in the live frame of another activation.
+    if (Fir_is_closure_frame(*env_ptr)) {
+      SETLEVELS(*env_ptr, LEVELS(*env_ptr) | FIR_FRAME_RETURNED);
+    }
     Fir_env_push_suppressed = false;
     return;
   }
@@ -707,6 +754,7 @@ void Fir_pop_env(SEXP *env_ptr, bool pushed, SEXP saved) {
     return;
   }
 
+  SETLEVELS(*env_ptr, LEVELS(*env_ptr) | FIR_FRAME_RETURNED);
   if (saved == Rsh_ElidedEnv) {
     *env_ptr = Rsh_ElidedEnv;
     return;
@@ -826,7 +874,7 @@ SEXP Fir_force(SEXP promise) {
     Fir_PromiseLocalData *local_data;
     if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
       // If this promise escaped its creating frame, record the escape or crash (see the helper).
-      Fir_handle_escape(global_data, local_data);
+      Fir_handle_escape(global_data, local_data, PRENV(promise));
       SEXP forced = Fir_eval_promise(
           global_data->eval, PRENV(promise), R_ExternalPtrProtected(PRCODE(promise)));
       SET_PRVALUE(promise, forced);

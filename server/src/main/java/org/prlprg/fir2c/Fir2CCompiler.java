@@ -216,8 +216,22 @@ public final class Fir2CCompiler {
   /// The slot of a promise's constant pool that holds its source expression.
   private static final int PROMISE_EXPR_INDEX = 1;
 
-  /// The pool slot of a shared deopt stub's promise (see [VersionEmitter#isSharedStub]).
-  private static final int PROMISE_STUB_INDEX = 2;
+  /// The pool slot of a promise's [PromiseSharing#STUB] promise or [PromiseSharing#CODE] code.
+  private static final int PROMISE_SITE_INDEX = 2;
+
+  /// How a `Promise` statement creates its promise.
+  private enum PromiseSharing {
+    /// `Fir_mk_promise` for each execution, tracked so it's marked escaped when the frame returns.
+    NONE,
+    /// One promise for the site (`Fir_mk_stub_promise`), see `VersionEmitter#isSharedStub`.
+    STUB,
+    /// One `PRCODE` for the site (`Fir_promise_site_code`), and for each execution only the
+    /// `PROMSXP` (`Fir_mk_promise_shared`). For a promise without captures, which reads only its
+    /// environment. The promise isn't tracked: a local one escaped when its environment has
+    /// `FIR_FRAME_RETURNED`, which `Fir_pop_env` sets.
+    CODE
+  }
+
   private static final String VAR_CAPTURES = "captures";
   private static final String VAR_POOL = "pool";
   private static final String VAR_SIGNATURE = "signature";
@@ -1361,6 +1375,11 @@ public final class Fir2CCompiler {
       /// Whether a frame of this version may be an environment that `missing` reads: the version
       /// has a `MkEnv` of type `REGULAR`, or none (its code runs in an environment from R).
       private final boolean mayHaveRegularEnv;
+      /// Whether every promise of this version is made in the frame of its real `MkEnv`: the
+      /// version has only that `MkEnv`, in the entry after no promise, and pops it only right
+      /// before a return. So its `FIR_FRAME_RETURNED` bit is set when the return marks the tracked
+      /// promises escaped.
+      private final boolean hasOneRealFrame;
 
       /// Declares a stub version (a declaration without code, e.g. a builtin) as `extern`: it's
       /// defined elsewhere (the runtime).
@@ -1411,6 +1430,40 @@ public final class Fir2CCompiler {
                     })
                 .toList();
         mayHaveRegularEnv = mkEnvTypes.isEmpty() || mkEnvTypes.contains(MkEnvType.REGULAR);
+        hasOneRealFrame =
+            mkEnvTypes.size() == 1
+                && mkEnvTypes.getFirst() != MkEnvType.ELIDED
+                && root.entry().statements().stream()
+                    .takeWhile(s -> !(s.expression() instanceof MkEnv))
+                    .noneMatch(s -> s.expression() instanceof Promise)
+                && root.entry().statements().stream().anyMatch(s -> s.expression() instanceof MkEnv)
+                && streamCfgs().flatMap(cfg -> cfg.bbs().stream()).allMatch(this::popsOnlyAtReturn);
+      }
+
+      private boolean popsOnlyAtReturn(BB bb) {
+        var statements = bb.statements();
+        for (var i = 0; i < statements.size(); i++) {
+          if (statements.get(i).expression() instanceof PopEnv
+              && !(bb.jump().expression() instanceof Return
+                  && statements.subList(i + 1, statements.size()).stream()
+                      .allMatch(s -> s.expression() instanceof Noop))) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      /// How `promise`, a statement of `cfg`, creates its promise. A local promise shares its code
+      /// only in [#root], since a nested one escapes when its promise body returns.
+      private PromiseSharing sharing(Promise promise, CFG cfg) {
+        if (isSharedStub(promise)) {
+          return PromiseSharing.STUB;
+        }
+        if (Objects.requireNonNull(captures.get(promise.code())).isEmpty()
+            && (!promise.local() || (cfg == root && hasOneRealFrame))) {
+          return PromiseSharing.CODE;
+        }
+        return PromiseSharing.NONE;
       }
 
       /// Whether `promise` compiles to one promise that every execution of its site gives
@@ -1576,7 +1629,7 @@ public final class Fir2CCompiler {
       private final class PromiseEmitter {
         // Input
         private final Promise promise;
-        private final boolean shared;
+        private final PromiseSharing sharing;
 
         // Output
         private final String constantsCName;
@@ -1587,12 +1640,12 @@ public final class Fir2CCompiler {
 
         PromiseEmitter(
             Promise promise,
-            boolean shared,
+            PromiseSharing sharing,
             CFunction initCFunction,
             CFunction fromRCFunction,
             CFunction evalCFunction) {
           this.promise = promise;
-          this.shared = shared;
+          this.sharing = sharing;
 
           constantsCName = promiseConstantsCName(promise);
           this.initCFunction = initCFunction;
@@ -1648,24 +1701,24 @@ public final class Fir2CCompiler {
               pool.internUnique(promise.expr() != null ? promise.expr() : SEXPs.UNBOUND_VALUE);
           assert exprIdx == PROMISE_EXPR_INDEX;
 
-          if (shared) {
-            var stubIdx = pool.internSpace();
-            assert stubIdx == PROMISE_STUB_INDEX;
-            cCode.stmt(
-                "Fir_set_const(%s, %d, Fir_mk_stub_promise(%s, %s, Fir_const(%s, %d)));",
-                VAR_POOL,
-                stubIdx,
-                promiseFromRCName(promise),
-                VAR_POOL,
-                VAR_POOL,
-                PROMISE_EXPR_INDEX);
+          if (sharing != PromiseSharing.NONE) {
+            var siteIdx = pool.internSpace();
+            assert siteIdx == PROMISE_SITE_INDEX;
+            var fromR = promiseFromRCName(promise);
+            var expr = "Fir_const(%s, %d)".formatted(VAR_POOL, PROMISE_EXPR_INDEX);
+            var site =
+                sharing == PromiseSharing.STUB
+                    ? "Fir_mk_stub_promise(%s, %s, %s)".formatted(fromR, VAR_POOL, expr)
+                    : "Fir_promise_site_code(%s, %s, %s, %s)"
+                        .formatted(fromR, VAR_POOL, expr, promise.local());
+            cCode.stmt("Fir_set_const(%s, %d, %s);", VAR_POOL, siteIdx, site);
           }
         }
 
         private void emitFromR() {
           var cCode = fromRCFunction.add();
           // If the promise escaped its creating frame, record the escape or crash (if local).
-          cCode.stmt("Fir_check_promise_escaped(%s);", VAR_DATA);
+          cCode.stmt("Fir_check_promise_escaped(%s, %s);", VAR_DATA, VAR_ENV);
           cCode.stmt(
               "return Fir_eval_promise(%s, %s, %s);", promiseEvalCName(promise), VAR_ENV, VAR_DATA);
         }
@@ -1741,7 +1794,10 @@ public final class Fir2CCompiler {
           createsPromises =
               cfg.bbs().stream()
                   .flatMap(bb -> bb.statements().stream())
-                  .anyMatch(s -> s.expression() instanceof Promise p && !isSharedStub(p));
+                  .anyMatch(
+                      s ->
+                          s.expression() instanceof Promise p
+                              && sharing(p, cfg) == PromiseSharing.NONE);
           hasEnvOps =
               cfg.bbs().stream()
                   .flatMap(bb -> bb.statements().stream())
@@ -1982,7 +2038,7 @@ public final class Fir2CCompiler {
                       .formatted(registerPlace(Objects.requireNonNull(promise.wrappedValue())));
               case Promise promise -> {
                 // Compile the promise
-                var shared = isSharedStub(promise);
+                var sharing = sharing(promise, cfg);
 
                 var initCName = promiseInitCName(promise);
                 var fromRCName = promiseFromRCName(promise);
@@ -2019,7 +2075,7 @@ public final class Fir2CCompiler {
                 var cpSxp =
                     new PromiseEmitter(
                             promise,
-                            shared,
+                            sharing,
                             promiseInitCFunction,
                             promiseFromRCFunction,
                             promiseEvalCFunction)
@@ -2035,8 +2091,12 @@ public final class Fir2CCompiler {
                     bb.label());
                 initCCode.stmt("%s(%s);", initCName, cp);
 
-                if (shared) {
-                  yield "Fir_const(%s, %d)".formatted(cp, PROMISE_STUB_INDEX);
+                var site = "Fir_const(%s, %d)".formatted(cp, PROMISE_SITE_INDEX);
+                if (sharing == PromiseSharing.STUB) {
+                  yield site;
+                }
+                if (sharing == PromiseSharing.CODE) {
+                  yield "Fir_mk_promise_shared(%s, %s)".formatted(site, VAR_ENV);
                 }
 
                 // Emit the runtime constructor

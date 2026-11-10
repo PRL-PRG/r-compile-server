@@ -158,6 +158,10 @@ typedef struct Fir_PromiseLocalData {
   /// Whether this specific promise instance has escaped, i.e. the stack frame that created it has
   /// exited. Set to `false` when created, then `true` when the creating frame exits.
   bool escaped;
+  /// Whether the instance also escaped when its environment has `FIR_FRAME_RETURNED`. Set in the
+  /// shared code of a local promise without captures (`Fir_promise_site_code`), which isn't
+  /// tracked, so `escaped` stays `false`.
+  bool frame_tested;
   /// The number of runs of the promise's code that haven't returned (see `Fir_eval_promise`).
   int evaluating;
 #ifdef FIR_STATS
@@ -441,6 +445,15 @@ SEXP Fir_mk_promise(
 /// `PRENV = Rsh_ElidedEnv`, so every execution of the site can give it. Not tracked, so never
 /// escaped, and not counted by the `FIR_STATS` counters.
 SEXP Fir_mk_stub_promise(Rsh_code evalFromR, SEXP cp, SEXP expr);
+/// The `PRCODE` of a compiled promise without captures, which every promise of its site shares
+/// (see `Fir_mk_promise_shared`). `frame_tested` is `Fir_PromiseLocalData.frame_tested`.
+SEXP Fir_promise_site_code(Rsh_code evalFromR, SEXP cp, SEXP expr, bool frame_tested);
+/// A compiled promise with the shared `site_code` (`Fir_promise_site_code`) in `env`: one
+/// allocation. Not tracked. With `FIR_STATS`, it gets its own code, so the counters are per instance.
+SEXP Fir_mk_promise_shared(SEXP site_code, SEXP env);
+/// The `gp` bit that `Fir_pop_env` sets in a real frame that it pops, so the frame's activation
+/// returned. GNU-R uses the bits 4, 12, 14 and 15 of an environment (and 11 of a value).
+#define FIR_FRAME_RETURNED (1 << 7)
 #define Fir_prom_expr(data) VECTOR_ELT((data), 0)
 #define Fir_prom_cp(data) VECTOR_ELT((data), 1)
 #define Fir_prom_local(data) ((Fir_PromiseLocalData *)STDVEC_DATAPTR(VECTOR_ELT((data), 2)))
@@ -455,8 +468,8 @@ SEXP Fir_track_promise(SEXP promise, SEXP *tracked_list, PROTECT_INDEX idx);
 void Fir_mark_promises_escaped(SEXP tracked_list);
 /// Given a compiled promise's data (see `Fir_mk_promise`), if it
 /// escaped its creating frame, record the escape or crash (if it was speculated local). Called
-/// before forcing, including when R itself forces the promise.
-void Fir_check_promise_escaped(SEXP data);
+/// before forcing, including when R itself forces the promise. `env` is the promise's environment.
+void Fir_check_promise_escaped(SEXP data, SEXP env);
 /// Run a compiled promise's code `eval` in `env` (`data` as in `Fir_mk_promise`). Both force
 /// paths call it: `Fir_force`, and the from-R entry that R's `forcePromise` calls. When no other
 /// run of the code is active, it then releases the promise's SEXP captures, so they no longer

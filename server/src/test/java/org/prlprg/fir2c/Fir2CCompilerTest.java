@@ -568,12 +568,13 @@ class Fir2CCompilerTest {
   }
 
   /// `missing` reads the environment of a promise whose expression is a symbol, so in a version
-  /// with a `REGULAR` environment such a stub keeps a promise for each execution.
+  /// with a `REGULAR` environment such a stub keeps a promise in that environment for each
+  /// execution (with the site's shared code).
   @Test
   void symbolDeoptStubInRegularEnvIsNotShared() {
     var code = compileDeoptStubs("mkenv");
     assertEquals(1, count(code, "Fir_mk_stub_promise("), code);
-    assertEquals(1, count(code, "Fir_track_promise(Fir_mk_promise("), code);
+    assertEquals(1, count(code, "Fir_mk_promise_shared("), code);
   }
 
   private static String compileDeoptStubs(String mkEnv) {
@@ -605,6 +606,84 @@ class Fir2CCompilerTest {
             }
             """
                 .formatted(mkEnv));
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    return Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+  }
+
+  /// A local promise without captures shares its code for the site, and its escape test reads
+  /// the frame's `FIR_FRAME_RETURNED`, in a version whose only frame is real.
+  @Test
+  void localPromiseWithoutCapturesSharesItsCode() {
+    var code = compilePromise("mkenv~", "prom-", "y1: * = ld y;\n  return y1;");
+    assertEquals(1, count(code, "Fir_promise_site_code("), code);
+    assertTrue(code.contains(", true));"), code);
+    assertEquals(1, count(code, "Fir_mk_promise_shared("), code);
+    assertFalse(code.contains("Fir_track_promise("), code);
+  }
+
+  /// A statement that isn't a promise may come before the `MkEnv` (queens' `solve_queens` boxes
+  /// a parameter first).
+  @Test
+  void localPromiseSharesItsCodeAfterAStatementBeforeTheFrame() {
+    var code =
+        compilePromise(
+            "x0: v1(I) = box< I --> v1(I) >(1);\n    mkenv~",
+            "prom-",
+            "y1: * = ld y;\n  return y1;");
+    assertEquals(1, count(code, "Fir_mk_promise_shared("), code);
+    assertFalse(code.contains("Fir_track_promise("), code);
+  }
+
+  /// A frame of an elided `MkEnv` is its parent's, which outlives the activation.
+  @Test
+  void localPromiseInElidedFrameDoesNotShareItsCode() {
+    var code = compilePromise("mkenv-", "prom-", "y1: * = ld y;\n  return y1;");
+    assertEquals(1, count(code, "Fir_track_promise(Fir_mk_promise("), code);
+    assertFalse(code.contains("Fir_mk_promise_shared("), code);
+  }
+
+  /// A promise that isn't local has no escape test, so it shares its code in any frame.
+  @Test
+  void nonLocalPromiseInElidedFrameSharesItsCode() {
+    var code = compilePromise("mkenv-", "prom", "y1: * = ld y;\n  return y1;");
+    assertTrue(code.contains("Fir_promise_site_code(") && code.contains(", false));"), code);
+    assertEquals(1, count(code, "Fir_mk_promise_shared("), code);
+  }
+
+  @Test
+  void promiseWithCapturesDoesNotShareItsCode() {
+    var code = compilePromise("mkenv~", "prom-", "return x;");
+    assertEquals(1, count(code, "Fir_track_promise(Fir_mk_promise("), code);
+    assertFalse(code.contains("Fir_mk_promise_shared("), code);
+  }
+
+  private static String compilePromise(String mkEnv, String prom, String body) {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (x:V) -+> V {
+                %s;
+                st y = x;
+                p: p(V +) = %s<V +>[<sym y>]{
+                  %s
+                };
+                r: V = f< p(V +) -+> V >(p);
+                popenv;
+                return r;
+              }
+            }
+
+            fun f(a) {
+              (a:*) -+> V {
+                return <int 1>;
+              }
+              (a:p(V +)) -+> V {
+                return <int 1>;
+              }
+            }
+            """
+                .formatted(mkEnv, prom, body));
     var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
     return Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
   }

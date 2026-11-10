@@ -653,6 +653,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/complex_assign_aliasing.R` — Setter calls on vectors that something else holds (a variable, a parameter, a closure, the index or value), which the assignment protocol must copy.
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
+- `.../examples/R/eval_compiled_body_in_live_frame.R` — `eval` of a compiled closure's body in a live frame: its pop must not mark that frame as returned (`FIR_FRAME_RETURNED`).
 - `.../examples/R/closure_called_from_inlined_frame_in_elided_frame.R` — A closure made in a real frame inside an elided frame, called with its own elided frame: no cycle in the parent chain.
 - `.../examples/R/closure_from_frame_nested_in_elided_frame.R` — A closure from a real frame that an elided frame contains: its lookups reach the elided frame's parent, not the elided environment's current parent.
 - `.../examples/R/elided_frame_after_caught_error.R` — An elided frame whose callee, called from R, catches an error past a pushed elided frame: the from-R exit restores the elided environment's parent.
@@ -681,6 +682,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/promise_store_in_inlined_callee.R` — The argument promise `x <- 2` of an inlined callee stores into the caller's environment, not the callee's (`Inline` must not inline the force there, and `OriginAnalysis` must run the body without the callee's environment).
 - `.../examples/R/promise_of_copied_vector_subscript.R` — A kept promise `w[1]` of a constant vector: the folded subscript of a `v1(R)` version is a boxed constant (`OriginAnalysis` constant folding).
 - `.../examples/R/promise_capture_{outlives_frame,param_closure,wrapper_rebound}.R` — A promise that reads a register of its frame is forced after the frame returns, so it must keep a copy of the register (`Fir_mk_promise`).
+- `.../examples/R/promise_site_code.R` — Promises without captures, which share one code object for their site (`Fir_promise_site_code`): forced in a loop, and kept by a closure past their creator (`gcTorture`).
 - `.../examples/R/subscript_default_method.R` — Subscripts that the fir2c runtime sends straight to the default method of `[`, `[[`, `[<-` and `[[<-`, and S3 targets that must still dispatch (`gcTorture`).
 - `.../examples/R/missing_promise_elided.R` — `missing` follows a promise into the caller's frame, so the caller's environment must stay materialized.
 - `.../examples/R/missing_unknown_callee.R` — `seq.default` (a base closure, so a dynamic callee) calls `missing` on a promise of a symbol, which reads the caller's environment: it must not become non-reflective.
