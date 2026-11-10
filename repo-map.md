@@ -64,6 +64,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `client/rsh/src/bc2c/runtime.c`, `runtime.h`, `runtime_impl.h`, `runtime_internals.h` — Runtime of bc2c's generated C.
 - `client/rsh/src/bc2c/opcodes.h`, `opcodes_internals.h` — Bytecode operation implementations for bc2c's generated C.
 - `client/rsh/src/fir2c/runtime.c`, `runtime.h` — Runtime of fir2c's generated C: values, calls, stubs, bytecode baselines, recordings; with `-DFIR_STATS`, copy and promise counters (`Fir_stats_get`).
+- `client/rsh/src/fir2c/runtime_inline.h` — The runtime's scalar builtins and intrinsics and subscript reads and writes, `static inline` so that modules inline them (C only; included by `runtime.h`).
 - `client/rsh/src/fir2c/print_sexp.c`, `print_sexp.h` — Debug printer for SEXPs.
 
 ## fir-intellij-plugin
