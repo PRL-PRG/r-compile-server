@@ -7,14 +7,17 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.CfgReachability;
 import org.prlprg.fir.analyze.cfg.Loads;
+import org.prlprg.fir.analyze.cfg.Loops;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -72,7 +75,7 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 /// - It re-stores the promoted value in every deopt branch, because a deopt resumes GNU-R
 ///   bytecode that reads the variable out of the environment.
 ///   So a variable that is only stored is promoted too: only the deopt branches keep its stores.
-/// - A loaded variable that is only *maybe* bound at some deopt is promoted where it's bound (where
+/// - A variable that is only *maybe* bound at some deopt is promoted where it's bound (where
 ///   [OriginAnalysis] knows its origins), and stored back on each edge out of that region (see
 ///   [#writeBack]), so a deopt out of the region sees the binding the removed stores left.
 public final class PromoteStaticallyKnownVariables extends AbstractionOptimization {
@@ -86,6 +89,11 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
       return false;
     }
     var cfg = abstraction.body();
+
+    // [OriginAnalysis] has no state for an unreachable block, and a phi needs an argument from
+    // every predecessor, so remove them (without `DEBUG`, nothing else has yet).
+    var reachable = new CfgReachability(cfg).maySucceed(cfg.entry());
+    cfg.bbs().stream().filter(bb -> !reachable.contains(bb)).toList().forEach(cfg::removeBB);
 
     var changed = false;
     while (true) {
@@ -119,17 +127,22 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
               CfgDominatorTree.class,
               CfgHierarchy.class,
               CfgReachability.class,
-              Loads.class);
+              Loads.class,
+              Loops.class);
       var originAnalysis = analyses.get(OriginAnalysis.class);
       var hierarchy = analyses.get(CfgHierarchy.class);
       var loads = analyses.get(Loads.class);
       var reachability = analyses.get(cfg, CfgReachability.class);
       var dominatorTree = analyses.get(cfg, CfgDominatorTree.class);
+      var loops = analyses.get(cfg, Loops.class);
       var dominanceFrontier = dominanceFrontier(dominatorTree);
 
       for (var candidate : collectCandidates(originAnalysis, hierarchy, loads).values()) {
         var writeBack = !deoptsKeepTheBinding(candidate, originAnalysis, reachability);
-        if (writeBack && (loads.get(candidate.variable()).isEmpty() || !hasOneEnv())) {
+        if (writeBack
+            && (!hasOneEnv()
+                || (loads.get(candidate.variable()).isEmpty()
+                    && !storesLessOften(candidate, originAnalysis, loops)))) {
           continue;
         }
         promote(candidate, writeBack, originAnalysis, dominatorTree, dominanceFrontier);
@@ -151,6 +164,34 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
               .filter(statement -> statement.expression() instanceof MkEnv)
               .count()
           == 1;
+    }
+
+    /// Whether a store of the store-only `candidate` is in a loop that contains no end of the
+    /// region where the variable is bound. Then [#rename] stores it back less often than the loop
+    /// stores it. After a promotion, each store is at an end of the region, so this stops the loop
+    /// in [#runWithoutRecording].
+    private boolean storesLessOften(
+        Candidate candidate, OriginAnalysis originAnalysis, Loops loops) {
+      var variable = candidate.variable();
+      var ends = cfg.bbs().stream().filter(bb -> endsRegion(bb, variable, originAnalysis)).toList();
+      return candidate.storeBlocks().stream()
+          .map(loops::getInnermostLoop)
+          .filter(Objects::nonNull)
+          .anyMatch(loop -> ends.stream().noneMatch(loop::contains));
+    }
+
+    /// Whether the region where `variable` is bound ends in `bb` (see [#lostAt]), or on an edge
+    /// from `bb` to a block that isn't a deopt branch.
+    private static boolean endsRegion(
+        BB bb, NamedVariable variable, OriginAnalysis originAnalysis) {
+      var lost = lostAt(bb, variable, originAnalysis);
+      return IntStream.range(0, lost.length).anyMatch(i -> lost[i])
+          || (!originAnalysis.getPossible(bb, bb.statements().size() - 1, variable).isEmpty()
+              && bb.successors().stream()
+                  .anyMatch(
+                      successor ->
+                          !(successor.jump().expression() instanceof Deopt)
+                              && originAnalysis.getPossible(successor, -1, variable).isEmpty()));
     }
 
     /// Whether every deopt branch a store can reach still knows what the variable holds, so

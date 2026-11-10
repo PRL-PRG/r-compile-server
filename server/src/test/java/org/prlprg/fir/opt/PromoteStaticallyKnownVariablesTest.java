@@ -423,6 +423,36 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     assertFalse(run(abstraction), Printer.toString(abstraction));
   }
 
+  /// Without `DEBUG`, no cleanup removes the unreachable block `U` before the pass.
+  @Test
+  void unreachableBlock_isRemovedFirst() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (cond:B) --> I {
+              mkenv;
+              goto H();
+            H():
+              check B() else D();
+            B():
+              if cond then Body() else Exit();
+            Body():
+              st x = <int 1>;
+              goto H();
+            Exit():
+              popenv;
+              return 0;
+            D():
+              deopt 0 [];
+            U():
+              unreachable;
+            }
+            """);
+
+    // Like `storeOnlyVariableMaybeUnboundAtDeopt_isLeftAlone`.
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
   /// An inlined callee's frame reads the variable with `ld-super`.
   @Test
   void storeOnlyVariableReadBySuperLoad_isLeftAlone() {
@@ -509,11 +539,14 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var printed = full.substring(full.indexOf("(n:v1(I))"));
     assertTrue(Checker.checkAll(module), "should type-check:\n" + printed);
     assertFalse(printed.contains("ld j"), printed);
-    for (var label : List.of("IH", "IB", "IBody", "IB2", "Set", "Next", "Exit", "DH", "DX")) {
-      assertFalse(block(printed, label).contains("st j"), label + " in:\n" + printed);
-    }
-    for (var label : List.of("IExit", "DI", "DI2")) {
-      assertTrue(block(printed, label).contains("st j"), label + " in:\n" + printed);
+    // `k` is only stored, but the same way.
+    for (var variable : List.of("j", "k")) {
+      for (var label : List.of("IH", "IB", "IBody", "IB2", "Set", "Next", "Exit", "DH", "DX")) {
+        assertFalse(block(printed, label).contains("st " + variable), label + " in:\n" + printed);
+      }
+      for (var label : List.of("IExit", "DI", "DI2")) {
+        assertTrue(block(printed, label).contains("st " + variable), label + " in:\n" + printed);
+      }
     }
     assertFalse(run(module), "a second run should change nothing:\n" + printed);
   }
@@ -694,6 +727,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     assertFalse(block(printed, "S").contains("st x"), printed);
     assertTrue(block(printed, "S2").contains("st x = <int 1>;"), printed);
     assertTrue(block(printed, "D1").contains("st x = <int 1>;"), printed);
+    assertFalse(run(module), "a second run should change nothing:\n" + printed);
   }
 
   /// A `force` of a promise that the analysis doesn't know taints the environment, so `x` is
@@ -821,15 +855,18 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     if (skip == 0 && failInner == 99 && (failOuter == 1 || (outer > 0 && failOuter == 99))) {
       var pc = failOuter == 1 ? 0 : 3;
       assertTrue(
-          afterTrace.stream().anyMatch(s -> s.pc() == pc && s.toString().contains("j=4")),
+          afterTrace.stream()
+              .anyMatch(
+                  s ->
+                      s.pc() == pc && s.toString().contains("j=4") && s.toString().contains("k=4")),
           afterTrace.toString());
     }
   }
 
   /// `f` has an outer loop of `outer` trips (counter `i1` = 1, 2, ...); a trip with `skip < i1`
-  /// stores `j = i1` and runs an inner loop that increments `j` while it's less than 4. The
-  /// version's assumptions fail at the outer loop head when `i >= failOuter`, and in the inner loop
-  /// when `j >= failInner`. Both versions return `outer`.
+  /// stores `j = i1` and runs an inner loop that increments `j` while it's less than 4. `k` gets
+  /// the same stores, but no load. The version's assumptions fail at the outer loop head when
+  /// `i >= failOuter`, and in the inner loop when `j >= failInner`. Both versions return `outer`.
   private static String innerLoop(int outer, int skip, int failOuter, int failInner) {
     return """
         fun f(n) {
@@ -850,6 +887,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
           Set():
             jb: v1(I) = box< I --> v1(I) >(i1);
             st j = jb;
+            st k = jb;
             goto IH();
           IH():
             jl: * = ld j;
@@ -866,6 +904,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
             j2: I = `+`< I,I --> I >(ju, 1);
             j2b: v1(I) = box< I --> v1(I) >(j2);
             st j = j2b;
+            st k = j2b;
             goto IH();
           IExit():
             goto Next();
@@ -911,6 +950,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
           Set():
             jb: v1(I) = box< I --> v1(I) >(i1);
             st j = jb;
+            st k = jb;
             goto IH();
           IH():
             jl: * = ld j;
@@ -930,6 +970,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
             j2: I = `+`< I,I --> I >(ju, 1);
             j2b: v1(I) = box< I --> v1(I) >(j2);
             st j = j2b;
+            st k = j2b;
             goto IH();
           IExit():
             goto Next();
