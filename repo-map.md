@@ -701,6 +701,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/unused_load_unbound_variable.R` — An unused load of an unbound variable still raises "object 'y' not found" (`InferEffects#maySignal`, `Cleanup`).
 - `.../examples/R/unused_print_constant.R` — An unused `print(5L)` still prints, in a loop too (the typed `print` versions are reflective).
 - `.../examples/R/cold_print_method_writes_caller.R` — A `print` call that never ran in the warmup dispatches to a method that writes to `parent.frame()` (`SpeculateAssume`, `GlobalModules#runsNoRCode`).
+- `.../examples/R/forwarded_promise_substitute_closure.R` — A closure keeps the frame of a callee that got a promise parameter, so `StrictifyPromise` must not forward the caller's own promise.
 - `.../examples/R/cold_shadowed_builtin_guard.R` — A cold `bitwXor` call that the user shadows after the warmup: the assumption that it's the builtin must stay checked (`DeferIntoPromise`).
 - `.../examples/R/missing_default_after_supplied.R` — `missing` of parameters with a default (a promise, a constant) after a warm-up that supplied them, and after an assignment.
 - `.../examples/R/quote_empty_arg.R` — `quote(expr = )`: a supplied empty argument of a builtin call.

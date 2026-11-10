@@ -13,10 +13,13 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -29,6 +32,7 @@ import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -53,6 +57,8 @@ import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Streams;
 
@@ -69,12 +75,14 @@ import org.prlprg.util.Streams;
 ///   not after something in the caller that can ([#isQuiet]): a warning or an error stays in order
 ///
 /// Skips a callee that is `@needsContext` or `@needsPromises`: a version that takes a value wraps
-// it
-/// in a promise without the caller's expression, so e.g. `substitute` or `missing` there sees the
-/// value.
+/// it in a promise without the caller's expression, so e.g. `substitute` or `missing` there sees
+/// the value.
 ///
 /// Furthermore, only inlines if there's a compatible version with the new signature, or one can
 /// be created from the old version (in which case creates it)
+///
+/// Before that, passes the caller's own promise parameter in place of a promise that would only
+/// force it ([#forwardedParameter]).
 public final class StrictifyPromise extends AbstractionOptimization {
   private record Inlineable(
       int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
@@ -97,15 +105,31 @@ public final class StrictifyPromise extends AbstractionOptimization {
         var stmt = bb.statements().get(callIdx);
         if (!(stmt.expression() instanceof Call(StaticFnCallee callee))
             || callee.function().userProperties().needsContext()
-            || callee.function().userProperties().needsPromises()) {
+            || callee.function().userProperties().needsPromises()
+            || callee.function().userProperties().readsPromise()) {
           continue;
         }
+        var calleeSig = callee.signature();
+
+        // Pass our own parameter in place of a promise that would only force it. The promise is
+        // then unused, and `Cleanup` removes it.
+        for (int j = 0; j < Math.min(stmt.argCount() - 1, calleeSig.parameterTypes().size()); j++) {
+          var forwarded =
+              forwardedParameter(stmt.arg(j + 1), scope, calleeSig.parameterTypes().get(j));
+          // The promise's expression and environment are observable there, and differ.
+          if (forwarded != null
+              && !isReflectedOn(callee.exactVersion(), j)
+              && !exposesFrame(callee)) {
+            stmt.setArg(j + 1, new Read(forwarded));
+            changed = true;
+          }
+        }
+
         // Call arguments follow the callee's own argument (index 0).
         var callArguments = stmt.args().subList(1, stmt.argCount());
 
         var calleeFun = callee.function();
         var calleeIsDispatch = callee.isDispatch();
-        var calleeSig = callee.signature();
         var parameterStrictnesses = calleeSig.parameterStrictnesses();
 
         // Find inlinable promise arguments
@@ -301,6 +325,78 @@ public final class StrictifyPromise extends AbstractionOptimization {
     return changed;
   }
 
+  /// The parameter `x` of `scope` to pass in place of `arg`, if `arg` is a singly-used promise
+  /// that is either:
+  /// - `{ v = force x; return v }` (or `force?`), or
+  /// - a stub `[<sym X>]{ deopt }` where `X` is `x`'s name and stays bound to `x`
+  ///   ([#bindingHoldsParameter]): forcing it would load `X`, i.e. force `x`.
+  ///
+  /// `x` must be a definite promise that matches `parameterType`. Forcing `x` gives the same value
+  /// with the same effects, once, and a stub now gives it instead of deoptimizing.
+  private static @Nullable Register forwardedParameter(
+      Argument arg, Abstraction scope, Type parameterType) {
+    if (!(arg instanceof Read(var reg))
+        || !(reg instanceof AssigneeOf assignee)
+        || reg.uses().size() != 1
+        || !(assignee.statement().expression() instanceof Promise(_, _, var code, _, var expr))
+        || code.bbs().size() != 1) {
+      return null;
+    }
+    var entry = code.entry();
+    var statements = entry.statements();
+    Register parameter = null;
+    if (statements.isEmpty()
+        && entry.jump().expression() instanceof Deopt
+        && expr instanceof RegSymSXP symbol) {
+      parameter =
+          scope.parameters().stream()
+              .filter(p -> p.name().equals(symbol.name()) && bindingHoldsParameter(scope, p))
+              .findFirst()
+              .orElse(null);
+    } else if (statements.size() == 1
+        && statements.getFirst().expression() instanceof Force
+        && statements.getFirst().arg(0) instanceof Read(var forced)
+        && scope.isParameter(forced)
+        && entry.jump().expression() instanceof Return
+        && statements.getFirst().assignee() instanceof Register value
+        && entry.jump().args().equals(List.of(new Read(value)))) {
+      parameter = forced;
+    }
+    return parameter != null
+            && parameter.type().isPromise()
+            && parameter.type().matches(parameterType)
+        ? parameter
+        : null;
+  }
+
+  /// Whether the binding of `parameter`'s name in `scope`'s environment is always `parameter`:
+  /// every `st` to it stores `parameter`, and nothing else can rebind it (a reflective store, a
+  /// closure that isn't static, or a reflective environment). `scope` must make at most one
+  /// environment, so a promise can't be in the frame of an inlined callee.
+  private static boolean bindingHoldsParameter(Abstraction scope, Register parameter) {
+    var name = Variable.named(parameter.name());
+    var statements =
+        scope
+            .streamCfgs()
+            .flatMap(cfg -> cfg.bbs().stream())
+            .flatMap(bb -> bb.statements().stream())
+            .toList();
+    return statements.stream().filter(s -> s.expression() instanceof MkEnv).count() <= 1
+        && statements.stream()
+            .allMatch(
+                statement ->
+                    switch (statement.expression()) {
+                      case Store(_, var variable) ->
+                          !variable.equals(name)
+                              || (statement.arg(0) instanceof Read(var stored)
+                                  && stored == parameter);
+                      case ReflectiveStore(var variable) -> !variable.equals(name);
+                      case Closure(var isStatic, _) -> isStatic;
+                      case MkEnv(var type) -> type != MkEnvType.REGULAR;
+                      default -> true;
+                    });
+  }
+
   /// Whether some block of `code` deopts.
   ///
   /// `deopt <pc>` names a position in the bytecode object of the abstraction it's in, so a block
@@ -462,6 +558,39 @@ public final class StrictifyPromise extends AbstractionOptimization {
       // Write a vector in place, or -- through a callee or another promise -- anything at all.
       case Call _, Force _, ReflectiveLoad _, ReflectiveStore _, SubscriptWrite _ -> false;
     };
+  }
+
+  /// Whether R code other than `callee` can read the expression of a promise it gets: a method
+  /// that a builtin dispatches to ([GlobalModules#runsNoRCode]), or code that gets the frame of a
+  /// module function's version, which escapes through a closure it creates or to a function it
+  /// calls that reads its caller's context or that we can't see into (a dynamic callee or a GNU-R
+  /// base closure).
+  ///
+  /// This doesn't follow static calls further, so a callee of a callee that reads the context
+  /// (`sys.frames()`) still can.
+  private static boolean exposesFrame(StaticFnCallee callee) {
+    var owner = callee.function().owner();
+    if (owner == GlobalModules.BUILTINS || owner == GlobalModules.INTRINSICS) {
+      return owner == GlobalModules.BUILTINS && !GlobalModules.runsNoRCode(callee.function());
+    }
+    var version = callee.exactVersion();
+    return version == null
+        || !version.isEvaluated()
+        || version
+            .streamCfgs()
+            .flatMap(cfg -> cfg.bbs().stream())
+            .flatMap(bb -> bb.statements().stream())
+            .anyMatch(
+                statement ->
+                    switch (statement.expression()) {
+                      case Closure _ -> true;
+                      case Call(DynamicCallee _) -> true;
+                      case Call(StaticFnCallee c) ->
+                          c.function().userProperties().needsContext()
+                              || c.function().userProperties().readsContext()
+                              || GlobalModules.isBaseClosure(c.function());
+                      default -> false;
+                    });
   }
 
   /// Whether `version`'s `argIndex`-th parameter is the target of a reflective load or store, so
