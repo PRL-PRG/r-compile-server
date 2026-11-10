@@ -65,6 +65,7 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 ///   observable.
 /// - It re-stores the promoted value in every deopt branch, because a deopt resumes GNU-R
 ///   bytecode that reads the variable out of the environment.
+///   So a variable that is only stored is promoted too: only the deopt branches keep its stores.
 public final class PromoteStaticallyKnownVariables extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
@@ -232,7 +233,11 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
                   continue;
                 }
 
-                candidates.computeIfAbsent(variable, Candidate::new).addStore(bb);
+                // A store in a deopt branch is the form a promotion leaves, so it alone doesn't
+                // make a candidate (the promotion would only put it back).
+                if (!(bb.jump().expression() instanceof Deopt)) {
+                  candidates.computeIfAbsent(variable, Candidate::new).addStore(bb);
+                }
               }
               case Load(var loadType, var variable)
                   when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN -> {
@@ -243,10 +248,7 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
                   if (loadType != LoadType.LOCAL_VAR
                       || !readsCreationTimeValue(someCfg, variable, originAnalysis, hierarchy)) {
                     forbidden.add(variable);
-                    continue;
                   }
-
-                  candidates.computeIfAbsent(variable, Candidate::new).addLoad();
                   continue;
                 }
 
@@ -256,11 +258,13 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
                     || (loadType == LoadType.LOCAL_FUN
                         && origins.stream().anyMatch(origin -> !isClosure(origin)))) {
                   forbidden.add(variable);
-                  continue;
                 }
-
-                candidates.computeIfAbsent(variable, Candidate::new).addLoad();
               }
+              // An inlined callee's frame reads and writes this one's bindings with these.
+              case Load(var loadType, var variable) when loadType == LoadType.SUPER_VAR ->
+                  forbidden.add(variable);
+              case Store(var storeType, var variable) when storeType == StoreType.SUPER_VAR ->
+                  forbidden.add(variable);
               case ReflectiveLoad(var variable) -> forbidden.add(variable);
               case ReflectiveStore(var variable) -> forbidden.add(variable);
               case org.prlprg.fir.ir.expression.Assume(var assumption) -> {
@@ -291,9 +295,6 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
                           load ->
                               !(load.expression() instanceof Load(_, var loaded)
                                   && loaded.equals(candidate.variable()))));
-      candidates
-          .values()
-          .removeIf(candidate -> !candidate.hasLoads() || candidate.storeBlocks().isEmpty());
       return candidates;
     }
 
@@ -596,7 +597,6 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
   private static final class Candidate {
     private final NamedVariable variable;
     private final LinkedHashSet<BB> storeBlocks = new LinkedHashSet<>();
-    private int loads = 0;
 
     private Candidate(NamedVariable variable) {
       this.variable = variable;
@@ -608,14 +608,6 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
 
     void addStore(BB bb) {
       storeBlocks.add(bb);
-    }
-
-    void addLoad() {
-      loads++;
-    }
-
-    boolean hasLoads() {
-      return loads > 0;
     }
 
     Set<BB> storeBlocks() {

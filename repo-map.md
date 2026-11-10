@@ -708,6 +708,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/mod_max_builtins_{int,real}.R` — `%%` and `max` edge cases (signs, zero divisor, `NA`/`NaN`, recycling) with integer and real results, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_na_nan_consts.R` — `` `%%`(NA_real_, y) `` and `` `%%`(NaN, y) `` in one function: the two call constants must stay apart (bytecode RDS round trip, constant pools).
 - `.../examples/R/subassign_scalar.R` — Scalar `x[[i]] <- v` and `x[i] <- v` on unshared vectors, which the fir2c runtime stores directly: value and vector types, attributes, a class, growth, a real index, an alias.
+- `.../examples/R/dots_read_only_by_ddnum.R` — A function that reads `...` only through `..1`, so its store of `...` must stay.
 - `.../examples/R/unused_call_keeps_warning.R` — An unused `sqrt(x)` call still warns "NaNs produced" (`@signals`, `Cleanup`).
 - `.../examples/R/unused_load_unbound_variable.R` — An unused load of an unbound variable still raises "object 'y' not found" (`InferEffects#maySignal`, `Cleanup`).
 - `.../examples/R/unused_print_constant.R` — An unused `print(5L)` still prints, in a loop too (the typed `print` versions are reflective).

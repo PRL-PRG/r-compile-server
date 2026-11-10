@@ -1,10 +1,15 @@
 package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
+import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXPs;
 
 class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnitTest {
   @Override
@@ -302,6 +307,155 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
 
     assertFalse(run(abstraction), Printer.toString(abstraction));
   }
+
+  /// The shape of a `while` loop whose variable is only stored: the loop has no store, and the
+  /// deopt branch at the loop head stores the value of the current trip.
+  @Test
+  void storeOnlyLoopVariable_isStoredOnlyBeforeDeopt() {
+    var module = ParseUtil.parseModule(STORE_ONLY_LOOP);
+
+    assertTrue(run(module), "store-only variable should be promoted");
+
+    var printed = Printer.toString(module);
+    var version = printed.substring(printed.indexOf("(n:v1(I))"));
+    assertOnlyStoredBeforeDeopt(version, "x");
+    assertTrue(version.contains("H(i: I, x"), "loop head should get a phi:\n" + printed);
+    assertFalse(run(module), "a second run should change nothing:\n" + printed);
+  }
+
+  /// The version's assumption fails in the fourth trip and the baseline continues. The result and
+  /// every checkpoint snapshot (including the deopt's frame) are the same before and after the
+  /// promotion.
+  @Test
+  void storeOnlyLoopVariable_keepsTheDeoptState() {
+    var module = ParseUtil.parseModule(STORE_ONLY_LOOP);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+    var argument = new Value.Sexp(SEXPs.integer(1));
+
+    var before = new Value[1];
+    var after = new Value[1];
+    var beforeTrace =
+        interpreter.checkpointTrace().track(() -> before[0] = interpreter.call("f", argument));
+    assertTrue(run(module));
+    var afterTrace =
+        interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("f", argument));
+
+    var printed = Printer.toString(module);
+    assertEquals(new Value.Sexp(SEXPs.integer(5)), after[0], printed);
+    assertEquals(before[0], after[0], printed);
+    assertEquals(beforeTrace, afterTrace, printed);
+    // The deopt in the fourth trip (`i` is 3) has the `x` of the third trip.
+    assertTrue(
+        beforeTrace.stream()
+            .anyMatch(
+                s -> s.pc() == 0 && s.toString().contains("[3]") && s.toString().contains("(x=3)")),
+        beforeTrace.toString());
+  }
+
+  /// The shape of a `for` variable: a store in the body only, so the variable is maybe unbound at
+  /// the loop-head deopt.
+  @Test
+  void storeOnlyVariableMaybeUnboundAtDeopt_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (cond:B) --> I {
+              mkenv;
+              goto H();
+            H():
+              check B() else D();
+            B():
+              if cond then Body() else Exit();
+            Body():
+              st x = <int 1>;
+              goto H();
+            Exit():
+              popenv;
+              return 0;
+            D():
+              deopt 0 [];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// An inlined callee's frame reads the variable with `ld-super`.
+  @Test
+  void storeOnlyVariableReadBySuperLoad_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            () --> V {
+              mkenv;
+              st x = <int 1>;
+              mkenv;
+              y: * = ld-super x;
+              popenv;
+              popenv;
+              return y;
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  @Language("FIR")
+  private static final String STORE_ONLY_LOOP =
+      """
+      fun f(n) {
+        (n:*) --> V {
+          mkenv;
+          st x = <int 0>;
+          goto H(0);
+        H(i: I):
+          check B() else D();
+        B():
+          l: L = `<`< I,I --> L >(i, 5);
+          c: B = naToFalse< L --> B >(l);
+          if c then Body() else Exit();
+        Body():
+          i1: I = `+`< I,I --> I >(i, 1);
+          xb: v1(I) = box< I --> v1(I) >(i1);
+          st x = xb;
+          goto H(i1);
+        Exit():
+          r: * = ld x;
+          popenv;
+          return r;
+        D():
+          ib: v1(I) = box< I --> v1(I) >(i);
+          deopt 0 [ib];
+        }
+        (n:v1(I)) --> V {
+          mkenv;
+          st x = <int 0>;
+          goto H(0);
+        H(i: I):
+          k: L = `<`< I,I --> L >(i, 3);
+          kk: B = naToFalse< L --> B >(k);
+          check B() else D();
+        B():
+          kk ?= TRUE;
+          l: L = `<`< I,I --> L >(i, 5);
+          c: B = naToFalse< L --> B >(l);
+          if c then Body() else Exit();
+        Body():
+          i1: I = `+`< I,I --> I >(i, 1);
+          xb: v1(I) = box< I --> v1(I) >(i1);
+          st x = xb;
+          goto H(i1);
+        Exit():
+          ib: v1(I) = box< I --> v1(I) >(i);
+          popenv;
+          return ib;
+        D():
+          ib2: v1(I) = box< I --> v1(I) >(i);
+          deopt 0 [ib2];
+        }
+      }
+      """;
 
   private static void assertNoVariableTraffic(String printed, String variable) {
     assertFalse(printed.contains("st " + variable + " ="), "store should be removed:\n" + printed);
