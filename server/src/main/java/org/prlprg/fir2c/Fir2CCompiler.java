@@ -223,6 +223,7 @@ public final class Fir2CCompiler {
   private static final String VAR_ENV_PUSHED = "env_pushed";
   private static final String VAR_ENV_SAVED = "env_saved";
   private static final String VAR_ENV_DEPTH = "env_depth";
+  private static final String VAR_ENV_IDX = "env_idx";
   /// The environment a version's C function receives, before its `MkEnv` replaces [#VAR_ENV].
   private static final String VAR_ENV_CLOSURE = "env_closure";
 
@@ -1751,12 +1752,21 @@ public final class Fir2CCompiler {
         /// Declares the bit stack of what each active `MkEnv` returned (the top is bit 0), which
         /// its `PopEnv` passes to `Fir_pop_env`, and the stack of slots where `Fir_push_env`
         /// saves what `Fir_pop_env` restores. `MkEnv`s nest within a frame after inlining.
+        ///
+        /// Also protects the environment and each saved slot in a protect slot of its own, which
+        /// the env operations `REPROTECT`, since a pushed frame outlives the basic block that
+        /// pushes it. The slots are below every basic block's protects and released at `Return`.
         private void emitEnvPushedDeclaration() {
           if (hasEnvOps) {
             var sec = cFunction.add();
             sec.stmt("uint64_t %s = 0;", VAR_ENV_PUSHED);
             sec.stmt("SEXP %s[%d];", VAR_ENV_SAVED, Math.max(numMkEnvs, 1));
             sec.stmt("int %s = 0;", VAR_ENV_DEPTH);
+            sec.stmt("PROTECT_INDEX %s;", VAR_ENV_IDX);
+            sec.stmt("PROTECT_WITH_INDEX(%s, &%s);", VAR_ENV, VAR_ENV_IDX);
+            for (var i = 0; i < numMkEnvs; i++) {
+              sec.stmt("PROTECT(%s[%d] = R_NilValue);", VAR_ENV_SAVED, i);
+            }
           }
           if (materializesEnv) {
             cFunction.add().stmt("SEXP %s = %s;", VAR_ENV_CLOSURE, VAR_ENV);
@@ -1840,6 +1850,7 @@ public final class Fir2CCompiler {
           private void emitMaterializeEnv() {
             if (materializesEnv && bb.jump().expression() instanceof Deopt) {
               cCode.stmt("Fir_materialize_env(&%s, %s);", VAR_ENV, VAR_ENV_CLOSURE);
+              cCode.stmt("REPROTECT(%s, %s);", VAR_ENV, VAR_ENV_IDX);
             }
           }
 
@@ -2053,13 +2064,20 @@ public final class Fir2CCompiler {
                   };
               case MkEnv(var type) -> {
                 cCode.stmt(
-                    "%s = (%s << 1) | Fir_push_env(&%s, %s, &%s[%s++]);",
+                    "%s = (%s << 1) | Fir_push_env(&%s, %s, &%s[%s]);",
                     VAR_ENV_PUSHED,
                     VAR_ENV_PUSHED,
                     VAR_ENV,
                     emitMkEnvType(type),
                     VAR_ENV_SAVED,
                     VAR_ENV_DEPTH);
+                cCode.stmt("REPROTECT(%s, %s);", VAR_ENV, VAR_ENV_IDX);
+                if (type == MkEnvType.ELIDED) {
+                  cCode.stmt(
+                      "REPROTECT(%s[%s], %s + 1 + %s);",
+                      VAR_ENV_SAVED, VAR_ENV_DEPTH, VAR_ENV_IDX, VAR_ENV_DEPTH);
+                }
+                cCode.stmt("%s++;", VAR_ENV_DEPTH);
                 debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
                 yield null;
               }
@@ -2094,6 +2112,7 @@ public final class Fir2CCompiler {
                 cCode.stmt(
                     "Fir_pop_env(&%s, %s & 1, %s[--%s]);",
                     VAR_ENV, VAR_ENV_PUSHED, VAR_ENV_SAVED, VAR_ENV_DEPTH);
+                cCode.stmt("REPROTECT(%s, %s);", VAR_ENV, VAR_ENV_IDX);
                 cCode.stmt("%s >>= 1;", VAR_ENV_PUSHED);
                 yield null;
               }
@@ -2765,10 +2784,15 @@ public final class Fir2CCompiler {
               case Return _ -> {
                 var returnValue = emitArgument(jump.arg(0));
                 // The frame is exiting: mark all promises it created as escaped, and release the
-                // tracking list (its `PROTECT_WITH_INDEX` from `emitPromiseTrackingSetup`).
+                // tracking list and the env slots (from `emitPromiseTrackingSetup` and
+                // `emitEnvPushedDeclaration`).
                 if (createsPromises) {
                   cCode.stmt("Fir_mark_promises_escaped(%s);", VAR_LOCAL_PROMISES);
-                  cCode.stmt("UNPROTECT(1);");
+                }
+                var numFrameProtects =
+                    (createsPromises ? 1 : 0) + (hasEnvOps ? 1 + (int) numMkEnvs : 0);
+                if (numFrameProtects > 0) {
+                  cCode.stmt("UNPROTECT(%d);", numFrameProtects);
                 }
                 cCode.stmt("return %s;", returnValue);
               }

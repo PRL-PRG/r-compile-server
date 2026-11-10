@@ -494,6 +494,57 @@ class Fir2CCompilerTest {
     assertTrue(code.contains("t_args_0, t_arg_names_0, 0x4ULL)"), "`j` is the value bit:\n" + code);
   }
 
+  /// A pushed frame outlives the block that pushes it, whose `UNPROTECT` counts only the block's
+  /// own protects. So the frame and each saved parent are in protect slots of the activation,
+  /// which the env operations `REPROTECT` and the return releases.
+  @Test
+  void pushedFramesAreInActivationProtectSlots() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv-;
+                mkenv~;
+                goto L1();
+              L1():
+                v: v1(I) = box< I --> v1(I) >(1);
+                popenv;
+                popenv;
+                return v;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    var code = Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+    assertTrue(
+        code.contains(
+            """
+            PROTECT_WITH_INDEX(env, &env_idx);
+              PROTECT(env_saved[0] = R_NilValue);
+              PROTECT(env_saved[1] = R_NilValue);"""),
+        code);
+    assertTrue(
+        code.contains(
+            """
+            Fir_push_env(&env, FIR_MKENV_ELIDED, &env_saved[env_depth]);
+              REPROTECT(env, env_idx);
+              REPROTECT(env_saved[env_depth], env_idx + 1 + env_depth);"""),
+        code);
+    assertTrue(
+        code.contains(
+            """
+            Fir_push_env(&env, FIR_MKENV_NON_REFLECTIVE, &env_saved[env_depth]);
+              REPROTECT(env, env_idx);
+              env_depth++;"""),
+        code);
+    assertEquals(
+        2,
+        code.split("Fir_pop_env\\([^\\n]*\\n\\s*REPROTECT\\(env, env_idx\\);", -1).length - 1,
+        code);
+    assertTrue(code.contains("UNPROTECT(3);\n  return r_v;"), code);
+  }
+
   @Test
   void needsContextCallGoesThroughApplyClosure() {
     var code = compileNeedsContextCall("* -+> V");

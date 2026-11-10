@@ -499,10 +499,14 @@ SEXP Fir_load_dots(int index, SEXP env);
 void Fir_set_env_pushed_from_r(
     SEXP env, SEXP* outer_env, bool* push_suppressed, SEXP* outer_parent);
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed, SEXP outer_parent);
-/// Returns whether it pushed a new environment (and protected it). Returns false when the
-/// environment is the one R made for the current from-R call, which `Fir_pop_env` must not pop.
-/// An elided push saves the parent it replaces in `*saved`. A real frame in an elided one gets the
-/// elided one's parent, and its push saves `Rsh_ElidedEnv`. Other pushes save `NULL`.
+/// Returns whether it pushed a new environment. Returns false when the environment is the one R
+/// made for the current from-R call, which `Fir_pop_env` must not pop. An elided push saves the
+/// parent it replaces in `*saved`. A real frame in an elided one gets the elided one's parent, and
+/// its push saves `Rsh_ElidedEnv`. Other pushes save `R_NilValue`.
+///
+/// The push, the pop and `Fir_materialize_env` don't protect: the caller keeps `*env` and `*saved`
+/// in protect slots of its own (a version `REPROTECT`s them after each call). A protect here would
+/// outlive the caller's basic block, whose `UNPROTECT` would then release the frame instead.
 bool Fir_push_env(SEXP *env, Fir_MkEnvType type, SEXP *saved);
 /// A frame that a push makes has no context, so it's recorded for the vendored R's `sys.frame` and
 /// the like (`Rsh_Frames`), and the pop removes it.
@@ -518,7 +522,7 @@ static inline void Fir_push_frame(SEXP env) {
 /// catch and a live elided frame (a direct call of a compiled closure, a forced promise, GNU-R code
 /// that the frame calls), that frame reads a callee's parent, and its pop sets `*env` to it.
 void Fir_pop_env(SEXP *env, bool pushed, SEXP saved);
-/// If `*env` is the elided environment, replaces it with a new empty one (protected) whose
+/// If `*env` is the elided environment, replaces it with a new empty one whose
 /// parent is `closure_env`, the environment the version received. A deopt branch calls it:
 /// it stores into the frame, and the bytecode the deopt continues in needs a real one.
 void Fir_materialize_env(SEXP *env, SEXP closure_env);
