@@ -1,10 +1,19 @@
 package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
+import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.check.Checker;
+import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXPs;
 
 class SchedulePureTest implements AbstractionOptimizationUnitTest {
   @Override
@@ -311,6 +320,166 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
         deopt.matches("(?s).*deopt 0 \\[boxed\\d+];.*"),
         "the deopt argument should name that copy, not the original:\n" + printed);
   }
+
+  @Test
+  void valuePromiseUsedOnlyInDeoptBranches_isCopiedIntoEach() {
+    var module = ParseUtil.parseModule(DEOPT_ONLY_PROMISE);
+
+    assertTrue(run(module), Printer.toString(module));
+    assertFalse(run(module), "a second run should change nothing:\n" + module);
+
+    var full = Printer.toString(module);
+    var printed = full.substring(full.indexOf("(n:v1(I))"));
+    assertTrue(Checker.checkAll(module), "should type-check:\n" + printed);
+    // Each deopt branch has a promise, under its own names.
+    for (var pattern : List.of("(\\w+): p\\(v1\\(I\\) -\\) = prom-", "(\\w+): v1\\(I\\) = box")) {
+      var names = Pattern.compile(pattern).matcher(printed).results().map(m -> m.group(1)).toList();
+      assertEquals(2, Set.copyOf(names).size(), pattern + " in:\n" + printed);
+    }
+    assertOrder(printed, "D():", "st x = p");
+    assertFalse(
+        printed.substring(0, printed.indexOf("check")).contains("prom-"),
+        "the entry has no promise:\n" + printed);
+  }
+
+  @Test
+  void valuePromiseUsedOnTheMainPath_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (i:I) --> p(v1(I) -) {
+              p: p(v1(I) -) = prom-<v1(I) ->{
+                pb: v1(I) = box< I --> v1(I) >(i);
+                return pb;
+              };
+              mkenv;
+              check B() else D();
+            B():
+              popenv;
+              return p;
+            D():
+              st x = p;
+              deopt 0 [];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  @Test
+  void promiseThatLoads_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            () --> I {
+              mkenv;
+              p: p(V -) = prom<V ->{
+                r: V = ld y;
+                return r;
+              };
+              check B() else D();
+            B():
+              popenv;
+              return 0;
+            D():
+              st x = p;
+              deopt 0 [];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// The two uses are in incomparable branches, so without the loop limit the `box` is copied
+  /// into the deopt branch and into the loop body.
+  @Test
+  void boxIsNotDeferredIntoALoop() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:I, c:B) --> I {
+              boxed: v1(I) = box< I --> v1(I) >(x);
+              check H() else D();
+            H():
+              if c then Body() else Exit();
+            Body():
+              u: V = `==`< v1(I),v1(I) -+> V >(boxed, boxed);
+              goto H();
+            Exit():
+              return x;
+            D():
+              deopt 0 [boxed];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// The version deopts when `n` is at least 3; the baseline then forces the promise the deopt
+  /// branch stored. The result and the checkpoint snapshots are the same before and after.
+  @Test
+  void valuePromiseInDeoptBranch_keepsTheDeoptState() {
+    for (var n : new int[] {1, 5}) {
+      var argument = new Value.Sexp(SEXPs.integer(n));
+      var module = ParseUtil.parseModule(DEOPT_ONLY_PROMISE);
+      var interpreter = new InternalInterpreter(module);
+      registerBuiltins(interpreter);
+      var before = new Value[1];
+      var after = new Value[1];
+      var beforeTrace =
+          interpreter.checkpointTrace().track(() -> before[0] = interpreter.call("f", argument));
+      assertTrue(run(module));
+      var afterTrace =
+          interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("f", argument));
+
+      var printed = Printer.toString(module);
+      assertEquals(argument, after[0], printed);
+      assertEquals(before[0], after[0], printed);
+      assertEquals(beforeTrace, afterTrace, printed);
+      assertFalse(afterTrace.isEmpty(), printed);
+    }
+  }
+
+  @Language("FIR")
+  private static final String DEOPT_ONLY_PROMISE =
+      """
+      fun f(n) {
+        (n:*) -+> V {
+          mkenv;
+          check B() else D();
+        B():
+          r: * = ld x;
+          v: V = force? r;
+          popenv;
+          return v;
+        D():
+          deopt 0 [];
+        }
+        (n:v1(I)) -+> V {
+          i: I = unbox< v1(I) --> I >(n);
+          p: p(v1(I) -) = prom-<v1(I) ->{
+            pb: v1(I) = box< I --> v1(I) >(i);
+            return pb;
+          };
+          mkenv-;
+          k: L = `<`< I,I --> L >(i, 3);
+          kk: B = naToFalse< L --> B >(k);
+          check B() else D();
+        B():
+          kk ?= TRUE;
+          check B2() else D2();
+        B2():
+          popenv;
+          return n;
+        D():
+          st x = p;
+          deopt 0 [];
+        D2():
+          st x = p;
+          deopt 0 [];
+        }
+      }
+      """;
 
   private static void assertOrder(String printed, String first, String second) {
     var firstIndex = printed.indexOf(first);

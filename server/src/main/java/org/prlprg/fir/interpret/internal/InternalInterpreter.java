@@ -1661,6 +1661,13 @@ public final class InternalInterpreter implements Interpreter {
           }
           env.set(name, valueSexp);
         }
+        // Only the snapshot's printing sees this promise, and it doesn't print an unforced
+        // promise's code.
+        case Promise promise when stmt.assignee() != null ->
+            localRegs.put(
+                stmt.assignee(),
+                new Value.Sexp(
+                    SEXPs.promise(Objects.requireNonNullElse(promise.expr(), SEXPs.NULL), env)));
         default ->
             throw fail(
                 "Unsupported expression in deopt branch at index " + i + ": " + stmt.expression());

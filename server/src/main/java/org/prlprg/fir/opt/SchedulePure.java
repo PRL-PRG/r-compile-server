@@ -15,6 +15,7 @@ import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
+import org.prlprg.fir.analyze.cfg.Loops;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -22,9 +23,14 @@ import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.cursor.CFGCopier;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Instruction;
+import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.module.Function;
@@ -36,13 +42,17 @@ import org.prlprg.fir.ir.variable.Register;
 /// Current rules:
 /// - `r = box< X --> v1(X) >(r1)` is deferred
 /// - `r = unbox< v1(X) --> X >(r1)` is hoisted
+/// - a value promise (one block that returns a constant, a register from outside, or the result of
+///   its only statement, a `box`) is deferred, but only if each use is in a deopt branch. Only one
+///   deopt branch runs in an activation, so the activation still makes at most one promise.
 ///
 /// Can be easily extended with more defer/hoist rules.
 ///
 /// A deferred instruction moves to just before the earliest use(s) of its assignee that no other
 /// use dominates. It's *copied* when those uses are in branches that don't dominate each other,
 /// and each use is then rewritten to the copy that covers it. Iff every use is inside a promise
-/// within the instruction's current CFG, the instruction is deferred into that promise.
+/// within the instruction's current CFG, the instruction is deferred into that promise. Nothing is
+/// deferred into a loop that doesn't contain it, where it would run once per iteration.
 ///
 /// A hoisted instruction moves to immediately after the latest definition of one of its arguments.
 /// If the instruction is in a promise and every argument is in the enclosing CFG, it's hoisted to
@@ -59,11 +69,24 @@ public final class SchedulePure extends AbstractionOptimization {
       ImmutableList.of(matchRule(UNBOX_FUN));
   private static final ImmutableList<Predicate<Statement>> DEFER_RULES =
       ImmutableList.of(matchRule(BOX_FUN));
+  private static final ImmutableList<Predicate<Statement>> DEFER_PROMISE_RULES =
+      ImmutableList.of(SchedulePure::isValuePromise);
 
   private static Predicate<Statement> matchRule(Function function) {
     return statement ->
         statement.expression() instanceof Call(StaticFnCallee callee)
             && callee.function() == function;
+  }
+
+  private static boolean isValuePromise(Statement statement) {
+    if (!(statement.expression() instanceof Promise(_, _, var code, _, _))
+        || code.bbs().size() != 1) {
+      return false;
+    }
+    var body = code.entry();
+    return body.jump().expression() instanceof Return
+        && body.statements().size() <= 1
+        && body.statements().stream().allMatch(matchRule(BOX_FUN));
   }
 
   @Override
@@ -76,8 +99,10 @@ public final class SchedulePure extends AbstractionOptimization {
       return false;
     }
 
+    // A promise copy has a new body CFG, which an earlier `Run`'s CFG hierarchy doesn't know.
+    var changed = new Run(scope).deferAll(DEFER_PROMISE_RULES);
     var run = new Run(scope);
-    var changed = run.deferAll();
+    changed |= run.deferAll(DEFER_RULES);
     changed |= run.hoistAll();
     return changed;
   }
@@ -113,14 +138,15 @@ public final class SchedulePure extends AbstractionOptimization {
       // trees and the CFG hierarchy stay valid for the whole run. Everything position-sensitive is
       // read from the IR when it's needed rather than cached.
       analyses =
-          new Analyses(scope, CfgHierarchy.class, DominatorTree.class, CfgDominatorTree.class);
+          new Analyses(
+              scope, CfgHierarchy.class, DominatorTree.class, CfgDominatorTree.class, Loops.class);
       hierarchy = analyses.get(CfgHierarchy.class);
       domTree = analyses.get(DominatorTree.class);
     }
 
     // --- Defer ----------------------------------------------------------------------------
 
-    boolean deferAll() {
+    boolean deferAll(List<Predicate<Statement>> rules) {
       var changed = false;
 
       // Targets are collected first and applied together. Several statements can want the same
@@ -128,7 +154,7 @@ public final class SchedulePure extends AbstractionOptimization {
       // one at a time puts each in front of the last, so they leapfrog forever and the enclosing
       // fixpoint sequence never settles.
       var placements = new LinkedHashMap<Instruction, List<Statement>>();
-      for (var statement : matching(DEFER_RULES)) {
+      for (var statement : matching(rules)) {
         var deferral = deferral(statement);
         if (deferral == null) {
           continue;
@@ -152,6 +178,14 @@ public final class SchedulePure extends AbstractionOptimization {
     private @Nullable Deferral deferral(Statement statement) {
       var assignee = statement.assignee();
       if (assignee == null || !assignee.isUsed()) {
+        return null;
+      }
+      if (statement.expression() instanceof Promise
+          && !assignee.uses().stream()
+              .allMatch(
+                  use ->
+                      Objects.requireNonNull(use.instruction().parentBB()).jump().expression()
+                          instanceof Deopt)) {
         return null;
       }
 
@@ -189,6 +223,15 @@ public final class SchedulePure extends AbstractionOptimization {
         targets.add(position);
       }
 
+      var loops = analyses.get(targetCfg, Loops.class);
+      var home = Objects.requireNonNull(statement.parentBB());
+      for (var target : targets) {
+        var targetBb = Objects.requireNonNull(target.parentBB());
+        if (loops.getLoopsContaining(targetBb).stream().anyMatch(loop -> !loop.contains(home))) {
+          return null;
+        }
+      }
+
       // Nothing may move to a position its own arguments don't reach. A use of the assignee is
       // always dominated by the statement, hence by its arguments, so this only bites on malformed
       // input -- but check every target before anything mutates, so a rejected one can't leave the
@@ -213,7 +256,7 @@ public final class SchedulePure extends AbstractionOptimization {
       var registerAt = new LinkedHashMap<Instruction, Register>();
       registerAt.put(targets.getFirst(), assignee);
       for (var target : targets.subList(1, targets.size())) {
-        var copy = statement.copy((_, argument) -> argument);
+        var copy = copy(statement);
         var copyAssignee = Objects.requireNonNull(copy.assignee());
         // `copy` reuses the original's name, but register names must be unique within the version:
         // they name the register in the textual IR and in the generated C, so a duplicate makes
@@ -245,6 +288,24 @@ public final class SchedulePure extends AbstractionOptimization {
       }
 
       return true;
+    }
+
+    /// A copy of `statement`, not yet inserted. A promise gets a copy of its body: sharing it would
+    /// give the body's registers two definitions.
+    private Statement copy(Statement statement) {
+      if (!(statement.expression()
+          instanceof Promise(var valueType, var effects, var code, var local, var expr))) {
+        return statement.copy((_, argument) -> argument);
+      }
+      var body = new CFG(scope);
+      CFGCopier.copyTo(body, code);
+      var copy =
+          new Statement(
+              statement.comments(), new Promise(valueType, effects, body, local, expr), List.of());
+      copy.setSource(statement.source());
+      var assignee = Objects.requireNonNull(statement.assignee());
+      copy.setAssignee(assignee.name(), assignee.type());
+      return copy;
     }
 
     /// Move `statements` to just before `target`, keeping the ones already sitting there put.
