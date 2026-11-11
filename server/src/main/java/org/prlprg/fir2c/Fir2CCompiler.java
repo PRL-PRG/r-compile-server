@@ -986,7 +986,9 @@ public final class Fir2CCompiler {
           cCode.stmt("%s = %s == R_MissingArg ? R_NilValue : %s;", argName, argName, argName);
         } else {
           var paramSym = nvSymbolRef(pool, paramName);
-          cCode.stmt("SEXP %s = Fir_from_r_arg(%s, %s);", argName, VAR_ENV, paramSym);
+          cCode.stmt(
+              "SEXP %s = Fir_from_r_arg(%s, %s, %s);",
+              argName, VAR_ENV, paramSym, function.userProperties().needsPromises());
         }
 
         argsSplice.append(", ").append(argName);

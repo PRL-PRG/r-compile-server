@@ -379,8 +379,9 @@ SEXP Fir_safe_force(SEXP valueOrPromise);
 /// The argument of the parameter `symbol` in the frame `env` that `applyClosure` made for a
 /// from-R call: the missing argument if the parameter's argument was missing (even if
 /// `applyClosure` bound it to a promise of the parameter's default: FIŘ code computes the
-/// default itself), else the binding, safely forced.
-SEXP Fir_from_r_arg(SEXP env, SEXP symbol);
+/// default itself), else the binding, safely forced unless `keep_promise` (a `@needsPromises`
+/// function: a promise that R forced, e.g. `UseMethod`'s dispatch argument, keeps its expression).
+SEXP Fir_from_r_arg(SEXP env, SEXP symbol, bool keep_promise);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_fun(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);

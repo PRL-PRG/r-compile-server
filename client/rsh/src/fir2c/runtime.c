@@ -964,14 +964,15 @@ SEXP Fir_safe_force(SEXP valueOrPromise) {
   return valueOrPromise;
 }
 
-SEXP Fir_from_r_arg(SEXP env, SEXP symbol) {
+SEXP Fir_from_r_arg(SEXP env, SEXP symbol, bool keep_promise) {
   // `applyClosure` binds a parameter whose argument is missing to a promise of its default, and
   // marks the binding. FIŘ code expects the missing argument and computes the default itself.
   R_varloc_t loc = R_findVarLocInFrame(env, symbol);
   if (!R_VARLOC_IS_NULL(loc) && MISSING(loc.cell)) {
     return R_MissingArg;
   }
-  return Fir_safe_force(Rf_findVarInFrame(env, symbol));
+  SEXP value = Rf_findVarInFrame(env, symbol);
+  return keep_promise ? value : Fir_safe_force(value);
 }
 
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
