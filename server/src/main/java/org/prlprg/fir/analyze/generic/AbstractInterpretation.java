@@ -243,7 +243,10 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
       cursor.moveToStart(bb);
       runEntry(bb);
       cursor.iterateCurrentBbUpTo(instructionIndex, this::run, this::run);
-      return state;
+      var result = state;
+      // So that `isRunning` is false again.
+      state = null;
+      return result;
     }
 
     /// Runs the analysis for [CFG], then merges the output using the given function.

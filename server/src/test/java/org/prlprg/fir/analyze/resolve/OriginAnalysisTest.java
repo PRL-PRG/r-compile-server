@@ -951,6 +951,38 @@ class OriginAnalysisTest {
             .contains(new Constant(SEXPs.integer(7))));
   }
 
+  /// A query inside the promise body doesn't change a later query after the force.
+  @Test
+  void testQueryInPromiseBodyDoesntChangeLaterQuery() {
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -~> V {
+                mkenv~;
+                st x = <int 1>;
+                p: p(v1(I) ~) = prom<v1(I) ~>{
+                  st x = <int 5>;
+                  return <int 5>;
+                };
+                a: v1(I) = force p;
+                x1: * = ld x;
+                popenv;
+                return x1;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var entry = main.body().entry();
+    var body = ((Promise) entry.statements().get(2).expression()).code().entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    var five = Set.of(new Constant(SEXPs.integer(5)));
+    assertEquals(five, analysis.getPossible(body, 0, Variable.named("x")));
+    assertEquals(five, analysis.getPossible(entry, 3, Variable.named("x")));
+  }
+
   /// A state's set of leaked promises still finds a promise after its forced status changes.
   @Test
   void testPromiseOriginStaysInSetWhenForcedChanges() {
