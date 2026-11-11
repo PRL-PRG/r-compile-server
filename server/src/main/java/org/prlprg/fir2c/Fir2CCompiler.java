@@ -2062,6 +2062,15 @@ public final class Fir2CCompiler {
                               "Vector kind must be primitive or dots: " + kind);
                     };
                 var namedArrays = emitNamedArgumentArrays(scalarRepr, args, elementNames);
+                var values = kind instanceof Kind.Dots ? expressionValues(args) : 0;
+                if (values != 0) {
+                  yield "Fir_mk_dots_values(%d, %s, %s, 0x%xULL)"
+                      .formatted(
+                          namedArrays.values().size(),
+                          namedArrays.values().pointer(),
+                          namedArrays.names(),
+                          values);
+                }
                 yield "Fir_mk_vector(%s, %d, %s, %s)"
                     .formatted(
                         emitKind(kind),
@@ -2273,9 +2282,10 @@ public final class Fir2CCompiler {
               case DynamicCallee(var argumentNames) -> {
                 var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
                 var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
+                var values = expressionValues(callArgs);
                 if (setter != null) {
                   var state = emitSetterBegin(statement, setter);
-                  yield "Fir_setter_end(&%s, Fir_call_setter(&%s, %s, %s, %s, %d, %s, %s))"
+                  yield "Fir_setter_end(&%s, Fir_call_setter(&%s, %s, %s, %s, %d, %s, %s, 0x%xULL))"
                       .formatted(
                           state,
                           state,
@@ -2284,7 +2294,19 @@ public final class Fir2CCompiler {
                           VAR_ENV,
                           arguments.size(),
                           arguments.pointer(),
-                          names.pointer());
+                          names.pointer(),
+                          values);
+                }
+                if (values != 0) {
+                  yield "Fir_call_dynamic_values(%s, %s, %s, %d, %s, %s, 0x%xULL)"
+                      .formatted(
+                          emitArgument(closureOrCalleeArg),
+                          source,
+                          VAR_ENV,
+                          arguments.size(),
+                          arguments.pointer(),
+                          names.pointer(),
+                          values);
                 }
                 yield "Fir_call_dynamic(%s, %s, %s, %d, %s, %s)"
                     .formatted(
@@ -3020,6 +3042,20 @@ public final class Fir2CCompiler {
             if (!(instr instanceof Statement s && s.expression() instanceof Promise)) {
               debugArgs(cCode, instr.args());
             }
+          }
+
+          /// Bit `i` is set if `args[i]` is a register whose value may be a symbol or a call,
+          /// which a special would evaluate again (see `Fir_call_builtin_values` in `runtime.h`).
+          /// Constants are the expressions a special evaluates.
+          private long expressionValues(List<Argument> args) {
+            return IntStream.range(0, Math.min(args.size(), 64))
+                .filter(
+                    i ->
+                        !(args.get(i) instanceof Constant)
+                            && argumentType(args.get(i)).kind() instanceof AnySexp
+                            && !argumentType(args.get(i)).isPromise())
+                .mapToLong(i -> 1L << i)
+                .sum();
           }
 
           private void debugArgs(CCode cCode, Collection<Argument> arguments) {

@@ -405,6 +405,10 @@ void Fir_pop_env(SEXP *env, bool pushed, SEXP saved);
 /// it stores into the frame, and the bytecode the deopt continues in needs a real one.
 void Fir_materialize_env(SEXP *env, SEXP closure_env);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names);
+/// `Fir_mk_vector` of a `...`, where bit `i` of `values` is set if `elems[i]` is a value, not an
+/// expression. A special evaluates the elements of its `...`, so such a symbol or call goes in an
+/// evaluated promise.
+SEXP Fir_mk_dots_values(int count, SEXP *elems, SEXP const *names, uint64_t values);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);
 int Fir_subscript_read_int(SEXP vector, int index);
@@ -437,6 +441,9 @@ SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *a
 /// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
 SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
+/// `Fir_call_dynamic` with `values` as in `Fir_call_builtin_values`.
+SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                             uint64_t values);
 
 /// A call of a replacement function in GNU-R's assignment protocol (bytecode's `STARTASSIGN`,
 /// `SETTER_CALL`, `ENDASSIGN`), for `l = ld x; r = f(l, ...) in <f(*tmp*, ...)>; st x = r`, or
@@ -473,9 +480,9 @@ SEXP Fir_assign_dup(SEXP symbol, SEXP env, SEXP lhs, SEXP value, int nlinked, SE
 /// `Fir_assign_dup` for a variable that FIŘ keeps in a register: `value` itself if nothing counts
 /// a reference to it.
 SEXP Fir_value_dup(SEXP value, int nlinked, SEXP *linked);
-/// `Fir_call_dynamic` in the protocol `s` began; `args[0]` is replaced by `s->value`.
+/// `Fir_call_dynamic_values` in the protocol `s` began; `args[0]` is replaced by `s->value`.
 SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, SEXP *args,
-                     SEXP *names);
+                     SEXP *names, uint64_t values);
 /// `Fir_call_builtin_values` in the protocol `s` began; `args[0]` is replaced by `s->value`.
 SEXP Fir_call_setter_builtin(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
                              SEXP *names, uint64_t values);

@@ -430,7 +430,8 @@ class Fir2CCompilerTest {
     assertTrue(
         code.matches("(?s).*Fir_call_builtin\\(\\d+, Fir_const\\(pool, \\d+\\), env, 1, .*"), code);
     assertTrue(
-        code.matches("(?s).*Fir_call_dynamic\\(r_f, Fir_const\\(pool, \\d+\\), env, 1, .*"), code);
+        code.matches("(?s).*Fir_call_dynamic_values\\(r_f, Fir_const\\(pool, \\d+\\), env, 1, .*"),
+        code);
     assertTrue(code.matches("(?s).*Fir_call_builtin\\(\\d+, NULL, env, 1, .*"), code);
   }
 
@@ -467,7 +468,7 @@ class Fir2CCompilerTest {
         code);
     assertTrue(
         code.contains("Fir_setter_end(&t_setter_0, Fir_call_setter(&t_setter_0, r_f, "), code);
-    assertTrue(code.contains("Fir_call_dynamic(r_f, "), code);
+    assertTrue(code.contains("Fir_call_dynamic_values(r_f, "), code);
     assertFalse(code.contains("t_setter_1"), code);
   }
 

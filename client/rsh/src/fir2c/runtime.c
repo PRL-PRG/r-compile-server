@@ -1302,12 +1302,33 @@ static int Fir_wrap_values(int blt_idx, int argc, SEXP *args, SEXP *names, uint6
   return protect_count;
 }
 
-SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
-                             uint64_t values) {
-  int protect_count = Fir_wrap_values(blt_idx, argc, args, names, values);
-  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, false);
+SEXP Fir_mk_dots_values(int count, SEXP *elems, SEXP const *names, uint64_t values) {
+  int protect_count = 0;
+  for (int i = 0; i < count && i < 64; i++) {
+    SEXP elem = elems[i];
+    if (((values >> i) & 1) && ((TYPEOF(elem) == SYMSXP && elem != R_MissingArg) ||
+                                TYPEOF(elem) == LANGSXP || TYPEOF(elem) == BCODESXP)) {
+      elems[i] = PROTECT(R_mkEVPROMISE(elem, elem));
+      protect_count++;
+    }
+  }
+  SEXP result = Fir_mk_vector(Fir_kind_dots, count, elems, names);
   UNPROTECT(protect_count);
   return result;
+}
+
+// `Fir_call_builtin_values`, where `matched` is as in `Fir_call_primitive`.
+static SEXP Fir_call_primitive_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
+                                      SEXP *names, uint64_t values, bool matched) {
+  int protect_count = Fir_wrap_values(blt_idx, argc, args, names, values);
+  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, matched, false);
+  UNPROTECT(protect_count);
+  return result;
+}
+
+SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                             uint64_t values) {
+  return Fir_call_primitive_values(blt_idx, call, env, argc, args, names, values, true);
 }
 
 SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names) {
@@ -1315,10 +1336,16 @@ SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP 
 }
 
 SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names) {
+  return Fir_call_dynamic_values(callee, call, env, argc, args, names, 0);
+}
+
+SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                             uint64_t values) {
   switch (TYPEOF(callee)) {
     case BUILTINSXP:
     case SPECIALSXP:
-      return Fir_call_primitive(PRIMOFFSET(callee), call, env, argc, args, names, false, false);
+      return Fir_call_primitive_values(PRIMOFFSET(callee), call, env, argc, args, names, values,
+                                       false);
     case CLOSXP: {
       // Try to fastcase compiled closures.
       Fir_FunctionData *data = NULL;
@@ -1535,12 +1562,13 @@ static SEXP Fir_call_setter_primitive(Fir_Setter *s, int blt_idx, SEXP call, SEX
 }
 
 SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, SEXP *args,
-                     SEXP *names) {
+                     SEXP *names, uint64_t values) {
   if (!s->active || argc == 0 || (TYPEOF(callee) != SPECIALSXP && TYPEOF(callee) != BUILTINSXP) ||
       Fir_source_call(call, env) == NULL) {
-    return Fir_call_dynamic(callee, call, env, argc, args, names);
+    return Fir_call_dynamic_values(callee, call, env, argc, args, names, values);
   }
-  return Fir_call_setter_primitive(s, PRIMOFFSET(callee), call, env, argc, args, names, false, 0);
+  return Fir_call_setter_primitive(s, PRIMOFFSET(callee), call, env, argc, args, names, false,
+                                   values);
 }
 
 // The index of `name` in `R_FunTab`, or -1.
