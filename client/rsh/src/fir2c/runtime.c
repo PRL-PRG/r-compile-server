@@ -2799,8 +2799,11 @@ DEFINE_OVERRIDDEN_BUILTIN(int, as_u2einteger, value_missing_fx_none_ret_scalar_i
 }
 
 // as.logical
-// V,miss→L
+// V,miss→L: deopts where `as.logical(x)` isn't one logical (or dispatches), since a version that
+// returns `v1(L)` calls this without a check.
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, as_u2elogical, value_missing_fx_none_ret_scalar_logical, SEXP value, SEXP missing) {
+  if (OBJECT(value) || !Rf_isVectorAtomic(value) || XLENGTH(value) != 1)
+    Rf_error("FIŘ deoptimization triggered: as.logical(x) isn't one logical (unsupported)");
   return Rf_asLogical(value);
 }
 // V,miss→B
