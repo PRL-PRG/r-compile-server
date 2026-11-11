@@ -2403,7 +2403,7 @@ DEFINE_INTRINSIC(SEXP, box, scalar_real_fx_none_ret_vec1_real, double value) {
 }
 
 DEFINE_INTRINSIC(SEXP, box, scalar_string_fx_none_ret_vec1_string, char* value) {
-  return value == NULL ? NA_STRING : Rf_ScalarString(Rf_mkChar(value));
+  return Rf_ScalarString(value == NULL ? NA_STRING : Rf_mkChar(value));
 }
 
 // === unbox ===
