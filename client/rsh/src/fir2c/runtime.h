@@ -388,7 +388,8 @@ void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed)
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
 /// Returns whether it pushed a new environment (and protected it). Returns false when the
 /// environment is the one R made for the current from-R call, which `Fir_pop_env` must not pop.
-/// An elided push saves the parent it replaces in `*saved` (`NULL` for other types).
+/// An elided push saves the parent it replaces in `*saved`. A real frame in an elided one gets the
+/// elided one's parent, and its push saves `Rsh_ElidedEnv`. Other pushes save `NULL`.
 bool Fir_push_env(SEXP *env, Fir_MkEnvType type, SEXP *saved);
 /// `pushed` is what the matching `Fir_push_env` returned, and `saved` what it saved. Popping an
 /// elided frame restores the parent the push replaced. A non-local exit between them (a caught

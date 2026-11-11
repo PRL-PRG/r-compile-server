@@ -685,9 +685,9 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed) {
 //
 // Every elided frame is the singleton `Rsh_ElidedEnv`, and its `ENCLOS` is the parent of the
 // innermost one. The push saves the previous parent in `*saved` and the pop restores it, so a frame
-// reads its own parent again after an elided callee returns. A promise or closure made in an elided
-// frame captures the parent instead: the frame has no bindings, and the singleton's parent changes.
-// (A real frame pushed in an elided one still has the singleton as its parent.)
+// reads its own parent again after an elided callee returns. A promise, closure or real frame made
+// in an elided frame has the parent instead: the frame has no bindings, and the singleton's parent
+// changes. The push of such a real frame saves `Rsh_ElidedEnv`, and its pop restores it.
 bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
   ASSERT(saved || type != FIR_MKENV_ELIDED, "elided push_env requires a slot to save the parent");
@@ -712,7 +712,13 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
     return true;
   }
 
-  SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
+  SEXP parent = *env_ptr;
+  if (parent == Rsh_ElidedEnv) {
+    ASSERT(saved, "push_env in an elided frame requires a slot to save it");
+    *saved = Rsh_ElidedEnv;
+    parent = ENCLOS(Rsh_ElidedEnv);
+  }
+  SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, parent);
   if (type == FIR_MKENV_NON_REFLECTIVE) {
     Rf_defineVar(Rsh_ReflectivelyAccessed, R_LogicalNAValue, new_env);
   }
@@ -740,6 +746,10 @@ void Fir_pop_env(SEXP *env_ptr, bool pushed, SEXP saved) {
   }
 
   UNPROTECT(1);
+  if (saved == Rsh_ElidedEnv) {
+    *env_ptr = Rsh_ElidedEnv;
+    return;
+  }
   SEXP parent = ENCLOS(*env_ptr);
   ASSERT(parent && parent != R_NilValue, "pop_env called on environment without parent");
   *env_ptr = parent;
