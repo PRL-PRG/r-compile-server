@@ -36,6 +36,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
             """);
 
     run(abstraction);
+    assertFalse(run(abstraction), "unboxes hoisted past the same assumptions should be stable");
 
     var printed = Printer.toString(abstraction);
     assertOrder(printed, "x2: v1(I) = x ?: v1(I);", "y: I = unbox< v1(I) --> I >(x1);");

@@ -88,6 +88,10 @@ public final class SchedulePure extends AbstractionOptimization {
     int index() {
       return after == null ? -1 : after.indexInBB();
     }
+
+    Instruction point() {
+      return after == null ? Run.firstInstruction(bb) : after.next();
+    }
   }
 
   /// Where a deferred statement's assignee is used: the uses at each position in the target CFG
@@ -284,14 +288,7 @@ public final class SchedulePure extends AbstractionOptimization {
     }
 
     private boolean hoist(Anchor anchor, List<Statement> statements) {
-      var point = anchor.after() == null ? firstInstruction(anchor.bb()) : anchor.after().next();
-
-      // Not into a checkpoint's assumptions, which are the statements at the start of its success
-      // block: the checkpoint only checks (and, for a load, assigns) the leading run of `assume`s,
-      // so one that ends up after another statement is never checked.
-      while (point instanceof Statement placed && placed.expression() instanceof Assume) {
-        point = point.next();
-      }
+      var point = anchor.point();
 
       // Skip the run of statements already sitting where they'd be hoisted to.
       while (point instanceof Statement placed && statements.remove(placed)) {
@@ -358,7 +355,15 @@ public final class SchedulePure extends AbstractionOptimization {
         }
       }
 
-      return latest != null ? latest : new Anchor(targetCfg.entry(), null);
+      // Not into a checkpoint's assumptions, which are the statements at the start of its success
+      // block: the checkpoint only checks (and, for a load, assigns) the leading run of `assume`s,
+      // so one that ends up after another statement is never checked. The anchor moves past them,
+      // so statements that land at the same point share an anchor and keep their relative order.
+      var anchor = latest != null ? latest : new Anchor(targetCfg.entry(), null);
+      while (anchor.point() instanceof Statement placed && placed.expression() instanceof Assume) {
+        anchor = new Anchor(anchor.bb(), placed);
+      }
+      return anchor;
     }
 
     private static boolean dominates(CfgDominatorTree cfgDom, Anchor left, Anchor right) {
