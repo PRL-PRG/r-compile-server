@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Printer;
 
 class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
@@ -120,6 +121,7 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
 
   @Test
   void dispatchCallee_mixedArgs_onlyNonEffectfulInlined() {
+    // `abs` can't warn, unlike `+`, so this doesn't depend on what the callee runs first.
     var module =
         ParseUtil.parseModule(
             """
@@ -127,9 +129,8 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
               () --> I { ... }
               () --> I {
                 ra: v(I) = v(I)[1];
-                rb: v(I) = v(I)[2];
                 rx: p(v(I) -) = prom<v(I) ->{
-                  rc: v(I) = `+`< v(I),v(I) --> v(I) >(ra, rb);
+                  rc: v(I) = abs< v(I) --> v(I) >(ra);
                   return rc;
                 };
                 ry: p(v(I) +) = prom<v(I) +>{
@@ -160,7 +161,7 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
         "dispatch signature should reflect inlined param type");
     assertMatches(
         printed,
-        "rc\\d*: v\\(I\\) = `\\+`< v\\(I\\),v\\(I\\) --> v\\(I\\) >\\(ra, rb\\)",
+        "rc\\d*: v\\(I\\) = abs< v\\(I\\) --> v\\(I\\) >\\(ra\\)",
         "promise body should be inlined");
   }
 
@@ -401,6 +402,60 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
 
     assertFalse(
         run(module), "a callee that calls before forcing: optimization should report no change");
+  }
+
+  @Test
+  void signallingPromise_calleeSignalsFirst_notInlined() {
+    // GNU-R warns for `f`'s own `n + n` before it forces `r`, whose body can warn too.
+    var module = signallingModule("m: v(I) = `+`< v(I),v(I) --> v(I) >(n, n);\nv: v(I) = force r;");
+    assertFalse(run(module), "the warnings would swap: optimization should report no change");
+  }
+
+  @Test
+  void signallingPromise_calleeRaisesFirst_notInlined() {
+    // On the path that raises the error, GNU-R never forces `r`, so it never warns.
+    var module =
+        signallingModule(
+            "if c then L1() else L2();\nL1():\n  raise e;\nL2():\n  v: v(I) = force r;");
+    assertFalse(run(module), "the error path would warn: optimization should report no change");
+  }
+
+  @Test
+  void signallingPromise_forcedFirst_isInlined() {
+    var module = signallingModule("mkenv;\nst y = n;\nv: v(I) = force r;");
+    assertTrue(run(module), "optimization should report a change");
+    assertFalse(Printer.toString(module).contains("prom<"), "promise should be inlined");
+  }
+
+  /// `main` passes a promise whose body can warn (an integer `+`) to `f`, whose version runs
+  /// `beforeForce`, which assigns `v` the forced promise, and then returns `v`.
+  private static Module signallingModule(String beforeForce) {
+    return ParseUtil.parseModule(
+        """
+        fun main(a) {
+          (a:*) -+> V { ... }
+          (a:v(I)) -~> v(I) {
+            rx: p(v(I) -) = prom<v(I) ->{
+              rc: v(I) = `+`< v(I),v(I) --> v(I) >(a, a);
+              return rc;
+            };
+            rz: v(I) = f< p(v(I) -)@!,v(I),B,S -~> v(I) >(rx, a, TRUE, "boom");
+            return rz;
+          }
+        }
+
+        fun f(r, n, c, e) {
+          (r:*@!, n:*, c:*, e:*) -+> V { ... }
+          (r:p(v(I) -)@!, n:v(I), c:B, e:S) -~> v(I) {
+            %s
+            return v;
+          }
+          (r:v(I), n:v(I), c:B, e:S) -~> v(I) {
+            return r;
+          }
+        }
+        """
+            .formatted(beforeForce.replace("\n", "\n    ")));
   }
 
   @Test

@@ -40,7 +40,9 @@ import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Raise;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -63,8 +65,8 @@ import org.prlprg.util.Streams;
 /// - Singly-used
 /// - Time-invariant ([#isTimeInvariant]), or passed to a strict parameter that the callee forces
 ///   before it can disturb what the promise reads ([#forcesFirst])
-/// - If it can warn or raise an error, passed to a strict parameter or one that the callee forces
-///   before it returns
+/// - If it can warn or raise an error, forced by the callee before anything else that can, and
+///   not after something in the caller that can ([#isQuiet]): a warning or an error stays in order
 ///
 /// Skips a callee that is `@needsContext` or `@needsPromises`: a version that takes a value wraps
 // it
@@ -144,12 +146,18 @@ public final class StrictifyPromise extends AbstractionOptimization {
             continue;
           }
           var isStrict = parameterStrictnesses.get(j);
+          var signals = new InferEffects(scope).maySignal(code);
+          var calleeIsQuiet = quietIn(callee.exactVersion(), signals);
           if (!((isTimeInvariant(code)
-                  && (isStrict
-                      || !new InferEffects(scope).maySignal(code)
-                      || forcesFirst(callee.exactVersion(), j, _ -> true)))
-              || (isStrict
-                  && forcesFirst(callee.exactVersion(), j, StrictifyPromise::cannotDisturb)))) {
+                      && (!signals || forcesFirst(callee.exactVersion(), j, calleeIsQuiet)))
+                  || (isStrict
+                      && forcesFirst(
+                          callee.exactVersion(),
+                          j,
+                          i ->
+                              (!(i instanceof Statement s) || cannotDisturb(s.expression()))
+                                  && calleeIsQuiet.test(i))))
+              || (signals && !isQuietBetween(promiseDefStmt, stmt, new InferEffects(scope)))) {
             continue;
           }
 
@@ -342,7 +350,7 @@ public final class StrictifyPromise extends AbstractionOptimization {
   }
 
   /// Whether `version` forces its `argIndex`-th parameter on every path from entry to a `return`,
-  /// and only runs statements that `before` accepts until then.
+  /// and only runs instructions that `before` accepts until then.
   ///
   /// With [#cannotDisturb], this is whether the version forces the promise before it can change
   /// what the promise reads. Strictness alone doesn't give that. A strict parameter is only
@@ -351,9 +359,9 @@ public final class StrictifyPromise extends AbstractionOptimization {
   /// subscript write, a call to anything -- can still write somewhere the promise reads. Hoisting
   /// the body past one of those makes it read the old value.
   ///
-  /// A path that ends in an error or a `deopt` doesn't constrain this.
+  /// A path that ends in a `deopt` or an error that `before` accepts doesn't constrain this.
   private static boolean forcesFirst(
-      @Nullable Abstraction version, int argIndex, Predicate<Expression> before) {
+      @Nullable Abstraction version, int argIndex, Predicate<Instruction> before) {
     if (version == null || !version.isEvaluated() || argIndex >= version.parameters().size()) {
       // A dispatch call, a stub, or an unevaluated version: no body to look at (without
       // evaluating it, which only inlining is worth).
@@ -377,7 +385,7 @@ public final class StrictifyPromise extends AbstractionOptimization {
           isForced = true;
           break;
         }
-        if (!before.test(statement.expression())) {
+        if (!before.test(statement)) {
           return false;
         }
       }
@@ -385,7 +393,7 @@ public final class StrictifyPromise extends AbstractionOptimization {
       if (isForced) {
         continue;
       }
-      if (bb.jump().expression() instanceof Return) {
+      if (bb.jump().expression() instanceof Return || !before.test(bb.jump())) {
         return false;
       }
 
@@ -397,6 +405,42 @@ public final class StrictifyPromise extends AbstractionOptimization {
     }
 
     return true;
+  }
+
+  /// If `signals`, whether an instruction of `version` can't warn, raise an error, or write
+  /// output, so a promise that can may run before it: only frame bookkeeping and statements that
+  /// [InferEffects#maySignal] clears. A `deopt` is accepted, since compiled code raises an error
+  /// there anyway.
+  private static Predicate<Instruction> quietIn(@Nullable Abstraction version, boolean signals) {
+    if (!signals || version == null) {
+      return _ -> true;
+    }
+    var inferEffects = new InferEffects(version);
+    return instruction ->
+        switch (instruction) {
+          case Statement s -> isQuiet(s, inferEffects);
+          case Jump j -> !(j.expression() instanceof Raise);
+        };
+  }
+
+  private static boolean isQuiet(Statement statement, InferEffects inferEffects) {
+    return switch (statement.expression()) {
+      case MkEnv _, PopEnv _ -> true;
+      case Store(var storeType, _) -> storeType == StoreType.LOCAL_VAR;
+      default -> !inferEffects.maySignal(statement);
+    };
+  }
+
+  /// Whether the statements of the caller between `promise` and `call` can't warn, raise an error,
+  /// or write output. Inlining the promise runs its body where it's defined, before them.
+  private static boolean isQuietBetween(
+      Statement promise, Statement call, InferEffects inferEffects) {
+    var bb = promise.parentBB();
+    if (bb == null || bb != call.parentBB()) {
+      return false;
+    }
+    return bb.statements().subList(promise.indexInBB() + 1, call.indexInBB()).stream()
+        .allMatch(s -> isQuiet(s, inferEffects));
   }
 
   /// Whether `expression` leaves every binding and every vector that some other promise could read
