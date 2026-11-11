@@ -228,6 +228,10 @@ def sp_class(sp):
 
 # ---------------------------------------------------------------- HTML parts
 
+def par_class(pct):   # shade of a percent against parity with bc.opt, by its rounded value
+    return 'fast' if round(pct) > 100 else 'slow' if round(pct) < 100 else ''
+
+
 def is_test(path):
     return '/src/test/' in path or path.startswith(('client/rsh/tests/', 'client/rcp/tests/'))
 
@@ -366,7 +370,8 @@ def table_html(bench, opts):
             if x['note']:
                 cls.append('flag'); tip.append('flag: ' + x['note'] + ('\nexcluded from all statistics' if x['bad'] else ''))
                 mark += f'<span class="fl{" bad" if x["bad"] else ""}">!</span>'
-            pct = f'({x["pct"]:.0f}%)' if x['pct'] is not None else ''
+            pct = f'{x["pct"]:.0f}%' if x['pct'] is not None else ''
+            if pct and not x['bad']: cls.append(par_class(x['pct']))
             tr.append(f'<td data-c="{c}" class="{" ".join(cls)}" title="{esc(chr(10).join(tip))}">'
                       f'{mark}{pct}<span class="tm">{fmt_t(x["disp"])}</span></td>')
         rows.append('<tr>' + ''.join(tr) + '</tr>')
@@ -375,7 +380,7 @@ def table_html(bench, opts):
         g = gmean(x['pct'] for x in cells[c].values() if x and x['pct'] is not None and not x['bad'])
         bad = [b for b, x in cells[c].items() if x and x['bad']]
         mk = f'<span class="ex" title="{esc("excludes " + ", ".join(bad) + " (wrong value)")}">*</span>' if bad else ''
-        gm.append(f'<td data-c="{c}">{mk}{f"{g:.0f}%" if g else "–"}</td>')
+        gm.append(f'<td data-c="{c}" class="{par_class(g) if g else ""}">{mk}{f"{g:.0f}%" if g else "–"}</td>')
     return (f'<div class="tw" tabindex="0"><table class="bt"><thead><tr>{"".join(head)}</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody><tfoot><tr>{"".join(gm)}</tr></tfoot></table></div>')
 
@@ -513,7 +518,7 @@ table.bt th.corner { left: 0; z-index: 3; text-align: left; border-right: 1px so
 table.bt tfoot td, table.bt tfoot th { background: var(--sunk); font-weight: 600; border-bottom: 0; position: sticky; bottom: 0; z-index: 1; border-top: 1px solid var(--line); }
 table.bt tfoot th { z-index: 2; }
 table.bt td.na { color: var(--muted); text-align: center; }
-table.bt td.up { background: var(--addbg); } table.bt td.down { background: var(--delbg); }
+table.bt td.fast { background: var(--addbg); } table.bt td.slow { background: var(--delbg); }
 table.bt .mk { font-size: 0.65rem; margin-right: 4px; } table.bt td.up .mk { color: var(--add); } table.bt td.down .mk { color: var(--del); }
 .fl { display: inline-block; margin-right: 4px; padding: 0 4px; border-radius: 2px; background: var(--warn); color: var(--panel); font-weight: 700; }
 table.bt .hl { box-shadow: inset 0 0 0 999px var(--hl); } table.bt thead th.hl { box-shadow: inset 0 -3px 0 var(--accent), inset 0 0 0 999px var(--hl); }
@@ -786,14 +791,15 @@ def main():
     if bench:
         nav_table = '<a href="#table">Speedup table</a>'
         table = ('<section class="part" id="table"><div class="wrap"><h2>Speedup table</h2><div class="caption">'
-                 '<p>Each cell shows, in parentheses, the GNU-R optimized bytecode (<code>bc.opt</code>) time in the row header divided by the '
-                 '<code>fir2c.opt</code> time for one call in one state (above 100% is faster than bc.opt), and below it that time. The row header shows the '
+                 '<p>Each cell shows the GNU-R optimized bytecode (<code>bc.opt</code>) time in the row header divided by the '
+                 '<code>fir2c.opt</code> time for one call in one state, and below it that time. A green cell is above 100% (faster than bc.opt), '
+                 'a red cell is below 100%. The row header shows the '
                  'median bc.opt time over all measured states. The column <code>00</code> is the state before the first optimization; '
                  'every other column is the state after that optimization. An absent column was not measured; a dash is a missing value. '
                  'Times are in \u00b5s below 0.1 ms and in s from 1000 ms.</p>'
                  '<p>Load correction: for each state, the load factor is the geometric mean, over all benchmarks and the three GNU-R rows '
                  '(AST, bc.default, bc.opt), of the time in that state divided by the median time of that row over all states. '
-                 'A cell shows the faster of the two fir2c.opt runs divided by the load factor. A tinted cell with ▲ or ▼ is more than 12% '
+                 'A cell shows the faster of the two fir2c.opt runs divided by the load factor. A cell with ▲ or ▼ is more than 12% '
                  'faster or slower than the previous column; <b>!</b> marks a flagged result, and a red <b>!</b> a wrong benchmark value, which no statistic uses (a <b>*</b> on a geomean marks such an exclusion). Hover a cell for the raw time, '
                  'the bc.opt time of the same run, the load factor, and any flag.</p>'
                  + notes_html(bench) + '</div>' + table_html(bench, opts) + '</div></section>')
