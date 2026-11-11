@@ -712,6 +712,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       };
     }
 
+    private static @Nullable Constant box(Value value) {
+      return switch (value) {
+        case Value.Lgl(var l) -> new Constant(SEXPs.logical(l));
+        case Value.Int(var i) -> new Constant(SEXPs.integer(i));
+        case Value.Real(var r) -> new Constant(SEXPs.real(r));
+        case Value.Str(var s) -> new Constant(SEXPs.string(s));
+        default -> null;
+      };
+    }
+
     private @Nullable Argument tryConstantFold(
         Callee callee, Argument closureOrCalleeArg, List<Argument> arguments) {
       if (!(callee instanceof StaticFnCallee(var functionRef, var isDispatch, var signature))
@@ -787,17 +797,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           if (arguments.size() != 1) {
             yield null;
           }
-          var arg = resolve(arguments.getFirst());
-          if (!(arg instanceof Constant(var value))) {
-            yield null;
-          }
-          yield switch (value) {
-            case Value.Lgl(var l) -> new Constant(SEXPs.logical(l));
-            case Value.Int(var i) -> new Constant(SEXPs.integer(i));
-            case Value.Real(var r) -> new Constant(SEXPs.real(r));
-            case Value.Str(var s) -> new Constant(SEXPs.string(s));
-            default -> null;
-          };
+          yield resolve(arguments.getFirst()) instanceof Constant(var value) ? box(value) : null;
         }
         case "unbox" -> {
           if (arguments.size() != 1) {
@@ -962,7 +962,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
                 default -> null;
               };
 
-          yield elementValue == null ? null : new Constant(elementValue);
+          // A version that returns a SEXP (`v1(R)`) gets the element boxed.
+          yield elementValue == null
+              ? null
+              : signature.returnType().kind() instanceof Kind.PrimitiveScalar
+                  ? new Constant(elementValue)
+                  : box(elementValue);
         }
         case "[<-" -> {
           if (arguments.size() != 4) yield null;

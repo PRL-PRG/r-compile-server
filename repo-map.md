@@ -668,6 +668,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
 - `.../examples/R/closure_super_assigns_defining_frame.R` — A closure stores into a variable of its defining frame with `<<-` (`OriginAnalysis` must not keep the variable's origin across the call).
 - `.../examples/R/promise_forced_after_rebinding.R` — A closure keeps a promise argument, and the function rebinds the variable before it returns; the promise is forced later, so it reads the new binding (`OriginAnalysis` must see the bindings at `popenv`).
+- `.../examples/R/promise_of_copied_vector_subscript.R` — A kept promise `w[1]` of a constant vector: the folded subscript of a `v1(R)` version is a boxed constant (`OriginAnalysis` constant folding).
 - `.../examples/R/missing_promise_elided.R` — `missing` follows a promise into the caller's frame, so the caller's environment must stay materialized.
 - `.../examples/R/missing_unknown_callee.R` — `seq.default` (a base closure, so a dynamic callee) calls `missing` on a promise of a symbol, which reads the caller's environment: it must not become non-reflective.
 - `.../examples/R/missing_string_branch.R` — `missing("x")` reads the binding of `x`, so its store must stay; and a default parameter's `missing` check (the `--> B` version).

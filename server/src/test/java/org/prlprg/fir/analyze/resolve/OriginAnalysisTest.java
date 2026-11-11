@@ -338,6 +338,28 @@ class OriginAnalysisTest {
     assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
   }
 
+  /// A version that returns a SEXP (`v1(R)`) folds to the boxed element, not the unboxed one.
+  @Test
+  void testConstantFoldSubscriptReadOfSexpVersionIsBoxed() {
+    var firText =
+        """
+      fun main() {
+        () --> v1(R) {
+          mkenv;
+          vec: v1(R) = box< R --> v1(R) >(1.0);
+          result: v1(R) = `[`< v(R)b,v1(I),miss,miss --> v1(R) >(vec, <int 1>, <missing>, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.real(1.0)), analysis.get(reg(main, "result")));
+  }
+
   @Test
   void testConstantFoldDoubleSubscriptRead() {
     var firText =
