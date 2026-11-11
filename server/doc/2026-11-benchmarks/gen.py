@@ -384,10 +384,12 @@ def table_html(bench, opts):
 
 LIGHT = {'bg': '#f5f6f8', 'panel': '#ffffff', 'sunk': '#eef0f4', 'fg': '#1a1e26', 'muted': '#5a6372', 'line': '#dbe0e8',
              'accent': '#0b6870', 'accentbg': '#e1f0f1', 'add': '#1b6b30', 'addbg': '#e2f4e5', 'addln': '#c4e8cc',
-             'del': '#a62222', 'delbg': '#fbe7e7', 'delln': '#f3c9c9', 'warn': '#8a5a00', 'warnbg': '#fbf0d9', 'hl': 'rgb(255 205 0 / 0.22)'}
+             'del': '#a62222', 'delbg': '#fbe7e7', 'delln': '#f3c9c9', 'warn': '#8a5a00', 'warnbg': '#fbf0d9', 'hl': 'rgb(255 205 0 / 0.22)',
+             'tk': '#7b2fb5', 'ts': '#0b5a8f', 'tn': '#a04500', 'tc': '#5f6773', 'tt': '#00687a', 'tv': '#9a2f6b', 'tm': '#6b5900'}
 DARK = {'bg': '#111419', 'panel': '#181c23', 'sunk': '#1f242d', 'fg': '#e2e6ed', 'muted': '#97a1b1', 'line': '#2b323e',
             'accent': '#5ec5cc', 'accentbg': '#173336', 'add': '#7fd897', 'addbg': '#13301d', 'addln': '#1d4a2b',
-            'del': '#f39a9a', 'delbg': '#3a181b', 'delln': '#5a2328', 'warn': '#e9b858', 'warnbg': '#3a2d12', 'hl': 'rgb(94 197 204 / 0.16)'}
+            'del': '#f39a9a', 'delbg': '#3a181b', 'delln': '#5a2328', 'warn': '#e9b858', 'warnbg': '#3a2d12', 'hl': 'rgb(94 197 204 / 0.16)',
+            'tk': '#d2a8ff', 'ts': '#8ec5ff', 'tn': '#f0b073', 'tc': '#98a2b0', 'tt': '#6ed3d9', 'tv': '#f0a0d0', 'tm': '#d9c46a'}
 
 
 def tokens(d): return '; '.join(f'--{k}: {v}' for k, v in d.items())
@@ -484,6 +486,14 @@ table.diff .d { background: var(--delbg); } table.diff .d.sg, table.diff td.ln.d
 table.diff .i { background: var(--addbg); } table.diff .i.sg, table.diff td.ln.i { background: var(--addln); color: var(--add); }
 table.diff .x { background: var(--sunk); }
 table.diff tr.fold td { padding: 0; }
+/* highlight.js token classes; the colours are 4.5:1 or more on the plain, added, and deleted rows */
+.hljs-keyword, .hljs-doctag, .hljs-section, .hljs-selector-tag { color: var(--tk); }
+.hljs-string, .hljs-regexp, .hljs-code, .hljs-char { color: var(--ts); }
+.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet { color: var(--tn); }
+.hljs-comment, .hljs-quote { color: var(--tc); font-style: italic; }
+.hljs-type, .hljs-title, .hljs-built_in, .hljs-class { color: var(--tt); }
+.hljs-variable, .hljs-attr, .hljs-attribute, .hljs-params, .hljs-template-variable, .hljs-link, .hljs-name { color: var(--tv); }
+.hljs-meta { color: var(--tm); } .hljs-emphasis { font-style: italic; } .hljs-strong { font-weight: 600; }
 table.diff tr.fold button { all: unset; box-sizing: border-box; cursor: pointer; display: block; width: 100%; padding: 3px 10px; background: var(--accentbg); color: var(--accent); font: 0.76rem var(--sans); }
 table.diff tr.fold button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* table */
@@ -529,15 +539,48 @@ function block(id) {
 }
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const CTX = 3, MINFOLD = 6;
-function renderDiff(segs, mode) {
+// Syntax highlighting (highlight.js, loaded async; without it the diff stays plain). LANG maps a file extension to a language.
+const HLJS = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/', HLMAX = 4e5;
+const LANG = { java: 'java', R: 'r', r: 'r', c: 'c', h: 'c', md: 'markdown', fir: 'fir' };
+const redraw = () => document.querySelectorAll('.blk').forEach(s => s.cur && draw(s));
+function hlReady() {
+  hljs.registerLanguage('fir', h => ({
+    keywords: { $pattern: /[\w.]+/, keyword: 'fun return goto if then else check deopt raise unreachable ld ldf st mkenv popenv force consume prom dup dyn clos in as noop',
+      type: 'I L R S B V cls dots miss', literal: 'TRUE FALSE TRUE_LGL FALSE_LGL NA_LGL NA_INT NA_REAL NA_STR' },
+    contains: [{ scope: 'symbol', begin: '`', end: '`', contains: [{ begin: /\\./ }] }, h.HASH_COMMENT_MODE, h.QUOTE_STRING_MODE, h.C_NUMBER_MODE,
+      { scope: 'meta', match: /@\w+/ }, { scope: 'string', begin: /<(?!(?:cls|dots|miss)\b)[a-z]+(?=[ >])/, end: />/ },
+      { scope: 'type', match: /\b(?:v1?|p\??)(?=\()/ }, { scope: 'title', match: /\b[A-Z]\w*(?=\()/ },
+      { scope: 'variable', match: /\b[a-z_]\w*(?=\s*:)/ }]
+  }));
+  for (const l of new Set(Object.values(LANG))) if (!hljs.getLanguage(l)) document.head.append(Object.assign(el('script'), { src: `${HLJS}languages/${l}.min.js`, onload: redraw }));
+  redraw();
+}
+// One side of a file as HTML lines: highlight the whole text, then close the open spans at each line end and reopen them on the next line.
+function hlLines(text, path) {
+  const lang = LANG[path.split('.').pop()];
+  if (!window.hljs || !lang || !hljs.getLanguage(lang) || text.length > HLMAX) return null;
+  try {
+    const out = [], open = []; let cur = '';
+    for (const [t] of hljs.highlight(text, { language: lang, ignoreIllegals: true }).value.matchAll(/<span[^>]*>|<\/span>|\n|[^<\n]+/g)) {
+      if (t === '\n') { out.push(cur + '</span>'.repeat(open.length)); cur = open.join(''); continue; }
+      if (t === '</span>') open.pop(); else if (t[0] === '<') open.push(t);
+      cur += t;
+    }
+    return out.concat(cur + '</span>'.repeat(open.length));
+  } catch { return null; }
+}
+function renderDiff(segs, mode, path) {
   const split = mode === 'split', cols = split ? 6 : 4;
   const table = el('table', 'diff ' + mode), tb = el('tbody');
   table.append(tb);
   let a = 1, b = 1;
-  const row = (...cells) => { const tr = el('tr'); for (const [c, t] of cells) tr.append(el('td', c, t)); return tr; };
-  const eqRows = (lines, a0, b0) => lines.map((t, k) => split
-    ? row(['ln', a0 + k], ['sg', ''], ['cd', t], ['ln', b0 + k], ['sg', ''], ['cd', t])
-    : row(['ln', a0 + k], ['ln', b0 + k], ['sg', ''], ['cd', t]));
+  const side = tags => segs.filter(([t]) => tags.includes(t)).map(s => s[1]).join('\n');
+  const T = [side('ed'), side('ei')], H = T.map(t => hlLines(t, path)), P = T.map(t => t.split('\n'));
+  const cd = (c, s, n) => { const td = el('td', c); if (H[s]) td.innerHTML = H[s][n - 1]; else td.textContent = P[s][n - 1]; return td; };
+  const row = (...cells) => { const tr = el('tr'); for (const c of cells) tr.append(c instanceof Node ? c : el('td', c[0], c[1])); return tr; };
+  const eqRows = (lines, a0, b0) => lines.map((_, k) => split
+    ? row(['ln', a0 + k], ['sg', ''], cd('cd', 0, a0 + k), ['ln', b0 + k], ['sg', ''], cd('cd', 1, b0 + k))
+    : row(['ln', a0 + k], ['ln', b0 + k], ['sg', ''], cd('cd', 1, b0 + k)));
   const out = [];
   const eq = lines => { out.push(...eqRows(lines, a, b)); a += lines.length; b += lines.length; };
   const fold = lines => {
@@ -558,13 +601,13 @@ function renderDiff(segs, mode) {
     if (t === 'd') { D = L; if (segs[s + 1]?.[0] === 'i') I = segs[++s][1].split('\n'); } else I = L;
     if (split) {
       for (let k = 0; k < Math.max(D.length, I.length); k++) {
-        const l = k < D.length ? [['ln d', a + k], ['sg d', '−'], ['cd d', D[k]]] : [['ln x', ''], ['sg x', ''], ['cd x', '']];
-        const r = k < I.length ? [['ln i', b + k], ['sg i', '+'], ['cd i', I[k]]] : [['ln x', ''], ['sg x', ''], ['cd x', '']];
+        const l = k < D.length ? [['ln d', a + k], ['sg d', '−'], cd('cd d', 0, a + k)] : [['ln x', ''], ['sg x', ''], ['cd x', '']];
+        const r = k < I.length ? [['ln i', b + k], ['sg i', '+'], cd('cd i', 1, b + k)] : [['ln x', ''], ['sg x', ''], ['cd x', '']];
         out.push(row(...l, ...r));
       }
     } else {
-      D.forEach((x, k) => out.push(row(['ln d', a + k], ['ln d', ''], ['sg d', '−'], ['cd d', x])));
-      I.forEach((x, k) => out.push(row(['ln i', ''], ['ln i', b + k], ['sg i', '+'], ['cd i', x])));
+      D.forEach((_, k) => out.push(row(['ln d', a + k], ['ln d', ''], ['sg d', '−'], cd('cd d', 0, a + k))));
+      I.forEach((_, k) => out.push(row(['ln i', ''], ['ln i', b + k], ['sg i', '+'], cd('cd i', 1, b + k))));
     }
     a += D.length; b += I.length;
   }
@@ -584,7 +627,7 @@ async function draw(sec) {
   try {
     const data = await block(sec.dataset.id);
     if (sec.cur !== btn) return;
-    body.replaceChildren(renderDiff(data[btn.dataset.p], mode));
+    body.replaceChildren(renderDiff(data[btn.dataset.p], mode, btn.dataset.p));
   } catch (e) { body.replaceChildren(el('p', 'hint', 'The diff could not be decoded: ' + e.message)); }
 }
 function openFile(btn) {
@@ -608,7 +651,7 @@ function setMode(m) {
   mode = m;
   try { localStorage.setItem('diffMode', m); } catch {}
   document.querySelectorAll('.modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === m)));
-  document.querySelectorAll('.blk').forEach(s => s.cur && draw(s));
+  redraw();
 }
 document.addEventListener('click', e => {
   const f = e.target.closest('button.f'); if (f) return openFile(f);
@@ -627,6 +670,7 @@ function route() {
 }
 addEventListener('hashchange', route);
 route();
+window.hljs ? hlReady() : document.getElementById('hljs-js').addEventListener('load', hlReady);
 '''
 
 PAGE = '''<title>fir2c.opt Optimization Log</title>
@@ -645,6 +689,7 @@ PAGE = '''<title>fir2c.opt Optimization Log</title>
 <!--@CODE@--></div></section>
 <!--@TABLE@-->
 </main>
+<script async id="hljs-js" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script><!--@JS@--></script>
 '''
 
