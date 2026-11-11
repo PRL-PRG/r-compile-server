@@ -1445,8 +1445,8 @@ public final class Fir2CCompiler {
                     if (useBb == null) {
                       continue;
                     }
-                    // The register only has a slot in `defCfg`'s frame, and a promise's capture
-                    // array holds pointers into the frame that *creates* it. So a use nested more
+                    // The register only has a slot in `defCfg`'s frame, and a promise copies its
+                    // captures from the frame that *creates* it. So a use nested more
                     // than one promise deep has to be threaded through every frame in between,
                     // each of which captures it from its own enclosing frame.
                     for (var useCfg = useBb.owner();
@@ -1615,12 +1615,8 @@ public final class Fir2CCompiler {
           var cCode = fromRCFunction.add();
           // If the promise escaped its creating frame, record the escape or crash (if local).
           cCode.stmt("Fir_check_promise_escaped(%s);", VAR_DATA);
-          cCode.stmt("void **captures = Fir_prom_local(%s)->captures;", VAR_DATA);
-          var evalCName = promiseEvalCName(promise);
           cCode.stmt(
-              "FIR_STATS_ONLY(return Fir_stats_eval_promise(%s, %s, %s);)",
-              evalCName, VAR_ENV, VAR_DATA);
-          cCode.stmt("return %s(%s, captures);", evalCName, VAR_ENV);
+              "return Fir_eval_promise(%s, %s, %s);", promiseEvalCName(promise), VAR_ENV, VAR_DATA);
         }
 
         private void beginEmitEval() {
@@ -1988,13 +1984,18 @@ public final class Fir2CCompiler {
                         "void *",
                         captureSet.stream().map(reg -> "(void *)&" + registerPlace(reg)).toList());
                 var captures = captureArray.pointer();
+                var captureReprs =
+                    captureSet.stream()
+                        .map(reg -> String.valueOf(captureReprCode(registerRepr(reg))))
+                        .collect(Collectors.joining());
 
                 // Track the created promise so it's marked escaped when this frame exits.
-                yield "Fir_track_promise(Fir_mk_promise(%s, %s, %s, %s, Fir_const(%s, %d)), &%s, %s)"
+                yield "Fir_track_promise(Fir_mk_promise(%s, %s, %s, \"%s\", %s, Fir_const(%s, %d)), &%s, %s)"
                     .formatted(
                         fromRCName,
                         cp,
                         captures,
+                        captureReprs,
                         VAR_ENV,
                         cp,
                         PROMISE_EXPR_INDEX,
@@ -3563,6 +3564,18 @@ public final class Fir2CCompiler {
       case STRING -> "char*";
       case LOGICAL -> "Rboolean";
       case BOOLEAN -> "bool";
+    };
+  }
+
+  /// The character for a capture of `repr` in the `capture_reprs` of `Fir_mk_promise`.
+  private static char captureReprCode(Repr repr) {
+    return switch (repr) {
+      case SEXP -> 'S';
+      case INT -> 'I';
+      case FLOAT -> 'F';
+      case STRING -> 'C';
+      case LOGICAL -> 'L';
+      case BOOLEAN -> 'B';
     };
   }
 

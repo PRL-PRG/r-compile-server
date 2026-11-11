@@ -13,9 +13,9 @@ import org.prlprg.fir.ir.instruction.Statement;
 /// promises never escaped (outlived the stack frame they were created in, then got forced
 /// afterwards).
 ///
-/// A local promise reads its captures directly from the (still-alive) stack frame; if the
-/// speculation is wrong and it does escape, forcing it after the frame exited crashes at runtime
-/// (see the runtime's `Fir_GloballyEscaped` and the interpreter's escape tracking).
+/// If the speculation is wrong and the promise does escape, forcing it after the frame exited
+/// raises an error at runtime (see the runtime's `Fir_GloballyEscaped` and the interpreter's
+/// escape tracking).
 public record SpecializeLocalPromise(int threshold) implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {

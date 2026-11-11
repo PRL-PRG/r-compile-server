@@ -538,7 +538,32 @@ SEXP Fir_stats_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data) {
 }
 #endif
 
-SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env, SEXP expr) {
+// Copy the value that each of `captures` points to into `copies`, which point to the copies
+// afterwards: a SEXP into an element of `data` after its first three, which the GC traces and
+// which counts the reference, any other value into a slot after `copies`.
+static void Fir_copy_captures(void **captures, const char *capture_reprs, SEXP data, void **copies) {
+  int num_captures = (int)strlen(capture_reprs);
+  Fir_Capture *slots = (Fir_Capture *)(copies + num_captures);
+  SEXP *elements = (SEXP *)STDVEC_DATAPTR(data);
+  for (int i = 0, j = 3; i < num_captures; i++) {
+    switch (capture_reprs[i]) {
+    case 'S':
+      SET_VECTOR_ELT(data, j, *(SEXP *)captures[i]);
+      copies[i] = &elements[j++];
+      continue;
+    case 'I': slots[i].i = *(int *)captures[i]; break;
+    case 'F': slots[i].f = *(double *)captures[i]; break;
+    case 'C': slots[i].c = *(char **)captures[i]; break;
+    case 'L': slots[i].l = *(Rboolean *)captures[i]; break;
+    case 'B': slots[i].b = *(bool *)captures[i]; break;
+    default: Rf_error("FIŘ internal error: unknown capture representation '%c'", capture_reprs[i]);
+    }
+    copies[i] = &slots[i];
+  }
+}
+
+SEXP Fir_mk_promise(
+    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr) {
   ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
 #ifdef FIR_STATS
   // Before the elided frame is replaced by its parent below.
@@ -549,13 +574,21 @@ SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env, SEXP
     env = ENCLOS(env);
   }
 
-  SEXP data = PROTECT(Rf_allocVector(VECSXP, 3));
+  int num_captures = (int)strlen(capture_reprs);
+  int num_sexps = 0;
+  for (int i = 0; i < num_captures; i++) {
+    num_sexps += capture_reprs[i] == 'S';
+  }
+  SEXP data = PROTECT(Rf_allocVector(VECSXP, 3 + num_sexps));
   SET_VECTOR_ELT(data, 0, expr);
   SET_VECTOR_ELT(data, 1, cp);
-  SEXP local_data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData));
+  SEXP local_data_sexp = Rf_allocVector(
+      RAWSXP, sizeof(Fir_PromiseLocalData) + num_captures * (sizeof(void *) + sizeof(Fir_Capture)));
   SET_VECTOR_ELT(data, 2, local_data_sexp);
-  *(Fir_PromiseLocalData *)STDVEC_DATAPTR(local_data_sexp) =
-      (Fir_PromiseLocalData) {.captures = captures, .escaped = false};
+  Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData *)STDVEC_DATAPTR(local_data_sexp);
+  void **copies = num_captures > 0 ? (void **)(local_data + 1) : NULL;
+  *local_data = (Fir_PromiseLocalData) {.captures = copies, .escaped = false};
+  Fir_copy_captures(captures, capture_reprs, data, copies);
 #ifdef FIR_STATS
   Fir_PromiseGlobalData *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(cp, 0));
   ((Fir_PromiseLocalData *)STDVEC_DATAPTR(local_data_sexp))->elided = elided;
@@ -613,6 +646,23 @@ static void Fir_handle_escape(Fir_PromiseGlobalData *global_data, Fir_PromiseLoc
     Rf_error("forced a speculated-local promise after it escaped");
     break;
   }
+}
+
+SEXP Fir_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data) {
+  Fir_PromiseLocalData *local_data = Fir_prom_local(data);
+  local_data->evaluating++;
+#ifdef FIR_STATS
+  SEXP value = Fir_stats_eval_promise(eval, env, data);
+#else
+  SEXP value = eval(env, local_data->captures);
+#endif
+  // An error leaves the count up, so the captures stay for a force after it.
+  if (--local_data->evaluating == 0) {
+    for (R_xlen_t i = 3; i < XLENGTH(data); i++) {
+      SET_VECTOR_ELT(data, i, R_NilValue);
+    }
+  }
+  return value;
 }
 
 void Fir_check_promise_escaped(SEXP data) {
@@ -889,12 +939,8 @@ SEXP Fir_force(SEXP promise) {
     if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
       // If this promise escaped its creating frame, record the escape or crash (see the helper).
       Fir_handle_escape(global_data, local_data);
-#ifdef FIR_STATS
-      SEXP forced = Fir_stats_eval_promise(
+      SEXP forced = Fir_eval_promise(
           global_data->eval, PRENV(promise), R_ExternalPtrProtected(PRCODE(promise)));
-#else
-      SEXP forced = global_data->eval(PRENV(promise), local_data->captures);
-#endif
       SET_PRVALUE(promise, forced);
       // Unlike R's `forcePromise`, keep the environment: it's only dropped there so the GC can
       // collect it, but FIŘ's reflective promise accesses (`Fir_reflective_load`/`_store`, i.e.

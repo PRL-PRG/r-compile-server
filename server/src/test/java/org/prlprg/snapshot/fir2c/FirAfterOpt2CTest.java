@@ -20,7 +20,6 @@ class FirAfterOpt2CTest implements Gen2CCompilerTest {
       Set.of(
           // crashes
           "dd_val2",
-          "leak_promise",
           "leak_promise2",
           "vecsubset2_n6",
           // returns a different value

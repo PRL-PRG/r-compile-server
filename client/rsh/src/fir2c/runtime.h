@@ -142,11 +142,24 @@ typedef struct Fir_PromiseGlobalData {
 #endif
 } Fir_PromiseGlobalData;
 
+/// A copy of a captured register whose representation isn't SEXP (see `Fir_mk_promise`).
+typedef union Fir_Capture {
+  int i;
+  double f;
+  char *c;
+  Rboolean l;
+  bool b;
+} Fir_Capture;
+
 typedef struct Fir_PromiseLocalData {
+  /// Pointers to copies of the values of the captured registers (see `Fir_mk_promise`), so the
+  /// promise doesn't read the stack of the activation that created it, which can be gone.
   void **captures;
   /// Whether this specific promise instance has escaped, i.e. the stack frame that created it has
   /// exited. Set to `false` when created, then `true` when the creating frame exits.
   bool escaped;
+  /// The number of runs of the promise's code that haven't returned (see `Fir_eval_promise`).
+  int evaluating;
 #ifdef FIR_STATS
   /// Whether this instance was forced (at least started) before.
   bool forced;
@@ -338,7 +351,13 @@ void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_F
 ///   `PRCODE`, never `PREXPR`.
 /// - `cp`: the constant pool of the `prom` instruction (slot 0 is the `Fir_PromiseGlobalData`).
 /// - `local_data`: a `RAWSXP` holding this instance's `Fir_PromiseLocalData`.
-SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env, SEXP expr);
+///
+/// `captures` points to the captured registers, and `capture_reprs` has one character for each:
+/// its representation (`S`EXP, `I`nt, `F`loat, `C` string, `L`ogical or `B`oolean). The promise
+/// keeps copies of their values: a SEXP in `data` after its three elements, any other value in
+/// `local_data` after the `Fir_PromiseLocalData` and the pointers to the copies.
+SEXP Fir_mk_promise(
+    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr);
 #define Fir_prom_expr(data) VECTOR_ELT((data), 0)
 #define Fir_prom_cp(data) VECTOR_ELT((data), 1)
 #define Fir_prom_local(data) ((Fir_PromiseLocalData *)STDVEC_DATAPTR(VECTOR_ELT((data), 2)))
@@ -355,6 +374,11 @@ void Fir_mark_promises_escaped(SEXP tracked_list);
 /// escaped its creating frame, record the escape or crash (if it was speculated local). Called
 /// before forcing, including when R itself forces the promise.
 void Fir_check_promise_escaped(SEXP data);
+/// Run a compiled promise's code `eval` in `env` (`data` as in `Fir_mk_promise`). Both force
+/// paths call it: `Fir_force`, and the from-R entry that R's `forcePromise` calls. When no other
+/// run of the code is active, it then releases the promise's SEXP captures, so they no longer
+/// count as references.
+SEXP Fir_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data);
 
 #ifdef FIR_STATS
 /// Run a compiled promise's code `eval` in `env`, and count the force and whether the code
