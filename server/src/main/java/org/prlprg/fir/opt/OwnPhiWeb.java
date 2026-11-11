@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Instruction;
@@ -45,9 +46,10 @@ import org.prlprg.fir.ir.variable.Register;
 /// - Only this CFG uses the web phis.
 /// - Each other use of a web phi is one of these:
 ///   - a borrow: the target of a `SubscriptRead` or the argument of a `dup`;
-///   - in a block that deopts;
-///   - a `return` or a `dots` element after which no use of a web phi is reachable (outside of
-///     blocks that deopt). The `return` becomes a `consume`, which a shared return type accepts.
+///   - a hand-off: a `st` or a `deopt` argument in a block that deopts (control leaves the version
+///     there, with no write between);
+///   - a `return` or a `dots` element after which no use of a web phi but a hand-off is reachable.
+///     The `return` becomes a `consume`, which a shared return type accepts.
 ///
 /// So each vector in the web has no other reference while a web phi can write it. [ConsumeDeadDup]
 /// and [ElideConsumedDup] then remove the copy.
@@ -166,7 +168,7 @@ public final class OwnPhiWeb extends AbstractionOptimization {
         }
         if (isFlowInto(web, instruction, phi)
             || isBorrow(instruction, use.index())
-            || bb.jump().expression() instanceof Deopt) {
+            || isHandOff(instruction)) {
           continue;
         }
         var isReturn = instruction instanceof Jump jump && jump.expression() instanceof Return;
@@ -226,9 +228,17 @@ public final class OwnPhiWeb extends AbstractionOptimization {
     };
   }
 
-  /// Whether a use of a web phi is reachable after `instruction` in `bb`, outside of the blocks
-  // that
-  /// deopt.
+  /// Whether a `st` or a `deopt` argument in a block that deopts.
+  private static boolean isHandOff(Instruction instruction) {
+    var bb = instruction.parentBB();
+    return bb != null
+        && bb.jump().expression() instanceof Deopt
+        && (instruction == bb.jump()
+            || instruction instanceof Statement statement
+                && statement.expression() instanceof Store);
+  }
+
+  /// Whether a use of a web phi that is not a hand-off is reachable after `instruction` in `bb`.
   private static boolean reachesUse(Set<BlockParameter> web, BB bb, Instruction instruction) {
     var after =
         instruction instanceof Statement statement
@@ -242,7 +252,7 @@ public final class OwnPhiWeb extends AbstractionOptimization {
     var worklist = new ArrayDeque<>(bb.successors());
     while (!worklist.isEmpty()) {
       var next = worklist.pop();
-      if (!visited.add(next) || next.jump().expression() instanceof Deopt) {
+      if (!visited.add(next)) {
         continue;
       }
       if (next.statements().stream().anyMatch(s -> usesWeb(web, s)) || usesWeb(web, next.jump())) {
@@ -254,7 +264,9 @@ public final class OwnPhiWeb extends AbstractionOptimization {
   }
 
   private static boolean usesWeb(Set<BlockParameter> web, Instruction instruction) {
-    return instruction.args().stream()
-        .anyMatch(argument -> argument.variable() instanceof BlockParameter p && web.contains(p));
+    return !isHandOff(instruction)
+        && instruction.args().stream()
+            .anyMatch(
+                argument -> argument.variable() instanceof BlockParameter p && web.contains(p));
   }
 }

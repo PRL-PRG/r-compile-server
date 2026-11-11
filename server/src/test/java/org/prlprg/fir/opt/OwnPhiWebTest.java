@@ -95,6 +95,19 @@ class OwnPhiWebTest implements AbstractionOptimizationUnitTest {
     assertFalse(printed.contains("dup u"), printed);
   }
 
+  /// A block that deopts hands `vec` off only by a `st` or a `deopt` argument, not by an alias.
+  @Test
+  void useInABlockThatDeopts_onlyAHandOff() {
+    var check = "check B2() else D0();\n          B2():";
+    var deopt = "popenv;\n            return vec;\n          D0():\n            %sdeopt 0 [%s];\n";
+    var withEnv =
+        loop("y, 0", "", check, "w, k2", "vec")
+            .replace("    y: v(I)o = dup x;", "    mkenv;\n            y: v(I)o = dup x;");
+    assertSameResults(withEnv.replace("return vec;\n", deopt.formatted("", "vec")), true);
+    var alias = "a: v(I) = vec ?: v(I);\n            ";
+    assertSameResults(withEnv.replace("return vec;\n", deopt.formatted(alias, "a")), false);
+  }
+
   /// `old` and `vec` would be the same vector, so `old` would see the writes.
   @Test
   void phiArgumentTwiceInAJump_isLeftAlone() {
