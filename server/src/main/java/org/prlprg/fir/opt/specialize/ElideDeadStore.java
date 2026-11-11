@@ -14,6 +14,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.instruction.Deopt;
@@ -107,7 +108,11 @@ public record ElideDeadStore() implements SpecializeOptimization {
                   Objects.requireNonNull(
                       analyses.get(CfgHierarchy.class).projectInto(commonCfg, load));
 
-              return analyses.get(commonCfg, CfgReachability.class).isReachable(storePos, loadPos);
+              // A promise reads when it's forced, which may be anywhere after it's created.
+              var reachability = analyses.get(commonCfg, CfgReachability.class);
+              return reachability.isReachable(storePos, loadPos)
+                  || ((loadPos != load || load.expression() instanceof Promise)
+                      && reachability.isReachable(loadPos, storePos));
             })) {
       return Result.UNCHANGED;
     }

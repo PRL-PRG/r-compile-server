@@ -34,4 +34,28 @@ class ElideDeadStoreTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(abstraction);
     assertTrue(printed.contains("st `...` = ddd;"), printed);
   }
+
+  /// The stub evaluates `x` when it's forced, which may be after the store.
+  @Test
+  void storeAfterADeoptStubOfTheVariable_isKept() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*) --> * {
+              mkenv~;
+              st x = x;
+              p: p(V +) = prom<V +>[<sym x>]{
+                deopt 0 [];
+              };
+              st x = <real 99.0>;
+              popenv;
+              return p;
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("st x = <real 99.0>;"), printed);
+  }
 }

@@ -14,6 +14,7 @@ import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -27,7 +28,7 @@ import org.prlprg.sexp.StrSXP;
 /// Computes a map of [NamedVariable] to the local [Load] statements that load said variable (a load
 /// of `..N` also loads `...`), or to statements with symbol or language constant arguments that may
 /// load said variable when evaluated (e.g. a GNU-R special evaluates its unevaluated symbol
-/// arguments in the caller's environment).
+/// arguments in the caller's environment, and a deopt stub promise its expression).
 public final class Loads implements Analysis {
   private final Multimap<NamedVariable, Statement> loads = ArrayListMultimap.create();
 
@@ -55,7 +56,16 @@ public final class Loads implements Analysis {
               loads.put(NamedVariable.DOTS, statement);
             }
           }
-          case Promise(_, _, var code, _, _) -> run(code);
+          case Promise(_, _, var code, _, var expr) -> {
+            run(code);
+            // A body that only deopts evaluates `expr` in the environment when it's forced.
+            if (expr != null
+                && code.bbs().size() == 1
+                && code.entry().statements().isEmpty()
+                && code.entry().jump().expression() instanceof Deopt) {
+              addSymbolLoads(expr, statement);
+            }
+          }
           default -> {}
         }
 
