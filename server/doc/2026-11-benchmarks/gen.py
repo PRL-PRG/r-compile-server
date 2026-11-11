@@ -385,11 +385,11 @@ def table_html(bench, opts):
 LIGHT = {'bg': '#f5f6f8', 'panel': '#ffffff', 'sunk': '#eef0f4', 'fg': '#1a1e26', 'muted': '#5a6372', 'line': '#dbe0e8',
              'accent': '#0b6870', 'accentbg': '#e1f0f1', 'add': '#1b6b30', 'addbg': '#e2f4e5', 'addln': '#c4e8cc',
              'del': '#a62222', 'delbg': '#fbe7e7', 'delln': '#f3c9c9', 'warn': '#8a5a00', 'warnbg': '#fbf0d9', 'hl': 'rgb(255 205 0 / 0.22)',
-             'tk': '#7b2fb5', 'ts': '#0b5a8f', 'tn': '#a04500', 'tc': '#5f6773', 'tt': '#00687a', 'tv': '#9a2f6b', 'tm': '#6b5900'}
+             'tk': '#7b2fb5', 'ts': '#0b5a8f', 'tn': '#a04500', 'tc': '#5f6773', 'tt': '#00687a', 'tf': '#9a2f6b', 'tm': '#6b5900'}
 DARK = {'bg': '#111419', 'panel': '#181c23', 'sunk': '#1f242d', 'fg': '#e2e6ed', 'muted': '#97a1b1', 'line': '#2b323e',
             'accent': '#5ec5cc', 'accentbg': '#173336', 'add': '#7fd897', 'addbg': '#13301d', 'addln': '#1d4a2b',
             'del': '#f39a9a', 'delbg': '#3a181b', 'delln': '#5a2328', 'warn': '#e9b858', 'warnbg': '#3a2d12', 'hl': 'rgb(94 197 204 / 0.16)',
-            'tk': '#d2a8ff', 'ts': '#8ec5ff', 'tn': '#f0b073', 'tc': '#98a2b0', 'tt': '#6ed3d9', 'tv': '#f0a0d0', 'tm': '#d9c46a'}
+            'tk': '#d2a8ff', 'ts': '#8ec5ff', 'tn': '#f0b073', 'tc': '#98a2b0', 'tt': '#6ed3d9', 'tf': '#f0a0d0', 'tm': '#d9c46a'}
 
 
 def tokens(d): return '; '.join(f'--{k}: {v}' for k, v in d.items())
@@ -487,13 +487,9 @@ table.diff .i { background: var(--addbg); } table.diff .i.sg, table.diff td.ln.i
 table.diff .x { background: var(--sunk); }
 table.diff tr.fold td { padding: 0; }
 /* highlight.js token classes; the colours are 4.5:1 or more on the plain, added, and deleted rows */
-.hljs-keyword, .hljs-doctag, .hljs-section, .hljs-selector-tag { color: var(--tk); }
-.hljs-string, .hljs-regexp, .hljs-code, .hljs-char { color: var(--ts); }
-.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet { color: var(--tn); }
-.hljs-comment, .hljs-quote { color: var(--tc); font-style: italic; }
-.hljs-type, .hljs-title, .hljs-built_in, .hljs-class { color: var(--tt); }
-.hljs-variable, .hljs-attr, .hljs-attribute, .hljs-params, .hljs-template-variable, .hljs-link, .hljs-name { color: var(--tv); }
-.hljs-meta { color: var(--tm); } .hljs-emphasis { font-style: italic; } .hljs-strong { font-weight: 600; }
+.hljs-keyword { color: var(--tk); } .hljs-string, .hljs-code { color: var(--ts); }
+.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet { color: var(--tn); } .hljs-comment { color: var(--tc); font-style: italic; }
+.hljs-type, .hljs-built_in { color: var(--tt); } .hljs-title.function_ { color: var(--tf); } .hljs-meta { color: var(--tm); } .hljs-strong, .hljs-section { font-weight: 600; }
 table.diff tr.fold button { all: unset; box-sizing: border-box; cursor: pointer; display: block; width: 100%; padding: 3px 10px; background: var(--accentbg); color: var(--accent); font: 0.76rem var(--sans); }
 table.diff tr.fold button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* table */
@@ -543,14 +539,23 @@ const CTX = 3, MINFOLD = 6;
 const HLJS = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/', HLMAX = 4e5;
 const LANG = { java: 'java', R: 'r', r: 'r', c: 'c', h: 'c', md: 'markdown', fir: 'fir' };
 const redraw = () => document.querySelectorAll('.blk').forEach(s => s.cur && draw(s));
+// The grammars colour a token by its text alone, except that a name directly before `(` is a function (a keyword or type stays one).
 function hlReady() {
-  hljs.registerLanguage('fir', h => ({
-    keywords: { $pattern: /[\w.]+/, keyword: 'fun return goto if then else check deopt raise unreachable ld ldf st mkenv popenv force consume prom dup dyn clos in as noop',
-      type: 'I L R S B V cls dots miss', literal: 'TRUE FALSE TRUE_LGL FALSE_LGL NA_LGL NA_INT NA_REAL NA_STR' },
+  const fn = (k, id = '[A-Za-z_$][\\w$]*') => ({ scope: 'title.function', match: new RegExp(`\\b(?!(?:${k.keyword.replace(/ /g, '|')}|${k.type.replace(/ /g, '|')})\\b(?!\\.))${id}(?=\\()`) });
+  const clike = (k, type, extra) => h => ({ keywords: k, contains: [h.C_LINE_COMMENT_MODE, h.C_BLOCK_COMMENT_MODE, ...extra, h.QUOTE_STRING_MODE, h.APOS_STRING_MODE,
+    { scope: 'number', match: /\b(?:0[xX][\da-fA-F_]+|\d[\d_]*\.?\d*(?:[eE][-+]?\d+)?)[a-zA-Z]*/ }, { scope: 'type', match: type }, fn(k)] });
+  hljs.registerLanguage('java', clike({ literal: 'true false null', type: 'boolean byte char short int long float double void',
+    keyword: 'abstract assert break case catch class const continue default do else enum extends final finally for goto if implements import instanceof interface native new package private protected public return static strictfp super switch synchronized this throw throws transient try volatile while var record sealed permits yield when' },
+    /\b[A-Z][A-Z\d_$]*[a-z][\w$]*/, [{ scope: 'string', begin: '"""', end: '"""' }, { scope: 'keyword', match: /\bnon-sealed\b/ }, { scope: 'meta', match: /@\w+/ }]));
+  hljs.registerLanguage('c', clike({ literal: 'true false NULL', type: 'char short int long float double void signed unsigned bool _Bool',
+    keyword: 'auto break case const continue default do else enum extern for goto if inline register restrict return sizeof static struct switch typedef union volatile while' },
+    /\b(?:\w+_t|SEXP|Rboolean|Rsh_code|Fir_[A-Z][a-z]\w*)\b/, [{ scope: 'meta', match: /^[ \t]*#[ \t]*[a-z]+/ }]));
+  const fk = { $pattern: /[\w.]+/, keyword: 'fun return goto if then else check deopt raise unreachable ld ldf st mkenv popenv force consume prom dup dyn clos in as noop',
+    type: 'I L R S B V cls dots miss', literal: 'TRUE FALSE TRUE_LGL FALSE_LGL NA_LGL NA_INT NA_REAL NA_STR' };
+  hljs.registerLanguage('fir', h => ({ keywords: fk,
     contains: [{ scope: 'symbol', begin: '`', end: '`', contains: [{ begin: /\\./ }] }, h.HASH_COMMENT_MODE, h.QUOTE_STRING_MODE, h.C_NUMBER_MODE,
       { scope: 'meta', match: /@\w+/ }, { scope: 'string', begin: /<(?!(?:cls|dots|miss)\b)[a-z]+(?=[ >])/, end: />/ },
-      { scope: 'type', match: /\b(?:v1?|p\??)(?=\()/ }, { scope: 'title', match: /\b[A-Z]\w*(?=\()/ },
-      { scope: 'variable', match: /\b[a-z_]\w*(?=\s*:)/ }]
+      { scope: 'type', match: /\b(?:v1?|p\??)(?=\()/ }, fn(fk, '[A-Za-z_][\\w.]*')]
   }));
   for (const l of new Set(Object.values(LANG))) if (!hljs.getLanguage(l)) document.head.append(Object.assign(el('script'), { src: `${HLJS}languages/${l}.min.js`, onload: redraw }));
   redraw();
