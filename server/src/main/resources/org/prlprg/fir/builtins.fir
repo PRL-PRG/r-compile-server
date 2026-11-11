@@ -299,7 +299,7 @@ fun `:`(lhs, rhs) {
 # `x` is borrowed in the non-generic versions: they only read it.
 #
 # Effects follow GNU-R: `x[i]` with a length-1 index can't fail (out-of-range and `NA` both read as
-# `NA`), so those are pure; with a longer index it can ("only 0's may be mixed with negative
+# `NA`), so those are pure (the scalar ones deopt where `x[i]` isn't one element, for an `i` below 1); with a longer index it can ("only 0's may be mixed with negative
 # subscripts"), and every `[[` fails out of range, so those are impure. The optimizer replaces the
 # pure ones with `x[i]` and the `[[` ones with `x[[i]]`, which behave the same way (see
 # `org.prlprg.fir.ir.expression.SubscriptRead`).

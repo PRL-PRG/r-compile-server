@@ -1008,53 +1008,62 @@ SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
   return value;
 }
 
-/// R's error for an out-of-range `[[`.
-///
-/// A negative R subscript still differs: GNU-R reports "invalid negative subscript in get1index".
-static void Fir_subscript_assert_in_bounds(SEXP vector, int index) {
-  if (index < 0 || (R_xlen_t)index >= XLENGTH(vector)) {
-    Rf_error("subscript out of bounds");
-  }
+/// The offset `x[[i]]` reads for the 0-based `index` (`i - 1`, `NA` for `NA`): `index` itself if
+/// it's in `vector`, else `Fir_subscript_offset_slow`'s.
+static R_xlen_t Fir_subscript_offset(SEXP vector, int index) {
+  return index >= 0 && (R_xlen_t)index < XLENGTH(vector) ? index
+                                                         : Fir_subscript_offset_slow(vector, index);
+}
+
+/// `Fir_subscript_offset` for `x[i]`, which is -1 where `x[i]` reads `NA`.
+static R_xlen_t Fir_subscript_na_offset(SEXP vector, int index) {
+  return index >= 0 && (R_xlen_t)index < XLENGTH(vector) ? index
+                                                         : Fir_subscript_na_offset_slow(vector, index);
 }
 
 int Fir_subscript_read_int(SEXP vector, int index) {
-  Fir_subscript_assert_in_bounds(vector, index);
-  return INTEGER(vector)[index];
+  return INTEGER(vector)[Fir_subscript_offset(vector, index)];
 }
 
 double Fir_subscript_read_real(SEXP vector, int index) {
-  Fir_subscript_assert_in_bounds(vector, index);
-  return REAL(vector)[index];
+  return REAL(vector)[Fir_subscript_offset(vector, index)];
 }
 
 Rboolean Fir_subscript_read_logical(SEXP vector, int index) {
-  Fir_subscript_assert_in_bounds(vector, index);
-  return (Rboolean)LOGICAL(vector)[index];
+  return (Rboolean)LOGICAL(vector)[Fir_subscript_offset(vector, index)];
 }
 
+/// `NULL` is how the generated code spells `NA_STRING`.
 char* Fir_subscript_read_string(SEXP vector, int index) {
-  Fir_subscript_assert_in_bounds(vector, index);
-  return (char*)CHAR(STRING_ELT(vector, index));
+  SEXP elt = STRING_ELT(vector, Fir_subscript_offset(vector, index));
+  return elt == NA_STRING ? NULL : (char*)CHAR(elt);
 }
 
 int Fir_subscript_read_na_int(SEXP vector, int index) {
-  return index >= 0 && (R_xlen_t)index < XLENGTH(vector) ? INTEGER(vector)[index] : NA_INTEGER;
+  R_xlen_t offset = Fir_subscript_na_offset(vector, index);
+  return offset >= 0 ? INTEGER(vector)[offset] : NA_INTEGER;
 }
 
 double Fir_subscript_read_na_real(SEXP vector, int index) {
-  return index >= 0 && (R_xlen_t)index < XLENGTH(vector) ? REAL(vector)[index] : NA_REAL;
+  R_xlen_t offset = Fir_subscript_na_offset(vector, index);
+  return offset >= 0 ? REAL(vector)[offset] : NA_REAL;
 }
 
 Rboolean Fir_subscript_read_na_logical(SEXP vector, int index) {
-  return index >= 0 && (R_xlen_t)index < XLENGTH(vector) ? (Rboolean)LOGICAL(vector)[index]
-                                                         : (Rboolean)NA_LOGICAL;
+  R_xlen_t offset = Fir_subscript_na_offset(vector, index);
+  return offset >= 0 ? (Rboolean)LOGICAL(vector)[offset] : (Rboolean)NA_LOGICAL;
 }
 
-/// `NULL` is how the generated code spells `NA_STRING` (see `Fir_subscript_read_string`).
 char* Fir_subscript_read_na_string(SEXP vector, int index) {
-  if (index < 0 || (R_xlen_t)index >= XLENGTH(vector)) return NULL;
-  SEXP elt = STRING_ELT(vector, index);
+  R_xlen_t offset = Fir_subscript_na_offset(vector, index);
+  if (offset < 0) return NULL;
+  SEXP elt = STRING_ELT(vector, offset);
   return elt == NA_STRING ? NULL : (char*)CHAR(elt);
+}
+
+/// The 0-based index of the 1-based `i`.
+static int Fir_zero_based(int i) {
+  return i == NA_INTEGER ? NA_INTEGER : i - 1;
 }
 
 SEXP Fir_subscript_write_int(SEXP vector, int index, int value) {
@@ -1939,6 +1948,24 @@ SEXP Fir_serialized_feedback(SEXP pool) {
   UNPROTECT(1);
   // No baseline ran, so we know nothing (as opposed to knowing that nothing was recorded).
   return count == 0 ? R_NilValue : Rf_xlengthgets(out, count);
+}
+
+R_xlen_t Fir_subscript_offset_slow(SEXP vector, int index) {
+  R_xlen_t length = XLENGTH(vector);
+  if (index >= 0 || index == NA_INTEGER) Rf_error("subscript out of bounds");
+  // `i = index + 1 <= 0`
+  if (index == -1 || length < 2) Rf_error("attempt to select less than one element in integerOneIndex");
+  if (length == 2 && index > -4) return index + 3;
+  Rf_error("attempt to select more than one element in integerOneIndex");
+}
+
+R_xlen_t Fir_subscript_na_offset_slow(SEXP vector, int index) {
+  R_xlen_t length = XLENGTH(vector);
+  if (index >= 0 || index == NA_INTEGER) return -1;
+  // `i = index + 1 <= 0`: `x[0]` is empty, and `x[-k]` drops element `k` if there is one.
+  if (index < -1 && length == 2 && index > -4) return index + 3;
+  if (length == 1 && index + 1 < -1) return 0;
+  Rf_error("FIŘ deoptimization triggered: x[%d] isn't one element (unsupported)", index + 1);
 }
 
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env) {
@@ -2949,47 +2976,37 @@ DEFINE_OVERRIDDEN_BUILTIN(int, bitwShiftR, scalar_int_scalar_int_fx_none_ret_sca
 // === [ (scalar index read, 1-based) ===
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b, vec_logical_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  return LOGICAL(x)[i - 1];
+  return Fir_subscript_read_na_logical(x, Fir_zero_based(i));
 }
 DEFINE_OVERRIDDEN_BUILTIN(int, _u5b, vec_int_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  return INTEGER(x)[i - 1];
+  return Fir_subscript_read_na_int(x, Fir_zero_based(i));
 }
 DEFINE_OVERRIDDEN_BUILTIN(double, _u5b, vec_real_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  return REAL(x)[i - 1];
+  return Fir_subscript_read_na_real(x, Fir_zero_based(i));
 }
 DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b, vec_string_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  SEXP elt = STRING_ELT(x, i - 1);
-  return elt == NA_STRING ? NULL : (char*)CHAR(elt);
+  return Fir_subscript_read_na_string(x, Fir_zero_based(i));
 }
 
 // === [[ (scalar index read, 1-based) ===
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b_u5b, vec_logical_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP exact) {
   (void)ddd; (void)exact;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  return LOGICAL(x)[i - 1];
+  return Fir_subscript_read_logical(x, Fir_zero_based(i));
 }
 DEFINE_OVERRIDDEN_BUILTIN(int, _u5b_u5b, vec_int_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP exact) {
   (void)ddd; (void)exact;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  return INTEGER(x)[i - 1];
+  return Fir_subscript_read_int(x, Fir_zero_based(i));
 }
 DEFINE_OVERRIDDEN_BUILTIN(double, _u5b_u5b, vec_real_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP exact) {
   (void)ddd; (void)exact;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  return REAL(x)[i - 1];
+  return Fir_subscript_read_real(x, Fir_zero_based(i));
 }
 DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b_u5b, vec_string_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP exact) {
   (void)ddd; (void)exact;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  SEXP elt = STRING_ELT(x, i - 1);
-  return elt == NA_STRING ? NULL : (char*)CHAR(elt);
+  return Fir_subscript_read_string(x, Fir_zero_based(i));
 }
 
 /// Write `value` at (1-based) `i` in `x` and return the result. `in_place` is for the versions

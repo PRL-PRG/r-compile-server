@@ -655,6 +655,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/closure_from_frame_nested_in_elided_frame.R` — A closure from a real frame that an elided frame contains: its lookups reach the elided frame's parent, not the elided environment's current parent.
 - `.../examples/R/elided_frame_after_caught_error.R` — An elided frame whose callee, called from R, catches an error past a pushed elided frame: the from-R exit restores the elided environment's parent.
 - `.../examples/R/attributes_fail_type_guard.R` — A value with attributes (a name) fails the type guard of a version typed from plain values (`Fir_value_kind_matches`), and deopts.
+- `.../examples/R/subscript_nonpositive.R` — Scalar subscript reads with an index below 1: GNU-R's results and errors, or a deopt where `x[i]` isn't one element.
 - `.../examples/R/box_na_string.R` — `box` of the unboxed string `NA` is `NA_character_`.
 - `.../examples/R/lgamma_negative.R` — The unboxed `lgamma` is R's `lgammafn` (negative non-integers).
 - `.../examples/R/as_integer_real_range.R` — The unboxed `as.integer` of a real at the ends of the integer range, with the warning out of it; a real subscript there is silent (`realToIndex`).

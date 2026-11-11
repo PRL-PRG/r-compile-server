@@ -627,6 +627,13 @@ DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_missing_fx_none_ret_scalar_re
 DEFINE_OVERRIDDEN_BUILTIN(int, abs, scalar_int_fx_none_ret_scalar_int, int value);
 DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, double value);
 
+/// The offset `x[[i]]` reads for a 0-based `index` (`i - 1`, `NA` for `NA`) that isn't in
+/// `vector`: GNU-R's `integerOneIndex` (`subscript.c`), or its error.
+R_xlen_t Fir_subscript_offset_slow(SEXP vector, int index);
+/// The same for `x[i]`: -1 for `NA` and past the end. A nonpositive `i` selects one element only
+/// in a vector of 1 or 2 elements; otherwise `x[i]` isn't a scalar, and this deopts.
+R_xlen_t Fir_subscript_na_offset_slow(SEXP vector, int index);
+
 // R's own `lgamma` (`Rmath.h`, which can't be included: it renames `sign`)
 double Rf_lgammafn(double x);
 

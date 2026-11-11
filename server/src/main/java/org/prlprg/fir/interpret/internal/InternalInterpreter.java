@@ -889,6 +889,10 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't subscript with non-integer index: " + indexValue);
         }
 
+        // As the mock `[`: GNU-R's subscript below 1 isn't one element (the C runtime deopts).
+        if (index < 0 && index != Constants.NA_INT) {
+          throw failUnsupported("Subscript read below 1");
+        }
         yield outOfRangeIsNa && (index < 0 || index >= vector.size())
             ? naElement(vector)
             : subscriptLoad(vector, index);
