@@ -442,22 +442,20 @@ SEXP Fir_stats_reset(void) {
 // Whether a promise whose environment is `env` can't reflect (see `Fir_push_env`): reflection in
 // an elided or non-reflective frame is an error.
 static bool Fir_stats_is_elided(SEXP env) {
-  return env == Rsh_ElidedEnv || TYPEOF(env) != ENVSXP
-      || Rf_findVarInFrame(env, Rsh_ReflectivelyAccessed) == R_LogicalNAValue;
+  return env == Rsh_ElidedEnv || TYPEOF(env) != ENVSXP || RSH_IS_NON_REFLECTIVE(env);
 }
 
-// Whether the stats can remove and restore `env`'s reflection marker: `R_removeVarFromFrame` and
-// `Rf_defineVar` raise errors in locked and base environments.
-static bool Fir_stats_can_track_marker(SEXP env) {
+// Whether the stats track `env`'s reflection mark: GNU-R's `recordReflection` skips locked and base
+// environments.
+static bool Fir_stats_can_track_mark(SEXP env) {
   return TYPEOF(env) == ENVSXP && env != Rsh_ElidedEnv && env != R_BaseEnv
       && env != R_BaseNamespace && !R_EnvironmentIsLocked(env);
 }
 
 // Mark `env` reflectively accessed, like GNU-R's `recordReflection`, if the stats can track it.
 static void Fir_stats_record_reflection(SEXP env) {
-  if (Fir_stats_can_track_marker(env)
-      && Rf_findVarInFrame(env, Rsh_ReflectivelyAccessed) != R_LogicalNAValue) {
-    Rf_defineVar(Rsh_ReflectivelyAccessed, R_TrueValue, env);
+  if (Fir_stats_can_track_mark(env)) {
+    RSH_SET_REFLECTED(env);
   }
 }
 
@@ -475,11 +473,11 @@ static SEXP Fir_stats_force_body(void *data) {
 }
 
 // Also runs on a non-local exit out of the promise's code (an error, a `return` from the creating
-// function), so the marker is restored before R continues the jump.
+// function), so the mark is restored before R continues the jump.
 static void Fir_stats_force_cleanup(void *data, Rboolean jump) {
   (void)jump;
   Fir_StatsForce *force = data;
-  bool is_marked = R_existsVarInFrame(force->env, Rsh_ReflectivelyAccessed);
+  bool is_marked = RSH_IS_REFLECTED(force->env);
   if (is_marked && !force->local_data->reflected) {
     force->local_data->reflected = true;
     Fir_stats.reflected++;
@@ -488,12 +486,12 @@ static void Fir_stats_force_cleanup(void *data, Rboolean jump) {
     }
   }
   if (force->was_marked && !is_marked) {
-    Rf_defineVar(Rsh_ReflectivelyAccessed, R_TrueValue, force->env);
+    RSH_SET_REFLECTED(force->env);
   }
 }
 
-// To see whether the code reflects, remove the frame's reflection marker, run the code, and check
-// whether GNU-R's `recordReflection` (or `Fir_reflective_load`/`_store`) bound it again. A
+// To see whether the code reflects, clear the frame's reflection mark, run the code, and check
+// whether GNU-R's `recordReflection` (or `Fir_reflective_load`/`_store`) set it again. A
 // promise forced while another one in the same frame runs also counts for that one.
 SEXP Fir_stats_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data) {
   Fir_PromiseGlobalData *global_data =
@@ -508,8 +506,7 @@ SEXP Fir_stats_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data) {
     }
   }
 
-  if (local_data->elided || !Fir_stats_can_track_marker(env)
-      || Rf_findVarInFrame(env, Rsh_ReflectivelyAccessed) == R_LogicalNAValue) {
+  if (local_data->elided || !Fir_stats_can_track_mark(env) || RSH_IS_NON_REFLECTIVE(env)) {
     return eval(env, local_data->captures);
   }
 
@@ -518,11 +515,9 @@ SEXP Fir_stats_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data) {
     .env = env,
     .global_data = global_data,
     .local_data = local_data,
-    .was_marked = R_existsVarInFrame(env, Rsh_ReflectivelyAccessed),
+    .was_marked = RSH_IS_REFLECTED(env),
   };
-  if (force.was_marked) {
-    R_removeVarFromFrame(Rsh_ReflectivelyAccessed, env);
-  }
+  RSH_UNSET_REFLECTED(env);
   SEXP cont = PROTECT(R_MakeUnwindCont());
   SEXP result = R_UnwindProtect(Fir_stats_force_body, &force, Fir_stats_force_cleanup, &force, cont);
   UNPROTECT(1);
@@ -731,7 +726,7 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
   }
   SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, parent);
   if (type == FIR_MKENV_NON_REFLECTIVE) {
-    Rf_defineVar(Rsh_ReflectivelyAccessed, R_LogicalNAValue, new_env);
+    RSH_SET_NON_REFLECTIVE(new_env);
   }
   *env_ptr = new_env;
   PROTECT(*env_ptr);

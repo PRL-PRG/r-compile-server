@@ -32,7 +32,7 @@ has_extptr <- function(v) {
   typeof(v) == "externalptr" || (is.list(v) && any(vapply(v, has_extptr, NA))) ||
     any(vapply(attributes(v), has_extptr, NA))
 }
-session_state <- c(".Last.value", ".Options", "Rsh_ReflectivelyAccessed")
+session_state <- c(".Last.value", ".Options")
 latest_base_env <- as.environment(as.list(base_env, all.names = TRUE))
 for (x in setdiff(basevars, session_state)) {
   value <- get(x)

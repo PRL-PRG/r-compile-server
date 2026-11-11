@@ -2520,7 +2520,7 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 
 	// Group 4 (reflection flag): for closures only, a flag raised at return if the
 	// call frame environment was reflectively accessed (envir.c recordReflection
-	// binds Rsh_ReflectivelyAccessed in it). Exceptional exits are not tracked.
+	// sets RSH_REFLECTED_MASK in its flags). Exceptional exits are not tracked.
 	// Inverted logic for closures: 1 = not (yet) accessed, cleared to 0 by the check
 	// stencil so its runtime store is of an immediate 0. Non-closures get no stencil
 	// and keep the NA sentinel. C_rcp_export_recording maps these back to R logicals.

@@ -68,8 +68,7 @@ class InterpretTest {
     }
   }
 
-  /// `sexp` with what differs between closures the interpreter and GNU-R make replaced: the body,
-  /// and the `Rsh_ReflectivelyAccessed` binding the vendored R defines to record reflection.
+  /// `sexp` with what differs between closures the interpreter and GNU-R make replaced: the body.
   ///
   /// `envs` maps each environment already copied to its copy, because a closure's environment may
   /// bind the closure itself.
@@ -87,9 +86,7 @@ class InterpretTest {
         envs.put(e, copy);
         copy.setParent((EnvSXP) withoutClosureDetails(e.parent(), envs));
         copy.setAttributes(e.attributes());
-        e.bindings().stream()
-            .filter(b -> !b.getKey().equals("Rsh_ReflectivelyAccessed"))
-            .forEach(b -> copy.set(b.getKey(), withoutClosureDetails(b.getValue(), envs)));
+        e.bindings().forEach(b -> copy.set(b.getKey(), withoutClosureDetails(b.getValue(), envs)));
         yield copy;
       }
       case VecSXP v ->
