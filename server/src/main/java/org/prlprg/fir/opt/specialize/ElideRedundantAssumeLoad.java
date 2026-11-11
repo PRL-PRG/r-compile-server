@@ -14,7 +14,7 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 
 /// Optimization that removes [AssumeLoadFun]/[AssumeLoadVar] instructions that are dominated by an
 /// identical assumption with no intervening reflective instruction or `Store`/`SuperStore` to the
-/// same variable on any path between them.
+/// same variable on any path between them, and whose result is unused.
 public record ElideRedundantAssumeLoad() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
@@ -49,6 +49,11 @@ public record ElideRedundantAssumeLoad() implements SpecializeOptimization {
       default -> {
         return Result.UNCHANGED;
       }
+    }
+
+    // A used result would need the earlier assumption's register, which needn't dominate this.
+    if (statement.assignee() != null && statement.assignee().isUsed()) {
+      return Result.UNCHANGED;
     }
 
     var analysis = analyses.get(bb.owner(), ActiveAssumeLoadAnalysis.class);

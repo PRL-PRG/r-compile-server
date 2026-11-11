@@ -58,6 +58,48 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void usedResult_notElided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () -+> V {
+                mkenv;
+                c: * = clos target;
+                st target = c;
+                check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
+              BB1():
+                ldf target ?- target;
+                check BB2() else BBdeopt2();
+              BB2():
+                t: cls = ldf target ?- target;
+                r: v1(I) = target@t< --> v1(I) >();
+                popenv;
+                return r;
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+
+            fun target() {
+              () --> v1(I) {
+                return <int 7>;
+              }
+            }
+            """);
+
+    run(module);
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("t: cls = ldf target ?- target"),
+        "the assumption's result is used, so it should stay; printed:\n" + printed);
+  }
+
+  @Test
   void storeInvalidates_notElided() {
     var module =
         ParseUtil.parseModule(
