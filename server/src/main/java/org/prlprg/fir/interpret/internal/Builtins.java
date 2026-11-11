@@ -1280,6 +1280,9 @@ public final class Builtins {
                 throw interpreter.failUnsupported(
                     "Mock `" + name + "` not implemented for non-vector objects");
               }
+              if (vector instanceof NilSXP) {
+                return new Value.Sexp(SEXPs.NULL);
+              }
               // `drop` (of `[`) or `exact` (of `[[`); `FALSE` only changes a matrix subscript or a
               // partial name match.
               var option = args.get(3).box();
@@ -1293,6 +1296,14 @@ public final class Builtins {
                         + " = FALSE` with one subscript");
               }
               int idx = positionSubscript(interpreter, name, args.get(1).box());
+              if (!outOfRangeIsNa && idx < 0 && idx != Constants.NA_INT) {
+                throw interpreter.failUnsupported(
+                    "Mock `" + name + "` doesn't implement a negative subscript");
+              }
+              if (!outOfRangeIsNa && idx == Constants.NA_INT && vector instanceof VecSXP) {
+                // `[[` of a list reads `NA` as `NULL`.
+                return new Value.Sexp(SEXPs.NULL);
+              }
               return new Value.Sexp(
                   subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa).box());
             }));

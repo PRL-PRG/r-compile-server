@@ -659,6 +659,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/reflection_after_failed_warmup.R` — A warm-up that fails in an unmocked builtin before a closure reflects: the optimizer must not speculate from the partial feedback that it never reflects.
 - `.../examples/R/real_to_string.R` — A real coerced to a string by `c`, `[<-`, and `as.character` (15 significant digits, scientific notation if shorter), to check the interpreter mocks against GNU-R.
 - `.../examples/R/sum_abs_edges.R` — An integer `sum` that does not fit (real in GNU-R) and `abs` of a logical, to check the interpreter mocks against GNU-R.
+- `.../examples/R/subscript_null_na.R` — `[` and `[[` of `NULL`, and `[[` of a list with an `NA` subscript, to check the interpreter mocks against GNU-R.
 - `.../examples/R/{complex_assign,subset}_language.R` — Regressions for a lite special called with values in the fir2c runtime: a call or symbol vector, index, or value must not be evaluated again.
 - `.../examples/R/mod_idiv_builtins_{int,real}.R` — `%/%` edge cases (signs, zero divisor, `NA`, `|x1 / x2| < 1`, recycling) with integer and real results, to check the interpreter mock against GNU-R.
 - `.../examples/R/mod_cat.R` — `cat` of strings, numbers, logicals, `NA` and `NULL`, with default, empty, and recycled `sep`, to check the interpreter mock against GNU-R (only the return value is compared; check the printed output by hand).
