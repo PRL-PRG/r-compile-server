@@ -17,6 +17,7 @@ import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -33,7 +34,8 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Not moved:
 /// - Instructions used outside the promise (in other not-moved instructions)
-/// - Impure or hoisted instructions, and instructions that can warn or raise an error
+/// - Impure or hoisted instructions, instructions that can warn or raise an error, assumptions,
+///   and instructions whose result is unused
 ///
 /// Because the deferred instructions are pure, *moving* them into the promise body (rather than
 /// copying the control-flow subgraph) computes the same values, only lazily.
@@ -112,8 +114,12 @@ public final class DeferIntoPromise extends AbstractionOptimization {
           continue;
         }
 
-        // The promise may never run, so a statement that can warn or raise an error can't move.
+        // The promise may never run, so a statement that can warn or raise an error can't move,
+        // and an assumption must stay where its checkpoint checks it. A statement whose result is
+        // unused has no reason to.
         if (stmt.assignee() != null
+            && stmt.assignee().isUsed()
+            && !(stmt.expression() instanceof Assume)
             && !inferEffects.maySignal(stmt)
             && HOIST_RULES.stream().noneMatch(rule -> rule.test(stmt))) {
           candidates.add(stmt);

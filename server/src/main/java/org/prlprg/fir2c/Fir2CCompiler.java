@@ -1992,9 +1992,19 @@ public final class Fir2CCompiler {
                         VAR_LOCAL_PROMISES,
                         VAR_LOCAL_PROMISES_IDX);
               }
-              case Assume(var assumption) ->
-                  emitAssumptionValue(
-                      assignee, assumption, args.isEmpty() ? null : args.getFirst());
+              case Assume(var assumption) -> {
+                // Only a checkpoint emits the guard (see `emitJump`).
+                if (!isCheckedAssumption(statement)) {
+                  throw new IllegalStateException(
+                      "Assumption isn't among the leading assumptions of a checkpoint's success"
+                          + " block, so it's never checked: "
+                          + statement
+                          + " in "
+                          + bb.label());
+                }
+                yield emitAssumptionValue(
+                    assignee, assumption, args.isEmpty() ? null : args.getFirst());
+              }
               case Call _ -> emitCall(statement);
               case Cast(var type) ->
                   "Fir_cast(%s, %s)".formatted(emitArgument(args.getFirst()), emitType(type));
@@ -2786,6 +2796,19 @@ public final class Fir2CCompiler {
                   "Fir_assume_type(%s, %s)"
                       .formatted(emitArgument(Objects.requireNonNull(target)), emitType(type));
             };
+          }
+
+          /// Whether every predecessor of `statement`'s block checks it: the block is the success
+          /// target of each one's checkpoint, and only assumptions precede `statement`.
+          private boolean isCheckedAssumption(Statement statement) {
+            return !bb.predecessors().isEmpty()
+                && bb.predecessors().stream()
+                    .allMatch(
+                        pred ->
+                            pred.jump().expression() instanceof Checkpoint
+                                && pred.jump().targets().getFirst().bb() == bb)
+                && bb.statements().subList(0, statement.indexInBB()).stream()
+                    .allMatch(s -> s.expression() instanceof Assume);
           }
 
           private @Nullable String emitAssumptionValue(

@@ -40,6 +40,35 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     assertTrue(boxIdx > promIdx, "box should appear after prom (inside it); printed:\n" + printed);
   }
 
+  /// The checkpoint only checks the assumptions at the start of its success block, so one moved
+  /// into the promise is never checked.
+  @Test
+  void unusedAssumption_notDeferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*) -~> I {
+              check L1() else D1();
+            L1():
+              x1: v1(I) = x ?: v1(I);
+              p: p(v1(I) -) = prom<v1(I) ->{
+                return <int 1>;
+              };
+              st p = p;
+              return 1;
+            D1():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(
+        printed.indexOf("x ?: v1(I)") < printed.indexOf("prom<"),
+        "the assumption should stay in front of the promise; printed:\n" + printed);
+  }
+
   @Test
   void unusedPromise_notDeferredIntoItself() {
     var abstraction =

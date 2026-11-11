@@ -320,7 +320,7 @@ DEOPT():
   deopt 5 [r];
 ```
 
-When a checkpoint is encountered, the assumptions at the beginning of the success block (its leading run of assumption statements) are checked. If all pass, control jumps to the success block. Otherwise, control jumps to the deopt block, which stores the named variables the bytecode expects into the current environment, then performs a deoptimization. If that environment is elided, the backend materializes it first (`Fir_materialize_env` in C; the interpreter always creates a real environment).
+When a checkpoint is encountered, the assumptions at the beginning of the success block (its leading run of assumption statements) are checked. If all pass, control jumps to the success block. Otherwise, control jumps to the deopt block, which stores the named variables the bytecode expects into the current environment, then performs a deoptimization. If that environment is elided, the backend materializes it first (`Fir_materialize_env` in C; the interpreter always creates a real environment). An assumption anywhere else is never checked, so FIŘ→C refuses to compile it: every predecessor of its block must be a checkpoint whose success block it is, and only assumptions may precede it.
 
 The success target of a `check` can't have arguments.
 
