@@ -58,6 +58,7 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -309,10 +310,42 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     protected void run(Statement statement) {
       var assignee = statement.assignee();
       var origin = computeOrigin(statement);
+      runCapturingClosures(statement);
       if (assignee != null) {
         put(assignee, origin);
         trackAssigneePromise(assignee, statement);
       }
+    }
+
+    /// A closure that captures an environment may store (`<<-`) into each of its variables when
+    /// it runs. It runs in a call that gets it (as the callee or an argument), or in any call or
+    /// force after it escapes.
+    private void runCapturingClosures(Statement statement) {
+      var expression = statement.expression();
+      var args = statement.args();
+      var passed =
+          switch (expression) {
+            case Call _ -> args.subList(1, args.size());
+            case Store(var storeType, _) when storeType == StoreType.SUPER_VAR -> args;
+            case ReflectiveStore _, MkVector _, SubscriptWrite _ -> args;
+            default -> List.<Argument>of();
+          };
+      var escapes = passed.stream().anyMatch(this::mayBeClosure);
+      if ((expression instanceof Call || expression instanceof Force)
+          && inferEffects.of(statement).impure()) {
+        state()
+            .runCapturingClosures(
+                expression instanceof Call
+                    && (escapes || !args.getFirst().equals(Constant.ELIDED_CLOSURE)));
+      }
+      if (escapes) {
+        state().envs.forEach(env -> env.closureEscaped |= env.captured);
+      }
+    }
+
+    private boolean mayBeClosure(Argument argument) {
+      var type = inferType.of(resolve(argument));
+      return type == null || Type.CLOSURE.isSubtypeOf(type.withPromisity(Promisity.ANY));
     }
 
     /// Tracks whether `assignee` holds a known promise, in `State#registerPromises`.
@@ -540,6 +573,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           // The closure captures the environments, so the promises of their variables leak.
           for (var env : state().envs) {
             state().leakedPromises.addAll(env.variablePromises.values());
+            env.captured = true;
           }
           yield null;
         }
@@ -1328,6 +1362,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       }
     }
 
+    /// Each variable of an environment that a closure captures may hold anything after the
+    /// closure runs, which it may if it's `called` here or escaped. So the environment is tainted.
+    private void runCapturingClosures(boolean called) {
+      for (var env : envs) {
+        if (env.captured && (called || env.closureEscaped)) {
+          leakedPromises.addAll(env.variablePromises.values());
+          env.taint();
+        }
+      }
+    }
+
     private void taintViaReflection() {
       for (var env : envs) {
         if (env.reflectivelyAccessible) {
@@ -1506,6 +1551,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     final Statement mkEnv;
     /// Whether the environment is tainted by reflection
     boolean reflectivelyAccessible;
+    /// Whether a closure captures the environment.
+    boolean captured = false;
+    /// Whether such a closure may be held outside the environment.
+    boolean closureEscaped = false;
     /// Set when reflection has run while this frame was on the stack: the previously-known
     /// variables are forgotten, and arbitrary other variables may now be present here.
     boolean tainted = false;
@@ -1524,6 +1573,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     EnvFrame copy(IdentityHashMap<PromiseOrigin, PromiseOrigin> poMap) {
       var copy = new EnvFrame(mkEnv, reflectivelyAccessible);
       copy.tainted = tainted;
+      copy.captured = captured;
+      copy.closureEscaped = closureEscaped;
       for (var e : variables.entrySet()) {
         copy.variables.put(e.getKey(), e.getValue().copy());
       }
@@ -1536,6 +1587,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     void merge(
         EnvFrame other, Map<Promise, PromiseOrigin> canonical, Set<PromiseOrigin> leakedPromises) {
       reflectivelyAccessible &= other.reflectivelyAccessible;
+      captured |= other.captured;
+      closureEscaped |= other.closureEscaped;
       if (tainted || other.tainted) {
         // Result = tainted; leak the promises both frames forget.
         leakedPromises.addAll(variablePromises.values());
@@ -1571,13 +1624,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       if (this == o) return true;
       if (!(o instanceof EnvFrame other)) return false;
       return tainted == other.tainted
+          && captured == other.captured
+          && closureEscaped == other.closureEscaped
           && variables.equals(other.variables)
           && variablePromises.equals(other.variablePromises);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(variables, variablePromises, tainted);
+      return Objects.hash(variables, variablePromises, tainted, captured, closureEscaped);
     }
   }
 
