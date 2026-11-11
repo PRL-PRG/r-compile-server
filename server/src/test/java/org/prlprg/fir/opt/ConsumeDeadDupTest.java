@@ -90,6 +90,27 @@ class ConsumeDeadDupTest implements AbstractionOptimizationUnitTest {
     assertTrue(printed.contains("dup rv"), "the dup shouldn't consume:\n" + printed);
   }
 
+  /// `d` keeps a reference to `rv`, so the write to `w` must not change it.
+  @Test
+  void dupOfVectorInDots_unchanged() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (rv:v(I)o) -+> V {
+              d: dots = dots[rv];
+              w: v(I)o = dup rv;
+              w[0] = 1;
+              r: V = sum< dots,miss -+> V >(d, <missing>);
+              return r;
+            }
+            """);
+
+    assertFalse(run(abstraction), "the dots element shares the vector");
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("dup rv"), "the dup shouldn't consume:\n" + printed);
+  }
+
   @Test
   void dupInLoop_unchanged() {
     var abstraction =

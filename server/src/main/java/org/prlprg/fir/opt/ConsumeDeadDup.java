@@ -2,12 +2,14 @@ package org.prlprg.fir.opt;
 
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.Liveness;
+import org.prlprg.fir.analyze.type.Provenance;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Dup;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.variable.Register;
@@ -65,8 +67,17 @@ public final class ConsumeDeadDup extends AbstractionOptimization {
         && vector.uses().stream()
             .allMatch(
                 use -> {
-                  var useBb = use.instruction().parentBB();
-                  return useBb != null && useBb.owner() == cfg;
+                  var instruction = use.instruction();
+                  var useBb = instruction.parentBB();
+                  // Liveness only looks forward, so no use may share the vector (see
+                  // `Provenance.shares`): the reference would see the writes after the move. A
+                  // `deopt` argument is a hand-off, after which nothing runs.
+                  return useBb != null
+                      && useBb.owner() == cfg
+                      && (!Provenance.shares(instruction, use.index())
+                          || use.argument() instanceof Consume
+                          || instruction == useBb.jump()
+                              && useBb.jump().expression() instanceof Deopt);
                 });
   }
 }

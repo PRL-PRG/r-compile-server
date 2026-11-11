@@ -11,23 +11,38 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.generic.AbstractInterpretation;
 import org.prlprg.fir.analyze.type.Provenance.ActionSet;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.callee.FallbackCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
+import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.Signature;
+import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-/// Compute which registers are read, written, `consume`d, or captured at any point in a [CFG].
+/// Compute which registers are read, written, `consume`d, captured, or shared at any point in a
+/// [CFG].
 ///
 /// Effectively a general liveness analysis with extra information to enforce provenance
 /// invariants (registers that are `consume`d can't be read afterward or captured anywhere).
+///
+/// A use [shares][#shares] an owned register if it keeps a reference to the vector, so the register
+/// can't be written, `consume`d, or moved into an owned phi afterward (until it's assigned again).
 ///
 /// Unlike [InferType] and [InferEffects], this analysis isn't on-demand: constructing runs the
 /// full analysis, then [Provenance#at(BB, int)] and [Provenance#returnState()] queries the results.
@@ -71,6 +86,9 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
         }
       }
       state().write.addAll(bb.phiParameters());
+      // Each phi argument was moved into it unshared (see `run(Instruction, int)`) or the phi isn't
+      // owned.
+      state().share.removeAll(bb.phiParameters());
     }
 
     @Override
@@ -80,8 +98,8 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       if (statement.expression() instanceof Promise(_, _, var code, _, _)) {
         runSubAnalysis(code, state()::mergePromise);
       } else {
-        for (var argument : statement.args()) {
-          run(argument);
+        for (var i = 0; i < statement.argCount(); i++) {
+          run(statement, i);
         }
       }
 
@@ -91,11 +109,12 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
           report("Write after consume: ", assignee);
         }
         state().write.add(assignee);
+        state().share.remove(assignee);
       }
     }
 
-    void run(Argument argument) {
-      switch (argument) {
+    void run(Instruction instruction, int index) {
+      switch (instruction.arg(index)) {
         case Constant _ -> {}
         // Ensure register is written before read
         case Read(var variable) -> {
@@ -106,6 +125,9 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
             report("Read after consume: ", variable);
           }
           state().read.add(variable);
+          if (scope.typeOf(variable).ownership() == Ownership.OWNED) {
+            runOwned(instruction, index, variable);
+          }
         }
         // Ensure register is written before consume, and not consumed or captured.
         case Consume(var register) -> {
@@ -118,16 +140,34 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
           if (state().capture.contains(register)) {
             report("Consume after capture: ", register);
           }
+          if (state().share.contains(register)) {
+            report("Consume after share: ", register);
+          }
           state().read.add(register);
           state().consume.add(register);
         }
       }
     }
 
+    void runOwned(Instruction instruction, int index, Register register) {
+      if (state().share.contains(register)) {
+        if (instruction instanceof Statement s
+            && s.expression() instanceof SubscriptWrite
+            && index == 0) {
+          report("Write after share: ", register);
+        } else if (isMove(instruction, index)) {
+          report("Move after share: ", register);
+        }
+      }
+      if (shares(instruction, index)) {
+        state().share.add(register);
+      }
+    }
+
     @Override
     protected void run(Jump jump) {
-      for (var argument : jump.args()) {
-        run(argument);
+      for (var i = 0; i < jump.argCount(); i++) {
+        run(jump, i);
       }
     }
 
@@ -144,6 +184,41 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     }
   }
 
+  /// Whether the argument at `index` of `instruction`, if it reads an owned register, keeps a
+  /// reference to the vector, e.g. a `dots` element, a `dyn` call argument, a cast, or an argument
+  /// of a shared phi.
+  ///
+  /// It doesn't if it moves the register into an owned phi, or only reads or writes the vector
+  /// while the instruction runs: a subscript read or write target, a `dup` argument, or a static
+  /// call argument for a borrowed parameter.
+  public static boolean shares(Instruction instruction, int index) {
+    if (!(instruction instanceof Statement statement)) {
+      return !isMove(instruction, index);
+    }
+    return switch (statement.expression()) {
+      case SubscriptRead _, SubscriptWrite _, Dup _ -> index != 0;
+      case Call(StaticFnCallee(_, _, var signature)) -> !isBorrowed(signature, index);
+      case Call(FallbackCallee(var signature)) -> !isBorrowed(signature, index);
+      // The type rules reject a `st` of an owned register.
+      case Store(var storeType, _) -> storeType == StoreType.SUPER_VAR;
+      default -> true;
+    };
+  }
+
+  private static boolean isMove(Instruction instruction, int index) {
+    return instruction instanceof Jump jump
+        && jump.phiAt(index) instanceof BlockParameter phi
+        && phi.type().ownership() == Ownership.OWNED;
+  }
+
+  /// Whether the call argument at `index` (after the callee) is for a borrowed parameter.
+  private static boolean isBorrowed(Signature signature, int index) {
+    var parameterTypes = signature.parameterTypes();
+    return index >= 1
+        && index <= parameterTypes.size()
+        && parameterTypes.get(index - 1).ownership() == Ownership.BORROWED;
+  }
+
   @FunctionalInterface
   public interface Reporter {
     void report(BB bb, int instructionIndex, Object... message);
@@ -154,6 +229,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     final Set<Register> write = new HashSet<>();
     final Set<Register> consume = new HashSet<>();
     final Set<Register> capture = new HashSet<>();
+    final Set<Register> share = new HashSet<>();
 
     @Override
     public ActionSet copy() {
@@ -162,6 +238,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       clone.write.addAll(write);
       clone.consume.addAll(consume);
       clone.capture.addAll(capture);
+      clone.share.addAll(share);
       return clone;
     }
 
@@ -174,6 +251,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       write.retainAll(other.write);
       consume.addAll(other.consume);
       capture.addAll(other.capture);
+      share.addAll(other.share);
     }
 
     /// Unifies requirements, and adds *all* registers touched by the promise to `capture`.
@@ -198,12 +276,13 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       return Objects.equals(read, actionSet.read)
           && Objects.equals(write, actionSet.write)
           && Objects.equals(consume, actionSet.consume)
-          && Objects.equals(capture, actionSet.capture);
+          && Objects.equals(capture, actionSet.capture)
+          && Objects.equals(share, actionSet.share);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(read, write, consume, capture);
+      return Objects.hash(read, write, consume, capture, share);
     }
 
     @Override
@@ -223,6 +302,8 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       p.print(consume);
       w.write("\n, capture =");
       p.print(capture);
+      w.write("\n, share =");
+      p.print(share);
       w.write("\n)");
     }
   }

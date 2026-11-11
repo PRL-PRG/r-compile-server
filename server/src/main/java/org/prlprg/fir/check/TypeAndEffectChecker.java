@@ -545,6 +545,19 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       void run(Jump jump) {
+        // An owned phi can write its vector in place, so it must be given one that nothing else
+        // holds (an owned register moves into it).
+        for (var i = 0; i < jump.argCount(); i++) {
+          var phi = jump.phiAt(i);
+          var ownership = scope.typeOf(jump.arg(i)).ownership();
+          if (phi != null
+              && phi.type().ownership() == Ownership.OWNED
+              && ownership != Ownership.OWNED
+              && ownership != Ownership.FRESH) {
+            report("Owned phi " + phi + " can't be given " + jump.arg(i) + " {:" + ownership + "}");
+          }
+        }
+
         switch (jump.expression()) {
           case Checkpoint _, Deopt _, Goto _, Return _, Unreachable _ -> {}
           case If _ -> {
