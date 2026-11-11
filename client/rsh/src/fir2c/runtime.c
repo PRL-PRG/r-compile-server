@@ -2574,35 +2574,48 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_real_scalar_int_fx_none_ret_scala
 }
 
 // === : ===
+/// GNU-R's `a:b` of two numbers (`do_colon` and `seq_colon`, `seq.c`).
+static SEXP Fir_colon(double n1, double n2) {
+  if (ISNAN(n1) || ISNAN(n2)) Rf_error("NA/NaN argument");
+  double r = fabs(n2 - n1);
+  if (r >= R_XLEN_T_MAX) Rf_error("result would be too long a vector");
+  if (n1 == (R_xlen_t) n1 && n2 == (R_xlen_t) n2)
+    return R_compact_intrange((R_xlen_t) n1, (R_xlen_t) n2);
+
+  R_xlen_t n = (R_xlen_t)(r + 1 + FLT_EPSILON);
+  bool use_int = n1 <= INT_MAX && n1 > INT_MIN && n1 == (int) n1;
+  if (use_int) {
+    // The effective `b`
+    double dn = (double) n;
+    r = n1 + (n1 <= n2 ? dn - 1 : -(dn - 1));
+    use_int = r > INT_MIN && r <= INT_MAX;
+  }
+  if (use_int)
+    return R_compact_intrange((R_xlen_t) n1, (R_xlen_t)(n1 <= n2 ? n1 + n - 1 : n1 - n + 1));
+  SEXP ans = allocVector(REALSXP, n);
+  for (R_xlen_t i = 0; i < n; i++) REAL(ans)[i] = n1 <= n2 ? n1 + (double)i : n1 - (double)i;
+  return ans;
+}
+
+/// `Fir_colon` of a version that returns `v(I)`: one whose result isn't an integer vector deopts.
+static SEXP Fir_colon_int(double n1, double n2) {
+  SEXP ans = Fir_colon(n1, n2);
+  if (TYPEOF(ans) != INTSXP)
+    Rf_error("FIŘ deoptimization triggered: %.15g:%.15g isn't an integer vector (unsupported)", n1, n2);
+  return ans;
+}
+
 // I:I→v(I)
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u3a, scalar_int_scalar_int_fx_none_ret_vec_int, int a, int b) {
-  return R_compact_intrange((R_xlen_t) a, (R_xlen_t) b);
+  return Fir_colon_int(Fir_i2r(a), Fir_i2r(b));
 }
 // I:R→v(I)
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u3a, scalar_int_scalar_real_fx_none_ret_vec_int, int a, double b) {
-  return R_compact_intrange((R_xlen_t) a, (R_xlen_t) b);
+  return Fir_colon_int(Fir_i2r(a), b);
 }
 // R:R→V (may return int or real range)
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u3a, scalar_real_scalar_real_fx_none_ret_value, double a, double b) {
-  double n1 = a;
-  double n2 = b;
-  if (n1 == (R_xlen_t) n1) {
-      return R_compact_intrange((R_xlen_t) n1, (R_xlen_t) n2);
-  }
-
-  // Copied from GNU-R
-  double r = fabs(n2 - n1);
-  if (r >= R_XLEN_T_MAX) Rf_error("result would be too long a vector");
-  R_xlen_t n = (R_xlen_t)(r + 1 + FLT_EPSILON);
-  SEXP ans = allocVector(REALSXP, n);
-  if (n1 <= n2) {
-    for (R_xlen_t i = 0; i < n; i++)
-      REAL(ans)[i] = n1 + (double)i;
-  } else {
-    for (R_xlen_t i = 0; i < n; i++)
-      REAL(ans)[i] = n1 - (double)i;
-  }
-  return ans;
+  return Fir_colon(a, b);
 }
 
 // === < ===
