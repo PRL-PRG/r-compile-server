@@ -1044,7 +1044,7 @@ public final class Builtins {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
                 throw interpreter.fail("`bitwNot` generic takes 1 sexp");
               }
-              var a = sexpToInt(sexp, interpreter, "bitwNot");
+              var a = bitwiseOperand(sexp, interpreter, "bitwNot");
               return new Value.Sexp(SEXPs.integer(bitwiseNot(a)));
             }));
     // (I) --> I
@@ -1068,8 +1068,8 @@ public final class Builtins {
                       && args.get(1) instanceof Value.Sexp(var s2))) {
                 throw interpreter.fail("`" + name + "` generic takes 2 sexps");
               }
-              var a = sexpToInt(s1, interpreter, name);
-              var b = sexpToInt(s2, interpreter, name);
+              var a = bitwiseOperand(s1, interpreter, name);
+              var b = bitwiseOperand(s2, interpreter, name);
               return new Value.Sexp(SEXPs.integer(bitwiseBinary(a, b, op)));
             }));
     // (I, I) --> I
@@ -1097,7 +1097,7 @@ public final class Builtins {
                       && args.get(1) instanceof Value.Sexp(var s2))) {
                 throw interpreter.fail("`" + name + "` generic takes 2 sexps");
               }
-              var a = sexpToInt(s1, interpreter, name);
+              var a = bitwiseOperand(s1, interpreter, name);
               var n = sexpToInt(s2, interpreter, name);
               return new Value.Sexp(SEXPs.integer(bitwiseShift(a, n, op)));
             }));
@@ -1119,6 +1119,21 @@ public final class Builtins {
   }
 
   /// Bitwise binary op, propagating `NA`.
+  /// An operand of a generic bitwise builtin: GNU-R rejects a logical one, and warns about a real
+  /// one that isn't an integer.
+  private static int bitwiseOperand(SEXP sexp, InternalInterpreter interpreter, String name) {
+    if (sexp instanceof LglSXP) {
+      throw interpreter.fail("'a' and 'b' must have the same type");
+    }
+    var real = sexp.asScalarReal();
+    if (real.isPresent()
+        && !Double.isNaN(real.get())
+        && !(Math.abs(real.get()) <= Integer.MAX_VALUE)) {
+      throw interpreter.failUnsupported("Mock `" + name + "` of a real outside the integers");
+    }
+    return sexpToInt(sexp, interpreter, name);
+  }
+
   private static int bitwiseBinary(int a, int b, IntBinaryOperator op) {
     return a == Constants.NA_INT || b == Constants.NA_INT ? Constants.NA_INT : op.applyAsInt(a, b);
   }
@@ -1857,7 +1872,7 @@ public final class Builtins {
                           .orElseThrow(() -> interpreter.fail("`vector` mode must be a string"));
               var length =
                   lengthArg == SEXPs.MISSING_ARG ? 0 : sexpToInt(lengthArg, interpreter, "vector");
-              if (length < 0 || length == Constants.NA_INT) {
+              if (length < 0 || length == Constants.NA_INT || lengthArg instanceof LglSXP) {
                 throw interpreter.fail("`vector`: invalid 'length' argument");
               }
               return new Value.Sexp(
@@ -2346,7 +2361,7 @@ public final class Builtins {
                 throw interpreter.fail("`seq_len` generic takes 1 sexp argument");
               }
               int n = sexpToInt(sexp, interpreter, "seq_len");
-              return new Value.Sexp(SEXPs.integer(IntStream.rangeClosed(1, n).toArray()));
+              return new Value.Sexp(seqLen(interpreter, n));
             }));
     // v1: (v1(I)) -~> v(I)
     interpreter.registerExternal(
@@ -2355,9 +2370,15 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var vec = (IntSXP) args.getFirst().box();
-              int n = vec.get(0);
-              return new Value.Sexp(SEXPs.integer(IntStream.rangeClosed(1, n).toArray()));
+              return new Value.Sexp(seqLen(interpreter, vec.get(0)));
             }));
+  }
+
+  private static IntSXP seqLen(InternalInterpreter interpreter, int n) {
+    if (n < 0 || n == Constants.NA_INT) {
+      throw interpreter.fail("argument must be coercible to non-negative integer");
+    }
+    return SEXPs.integer(IntStream.rangeClosed(1, n).toArray());
   }
 
   // endregion
