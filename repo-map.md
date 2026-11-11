@@ -659,6 +659,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/length_object_deopts.R` — The unboxed `length` deopts for an object, which can dispatch a `length` method.
 - `.../examples/R/unused_length_runs_method.R` — An unused `length(o)` stays (`@signals`), since GNU-R dispatches it to a `length` method that prints.
 - `.../examples/R/missing_argument_error_names_it.R` — The error for a missing argument names it (`checkMissing`), also in a compiled version.
+- `.../examples/R/logical_operand_type_error.R` — `&&` and `||` raise GNU-R's errors for an operand that isn't a number (a string, a factor) or is longer than 1, in optimized code.
 - `.../examples/R/as_logical_one.R` — The unboxed `as.logical` deopts where the result isn't one logical (a version that speculates on `v1(L)`, and `&&`).
 - `.../examples/R/for_seq_object.R` — A `for` loop over a factor or another object (`toForSeq`): the labels, no `length` or `[[` dispatch, and the error for an environment (`gcTorture`).
 - `.../examples/R/colon_real_bounds.R` — The unboxed `:` of reals (GNU-R's `seq_colon`): the end of a real `to`, `NA`/`NaN` errors, and a deopt where a `v(I)` version's range is real.

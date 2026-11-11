@@ -855,15 +855,7 @@ public final class BC2FirCFGCompiler {
       case IsNumeric() -> pushInsertCond(builtin("is.numeric", pop()));
       case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsertCond(
-            builtin(
-                "as.logical",
-                new Signature(
-                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.BOXED_LOGICAL,
-                    Effects.NONE),
-                pop(),
-                new Constant(SEXPs.MISSING_ARG)));
+        pushInsertCond(logicalOperand("'x'", "&&"));
         var cond =
             insertAndReturn(
                 "_cond",
@@ -874,29 +866,13 @@ public final class BC2FirCFGCompiler {
         insert(next -> branch(cond, next, shortCircuitBb));
       }
       case And2nd(var _) -> {
-        pushInsertCond(
-            builtin(
-                "as.logical",
-                new Signature(
-                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.BOXED_LOGICAL,
-                    Effects.NONE),
-                pop(),
-                new Constant(SEXPs.MISSING_ARG)));
+        pushInsertCond(logicalOperand("'y'", "&&"));
         pushInsertCond(mkBinop("&&"));
         insert(this::goto_);
       }
       case Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsertCond(
-            builtin(
-                "as.logical",
-                new Signature(
-                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.BOXED_LOGICAL,
-                    Effects.NONE),
-                pop(),
-                new Constant(SEXPs.MISSING_ARG)));
+        pushInsertCond(logicalOperand("'x'", "||"));
         var cond =
             insertAndReturn(
                 "_cond",
@@ -907,15 +883,7 @@ public final class BC2FirCFGCompiler {
         insert(next -> branch(cond, shortCircuitBb, next));
       }
       case Or2nd(var _) -> {
-        pushInsertCond(
-            builtin(
-                "as.logical",
-                new Signature(
-                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.BOXED_LOGICAL,
-                    Effects.NONE),
-                pop(),
-                new Constant(SEXPs.MISSING_ARG)));
+        pushInsertCond(logicalOperand("'y'", "||"));
         pushInsertCond(mkBinop("||"));
         insert(this::goto_);
       }
@@ -2019,6 +1987,12 @@ public final class BC2FirCFGCompiler {
     return new Built(
         new org.prlprg.fir.ir.expression.Call(callee),
         prependArg(Constant.ELIDED_CLOSURE, List.of(args)));
+  }
+
+  /// Pop the operand of `&&` or `||` and cast it to one logical with GNU-R's checks.
+  private Built logicalOperand(String arg, String op) {
+    return intrinsic(
+        "logicalOperand", pop(), new Constant(new Value.Str(arg)), new Constant(new Value.Str(op)));
   }
 
   /// An operation that raises an error with the given message.

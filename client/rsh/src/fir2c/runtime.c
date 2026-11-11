@@ -2424,6 +2424,41 @@ DEFINE_INTRINSIC(bool, naToFalse, scalar_logical_fx_none_ret_bool, Rboolean valu
 }
 
 // `&&` short-circuits on `FALSE` only, so its guard sends `NA` the other way.
+// An operand of `&&` or `||`, with the checks of GNU-R's `do_logic3`.
+static int Fir_logical_operand(SEXP value, const char* arg, const char* op) {
+  if (TYPEOF(value) == LGLSXP && XLENGTH(value) == 1 && ATTRIB(value) == R_NilValue)
+    return LOGICAL(value)[0];
+  if (!Rf_isNumber(value)) Rf_error("invalid %s type in 'x %s y'", arg, op);
+  if (XLENGTH(value) > 1)
+    Rf_error("'length = %lld' in coercion to 'logical(1)'", (long long) XLENGTH(value));
+  return Rf_asLogical(value);
+}
+
+DEFINE_INTRINSIC(Rboolean, logicalOperand,
+                 value_scalar_string_scalar_string_fx_none_ret_scalar_logical,
+                 SEXP value, char* arg, char* op) {
+  return (Rboolean) Fir_logical_operand(value, arg, op);
+}
+
+DEFINE_INTRINSIC(SEXP, logicalOperand,
+                 value_scalar_string_scalar_string_fx_none_ret_vec1_logical,
+                 SEXP value, char* arg, char* op) {
+  int result = Fir_logical_operand(value, arg, op);
+  return result == NA_LOGICAL ? R_LogicalNAValue : result ? R_TrueValue : R_FalseValue;
+}
+
+DEFINE_INTRINSIC(SEXP, logicalOperand,
+                 vec1_logical_scalar_string_scalar_string_fx_none_ret_vec1_logical,
+                 SEXP value, char* arg, char* op) {
+  return value;
+}
+
+DEFINE_INTRINSIC(Rboolean, logicalOperand,
+                 scalar_logical_scalar_string_scalar_string_fx_none_ret_scalar_logical,
+                 Rboolean value, char* arg, char* op) {
+  return value;
+}
+
 DEFINE_INTRINSIC(bool, naToTrue, vec1_logical_fx_none_ret_bool, SEXP value) {
   // Compare the element, not the pointer, for the same reason as `naToFalse`.
   return LOGICAL(value)[0] != FALSE;

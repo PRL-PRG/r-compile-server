@@ -22,6 +22,15 @@ fun naToFalse(r) {
   (r:v1(L)) --> B { ... }
   (r:L) --> B { ... }
 }
+# The operand of `&&` or `||` (GNU-R's `do_logic3`): one logical, `NA` for a vector of
+# length 0, and an error for a value that isn't a number or is longer (`arg` and `op` name the
+# operand and the operator in the message).
+fun logicalOperand(r, arg, op) {
+  @signals (r:V, arg:S, op:S) --> v1(L) { ... }
+  @signals (r:V, arg:S, op:S) --> L { ... }
+  (r:v1(L), arg:S, op:S) --> v1(L) { ... }
+  (r:L, arg:S, op:S) --> L { ... }
+}
 fun naToTrue(r) {
   (r:v1(L)) --> B { ... }
   (r:L) --> B { ... }

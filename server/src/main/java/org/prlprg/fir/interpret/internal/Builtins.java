@@ -308,6 +308,22 @@ public final class Builtins {
     interpreter.registerExternal(
         "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToFalse1);
     interpreter.registerExternal(
+        "logicalOperand",
+        sig(Type.BOXED_LOGICAL, Effects.NONE, Type.ANY_VALUE_SEXP, Type.STRING, Type.STRING),
+        (_, _, args, _) -> new Value.Sexp(SEXPs.logical(logicalOperand(interpreter, args))));
+    interpreter.registerExternal(
+        "logicalOperand",
+        sig(Type.LOGICAL, Effects.NONE, Type.ANY_VALUE_SEXP, Type.STRING, Type.STRING),
+        (_, _, args, _) -> new Value.Lgl(logicalOperand(interpreter, args)));
+    interpreter.registerExternal(
+        "logicalOperand",
+        sig(Type.LOGICAL, Effects.NONE, Type.LOGICAL, Type.STRING, Type.STRING),
+        (_, _, args, _) -> args.getFirst());
+    interpreter.registerExternal(
+        "logicalOperand",
+        sig(Type.BOXED_LOGICAL, Effects.NONE, Type.BOXED_LOGICAL, Type.STRING, Type.STRING),
+        (_, _, args, _) -> args.getFirst());
+    interpreter.registerExternal(
         "naToTrue", sig(Type.BOOLEAN, Effects.NONE, Type.BOXED_LOGICAL), Builtins::naToTrue0);
     interpreter.registerExternal(
         "naToTrue", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToTrue1);
@@ -3541,6 +3557,30 @@ public final class Builtins {
       throw interpreter.fail("`naToFalse< L --> B >` requires a logical argument");
     }
     return new Value.Bool(sexp == Logical.TRUE);
+  }
+
+  /// GNU-R's `do_logic3`: the operand of `&&` or `||` as one logical.
+  private static Logical logicalOperand(InternalInterpreter interpreter, List<Value> args) {
+    var sexp = args.getFirst().box();
+    if (sexp instanceof ComplexSXP) {
+      throw interpreter.failUnsupported("Mock `logicalOperand` of a complex");
+    }
+    var isFactor =
+        sexp.attributes() != null
+            && sexp.attributes().get("class") instanceof StrSXP classes
+            && classes.stream().anyMatch("factor"::equals);
+    if (!(sexp instanceof LglSXP || sexp instanceof IntSXP || sexp instanceof RealSXP)
+        || isFactor) {
+      throw interpreter.fail(
+          "invalid %s type in 'x %s y'"
+              .formatted(((Value.Str) args.get(1)).value(), ((Value.Str) args.get(2)).value()));
+    }
+    var logicals = sexpToLogicals(sexp, interpreter, "logicalOperand");
+    if (logicals.size() > 1) {
+      throw interpreter.fail(
+          "'length = %d' in coercion to 'logical(1)'".formatted(logicals.size()));
+    }
+    return logicals.isEmpty() ? Logical.NA : logicals.get(0);
   }
 
   private static Value naToTrue0(
