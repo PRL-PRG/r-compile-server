@@ -657,6 +657,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/elided_frame_after_caught_error.R` — An elided frame whose callee, called from R, catches an error past a pushed elided frame: the from-R exit restores the elided environment's parent.
 - `.../examples/R/attributes_fail_type_guard.R` — A value with attributes (a name) fails the type guard of a version typed from plain values (`Fir_value_kind_matches`), and deopts.
 - `.../examples/R/length_object_deopts.R` — The unboxed `length` deopts for an object, which can dispatch a `length` method.
+- `.../examples/R/unused_length_runs_method.R` — An unused `length(o)` stays (`@signals`), since GNU-R dispatches it to a `length` method that prints.
 - `.../examples/R/as_logical_one.R` — The unboxed `as.logical` deopts where the result isn't one logical (a version that speculates on `v1(L)`, and `&&`).
 - `.../examples/R/for_seq_object.R` — A `for` loop over a factor or another object (`toForSeq`): the labels, no `length` or `[[` dispatch, and the error for an environment (`gcTorture`).
 - `.../examples/R/colon_real_bounds.R` — The unboxed `:` of reals (GNU-R's `seq_colon`): the end of a real `to`, `NA`/`NaN` errors, and a deopt where a `v(I)` version's range is real.

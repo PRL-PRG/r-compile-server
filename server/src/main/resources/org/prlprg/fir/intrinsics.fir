@@ -5,7 +5,8 @@ fun checkMissing(r) {
   (r:*) -~> V { ... }
 }
 fun toForSeq(r) {
-  (r:V) --> V { ... }
+  # GNU-R's `STARTFOR` raises an error for a value that isn't a vector or a list.
+  @signals (r:V) --> V { ... }
   (r:v(L)) --> v(L) { ... }
   (r:v(I)) --> v(I) { ... }
   (r:v(R)) --> v(R) { ... }

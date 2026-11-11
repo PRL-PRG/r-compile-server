@@ -844,6 +844,8 @@ fun tanpi(x) {
 }
 # ---
 
+# `length` of an object dispatches (`length.foo`), which the unboxed version deopts for.
+@signals
 fun length(x) {
   (x:*@!) -+> V { ... }
   (x:V) --> v1(I) { ... }
@@ -984,8 +986,9 @@ fun `is.symbol`(x) {
   (x:V) --> B { ... }
 }
 
+# GNU-R dispatches on the first argument's class (`c.foo`), which can run any R code.
 fun c(`...`) {
-  (ddd:dots) --> V { ... }
+  @signals (ddd:dots) --> V { ... }
 }
 
 # Functions that read the closure context of their caller (`R_GlobalContext`): a closure that
