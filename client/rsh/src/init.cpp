@@ -34,4 +34,5 @@ static const R_CallMethodDef callMethods[] = {
 void R_init_rsh(DllInfo *dll) {
   R_registerRoutines(dll, NULL, callMethods, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
+  Rsh_ClosureBodyExpr = Fir_closure_body_expr;
 }

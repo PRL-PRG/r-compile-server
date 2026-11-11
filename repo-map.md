@@ -675,6 +675,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/elided_env_parent_{after_call,promise}.R` — Regressions for the parent of an elided frame in the fir2c runtime: after an elided callee with another parent returns, and in a promise that such a callee forces.
 - `.../examples/R/ls_after_parent_frame.R` — `ls` of a frame after `parent.frame` reflects on it lists only its bindings (the vendored R keeps its reflection mark out of them).
 - `.../examples/R/sys_frame_of_caller_without_context.R` — `sys.frame(-1)` in a callee counts its caller's frame, which a static call pushed without a GNU-R context.
+- `.../examples/R/body_of_compiled_closure.R` — `body`, `formals`, `deparse`, `identical` and `print` of a closure of compiled FIŘ code see its source, as with a bytecode body.
 - `.../examples/R/reflection_after_failed_warmup.R` — A warm-up that fails in an unmocked builtin before a closure reflects: the optimizer must not speculate from the partial feedback that it never reflects.
 - `.../examples/R/real_to_string.R` — A real coerced to a string by `c`, `[<-`, and `as.character` (15 significant digits, scientific notation if shorter), to check the interpreter mocks against GNU-R.
 - `.../examples/R/sum_abs_edges.R` — An integer `sum` that does not fit (real in GNU-R) and `abs` of a logical, to check the interpreter mocks against GNU-R.

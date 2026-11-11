@@ -876,16 +876,19 @@ public final class Fir2CCompiler {
               function.parameterNames().stream()
                   .map(nv -> SEXPs.symbol(nv.name()))
                   .collect(SEXPs.toVec()));
+      var bytecode = bytecodes == null ? null : bytecodes.get(function.name().name());
+      var body = bytecode == null ? "NULL" : constantRef(fnPool, bytecode.bc().consts().getFirst());
       cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_FunctionData));");
       cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
       cCode.stmt(
-          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .dispatch_impl = %s, .from_r = %s, .formal_names = %s, .needs_context = %s};",
+          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .dispatch_impl = %s, .from_r = %s, .formal_names = %s, .needs_context = %s, .body = %s};",
           functionName,
           function.canDispatch() ? functionDispatchCName(function) : "NULL",
           function.canDispatch() ? dispatchImplCName(function, entries) : "NULL",
           function.canDispatch() ? fromRImplCName(function, entries) : "NULL",
           formalNames,
-          function.userProperties().needsContext());
+          function.userProperties().needsContext(),
+          body);
       cCode.stmt("Fir_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
     }
 

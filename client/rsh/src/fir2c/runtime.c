@@ -320,6 +320,18 @@ SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
   return closure;
 }
 
+SEXP Fir_closure_body_expr(SEXP body) {
+  SEXP cp = EXTPTR_PROT(body);
+  if (TYPEOF(cp) != VECSXP || XLENGTH(cp) == 0) {
+    return NULL;
+  }
+  SEXP data = VECTOR_ELT(cp, 0);
+  if (TYPEOF(data) != RAWSXP || XLENGTH(data) != sizeof(Fir_FunctionData)) {
+    return NULL;
+  }
+  return ((Fir_FunctionData *)STDVEC_DATAPTR(data))->body;
+}
+
 void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_FromRFn from_r) {
   Fir_FunctionData *data = Fir_fun_data(constants);
   data->dispatch_impl = dispatch_impl;

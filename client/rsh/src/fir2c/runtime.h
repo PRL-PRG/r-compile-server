@@ -121,6 +121,9 @@ typedef struct Fir_FunctionData {
   /// Whether a call must run in a closure context for the callee's frame (`@needsContext`), so
   /// `Fir_call_dynamic` calls it through `Rf_applyClosure`, not `dispatch`.
   bool needs_context;
+  /// The source expression of the function's body, or NULL if it's unknown. `body`, `deparse` and
+  /// `identical` of its closures read it (`Fir_closure_body_expr`).
+  SEXP body;
 } Fir_FunctionData;
 
 /// The `Fir_FunctionData` of the function whose constant pool is `constants`.
@@ -322,6 +325,9 @@ bool Fir_value_matches(SEXP value, Fir_Type type);
 Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects);
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
+/// The vendored R's `Rsh_ClosureBodyExpr`: the source expression of `body`, the body of a closure
+/// that `Fir_mk_closure` made, or NULL if it's unknown or `body` is other FIR code (a promise's).
+SEXP Fir_closure_body_expr(SEXP body);
 /// Replace the dispatch and from-R entries of the function whose constant pool is `constants`
 /// (see `Fir_FunctionData`).
 void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_FromRFn from_r);
