@@ -2480,7 +2480,7 @@ public final class Builtins {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
                 throw interpreter.fail("`as.logical` generic takes (sexp, dots)");
               }
-              return new Value.Sexp(SEXPs.logical(sexpToLogical(sexp, interpreter, "as.logical")));
+              return new Value.Sexp(sexpToLogicals(sexp, interpreter, "as.logical"));
             }));
     // v1: (V, miss) --> v(L)
     interpreter.registerExternal(
@@ -2489,7 +2489,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
-              return new Value.Sexp(SEXPs.logical(sexpToLogical(sexp, interpreter, "as.logical")));
+              return new Value.Sexp(sexpToLogicals(sexp, interpreter, "as.logical"));
             }));
     // v2: (V, miss) --> L
     interpreter.registerExternal(
@@ -3741,6 +3741,32 @@ public final class Builtins {
     }
     throw interpreter.failUnsupported(
         "Mock " + ctx + " only implemented for scalar convertible to logical");
+  }
+
+  /// GNU-R's `as.logical` of a logical, integer, or real vector: each element, without attributes.
+  private static LglSXP sexpToLogicals(SEXP sexp, InternalInterpreter interpreter, String ctx) {
+    if (!(sexp instanceof LglSXP || sexp instanceof IntSXP || sexp instanceof RealSXP)) {
+      throw interpreter.failUnsupported(
+          "Mock " + ctx + " only implemented for a logical, integer, or real vector");
+    }
+    return SEXPs.logical(
+        ((PrimVectorSXP<?>) sexp)
+            .stream()
+                .map(
+                    e ->
+                        switch (e) {
+                          case Logical l -> l;
+                          case Integer i ->
+                              i == Constants.NA_INT
+                                  ? Logical.NA
+                                  : (i != 0 ? Logical.TRUE : Logical.FALSE);
+                          case Double d ->
+                              Double.isNaN(d)
+                                  ? Logical.NA
+                                  : (d != 0.0 ? Logical.TRUE : Logical.FALSE);
+                          default -> throw new AssertionError(e);
+                        })
+                .toList());
   }
 
   /// GNU-R's `as.character` of a scalar.

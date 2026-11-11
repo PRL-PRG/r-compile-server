@@ -11,6 +11,7 @@ import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
@@ -166,6 +167,28 @@ class InternalInterpretTest {
 
     assertEquals(new Value.Bool(false), interpreter.call("onPromise"));
     assertEquals(new Value.Sexp(SEXPs.TRUE), interpreter.call("onString"));
+  }
+
+  /// `as.logical` of a vector converts each element, as GNU-R's does.
+  @Test
+  void asLogicalOfVectorConvertsEachElement() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                x: v(R)o = v(R)[1.0, 0.0];
+                d: dots = dots[];
+                r: v(L) = `as.logical`%< *@!,dots -+> v(L) >(x, d);
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertEquals(
+        new Value.Sexp(SEXPs.logical(Logical.TRUE, Logical.FALSE)), interpreter.call("main"));
   }
 
   @Test
