@@ -62,6 +62,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.PrimitiveKind;
@@ -249,6 +250,16 @@ public final class ModuleParseContext {
       s.assertAndSkip('{');
       while (!s.nextCharIs('}')) {
         var version = p.withContext(forAbstraction()).parse(Abstraction.class);
+        // The printed form doesn't declare the types of named variables. `bc2fir` gives `...` the
+        // dots parameter's type, maybe; the others' are `*`, the default.
+        var dotsIndex = parameterNames.indexOf(NamedVariable.DOTS);
+        if (dotsIndex != -1
+            && dotsIndex < version.parameters().size()
+            && version.parameters().get(dotsIndex).type().kind() instanceof Kind.Dots) {
+          version.setNamedVariableType(
+              NamedVariable.DOTS,
+              version.parameters().get(dotsIndex).type().withConcreteness(Concreteness.MAYBE));
+        }
         if (function.versions().isEmpty()) {
           function.addBaseline(version);
         } else {
