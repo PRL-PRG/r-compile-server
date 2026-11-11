@@ -25,6 +25,7 @@ import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -125,8 +126,15 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
             report("Read after consume: ", variable);
           }
           state().read.add(variable);
-          if (scope.typeOf(variable).ownership() == Ownership.OWNED) {
-            runOwned(instruction, index, variable);
+          switch (scope.typeOf(variable).ownership()) {
+            case OWNED -> runOwned(instruction, index, variable);
+            // The caller lends the vector only during the call, and can write it in place after.
+            case BORROWED -> {
+              if (escapes(instruction, index)) {
+                report("Share of borrowed: ", variable);
+              }
+            }
+            default -> {}
           }
         }
         // Ensure register is written before consume, and not consumed or captured.
@@ -203,6 +211,13 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       case Store(var storeType, _) -> storeType == StoreType.SUPER_VAR;
       default -> true;
     };
+  }
+
+  /// Whether the use [shares][#shares] its register and isn't a `deopt` argument (nothing in the
+  /// version runs after it).
+  public static boolean escapes(Instruction instruction, int index) {
+    return shares(instruction, index)
+        && !(instruction instanceof Jump jump && jump.expression() instanceof Deopt);
   }
 
   private static boolean isMove(Instruction instruction, int index) {

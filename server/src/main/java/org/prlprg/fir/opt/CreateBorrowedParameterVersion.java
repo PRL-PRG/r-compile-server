@@ -5,15 +5,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.analyze.type.Provenance;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.callee.Callee;
-import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.FallbackCallee;
-import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
@@ -135,10 +131,8 @@ public final class CreateBorrowedParameterVersion extends AbstractionOptimizatio
   ///
   /// Two uses let it escape:
   ///
-  /// - An argument of a call that expects a *shared* parameter, which is exactly the parameter a
-  ///   callee is allowed to retain (store into an environment, capture in a closure or promise).
-  ///   A dynamic call's callee isn't known, so every one of its arguments counts (see
-  ///   [#expectsShared]).
+  /// - A use that [shares][Provenance#escapes] it, e.g. an argument of a call that expects a shared
+  ///   parameter or of a dynamic call, or a `dots` element.
   /// - A read inside a non-local promise, which may be forced after the frame that created it
   ///   returns. [org.prlprg.fir.check.CaptureChecker] rejects those, but it's excluded from the
   ///   part of the pipeline this optimization runs in, so they do reach us.
@@ -150,35 +144,10 @@ public final class CreateBorrowedParameterVersion extends AbstractionOptimizatio
 
   private static boolean escapes(Use use, Set<CFG> escapingCfgs) {
     var bb = use.instruction().parentBB();
-    if (bb == null || escapingCfgs.contains(bb.owner())) {
-      // A detached instruction isn't in any CFG, so we can't tell; assume the worst.
-      return true;
-    }
-
-    return use.instruction() instanceof Statement statement
-        && statement.expression() instanceof Call(var callee)
-        && expectsShared(callee, use.index());
-  }
-
-  /// Whether the argument at `index` of a call to `callee` may be retained after the call returns.
-  ///
-  /// `index` is an index into the owning statement's arguments: 0 is the callee's own argument and
-  /// the call arguments follow it, so it lines up with `callee`'s parameters shifted by one.
-  private static boolean expectsShared(Callee callee, int index) {
-    return switch (callee) {
-      // Nothing bounds what an unknown callee does with its arguments.
-      case DynamicCallee _ -> true;
-      // Only in a fallback, which isn't optimized.
-      case FallbackCallee _ -> true;
-      case StaticFnCallee(_, _, var signature) -> {
-        var parameterTypes = signature.parameterTypes();
-        // Index 0 is the closure-with-env, which is shared, and an index past the end is an arity
-        // mismatch that `TypeAndEffectChecker` reports; assume the worst for both.
-        yield index == 0
-            || index > parameterTypes.size()
-            || parameterTypes.get(index - 1).ownership() == Ownership.SHARED;
-      }
-    };
+    // A detached instruction isn't in any CFG, so we can't tell; assume the worst.
+    return bb == null
+        || escapingCfgs.contains(bb.owner())
+        || Provenance.escapes(use.instruction(), use.index());
   }
 
   /// The CFGs of `version` that sit inside a non-local promise, at any depth.

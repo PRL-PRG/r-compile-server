@@ -321,6 +321,24 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
   }
 
   @Test
+  void dotsElement_unchanged() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec) {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -+> V {
+                d: dots = dots[vec];
+                r: V = list< dots -+> V >(d);
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "the list keeps the vector after the call");
+  }
+
+  @Test
   void dupsParameter_unchanged() {
     var module =
         ParseUtil.parseModule(

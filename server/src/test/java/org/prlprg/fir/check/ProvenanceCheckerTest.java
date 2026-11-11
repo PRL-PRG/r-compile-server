@@ -22,6 +22,20 @@ class ProvenanceCheckerTest {
       }
       """;
 
+  /// The caller can write `x` in place after the call, which would change the returned list.
+  @Test
+  void shareOfBorrowed_isAnError() {
+    assertTrue(
+        hasErrors(
+            """
+            (x:v(I)b) -+> V {
+              d: dots = dots[x];
+              r: V = list< dots -+> V >(d);
+              return r;
+            }
+            """));
+  }
+
   @Test
   void writeOrConsumeAfterShare_isAnError() {
     assertFalse(hasErrors(SHARE_TEMPLATE.formatted("e: I = a[0];")), "a read is ok");
