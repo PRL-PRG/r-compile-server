@@ -119,6 +119,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   private final InferType inferType;
   private final InferEffects inferEffects;
   private final Map<Register, Argument> registerOrigins = new HashMap<>();
+  private @Nullable Set<Promise> promisesOnlyForcedInFrame = null;
 
   /// Creates and runs the analysis.
   public OriginAnalysis(Abstraction scope) {
@@ -244,6 +245,46 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     return ((OnCfg) onCfg(scope.body())).returnOrigin();
   }
 
+  /// Whether each use of the promise is a force or a strict argument in the CFG that creates it,
+  /// so its body can only run in that frame (if it's forced before it escapes, it doesn't run
+  /// again).
+  private boolean isOnlyForcedInFrame(Promise promise) {
+    if (promisesOnlyForcedInFrame == null) {
+      promisesOnlyForcedInFrame = Collections.newSetFromMap(new IdentityHashMap<>());
+      scope
+          .streamCfgs()
+          .flatMap(cfg -> cfg.bbs().stream().flatMap(bb -> bb.statements().stream()))
+          .filter(
+              s ->
+                  s.expression() instanceof Promise
+                      && (s.assignee() == null || isOnlyForcedIn(s.assignee(), s.parentBB())))
+          .forEach(s -> promisesOnlyForcedInFrame.add((Promise) s.expression()));
+    }
+    return promisesOnlyForcedInFrame.contains(promise);
+  }
+
+  private static boolean isOnlyForcedIn(Register register, @Nullable BB definingBb) {
+    return definingBb != null
+        && register.uses().stream()
+            .allMatch(
+                use ->
+                    use.instruction() instanceof Statement s
+                        && s.parentBB() != null
+                        && s.parentBB().owner() == definingBb.owner()
+                        && switch (s.expression()) {
+                          case Force _ -> true;
+                          case Cast _, Assume(AssumeType _) ->
+                              s.assignee() == null || isOnlyForcedIn(s.assignee(), definingBb);
+                          case Call(StaticFnCallee(var fn, _, var signature)) ->
+                              (fn.get().owner() == INTRINSICS
+                                      && INSPECTING_INTRINSICS.contains(fn.get().name().name()))
+                                  || (use.index() > 0
+                                      && use.index() <= signature.parameterStrictnesses().length()
+                                      && signature.parameterStrictnesses().get(use.index() - 1));
+                          default -> false;
+                        });
+  }
+
   private static @Nullable Argument uniqueOrNull(@Nullable Set<Argument> origins) {
     if (origins == null || origins.size() != 1) {
       return null;
@@ -282,7 +323,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// the forced *value*) clears the entry.
     private void trackAssigneePromise(Register assignee, Statement statement) {
       switch (statement.expression()) {
-        case Promise promise -> state().registerPromises.put(assignee, new PromiseOrigin(promise));
+        case Promise promise ->
+            state()
+                .registerPromises
+                .put(assignee, new PromiseOrigin(promise, Maybe.NO, null, state().present()));
         // A cast or type-assumption is value-preserving, so it propagates the promise (if any).
         case Cast _ -> copyArgPromise(statement.arg(0), assignee);
         case Assume(AssumeType _) -> copyArgPromise(statement.arg(0), assignee);
@@ -475,10 +519,20 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           yield null;
         }
         case MkEnv(var type) -> {
-          state().mkEnv(type == MkEnvType.REGULAR);
+          state().mkEnv(statement, type == MkEnvType.REGULAR);
           yield null;
         }
         case PopEnv _ -> {
+          // A leaked promise may be forced after the environment is gone, and then reads its last
+          // bindings. The body's effects come after this code, so the state stays.
+          for (var po : state().leakedPromises) {
+            var body = (OnCfg) onCfg(po.promise.code());
+            if (po.forced != Maybe.YES && !isOnlyForcedInFrame(po.promise) && !body.isRunning()) {
+              var entry = state().copy();
+              entry.assumePresent(po.present);
+              body.run(entry);
+            }
+          }
           state().popEnv();
           yield null;
         }
@@ -595,11 +649,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
       var returnState = subAnalysis.returnState();
       if (returnState != null) {
+        // The return state also has the body's runs at other forces and at `popenv`, where a
+        // variable may be absent. The body can't remove a binding, so a variable that is present
+        // here stays.
+        var present = state().present();
         if (replace) {
           state().replaceWith(returnState);
         } else {
           state().merge(returnState);
         }
+        state().assumePresent(present);
       }
       po.value = subAnalysis.returnOrigin();
     }
@@ -1033,8 +1092,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// any force of an unknown promise, since we can no longer tell when they're forced.
     private final Set<PromiseOrigin> leakedPromises = new LinkedHashSet<>();
 
-    private void mkEnv(boolean reflectivelyAccessible) {
-      envs.add(new EnvFrame(reflectivelyAccessible));
+    private void mkEnv(Statement mkEnv, boolean reflectivelyAccessible) {
+      envs.add(new EnvFrame(mkEnv, reflectivelyAccessible));
     }
 
     private void popEnv() {
@@ -1235,6 +1294,40 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       }
     }
 
+    /// The variables that are definitely in each environment, by the statement that creates it.
+    private Map<Statement, Set<NamedVariable>> present() {
+      var present = new LinkedHashMap<Statement, Set<NamedVariable>>();
+      for (var env : envs) {
+        var variables = new LinkedHashSet<NamedVariable>();
+        env.variables.forEach(
+            (variable, info) -> {
+              if (!info.mayBeAbsent) {
+                variables.add(variable);
+              }
+            });
+        present.merge(
+            env.mkEnv,
+            variables,
+            (a, b) -> {
+              a.retainAll(b);
+              return a;
+            });
+      }
+      return present;
+    }
+
+    /// Marks the variables of `present` as definitely in their environments.
+    private void assumePresent(Map<Statement, Set<NamedVariable>> present) {
+      for (var env : envs) {
+        for (var variable : present.getOrDefault(env.mkEnv, Set.of())) {
+          var info = env.variables.get(variable);
+          if (info != null) {
+            info.mayBeAbsent = false;
+          }
+        }
+      }
+    }
+
     private void taintViaReflection() {
       for (var env : envs) {
         if (env.reflectivelyAccessible) {
@@ -1376,7 +1469,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       var a = variablePromises.get(r);
       var b = otherVariablePromises.get(r);
       if (a != null && b != null && a.promise == b.promise) {
-        a.forced = a.forced.union(b.forced);
+        a.merge(b);
       } else {
         if (a != null) {
           leakedPromises.add(a);
@@ -1396,7 +1489,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       PromiseOrigin other, Map<Promise, PromiseOrigin> canonical) {
     var existing = canonical.get(other.promise);
     if (existing != null) {
-      existing.forced = existing.forced.union(other.forced);
+      existing.merge(other);
       return existing;
     }
     var fresh = other.copy();
@@ -1409,13 +1502,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     final Map<NamedVariable, VariableInfo> variables = new LinkedHashMap<>();
     /// Variables known to hold a specific promise (a subset of the keys of [#variables]).
     final Map<NamedVariable, PromiseOrigin> variablePromises = new LinkedHashMap<>();
+    /// The [MkEnv] statement that creates the environment.
+    final Statement mkEnv;
     /// Whether the environment is tainted by reflection
     boolean reflectivelyAccessible;
     /// Set when reflection has run while this frame was on the stack: the previously-known
     /// variables are forgotten, and arbitrary other variables may now be present here.
     boolean tainted = false;
 
-    EnvFrame(boolean reflectivelyAccessible) {
+    EnvFrame(Statement mkEnv, boolean reflectivelyAccessible) {
+      this.mkEnv = mkEnv;
       this.reflectivelyAccessible = reflectivelyAccessible;
     }
 
@@ -1426,7 +1522,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     EnvFrame copy(IdentityHashMap<PromiseOrigin, PromiseOrigin> poMap) {
-      var copy = new EnvFrame(reflectivelyAccessible);
+      var copy = new EnvFrame(mkEnv, reflectivelyAccessible);
       copy.tainted = tainted;
       for (var e : variables.entrySet()) {
         copy.variables.put(e.getKey(), e.getValue().copy());
@@ -1541,18 +1637,40 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// Forced value, or `null` if pending
     @Nullable Argument value;
 
+    /// The variables that are definitely in each environment (by the statement that creates it)
+    /// when the promise is created. They stay there while the environment exists, because only
+    /// reflection removes a variable, and it taints the environment.
+    final Map<Statement, Set<NamedVariable>> present = new LinkedHashMap<>();
+
     PromiseOrigin(Promise promise) {
       this(promise, Maybe.NO, null);
     }
 
     PromiseOrigin(Promise promise, Maybe forced, @Nullable Argument value) {
+      this(promise, forced, value, Map.of());
+    }
+
+    PromiseOrigin(
+        Promise promise,
+        Maybe forced,
+        @Nullable Argument value,
+        Map<Statement, Set<NamedVariable>> present) {
       this.promise = promise;
       this.forced = forced;
       this.value = value;
+      present.forEach(
+          (mkEnv, variables) -> this.present.put(mkEnv, new LinkedHashSet<>(variables)));
     }
 
     PromiseOrigin copy() {
-      return new PromiseOrigin(promise, forced, value);
+      return new PromiseOrigin(promise, forced, value, present);
+    }
+
+    /// Makes this origin stand for `other` too.
+    void merge(PromiseOrigin other) {
+      forced = forced.union(other.forced);
+      present.keySet().retainAll(other.present.keySet());
+      present.forEach((mkEnv, variables) -> variables.retainAll(other.present.get(mkEnv)));
     }
 
     /// Copies via `poMap`, so references shared within a state stay shared in the copy.
@@ -1568,10 +1686,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     public boolean equals(Object o) {
       if (this == o) return true;
       if (!(o instanceof PromiseOrigin other)) return false;
-      return promise == other.promise && forced == other.forced && value == other.value;
+      return promise == other.promise
+          && forced == other.forced
+          && value == other.value
+          && present.equals(other.present);
     }
 
-    /// Only the immutable [#promise], because [#forced] and [#value] change while the object is in
+    /// Only the immutable [#promise], because the other fields change while the object is in
     /// a state's [LinkedHashSet].
     @Override
     public int hashCode() {

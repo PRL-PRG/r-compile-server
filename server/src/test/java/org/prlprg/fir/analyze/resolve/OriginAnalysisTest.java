@@ -1005,4 +1005,43 @@ class OriginAnalysisTest {
 
     assertTrue(set.contains(po));
   }
+
+  /// The leaked promise's body also runs at the `popenv` of the early return, where `a` is absent.
+  /// The call may force the promise, but its body can't remove `a`, so `a` stays known after it.
+  @Test
+  void testMaybeForceKeepsPresentVariables() {
+    var firText =
+        """
+        fun main() {
+          (b:B) -+> V {
+            mkenv;
+            pr:p(V ~) = prom<V ~>{ return <int 0>; };
+            st-super gp = pr;
+            if b then L1() else L2();
+          L1():
+            popenv;
+            return <int 0>;
+          L2():
+            st a = <int 1>;
+            c:V = g< -~> V >();
+            r:V = ld a;
+            popenv;
+            return r;
+          }
+        }
+
+        fun g() {
+          () -~> V { return <int 0>; }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(Objects.requireNonNull(main.body().bb("L2")), 1, Variable.named("a")));
+  }
 }
