@@ -134,8 +134,7 @@ public final class CreateBorrowedParameterVersion extends AbstractionOptimizatio
   /// - A use that [shares][Provenance#escapes] it, e.g. an argument of a call that expects a shared
   ///   parameter or of a dynamic call, or a `dots` element.
   /// - A read inside a non-local promise, which may be forced after the frame that created it
-  ///   returns. [org.prlprg.fir.check.CaptureChecker] rejects those, but it's excluded from the
-  ///   part of the pipeline this optimization runs in, so they do reach us.
+  ///   returns.
   ///
   /// `escapingCfgs` must be [#escapingCfgs] of the version `parameter` belongs to.
   private static boolean escapes(FunctionParameter parameter, Set<CFG> escapingCfgs) {

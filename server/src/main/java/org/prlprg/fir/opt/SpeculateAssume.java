@@ -199,10 +199,8 @@ public final class SpeculateAssume extends AbstractionOptimization {
       // Only ones in the register's own CFG. `DominatorTree`'s block-level check walks a block in
       // a promise up to the statement that defines that promise and then compares blocks,
       // forgetting the statement index -- so `p = prom{ ... }` "dominates" every checkpoint inside
-      // its own body, and we'd insert an assume reading `p` before `p` is assigned. Even where the
-      // index does work out, an assume inside a promise makes that promise capture the register,
-      // which only a local one may do ([org.prlprg.fir.check.CaptureChecker]), and nothing has
-      // marked promises local this early. A checkpoint in a promise can't be reached from a
+      // its own body, and we'd insert an assume reading `p` before `p` is assigned. A checkpoint
+      // in a promise can't be reached from a
       // register defined outside it in the other direction anyway: `DominatorTree` never lets
       // anything in a promise dominate anything outside.
       var availableCheckpointBbs =

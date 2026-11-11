@@ -56,7 +56,7 @@ public final class AbstractionFixpointSequence extends AbstractionOptimization {
 
       @Override
       protected boolean checkTarget(Abstraction abstraction) {
-        return checkAll(abstraction, Exclude.STRICT_CFG, Exclude.CAPTURE);
+        return checkAll(abstraction, Exclude.STRICT_CFG);
       }
     }.run(feedback, abstraction);
   }

@@ -306,8 +306,8 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
     /// with the value the renaming walk carries at the creation site.
     ///
     /// A promise body runs at the *force*, which in general is anywhere the promise reaches, so we
-    /// only accept the shape the compiler actually emits for an argument: a local promise (only
-    /// local promises may read the enclosing registers at all), used once, handed straight to a
+    /// only accept the shape the compiler actually emits for an argument: a local promise, used
+    // once, handed straight to a
     /// strict parameter of a static call in the same block, with no store to the variable between
     /// the two. A strict parameter is forced inside that call, and the callee can't store into this
     /// environment -- reaching it would take reflection, which [#envIsPrivate] has ruled out.

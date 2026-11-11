@@ -114,8 +114,7 @@ public class FirQuery implements GenFirQuery {
     evaluateAll(module);
 
     // Don't check provenance, because it's trivial (no `consume` annotations) but expensive.
-    // Don't check captures, because promises are still non-local until `SpecializeLocalPromise`.
-    if (!checkAll(module, Exclude.PROVENANCE, Exclude.CAPTURE)) {
+    if (!checkAll(module, Exclude.PROVENANCE)) {
       fail("Compiled FIŘ failed verification\n" + module);
     }
     return module;
@@ -180,10 +179,7 @@ public class FirQuery implements GenFirQuery {
                 })
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
-    // This is the freshly-compiled, pre-optimization module: capturing promises are still
-    // legitimately non-local (they're marked local later by `SpecializeLocalPromise`), so exclude
-    // the capture check here (it runs on the optimized module in `OptimizedFirQuery`).
-    var checkers = checkers(Checker.Exclude.CAPTURE);
+    var checkers = checkers();
 
     for (var checker : checkers) {
       checker.run(data);

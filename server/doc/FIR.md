@@ -198,7 +198,7 @@ Example:
 prom<v1(I) ->{ return <int 42>; }
 ```
 
-`t` must be a value type of SEXP kind with shared ownership. A promise body is a CFG in the enclosing version's register namespace. Registers defined inside a promise are only visible inside it. A promise may only read registers defined outside it if it is **local** (`prom-`): a local promise is speculated not to escape the stack frame it's created in, and crashes at run time if it escapes and is forced afterwards.
+`t` must be a value type of SEXP kind with shared ownership. A promise body is a CFG in the enclosing version's register namespace. Registers defined inside a promise are only visible inside it. A promise may read registers defined outside it (its captures): the promise keeps their values, so it can be forced after its frame is gone. A **local** promise (`prom-`) is speculated not to escape the stack frame it's created in, and raises an error at run time if it escapes and is forced afterwards.
 
 The optional constant in brackets is the R source expression of the promise (for example `[<lang f(x)>]`). `bc2fir` sets it from the promise bytecode, and the optimizations keep it. GNU-R code that reads a promise's expression (`substitute`, `missing`, `match.call`, `deparse`) sees it. Such a read of a promise without an expression raises the R error "the source expression of this promise is not available". One exception: a promise without an expression whose body only returns a register defined outside it (the wrapper that `StrictifyPromise` makes) is created already evaluated, with the value as its expression, like the argument promises of `do.call`.
 
@@ -376,9 +376,8 @@ Full type-checks are implemented in `org.prlprg.fir.check.TypeAndEffectChecker` 
 - **Registers**: Each register is defined exactly once, in the innermost scope that uses it (a version or promise body). Parameters are never assigned. A definition must dominate all uses; a use inside a promise counts as occurring at the outermost promise containing it that lives in the definition's CFG.
 - **Phi Correctness**: A jump target must have the same number of arguments as the targeted block has parameters, and each argument's type must be a subtype of the parameter's. The entry block has no parameters, and in strict checking neither does a block with a single predecessor.
 - **Strictness**: Every `@!` parameter is forced on all paths from entry to every `return` or reflective operation.
-- **Captures**: Only local promises (`prom-`) read registers defined outside them.
 
-Full checks are described in the javadoc of, and implemented in, `org.prlprg.fir.check.CFGChecker`, `org.prlprg.fir.check.StrictnessChecker`, and `org.prlprg.fir.check.CaptureChecker`.
+Full checks are described in the javadoc of, and implemented in, `org.prlprg.fir.check.CFGChecker` and `org.prlprg.fir.check.StrictnessChecker`.
 
 ### Environment Constraints
 

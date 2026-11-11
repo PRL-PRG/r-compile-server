@@ -183,7 +183,6 @@ Paths are from the repository root. Keep this file current when you add, move, o
 ### `fir/check/` — Verify FIŘ invariants.
 
 - `CFGChecker.java` — Checks structural CFG invariants.
-- `CaptureChecker.java` — Checks that only local promises read captures.
 - `CheckException.java` — Error that a checker reports, with the function and position.
 - `Checker.java` — Base class of the checkers; runs all of them.
 - `DispatchReturnTypeChecker.java` — Checks that every dispatch call's signature returns SEXP.
