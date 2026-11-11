@@ -1253,21 +1253,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return copy;
     }
 
-    /// Replaces the state with `other`
+    /// Replaces the state with a copy of `other`
     private void replaceWith(State other) {
+      var copy = other.copy();
       registerOrigins.clear();
-      registerOrigins.putAll(other.registerOrigins);
-
-      var poMap = new IdentityHashMap<PromiseOrigin, PromiseOrigin>();
+      registerOrigins.putAll(copy.registerOrigins);
       envs.clear();
-      for (var env : other.envs) {
-        envs.add(env.copy(poMap));
-      }
-
+      envs.addAll(copy.envs);
       registerPromises.clear();
-      registerPromises.putAll(other.registerPromises);
-
+      registerPromises.putAll(copy.registerPromises);
       leakedPromises.clear();
+      leakedPromises.addAll(copy.leakedPromises);
     }
 
     @Override

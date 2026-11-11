@@ -873,6 +873,47 @@ class OriginAnalysisTest {
         analysis.getPossible(l2, 5, Variable.named("list")));
   }
 
+  /// `p` leaks into a dots vector. The definite force of `q` doesn't forget it, so `h` may still
+  /// force `p`, which stores 9 into `x`.
+  @Test
+  void testLeakedPromiseMaybeForcedAfterDefiniteForce() {
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv~;
+                st x = <int 1>;
+                p: p(v1(I) +) = prom<v1(I) +>{
+                  st x = <int 9>;
+                  return <int 9>;
+                };
+                d: dots = dots[p];
+                st x = <int 2>;
+                q: p(v1(I) ~) = prom<v1(I) ~>{
+                  return <int 3>;
+                };
+                q1: v1(I) = force q;
+                h< -+> V >();
+                x1: * = ld x;
+                popenv;
+                return x1;
+              }
+            }
+
+            fun h() {
+              () -+> V { ... }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(2)), new Constant(SEXPs.integer(9))),
+        analysis.getPossible(main.body().entry(), 7, Variable.named("x")));
+  }
+
   /// A state's set of leaked promises still finds a promise after its forced status changes.
   @Test
   void testPromiseOriginStaysInSetWhenForcedChanges() {
