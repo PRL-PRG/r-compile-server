@@ -3,17 +3,21 @@ package org.prlprg.fir.analyze.resolve;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Maybe;
 
 class OriginAnalysisTest {
   /// The register named `name` defined in `version` (registers are identity-based, so tests look
@@ -867,5 +871,28 @@ class OriginAnalysisTest {
     assertEquals(
         Set.of(new Read(reg(permute, "list22"))),
         analysis.getPossible(l2, 5, Variable.named("list")));
+  }
+
+  /// A state's set of leaked promises still finds a promise after its forced status changes.
+  @Test
+  void testPromiseOriginStaysInSetWhenForcedChanges() {
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -~> V {
+                p: p(V ~) = prom<V ~>{ return <int 0>; };
+                return <int 0>;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var promise = (Promise) main.body().entry().statements().getFirst().expression();
+
+    var po = new OriginAnalysis.PromiseOrigin(promise);
+    var set = new LinkedHashSet<>(List.of(po));
+    po.forced = Maybe.MAYBE;
+
+    assertTrue(set.contains(po));
   }
 }

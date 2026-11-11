@@ -1553,9 +1553,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return promise == other.promise && forced == other.forced && value == other.value;
     }
 
+    /// Only the immutable [#promise], because [#forced] and [#value] change while the object is in
+    /// a state's [LinkedHashSet].
     @Override
     public int hashCode() {
-      return System.identityHashCode(promise) * 31 + Objects.hash(forced, value);
+      return System.identityHashCode(promise);
     }
   }
 }
