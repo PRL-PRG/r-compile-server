@@ -482,6 +482,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           state().popEnv();
           yield null;
         }
+        case Closure(var isStatic, _) when !isStatic -> {
+          // The closure captures the environments, so the promises of their variables leak.
+          for (var env : state().envs) {
+            state().leakedPromises.addAll(env.variablePromises.values());
+          }
+          yield null;
+        }
         case Closure _,
             Dup _,
             MkVector _,
