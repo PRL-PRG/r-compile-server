@@ -71,6 +71,10 @@ final class StackFrame {
     return closureEnv;
   }
 
+  boolean isFallback() {
+    return isFallback;
+  }
+
   @UnmodifiableView
   List<CFGCursor> positions() {
     return Lists.mapLazy(subFrames, sf -> sf.position);

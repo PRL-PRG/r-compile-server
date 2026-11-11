@@ -331,6 +331,51 @@ class InternalInterpretTest {
     assertEquals(0, reflectiveEnvCount(interpreter, module, "inner"));
   }
 
+  /// `sys.frame(-1)` in a promise that `id` forces counts from `k`, which created the promise, so
+  /// it's `main`'s frame and not `id`'s.
+  @Test
+  void sysFrameInPromiseCountsFromItsFrame() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                r: V = k< -+> V >();
+                popenv;
+                return r;
+              }
+            }
+
+            fun k() {
+              () -+> V {
+                mkenv;
+                p: p(V +) = prom<V +>{
+                  vargs: dots = dots[<int -1>];
+                  s: V = `sys.frame`%< dots -+> V >(vargs);
+                  return s;
+                };
+                r: V = id< p(V +) -+> V >(p);
+                popenv;
+                return r;
+              }
+            }
+
+            fun id(e) {
+              (e:p(V +)) -+> V {
+                v: V = force? e;
+                return v;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    interpreter.call("main");
+
+    assertEquals(1, reflectiveEnvCount(interpreter, module, "main"));
+  }
+
   /// `sys.frame(0)` is the global environment, and GNU-R marks the frame that calls it.
   @Test
   void sysFrameZeroIsGlobalAndMarksCaller() {

@@ -1779,16 +1779,21 @@ public final class InternalInterpreter implements Interpreter {
   /// The environment of the call frame `which` frames relative to the current one, for
   /// `sys.frame(which)` where `which <= 0` (`0` = current frame, `-1` = caller, ...).
   ///
+  /// Like GNU-R, this counts the calls below the one whose frame is current: forcing a promise
+  /// pushes the frame that created it again, and a fallback pushes a frame before the version it
+  /// calls, neither of which is a call.
+  ///
   /// @throws InterpretException If `which > 0` (unsupported), or there's no such frame.
   EnvSXP relativeFrameEnvironment(int which) {
     if (which > 0) {
       throw failUnsupported("`sys.frame` with a positive frame number: " + which);
     }
-    var index = stack.size() - 1 + which;
-    if (index < 0 || index >= stack.size()) {
+    var calls = stack.stream().filter(f -> !f.isFallback()).distinct().toList();
+    var index = calls.indexOf(topFrame()) + which;
+    if (index < 0) {
       throw fail("`sys.frame(" + which + ")`: no such frame");
     }
-    return stack.get(index).environment();
+    return calls.get(index).environment();
   }
 
   /// Records that `env` was reflectively accessed: if it's a tracked user environment (created by

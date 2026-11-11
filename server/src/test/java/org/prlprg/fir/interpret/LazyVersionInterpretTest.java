@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.LazyCopy;
 import org.prlprg.fir.opt.Optimization;
+import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
 
 /// The interpreter runs an unevaluated version's fallback for the rest of the top-level call, then
@@ -139,5 +140,45 @@ class LazyVersionInterpretTest {
     var second = interpreter.call("main");
     assertEquals(new Value.Sexp(SEXPs.integer(3)), second);
     assertEquals(2, feedback.get(source).numCalls(), "now the copy's body runs instead");
+  }
+
+  /// `sys.frame(-1)` in `k` is `main`'s frame, not the frame of the fallback that calls `k`.
+  @Test
+  void sysFrameSkipsTheFallbackFrame() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                st a = <int 1>;
+                r: V = k< -+> V >();
+                popenv;
+                return r;
+              }
+            }
+
+            fun k() {
+              () -+> V {
+                mkenv;
+                vargs: dots = dots[<int -1>];
+                s: V = `sys.frame`%< dots -+> V >(vargs);
+                popenv;
+                return s;
+              }
+            }
+            """);
+    var k = Objects.requireNonNull(module.localFunction(Variable.named("k")));
+    var feedback = new MockModuleFeedback(module);
+    var copy =
+        LazyCopy.create(
+            new NoOptimization(), new NoOptimization(), feedback, k, k.baseline(), List.of());
+    assertEquals(copy, k.guess(k.baseline().signature()));
+
+    var interpreter = new InternalInterpreter(module, feedback);
+    registerBuiltins(interpreter);
+
+    var frame = (EnvSXP) ((Value.Sexp) interpreter.call("main")).value();
+    assertTrue(frame.get("a").isPresent(), "`sys.frame(-1)` should be `main`'s frame: " + frame);
   }
 }
