@@ -120,6 +120,18 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
           return Result.UNCHANGED;
         }
       }
+      // `fir2c` drops the trailing `<missing>` arguments of a static builtin call (the unsupplied
+      // formals), so the last supplied formal must not be an empty argument (`quote(expr = )`).
+      var supplied = staticArgumentPositions.arguments();
+      var lastSupplied =
+          formalParameters.reversed().stream().filter(supplied::containsKey).findFirst();
+      if (lastSupplied.isPresent()
+          && formalParameters.indexOf(lastSupplied.get()) > dddIndex
+          && callArguments
+              .get(supplied.get(lastSupplied.get()))
+              .equals(new Constant(SEXPs.MISSING_ARG))) {
+        return Result.UNCHANGED;
+      }
     }
     var staticArguments =
         formalParameters.stream()
