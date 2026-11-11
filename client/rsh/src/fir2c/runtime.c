@@ -707,6 +707,7 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
   }
 
   if (type == FIR_MKENV_ELIDED) {
+    Fir_push_frame(Rsh_ElidedEnv);
     // Nested in an elided frame, the parent stays: `Rsh_ElidedEnv` marks it.
     *saved = Rsh_ElidedEnv;
     if (*env_ptr != Rsh_ElidedEnv) {
@@ -730,6 +731,7 @@ bool Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type, SEXP *saved) {
   }
   *env_ptr = new_env;
   PROTECT(*env_ptr);
+  Fir_push_frame(new_env);
   return true;
 }
 
@@ -741,6 +743,7 @@ void Fir_pop_env(SEXP *env_ptr, bool pushed, SEXP saved) {
     return;
   }
 
+  Rsh_FrameCount--;
   if (*env_ptr == Rsh_ElidedEnv) {
     UNPROTECT(1);
     if (saved != Rsh_ElidedEnv) {

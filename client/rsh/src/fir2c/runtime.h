@@ -395,6 +395,14 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed, SEXP oute
 /// An elided push saves the parent it replaces in `*saved`. A real frame in an elided one gets the
 /// elided one's parent, and its push saves `Rsh_ElidedEnv`. Other pushes save `NULL`.
 bool Fir_push_env(SEXP *env, Fir_MkEnvType type, SEXP *saved);
+/// A frame that a push makes has no context, so it's recorded for the vendored R's `sys.frame` and
+/// the like (`Rsh_Frames`), and the pop removes it.
+static inline void Fir_push_frame(SEXP env) {
+  if (Rsh_FrameCount == Rsh_FrameCapacity) {
+    Rsh_GrowFrames();
+  }
+  Rsh_Frames[Rsh_FrameCount++] = env;
+}
 /// `pushed` is what the matching `Fir_push_env` returned, and `saved` what it saved. Popping an
 /// elided frame restores the parent the push replaced. A non-local exit between them (a caught
 /// error) skips the restore. The from-R exit restores the parent. If no from-R exit is between the
