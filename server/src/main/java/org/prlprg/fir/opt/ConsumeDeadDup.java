@@ -73,15 +73,15 @@ public final class ConsumeDeadDup extends AbstractionOptimization {
                   var instruction = use.instruction();
                   var useBb = instruction.parentBB();
                   // Liveness only looks forward, so no use may share the vector (see
-                  // `Provenance.shares`): the reference would see the writes after the move. A
-                  // `deopt` argument is a hand-off, after which nothing runs.
+                  // `Provenance.shares`): the reference would see the writes after the move. A use
+                  // in another block that deopts is a hand-off, after which nothing runs.
                   return useBb != null
                       && useBb.owner() == cfg
                       && (instruction == move
                           || !Provenance.shares(instruction, use.index())
                           || use.argument() instanceof Consume
-                          || instruction == useBb.jump()
-                              && useBb.jump().expression() instanceof Deopt);
+                          || useBb.jump().expression() instanceof Deopt
+                              && useBb != move.parentBB());
                 });
   }
 }

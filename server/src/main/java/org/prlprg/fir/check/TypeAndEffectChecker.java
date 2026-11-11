@@ -654,15 +654,24 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       void checkMatches(@Nullable Type type, Type expected, String message) {
-        if (type != null && !type.matches(expected)) {
+        if (type != null && !sharedIfOwned(type, expected).matches(expected)) {
           report(message + ": " + type + " doesn't match " + expected);
         }
       }
 
       void checkAssignment(@Nullable Type type, Type expected, String message) {
-        if (type != null && !type.canBeAssignedTo(expected)) {
+        if (type != null && !sharedIfOwned(type, expected).canBeAssignedTo(expected)) {
           report(message + ": can't assign " + type + " to " + expected);
         }
+      }
+
+      /// An owned value where a shared one is expected (a `st`, a return, a shared register or
+      /// parameter) shares the register, so `Provenance` reports a write, `consume`, or move after
+      /// it.
+      private static Type sharedIfOwned(Type type, Type expected) {
+        return type.ownership() == Ownership.OWNED && expected.ownership() == Ownership.SHARED
+            ? type.withOwnership(Ownership.SHARED)
+            : type;
       }
 
       void checkSubEffects(Effects effects, Effects expected, String message) {

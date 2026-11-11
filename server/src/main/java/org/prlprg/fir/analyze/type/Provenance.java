@@ -21,8 +21,6 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Deopt;
@@ -207,8 +205,6 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       case SubscriptRead _, SubscriptWrite _, Dup _ -> index != 0;
       case Call(StaticFnCallee(_, _, var signature)) -> !isBorrowed(signature, index);
       case Call(FallbackCallee(var signature)) -> !isBorrowed(signature, index);
-      // The type rules reject a `st` of an owned register.
-      case Store(var storeType, _) -> storeType == StoreType.SUPER_VAR;
       default -> true;
     };
   }

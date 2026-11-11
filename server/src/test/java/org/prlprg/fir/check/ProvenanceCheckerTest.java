@@ -44,6 +44,28 @@ class ProvenanceCheckerTest {
         hasErrors(SHARE_TEMPLATE.formatted("w: v(I)o = dup consume a;")), "a consume is an error");
   }
 
+  /// The `st` hands `y` off to the interpreter, so the write would change the binding `z`.
+  @Test
+  void writeAfterAHandOff_isAnError() {
+    assertTrue(
+        hasErrors(
+            """
+            (x:v(I)) -+> v1(I) {
+              mkenv;
+              y: v(I)o = dup x;
+              check L1() else D0();
+            L1():
+              popenv;
+              r: v1(I) = box< I --> v1(I) >(1);
+              return r;
+            D0():
+              st z = y;
+              y[0] = 5;
+              deopt 0 [];
+            }
+            """));
+  }
+
   private static boolean hasErrors(@Language("FIR") String source) {
     var abstraction = ParseUtil.parseAbstraction(source);
     var checker = new ProvenanceChecker();

@@ -348,11 +348,11 @@ BB(r1: t, r2: t, ...):
 - **Named variable types**: Must be shared and maybe (`t?` or `*`).
 - **Assignment Compatibility**: Registers, named variables (via `st`), and return values must be assigned values whose kind and promisity subtype their declared type's, whose maybeness is at most as maybe, and with the following ownership rules:
   - An owned register must be assigned a fresh value
-  - A shared register or named variable must be assigned a fresh or shared value
+  - A shared register, named variable, or return type can be assigned any value except a borrowed one; an owned value is then shared (see **Sharing** below)
   - A borrowed register cannot be assigned (only parameters can be borrowed)
 - **Call compatibility**: Static and dispatch call arguments must subtype the signature's parameter types (as above), with the following ownership rules:
   - An owned parameter must be given a fresh argument
-  - A shared parameter must be given a fresh or shared argument
+  - A shared parameter can be given any argument except a borrowed one; an owned argument is then shared
   - A borrowed parameter can be given any argument
 - **Return type**: A version's return type must be a value type (not a promise or maybe-promise), and every returned value must be assignable to it.
 - **Versions**: A version's effects must be a subset of its function's baseline's effects. If a version's parameters are strictly narrower than another's, its effects must not be wider.
