@@ -358,7 +358,7 @@ public final class Builtins {
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
-              return new Value.Int(intArith(fn, a, b));
+              return new Value.Int(intArith(interpreter, fn, a, b));
             }));
     // Scalar binary: (R, R) --> R
     interpreter.registerExternal(
@@ -449,7 +449,8 @@ public final class Builtins {
       SEXP s1, SEXP s2, DoubleBinaryOperator fn, InternalInterpreter interpreter, String ctx) {
     // Try scalar first
     if (s1.asScalarInteger().isPresent() && s2.asScalarInteger().isPresent()) {
-      return SEXPs.integer(intArith(fn, s1.asScalarInteger().get(), s2.asScalarInteger().get()));
+      return SEXPs.integer(
+          intArith(interpreter, fn, s1.asScalarInteger().get(), s2.asScalarInteger().get()));
     } else if (s1.asScalarReal().isPresent() && s2.asScalarReal().isPresent()) {
       return SEXPs.real(fn.applyAsDouble(s1.asScalarReal().get(), s2.asScalarReal().get()));
     } else if (s1.asScalarInteger().isPresent() && s2.asScalarReal().isPresent()) {
@@ -460,12 +461,20 @@ public final class Builtins {
           fn.applyAsDouble(s1.asScalarReal().get(), RMath.fromInt(s2.asScalarInteger().get())));
     }
     // Vector operations
+    if (s1 instanceof VectorSXP<?> v1
+        && s2 instanceof VectorSXP<?> v2
+        && (v1.isEmpty()
+            || v2.isEmpty()
+            || Math.max(v1.size(), v2.size()) % Math.min(v1.size(), v2.size()) != 0)) {
+      throw interpreter.failUnsupported(
+          "Mock `" + ctx + "` only recycles a non-empty operand whose length divides the other's");
+    }
     switch (s1) {
       case IntSXP i1 when s2 instanceof IntSXP i2 -> {
         int len = Math.max(i1.size(), i2.size());
         return SEXPs.integer(
             IntStream.range(0, len)
-                .map(i -> intArith(fn, i1.get(i % i1.size()), i2.get(i % i2.size())))
+                .map(i -> intArith(interpreter, fn, i1.get(i % i1.size()), i2.get(i % i2.size())))
                 .toArray());
       }
       case RealSXP r1 when s2 instanceof RealSXP r2 -> {
@@ -480,7 +489,12 @@ public final class Builtins {
         return SEXPs.integer(
             IntStream.range(0, len)
                 .map(
-                    i -> intArith(fn, l1.get(i % l1.size()).toInt(), l2.get(i % l2.size()).toInt()))
+                    i ->
+                        intArith(
+                            interpreter,
+                            fn,
+                            l1.get(i % l1.size()).toInt(),
+                            l2.get(i % l2.size()).toInt()))
                 .toArray());
       }
       case IntSXP i1 when s2 instanceof RealSXP r2 -> {
@@ -497,7 +511,10 @@ public final class Builtins {
         int len = Math.max(i1.size(), l2.size());
         return SEXPs.integer(
             IntStream.range(0, len)
-                .map(i -> intArith(fn, i1.get(i % i1.size()), l2.get(i % l2.size()).toInt()))
+                .map(
+                    i ->
+                        intArith(
+                            interpreter, fn, i1.get(i % i1.size()), l2.get(i % l2.size()).toInt()))
                 .toArray());
       }
       case RealSXP r1 when s2 instanceof IntSXP i2 -> {
@@ -524,7 +541,10 @@ public final class Builtins {
         int len = Math.max(l1.size(), i2.size());
         return SEXPs.integer(
             IntStream.range(0, len)
-                .map(i -> intArith(fn, l1.get(i % l1.size()).toInt(), i2.get(i % i2.size())))
+                .map(
+                    i ->
+                        intArith(
+                            interpreter, fn, l1.get(i % l1.size()).toInt(), i2.get(i % i2.size())))
                 .toArray());
       }
       case LglSXP l1 when s2 instanceof RealSXP r2 -> {
@@ -569,14 +589,21 @@ public final class Builtins {
     };
   }
 
-  /// GNU-R's integer arithmetic: `NA` if an argument is `NA` or the result doesn't fit.
-  private static int intArith(DoubleBinaryOperator fn, int a, int b) {
-    return a == Constants.NA_INT || b == Constants.NA_INT
-        ? Constants.NA_INT
-        : intResult(fn.applyAsDouble(a, b));
+  /// GNU-R's integer arithmetic: `NA` if an argument is `NA` or the result is `NaN`. GNU-R warns
+  /// if the result doesn't fit, which this doesn't implement.
+  private static int intArith(
+      InternalInterpreter interpreter, DoubleBinaryOperator fn, int a, int b) {
+    if (a == Constants.NA_INT || b == Constants.NA_INT) {
+      return Constants.NA_INT;
+    }
+    var result = fn.applyAsDouble(a, b);
+    if (Math.abs(result) > Integer.MAX_VALUE) {
+      throw interpreter.failUnsupported("Mock integer arithmetic overflows (GNU-R warns)");
+    }
+    return intResult(result);
   }
 
-  /// [#intArith(DoubleBinaryOperator, int, int)] for a unary operation.
+  /// [#intArith(InternalInterpreter, DoubleBinaryOperator, int, int)] for a unary operation.
   private static int intArith1(DoubleUnaryOperator fn, int a) {
     return a == Constants.NA_INT ? Constants.NA_INT : intResult(fn.applyAsDouble(a));
   }
