@@ -2789,6 +2789,8 @@ DEFINE_MATH1_BUILTINS(V)
 #undef V
 
 DEFINE_OVERRIDDEN_BUILTIN(int, length, value_fx_none_ret_scalar_int, SEXP value) {
+  // `length` of an object dispatches (e.g. `length.foo`), which this version has no effects for.
+  if (OBJECT(value)) Rf_error("FIŘ deoptimization triggered: length(x) of an object (unsupported)");
   // `Rf_length`, unlike `LENGTH`, handles environments, pairlists, and closures.
   return Rf_length(value);
 }
