@@ -331,6 +331,29 @@ class InternalInterpretTest {
     assertEquals(0, reflectiveEnvCount(interpreter, module, "inner"));
   }
 
+  /// `sys.frame(0)` is the global environment, and GNU-R marks the frame that calls it.
+  @Test
+  void sysFrameZeroIsGlobalAndMarksCaller() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                vargs: dots = dots[<int 0>];
+                r: V = `sys.frame`%< dots -+> V >(vargs);
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertEquals(new Value.Sexp(interpreter.globalEnv()), interpreter.call("main"));
+    assertEquals(1, reflectiveEnvCount(interpreter, module, "main"));
+  }
+
   @Test
   void reflectiveLoadMarksEnvironmentReflective() {
     var module =

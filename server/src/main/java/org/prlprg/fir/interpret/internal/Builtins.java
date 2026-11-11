@@ -3340,8 +3340,9 @@ public final class Builtins {
 
   /// `sys.frame(which)`, only supporting non-positive `which` (`-1` = caller's frame).
   ///
-  /// The returned frame's environment is marked
-  /// [reflective][org.prlprg.fir.feedback.AbstractionFeedback#reflectiveEnvs].
+  /// The calling frame's environment is marked
+  /// [reflective][org.prlprg.fir.feedback.AbstractionFeedback#reflectiveEnvs], and so is the
+  /// returned one, which the vendored GNU-R doesn't mark but the code reads reflectively.
   private static void registerSysFrame(InternalInterpreter interpreter) {
     // (*) -+> V, which matches the builtin's variadic `(dots)` version (used by direct calls) and
     // the base `(which:*)` version (used by dynamic calls).
@@ -3366,7 +3367,10 @@ public final class Builtins {
               }
               var which = sexpToInt(whichSexp, interpreter, "sys.frame");
 
-              var env = runtime.relativeFrameEnvironment(which);
+              // The vendored GNU-R marks the frame that calls `sys.frame`, and `0` is the global
+              // environment.
+              runtime.recordReflectiveEnv(runtime.relativeFrameEnvironment(0));
+              var env = which == 0 ? runtime.globalEnv() : runtime.relativeFrameEnvironment(which);
               runtime.recordReflectiveEnv(env);
               return new Value.Sexp(env);
             }));
