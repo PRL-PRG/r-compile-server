@@ -1238,6 +1238,18 @@ public final class Builtins {
                 throw interpreter.failUnsupported(
                     "Mock `" + name + "` not implemented for non-vector objects");
               }
+              // `drop` (of `[`) or `exact` (of `[[`); `FALSE` only changes a matrix subscript or a
+              // partial name match.
+              var option = args.get(3).box();
+              var isDefault = option == SEXPs.MISSING_ARG || option.equals(SEXPs.TRUE);
+              if (!isDefault && !option.equals(SEXPs.FALSE)) {
+                throw interpreter.failUnsupported(
+                    "Mock `"
+                        + name
+                        + "` only takes `"
+                        + (outOfRangeIsNa ? "drop" : "exact")
+                        + " = FALSE` with one subscript");
+              }
               int idx = sexpToInt(args.get(1).box(), interpreter, name);
               return new Value.Sexp(
                   subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa).box());
