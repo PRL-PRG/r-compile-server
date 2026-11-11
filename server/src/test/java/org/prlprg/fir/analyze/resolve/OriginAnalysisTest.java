@@ -914,6 +914,43 @@ class OriginAnalysisTest {
         analysis.getPossible(main.body().entry(), 7, Variable.named("x")));
   }
 
+  /// The second force of `pa` doesn't run its body again, so `x` keeps the 7 that `pb` stores.
+  @Test
+  void testSecondForceDoesntRepeatFirstForce() {
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv~;
+                st x = <int 1>;
+                pa: p(v1(I) ~) = prom<v1(I) ~>{
+                  st x = <int 5>;
+                  return <int 5>;
+                };
+                pb: p(v1(I) ~) = prom<v1(I) ~>{
+                  st x = <int 7>;
+                  return <int 7>;
+                };
+                a1: v1(I) = force pa;
+                b1: v1(I) = force pb;
+                a2: v1(I) = force pa;
+                x1: * = ld x;
+                popenv;
+                return x1;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertTrue(
+        analysis
+            .getPossible(main.body().entry(), 6, Variable.named("x"))
+            .contains(new Constant(SEXPs.integer(7))));
+  }
+
   /// A state's set of leaked promises still finds a promise after its forced status changes.
   @Test
   void testPromiseOriginStaysInSetWhenForcedChanges() {

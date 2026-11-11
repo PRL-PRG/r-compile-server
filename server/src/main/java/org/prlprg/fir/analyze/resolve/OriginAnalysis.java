@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -537,11 +538,20 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// If `po` was definitely not yet forced, its body runs for the first time here, so its stores
     /// are definite and *replace* the current bindings. Otherwise it may have already run, so we
     /// *merge* (its earlier effect must be kept).
+    ///
+    /// The replaced state has the origins of the body's return state, which don't tell which
+    /// origin of `po.promise` stands for `po`, so they all become maybe-forced.
     private void force(PromiseOrigin po) {
       if (po.forced != Maybe.YES) {
         var replace = po.forced == Maybe.NO;
         runPromiseBody(po, replace);
         po.forced = Maybe.YES;
+        if (replace) {
+          state()
+              .promises()
+              .filter(o -> o.promise == po.promise && o.forced == Maybe.NO)
+              .forEach(o -> o.forced = Maybe.MAYBE);
+        }
       }
     }
 
@@ -1313,12 +1323,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // Keyed by promise *identity* (structural equality of a promise recurses through its entire
       // body CFG, which is expensive and can overflow the stack; see `PromiseOrigin#equals`).
       var canonical = new IdentityHashMap<Promise, PromiseOrigin>();
-      registerPromises.values().forEach(po -> canonical.putIfAbsent(po.promise, po));
-      leakedPromises.forEach(po -> canonical.putIfAbsent(po.promise, po));
-      for (var env : envs) {
-        env.variablePromises.values().forEach(po -> canonical.putIfAbsent(po.promise, po));
-      }
+      promises().forEach(po -> canonical.putIfAbsent(po.promise, po));
       return canonical;
+    }
+
+    /// The promises of the registers, the leaked promises, then the promises of the variables.
+    private Stream<PromiseOrigin> promises() {
+      return Stream.of(
+              registerPromises.values().stream(),
+              leakedPromises.stream(),
+              envs.stream().flatMap(env -> env.variablePromises.values().stream()))
+          .flatMap(s -> s);
     }
 
     @Override
