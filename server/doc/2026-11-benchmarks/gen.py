@@ -368,7 +368,7 @@ def table_html(bench, opts):
                 mark += f'<span class="fl{" bad" if x["bad"] else ""}">!</span>'
             pct = f'({x["pct"]:.0f}%)' if x['pct'] is not None else ''
             tr.append(f'<td data-c="{c}" class="{" ".join(cls)}" title="{esc(chr(10).join(tip))}">'
-                      f'{mark}{fmt_t(x["disp"])}<span class="pct">{pct}</span></td>')
+                      f'{mark}{pct}<span class="tm">{fmt_t(x["disp"])}</span></td>')
         rows.append('<tr>' + ''.join(tr) + '</tr>')
     gm = ['<th scope="row">geomean<span class="sub">of the percents</span></th>']
     for c in range(len(st)):
@@ -504,7 +504,7 @@ a.result b { font: 600 1.05rem var(--mono); color: var(--accent); } a.result:hov
 table.bt { border-collapse: separate; border-spacing: 0; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 table.bt th, table.bt td { padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: right; background: var(--panel); }
 table.bt td { font-family: var(--mono); font-size: 0.76rem; line-height: 1.35; }
-table.bt .pct { display: block; color: var(--muted); }
+table.bt .tm { display: block; color: var(--muted); }
 table.bt .sub { display: block; font: 400 0.7rem var(--mono); color: var(--muted); }
 table.bt thead th { position: sticky; top: 0; z-index: 2; background: var(--sunk); vertical-align: bottom; font-family: var(--mono); }
 table.bt thead th a { font-weight: 700; }
@@ -786,8 +786,8 @@ def main():
     if bench:
         nav_table = '<a href="#table">Speedup table</a>'
         table = ('<section class="part" id="table"><div class="wrap"><h2>Speedup table</h2><div class="caption">'
-                 '<p>Each cell is the <code>fir2c.opt</code> time for one call in one state, and in parentheses the GNU-R optimized bytecode '
-                 '(<code>bc.opt</code>) time in the row header divided by that time: above 100% is faster than bc.opt. The row header shows the '
+                 '<p>Each cell shows, in parentheses, the GNU-R optimized bytecode (<code>bc.opt</code>) time in the row header divided by the '
+                 '<code>fir2c.opt</code> time for one call in one state (above 100% is faster than bc.opt), and below it that time. The row header shows the '
                  'median bc.opt time over all measured states. The column <code>00</code> is the state before the first optimization; '
                  'every other column is the state after that optimization. An absent column was not measured; a dash is a missing value. '
                  'Times are in \u00b5s below 0.1 ms and in s from 1000 ms.</p>'
