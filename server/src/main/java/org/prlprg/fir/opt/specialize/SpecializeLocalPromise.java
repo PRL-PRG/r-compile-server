@@ -38,8 +38,11 @@ public record SpecializeLocalPromise(int threshold) implements SpecializeOptimiz
     }
 
     // Only specialize if we have feedback that specifies this promise didn't escape.
-    // Without enough recorded calls, the absence of a recorded escape isn't reliable.
-    if (feedback.numCalls() < threshold || feedback.escapingPromises.contains(statement)) {
+    // Without enough recorded calls, or if they may have stopped early, the absence of a recorded
+    // escape isn't reliable.
+    if (feedback.numCalls() < threshold
+        || feedback.module().isPartial()
+        || feedback.escapingPromises.contains(statement)) {
       return Result.UNCHANGED;
     }
 

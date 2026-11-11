@@ -149,10 +149,11 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
       feedback = interpretOutput.feedback().copyFor(module);
       switch (interpretOutput.result()) {
         case Ok _ -> System.err.println("Using INTERPRETER feedback");
-        case Error(var message, _) ->
-            System.err.println(
-                "Using PARTIAL INTERPRETER feedback (from crashed but successful run):\n"
-                    + message);
+        case Error(var message, _) -> {
+          System.err.println(
+              "Using PARTIAL INTERPRETER feedback (from crashed but successful run):\n" + message);
+          feedback.markPartial();
+        }
       }
     } catch (SkipQueryException e) {
       System.err.println("Interpreter crashed with exception: " + e.getMessage());

@@ -15,6 +15,8 @@ import org.prlprg.util.Pair;
 public class MockModuleFeedback implements ModuleFeedback {
   private final Module module;
   private final Map<Abstraction, AbstractionFeedback> feedbacks = new HashMap<>();
+  /// Not printed, so [#copyFor(Module)] and [#deepCopy(Module, MockModuleFeedback)] drop it.
+  private boolean partial = false;
 
   /// Deep copy the module and its feedback together
   public static Pair<Module, MockModuleFeedback> deepCopy(
@@ -61,6 +63,16 @@ public class MockModuleFeedback implements ModuleFeedback {
       return;
     }
     feedbacks.put(dst, srcFeedback.copy(src, dst));
+  }
+
+  /// Record that the run that recorded this stopped early (see [#isPartial()]).
+  public void markPartial() {
+    partial = true;
+  }
+
+  @Override
+  public boolean isPartial() {
+    return partial;
   }
 
   @Override

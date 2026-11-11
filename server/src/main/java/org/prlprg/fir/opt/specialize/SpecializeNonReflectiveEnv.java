@@ -51,8 +51,11 @@ public record SpecializeNonReflectiveEnv(int threshold) implements SpecializeOpt
     }
 
     // Only specialize if we have feedback that specifies this env wasn't reflectively accessed.
-    // Without enough recorded calls, the absence of a reflective access isn't reliable.
-    if (feedback.numCalls() < threshold || feedback.reflectiveEnvs.contains(statement)) {
+    // Without enough recorded calls, or if they may have stopped early, the absence of a
+    // reflective access isn't reliable.
+    if (feedback.numCalls() < threshold
+        || feedback.module().isPartial()
+        || feedback.reflectiveEnvs.contains(statement)) {
       return Result.UNCHANGED;
     }
 
