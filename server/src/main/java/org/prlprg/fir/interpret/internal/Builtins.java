@@ -1957,12 +1957,13 @@ public final class Builtins {
   private static SEXP sumSexp(SEXP arg, InternalInterpreter interpreter) {
     return switch (arg) {
       case IntSXP i -> {
-        int sum = 0;
+        long sum = 0;
         for (var v : i) {
           if (v == Constants.NA_INT) yield SEXPs.integer(Constants.NA_INT);
           sum += v;
         }
-        yield SEXPs.integer(sum);
+        // GNU-R gives a real sum if it doesn't fit.
+        yield Math.abs(sum) > Integer.MAX_VALUE ? SEXPs.real(sum) : SEXPs.integer((int) sum);
       }
       case RealSXP r -> {
         double sum = 0.0;
@@ -2065,8 +2066,13 @@ public final class Builtins {
                 return new Value.Sexp(SEXPs.integer(Math.abs(sexp.asScalarInteger().get())));
               } else if (sexp.asScalarReal().isPresent()) {
                 return new Value.Sexp(SEXPs.real(Math.abs(sexp.asScalarReal().get())));
+              } else if (sexp.asScalarLogical().isPresent()) {
+                var l = sexp.asScalarLogical().get();
+                return new Value.Sexp(
+                    SEXPs.integer(l == Logical.NA ? Constants.NA_INT : l.toInt()));
               }
-              throw interpreter.fail("`abs` generic takes 1 scalar integer or real");
+              throw interpreter.failUnsupported(
+                  "Mock `abs` generic only takes a logical, integer, or real scalar");
             }));
     // (I) --> I
     interpreter.registerExternal(
