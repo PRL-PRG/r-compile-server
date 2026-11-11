@@ -391,10 +391,11 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
       while (!worklist.isEmpty()) {
         var bb = worklist.removeFirst();
         for (var frontierBb : dominanceFrontier.getOrDefault(bb, Set.of())) {
-          if (originAnalysis.getPossible(frontierBb, -1, candidate.variable()).size() <= 1
-              || !result.add(frontierBb)) {
-            continue;
+          if (originAnalysis.getPossible(frontierBb, -1, candidate.variable()).size() > 1) {
+            result.add(frontierBb);
           }
+          // A merge without a phi still changes the value its dominator carries, so its own
+          // frontier may need one.
           if (visited.add(frontierBb)) {
             worklist.addLast(frontierBb);
           }
