@@ -58,7 +58,14 @@ public final class CfgReachability implements CfgAnalysis {
 
   /// Check if a trace that reaches `source` may reach `target` after.
   public boolean isReachable(BB sourceBb, int sourceIndex, BB targetBb, int targetIndex) {
-    return sourceBb == targetBb ? sourceIndex <= targetIndex : isReachable(sourceBb, targetBb);
+    return sourceBb == targetBb
+        ? sourceIndex <= targetIndex || isInCycle(sourceBb)
+        : isReachable(sourceBb, targetBb);
+  }
+
+  /// Whether a trace that leaves the block may enter it again.
+  private boolean isInCycle(BB bb) {
+    return bb.successors().stream().anyMatch(successor -> maySucceed(successor).contains(bb));
   }
 
   /// Check if a trace that reaches `source` may reach `target` after.
