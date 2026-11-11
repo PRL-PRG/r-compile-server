@@ -2332,6 +2332,43 @@ public final class Fir2CCompiler {
                     names.pointer());
           }
 
+          /// The tags of a static builtin call's first `present` arguments, in parameter order:
+          /// those of the source call, which GNU-R passes (an S3 method of `x[i]` sees `i`
+          /// untagged), or the parameter names if the source isn't a call of the builtin.
+          private List<String> builtinArgumentTags(
+              Function calleeFun, Statement statement, int present) {
+            var parameters = calleeFun.parameterNames().subList(0, present);
+            var source = statement.source();
+            ArgumentMatcher.MatchResults matches = null;
+            if (source != null
+                && source.funNameIs(calleeFun.name().name())
+                && source.args().stream().noneMatch(a -> a.value().equals(SEXPs.DOTS_SYMBOL))) {
+              try {
+                matches =
+                    ArgumentMatcher.matchArgumentNames(
+                        Lists.mapLazy(calleeFun.parameterNames(), NamedVariable::name),
+                        source.args().names());
+              } catch (IllegalArgumentException _) {
+                // The source doesn't match the parameters.
+              }
+            }
+            if (matches == null) {
+              return Lists.mapLazy(parameters, nv -> nvSymbolRef(pool, nv));
+            }
+            var tags = source.args().names();
+            var arguments = matches.arguments();
+            return Lists.mapLazy(
+                parameters,
+                nv -> {
+                  var index = arguments.get(nv.name());
+                  return nv == NamedVariable.DOTS
+                      ? "R_DotsSymbol"
+                      : index == null || tags.get(index).isEmpty()
+                          ? "R_MissingArg"
+                          : constantRef(pool, SEXPs.symbol(tags.get(index)));
+                });
+          }
+
           /// `source` is the C expression of the call's source (`NULL` if it has none).
           private String emitBuiltinCall(
               String source,
@@ -2358,12 +2395,7 @@ public final class Fir2CCompiler {
             }
             var arguments = emitArgumentArray("args", Repr.SEXP, callArgs.subList(0, present));
             var names =
-                emitArray(
-                    "arg_names",
-                    "SEXP",
-                    Lists.mapLazy(
-                        calleeFun.parameterNames().subList(0, present),
-                        nv -> nvSymbolRef(pool, nv)));
+                emitArray("arg_names", "SEXP", builtinArgumentTags(calleeFun, statement, present));
 
             // A `@readsContext` builtin's `.Internal` must run in the base closure's frame. An
             // `.Internal` whose arity differs from the signature (`stop`, `warning`) needs its

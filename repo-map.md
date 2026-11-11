@@ -673,6 +673,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/mod_max_builtins_{int,real}.R` — `%%` and `max` edge cases (signs, zero divisor, `NA`/`NaN`, recycling) with integer and real results, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_na_nan_consts.R` — `` `%%`(NA_real_, y) `` and `` `%%`(NaN, y) `` in one function: the two call constants must stay apart (bytecode RDS round trip, constant pools).
 - `.../examples/R/subassign_scalar.R` — Scalar `x[[i]] <- v` and `x[i] <- v` on unshared vectors, which the fir2c runtime stores directly: value and vector types, attributes, a class, growth, a real index, an alias.
+- `.../examples/R/s3_subscript_untagged.R` — Static `[<-`, `[` and `as.character` calls on an S3 object: the methods see the tags of the R call (none), not the builtin's parameter names.
 - `.../examples/R/unused_call_keeps_warning.R` — An unused `x + 1L` call still warns "NAs produced by integer overflow" (`@signals`, `Cleanup`).
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
 - `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts (`bench.R`, `optbench.R`, `synergy.R`, `ownership.R`, `promisebench.R`, which also counts `OwnershipBenchmark`'s copies), `order.txt`.
