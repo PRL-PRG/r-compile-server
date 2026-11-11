@@ -3498,7 +3498,22 @@ public final class Builtins {
         && sexp instanceof ListOrVectorSXP<?> vector)) {
       throw interpreter.fail("`toForSeq` requires a vector argument");
     }
-    return new Value.Sexp(vector);
+    // GNU-R's `STARTFOR`: a factor loops over its labels, another object without dispatch.
+    if (!vector.isObject()) {
+      return new Value.Sexp(vector);
+    }
+    var attributes = Objects.requireNonNull(vector.attributes());
+    if (attributes.get("class") instanceof StrSXP classes
+        && classes.stream().anyMatch("factor"::equals)
+        && vector instanceof IntSXP codes
+        && attributes.get("levels") instanceof StrSXP levels) {
+      return new Value.Sexp(
+          SEXPs.string(
+              codes.stream()
+                  .map(c -> c == Constants.NA_INT ? Constants.NA_STRING : levels.get(c - 1))
+                  .toList()));
+    }
+    return new Value.Sexp(vector.withAttributes(Attributes.NONE));
   }
 
   private static Value naToFalse0(

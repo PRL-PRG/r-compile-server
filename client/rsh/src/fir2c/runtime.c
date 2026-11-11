@@ -2364,9 +2364,15 @@ DEFINE_INTRINSIC(bool, missing, any_fx_none_ret_bool, SEXP value) {
   return value == R_MissingArg;
 }
 
+/// GNU-R's `STARTFOR`: a factor loops over its labels, and the loop reads the length and elements
+/// of another object without dispatch.
 DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_none_ret_value, SEXP value) {
-  // TODO: idk what this should do. If the following works, this intrinsic should be removed.
-  return value;
+  if (!Rf_isVector(value) && !Rf_isList(value)) Rf_error("invalid for() loop sequence");
+  if (!OBJECT(value)) return value;
+  if (Rf_inherits(value, "factor")) return Rf_asCharacterFactor(value);
+  SEXP seq = Rf_shallow_duplicate(value);
+  CLEAR_ATTRIB(seq);
+  return seq;
 }
 
 DEFINE_INTRINSIC(SEXP, toForSeq, vec_logical_fx_none_ret_vec_logical, SEXP value) {
