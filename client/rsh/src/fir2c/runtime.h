@@ -384,8 +384,11 @@ SEXP Fir_from_r_arg(SEXP env, SEXP symbol);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_fun(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);
-void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
-void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
+/// The from-R entry also saves the parent of `Rsh_ElidedEnv` (`outer_parent`, which the caller
+/// protects), and the exit restores it.
+void Fir_set_env_pushed_from_r(
+    SEXP env, SEXP* outer_env, bool* push_suppressed, SEXP* outer_parent);
+void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed, SEXP outer_parent);
 /// Returns whether it pushed a new environment (and protected it). Returns false when the
 /// environment is the one R made for the current from-R call, which `Fir_pop_env` must not pop.
 /// An elided push saves the parent it replaces in `*saved`. A real frame in an elided one gets the
@@ -393,7 +396,9 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
 bool Fir_push_env(SEXP *env, Fir_MkEnvType type, SEXP *saved);
 /// `pushed` is what the matching `Fir_push_env` returned, and `saved` what it saved. Popping an
 /// elided frame restores the parent the push replaced. A non-local exit between them (a caught
-/// error) skips the restore, so the frame that catches it may read a callee's parent.
+/// error) skips the restore. The from-R exit restores the parent. If no from-R exit is between the
+/// catch and a live elided frame (a direct call of a compiled closure, a forced promise, GNU-R code
+/// that the frame calls), that frame reads a callee's parent, and its pop sets `*env` to it.
 void Fir_pop_env(SEXP *env, bool pushed, SEXP saved);
 /// If `*env` is the elided environment, replaces it with a new empty one (protected) whose
 /// parent is `closure_env`, the environment the version received. A deopt branch calls it:

@@ -665,16 +665,22 @@ SEXP Fir_load_dots(int index, SEXP env) {
 static SEXP Fir_env_pushed_from_r = NULL;
 static bool Fir_env_push_suppressed = false;
 
-void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed) {
+void Fir_set_env_pushed_from_r(
+    SEXP env, SEXP* outer_env, bool* push_suppressed, SEXP* outer_parent) {
   *outer_env = Fir_env_pushed_from_r;
   *push_suppressed = Fir_env_push_suppressed;
+  *outer_parent = ENCLOS(Rsh_ElidedEnv);
   Fir_env_pushed_from_r = env;
   Fir_env_push_suppressed = false;
 }
 
-void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed) {
+void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed, SEXP outer_parent) {
   Fir_env_pushed_from_r = outer_env;
   Fir_env_push_suppressed = push_suppressed;
+  // A caught error in the call skips the pops of elided frames that it pushed.
+  if (ENCLOS(Rsh_ElidedEnv) != outer_parent && outer_parent != R_NilValue) {
+    SET_ENCLOS(Rsh_ElidedEnv, outer_parent);
+  }
 }
 
 // ???: GNU-R expose methods to update R_GlobalContext->sysparent,

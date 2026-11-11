@@ -653,6 +653,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
 - `.../examples/R/closure_called_from_inlined_frame_in_elided_frame.R` — A closure made in a real frame inside an elided frame, called with its own elided frame: no cycle in the parent chain.
 - `.../examples/R/closure_from_frame_nested_in_elided_frame.R` — A closure from a real frame that an elided frame contains: its lookups reach the elided frame's parent, not the elided environment's current parent.
+- `.../examples/R/elided_frame_after_caught_error.R` — An elided frame whose callee, called from R, catches an error past a pushed elided frame: the from-R exit restores the elided environment's parent.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
 - `.../examples/R/missing_promise_elided.R` — `missing` follows a promise into the caller's frame, so the caller's environment must stay materialized.
 - `.../examples/R/missing_unknown_callee.R` — `seq.default` (a base closure, so a dynamic callee) calls `missing` on a promise of a symbol, which reads the caller's environment: it must not become non-reflective.

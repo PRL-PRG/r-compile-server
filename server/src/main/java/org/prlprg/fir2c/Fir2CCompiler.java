@@ -996,7 +996,10 @@ public final class Fir2CCompiler {
       debugComment(cCode, "# Suppress inner mkenv (if present) because R makes it");
       cCode.stmt("SEXP outer_env;");
       cCode.stmt("bool push_suppressed;");
-      cCode.stmt("Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed);", VAR_ENV);
+      cCode.stmt("SEXP outer_parent;");
+      cCode.stmt(
+          "Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed, &outer_parent);", VAR_ENV);
+      cCode.stmt("PROTECT(outer_parent);");
 
       var baseline = function.baseline();
       var baselineCName = versionCallCName(function, baseline);
@@ -1045,7 +1048,8 @@ public final class Fir2CCompiler {
       }
 
       debugComment(cCode, "# Un-suppress inner mkenv");
-      cCode.stmt("Fir_unset_env_pushed_from_r(outer_env, push_suppressed);");
+      cCode.stmt("Fir_unset_env_pushed_from_r(outer_env, push_suppressed, outer_parent);");
+      cCode.stmt("UNPROTECT(1);");
 
       cCode = cFunction.add();
       cCode.stmt("return out;");
