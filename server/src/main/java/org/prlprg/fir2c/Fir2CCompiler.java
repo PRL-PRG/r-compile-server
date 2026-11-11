@@ -2178,7 +2178,11 @@ public final class Fir2CCompiler {
                         ? "R_EmptyEnv"
                         : "CLOENV(%s)".formatted(emitArgument(closureOrCalleeArg));
 
-                if (calleeModule == INTRINSICS && isDispatch) {
+                if (calleeModule == INTRINSICS && calleeFun.name().name().equals("checkMissing")) {
+                  var value = callArgs.getFirst();
+                  yield "Fir_check_missing(%s, %s)"
+                      .formatted(emitArgument(value), checkedSymbolRef(value));
+                } else if (calleeModule == INTRINSICS && isDispatch) {
                   throw new IllegalArgumentException(
                       "Intrinsic should never be dispatched: " + call);
                 } else if ((calleeModule == BUILTINS || calleeModule == INTRINSICS)
@@ -3058,6 +3062,21 @@ public final class Fir2CCompiler {
             if (!(instr instanceof Statement s && s.expression() instanceof Promise)) {
               debugArgs(cCode, instr.args());
             }
+          }
+
+          /// The symbol of the variable that `checkMissing`'s argument was read from (a load or a
+          /// parameter), or `NULL`, for GNU-R's error message.
+          private String checkedSymbolRef(Argument value) {
+            var register = value.variable();
+            @Nullable NamedVariable variable = null;
+            if (register instanceof AssigneeOf a
+                && a.statement().expression() instanceof Load(_, var loaded)) {
+              variable = loaded;
+            } else if (register instanceof FunctionParameter p
+                && version.parameters().contains(p)) {
+              variable = function.parameterNames().get(version.parameters().indexOf(p));
+            }
+            return variable == null ? "NULL" : nvSymbolRef(pool, variable);
           }
 
           /// [Function#defaultedParameter] at the closure's entry, if the C code keeps it a SEXP.

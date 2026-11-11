@@ -2358,11 +2358,11 @@ DEFINE_INTRINSIC(SEXP, checkFun, value_fx_impure_ret_value, SEXP value) {
   return R_NilValue;
 }
 
-DEFINE_INTRINSIC(SEXP, checkMissing, any_fx_impure_ret_value, SEXP value) {
+SEXP Fir_check_missing(SEXP value, SEXP symbol) {
   if (value == R_MissingArg) {
-    Rf_error("argument is missing, with no default");
+    if (symbol == NULL) Rf_error("argument is missing, with no default");
+    Rf_error("argument \"%s\" is missing, with no default", CHAR(PRINTNAME(symbol)));
   }
-
   return R_NilValue;
 }
 

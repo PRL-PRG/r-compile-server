@@ -539,9 +539,10 @@ void Fir_dbg_signature(Fir_Signature signature);
 #pragma clang diagnostic pop
 
 DEFINE_INTRINSIC(SEXP, checkFun, value_fx_impure_ret_value, SEXP value);
-// Raises if a variable's binding is the missing argument. `GETVAR` calls it before the force, as
-// GNU-R's `getvar` does: the value of a forced promise may be the missing argument.
-DEFINE_INTRINSIC(SEXP, checkMissing, any_fx_impure_ret_value, SEXP value);
+// The `checkMissing` intrinsic: raises if the binding of `symbol` (NULL if unknown) is the missing
+// argument. `GETVAR` calls it before the force, as GNU-R's `getvar` does: the value of a forced
+// promise may be the missing argument.
+SEXP Fir_check_missing(SEXP value, SEXP symbol);
 DEFINE_INTRINSIC(SEXP, missing, any_fx_none_ret_vec1_logical, SEXP value);
 DEFINE_INTRINSIC(bool, missing, any_fx_none_ret_bool, SEXP value);
 DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_none_ret_value, SEXP value);
