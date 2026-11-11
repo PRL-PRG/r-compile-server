@@ -2,6 +2,7 @@
 #include "print_sexp.h"
 
 #include <assert.h>
+#include <float.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -3469,37 +3470,32 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, rep, scalar_string_scalar_int_fx_none_ret_vec_st
 }
 
 // === sum(x, na.rm=miss) ===
-// v(L)→I: treat logicals as 0/1 (NA_LOGICAL == NA_INTEGER)
-DEFINE_OVERRIDDEN_BUILTIN(int, sum, vec_logical_missing_fx_none_ret_scalar_int, SEXP x, SEXP naRm) {
-  (void)naRm;
-  int acc = 0;
-  R_xlen_t len = XLENGTH(x);
+/// GNU-R's `isum`: a sum out of the integer range is a double, where a version that returns `I`
+/// deopts. (`NA_LOGICAL == NA_INTEGER`, so this also sums logicals.)
+static int Fir_isum(const int* x, R_xlen_t len) {
+  int64_t acc = 0;
   for (R_xlen_t k = 0; k < len; k++) {
-    int v = LOGICAL(x)[k];
-    if (v == NA_LOGICAL) return NA_INTEGER;
-    acc += v;
+    if (x[k] == NA_INTEGER) return NA_INTEGER;
+    acc += x[k];
   }
-  return acc;
+  if (acc > INT_MAX || acc < -INT_MAX)
+    Rf_error("FIŘ deoptimization triggered: the sum %lld isn't an integer (unsupported)", (long long) acc);
+  return (int) acc;
+}
+// v(L)→I
+DEFINE_OVERRIDDEN_BUILTIN(int, sum, vec_logical_missing_fx_none_ret_scalar_int, SEXP x, SEXP naRm) {
+  return Fir_isum(LOGICAL(x), XLENGTH(x));
 }
 // v(I)→I
 DEFINE_OVERRIDDEN_BUILTIN(int, sum, vec_int_missing_fx_none_ret_scalar_int, SEXP x, SEXP naRm) {
-  (void)naRm;
-  int acc = 0;
-  R_xlen_t len = XLENGTH(x);
-  for (R_xlen_t k = 0; k < len; k++) {
-    int v = INTEGER(x)[k];
-    if (v == NA_INTEGER) return NA_INTEGER;
-    acc += v;
-  }
-  return acc;
+  return Fir_isum(INTEGER(x), XLENGTH(x));
 }
-// v(R)→R
+// v(R)→R: GNU-R's `rsum`, which sums in a `long double`
 DEFINE_OVERRIDDEN_BUILTIN(double, sum, vec_real_missing_fx_none_ret_scalar_real, SEXP x, SEXP naRm) {
-  (void)naRm;
-  double acc = 0.0;
+  long double acc = 0.0;
   R_xlen_t len = XLENGTH(x);
   for (R_xlen_t k = 0; k < len; k++) acc += REAL(x)[k];
-  return acc;
+  return acc > DBL_MAX ? R_PosInf : acc < -DBL_MAX ? R_NegInf : (double) acc;
 }
 
 // === is.X(x): V→B ===

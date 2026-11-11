@@ -1945,12 +1945,17 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var vec = (IntSXP) args.getFirst().box();
-              int sum = 0;
+              long sum = 0;
               for (var v : vec) {
                 if (v == Constants.NA_INT) return new Value.Int(Constants.NA_INT);
                 sum += v;
               }
-              return new Value.Int(sum);
+              // GNU-R's sum is then a double.
+              if (sum > Integer.MAX_VALUE || sum < -Integer.MAX_VALUE) {
+                throw interpreter.failUnsupported(
+                    "`sum< v(I),miss --> I >` out of the integer range");
+              }
+              return new Value.Int((int) sum);
             }));
     // v3: (v(R), miss) --> R
     interpreter.registerExternal(

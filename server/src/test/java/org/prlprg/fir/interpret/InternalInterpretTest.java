@@ -7,6 +7,7 @@ import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.interpret.internal.InternalInterpretUnsupportedException;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.value.Value;
@@ -189,6 +190,27 @@ class InternalInterpretTest {
 
     assertEquals(
         new Value.Sexp(SEXPs.logical(Logical.TRUE, Logical.FALSE)), interpreter.call("main"));
+  }
+
+  /// GNU-R's `sum` of integers out of the integer range is a double, so the version that returns
+  /// `I` deopts (unsupported in the interpreter). It wrapped around.
+  @Test
+  void typedIntegerSumOutOfRangeIsUnsupported() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I {
+                x: v(I)o = v(I)[2147483647, 2];
+                s: I = sum< v(I),miss --> I >(x, <missing>);
+                return s;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertThrows(InternalInterpretUnsupportedException.class, () -> interpreter.call("main"));
   }
 
   @Test
