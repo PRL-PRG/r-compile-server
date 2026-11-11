@@ -228,8 +228,8 @@ def sp_class(sp):
 
 # ---------------------------------------------------------------- HTML parts
 
-def par_class(pct):   # shade of a percent against parity with bc.opt, by its rounded value
-    return 'fast' if round(pct) > 100 else 'slow' if round(pct) < 100 else ''
+def par_span(pct):   # a percent, tinted by its rounded value against parity with bc.opt
+    return f'<span class="{"fast" if round(pct) > 100 else "slow" if round(pct) < 100 else ""}">{pct:.0f}%</span>'
 
 
 def is_test(path):
@@ -370,8 +370,7 @@ def table_html(bench, opts):
             if x['note']:
                 cls.append('flag'); tip.append('flag: ' + x['note'] + ('\nexcluded from all statistics' if x['bad'] else ''))
                 mark += f'<span class="fl{" bad" if x["bad"] else ""}">!</span>'
-            pct = f'{x["pct"]:.0f}%' if x['pct'] is not None else ''
-            if pct and not x['bad']: cls.append(par_class(x['pct']))
+            pct = '' if x['pct'] is None else f'{x["pct"]:.0f}%' if x['bad'] else par_span(x['pct'])
             tr.append(f'<td data-c="{c}" class="{" ".join(cls)}" title="{esc(chr(10).join(tip))}">'
                       f'{mark}{pct}<span class="tm">{fmt_t(x["disp"])}</span></td>')
         rows.append('<tr>' + ''.join(tr) + '</tr>')
@@ -380,7 +379,7 @@ def table_html(bench, opts):
         g = gmean(x['pct'] for x in cells[c].values() if x and x['pct'] is not None and not x['bad'])
         bad = [b for b, x in cells[c].items() if x and x['bad']]
         mk = f'<span class="ex" title="{esc("excludes " + ", ".join(bad) + " (wrong value)")}">*</span>' if bad else ''
-        gm.append(f'<td data-c="{c}" class="{par_class(g) if g else ""}">{mk}{f"{g:.0f}%" if g else "–"}</td>')
+        gm.append(f'<td data-c="{c}">{mk}{par_span(g) if g else "–"}</td>')
     return (f'<div class="tw" tabindex="0"><table class="bt"><thead><tr>{"".join(head)}</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody><tfoot><tr>{"".join(gm)}</tr></tfoot></table></div>')
 
@@ -390,11 +389,11 @@ def table_html(bench, opts):
 LIGHT = {'bg': '#f5f6f8', 'panel': '#ffffff', 'sunk': '#eef0f4', 'fg': '#1a1e26', 'muted': '#5a6372', 'line': '#dbe0e8',
              'accent': '#0b6870', 'accentbg': '#e1f0f1', 'add': '#1b6b30', 'addbg': '#e2f4e5', 'addln': '#c4e8cc',
              'del': '#a62222', 'delbg': '#fbe7e7', 'delln': '#f3c9c9', 'warn': '#8a5a00', 'warnbg': '#fbf0d9', 'hl': 'rgb(255 205 0 / 0.22)',
-             'tk': '#7b2fb5', 'ts': '#0b5a8f', 'tn': '#a04500', 'tc': '#5f6773', 'tt': '#00687a', 'tf': '#9a2f6b', 'tm': '#6b5900'}
+             'tk': '#7b2fb5', 'ts': '#0b5a8f', 'tn': '#a04500', 'tc': '#5f6773', 'tt': '#00687a', 'tf': '#9a2f6b', 'tm': '#6b5900', 'fast': '#175c2a', 'slow': '#7d1d1d'}
 DARK = {'bg': '#111419', 'panel': '#181c23', 'sunk': '#1f242d', 'fg': '#e2e6ed', 'muted': '#97a1b1', 'line': '#2b323e',
             'accent': '#5ec5cc', 'accentbg': '#173336', 'add': '#7fd897', 'addbg': '#13301d', 'addln': '#1d4a2b',
             'del': '#f39a9a', 'delbg': '#3a181b', 'delln': '#5a2328', 'warn': '#e9b858', 'warnbg': '#3a2d12', 'hl': 'rgb(94 197 204 / 0.16)',
-            'tk': '#d2a8ff', 'ts': '#8ec5ff', 'tn': '#f0b073', 'tc': '#98a2b0', 'tt': '#6ed3d9', 'tf': '#f0a0d0', 'tm': '#d9c46a'}
+            'tk': '#d2a8ff', 'ts': '#8ec5ff', 'tn': '#f0b073', 'tc': '#98a2b0', 'tt': '#6ed3d9', 'tf': '#f0a0d0', 'tm': '#d9c46a', 'fast': '#c2e8cc', 'slow': '#f3c6c6'}
 
 
 def tokens(d): return '; '.join(f'--{k}: {v}' for k, v in d.items())
@@ -518,7 +517,8 @@ table.bt th.corner { left: 0; z-index: 3; text-align: left; border-right: 1px so
 table.bt tfoot td, table.bt tfoot th { background: var(--sunk); font-weight: 600; border-bottom: 0; position: sticky; bottom: 0; z-index: 1; border-top: 1px solid var(--line); }
 table.bt tfoot th { z-index: 2; }
 table.bt td.na { color: var(--muted); text-align: center; }
-table.bt td.fast { background: var(--addbg); } table.bt td.slow { background: var(--delbg); }
+table.bt td.up { background: var(--addbg); } table.bt td.down { background: var(--delbg); }
+table.bt .fast { color: var(--fast); } table.bt .slow { color: var(--slow); }
 table.bt .mk { font-size: 0.65rem; margin-right: 4px; } table.bt td.up .mk { color: var(--add); } table.bt td.down .mk { color: var(--del); }
 .fl { display: inline-block; margin-right: 4px; padding: 0 4px; border-radius: 2px; background: var(--warn); color: var(--panel); font-weight: 700; }
 table.bt .hl { box-shadow: inset 0 0 0 999px var(--hl); } table.bt thead th.hl { box-shadow: inset 0 -3px 0 var(--accent), inset 0 0 0 999px var(--hl); }
@@ -792,14 +792,14 @@ def main():
         nav_table = '<a href="#table">Speedup table</a>'
         table = ('<section class="part" id="table"><div class="wrap"><h2>Speedup table</h2><div class="caption">'
                  '<p>Each cell shows the GNU-R optimized bytecode (<code>bc.opt</code>) time in the row header divided by the '
-                 '<code>fir2c.opt</code> time for one call in one state, and below it that time. A green cell is above 100% (faster than bc.opt), '
-                 'a red cell is below 100%. The row header shows the '
+                 '<code>fir2c.opt</code> time for one call in one state, and below it that time. A greenish percent is above 100% (faster than bc.opt), '
+                 'a reddish percent is below 100%. The row header shows the '
                  'median bc.opt time over all measured states. The column <code>00</code> is the state before the first optimization; '
                  'every other column is the state after that optimization. An absent column was not measured; a dash is a missing value. '
                  'Times are in \u00b5s below 0.1 ms and in s from 1000 ms.</p>'
                  '<p>Load correction: for each state, the load factor is the geometric mean, over all benchmarks and the three GNU-R rows '
                  '(AST, bc.default, bc.opt), of the time in that state divided by the median time of that row over all states. '
-                 'A cell shows the faster of the two fir2c.opt runs divided by the load factor. A cell with ▲ or ▼ is more than 12% '
+                 'A cell shows the faster of the two fir2c.opt runs divided by the load factor. A tinted cell with ▲ or ▼ is more than 12% '
                  'faster or slower than the previous column; <b>!</b> marks a flagged result, and a red <b>!</b> a wrong benchmark value, which no statistic uses (a <b>*</b> on a geomean marks such an exclusion). Hover a cell for the raw time, '
                  'the bc.opt time of the same run, the load factor, and any flag.</p>'
                  + notes_html(bench) + '</div>' + table_html(bench, opts) + '</div></section>')
