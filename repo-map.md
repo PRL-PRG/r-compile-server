@@ -674,6 +674,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/mod_na_nan_consts.R` — `` `%%`(NA_real_, y) `` and `` `%%`(NaN, y) `` in one function: the two call constants must stay apart (bytecode RDS round trip, constant pools).
 - `.../examples/R/subassign_scalar.R` — Scalar `x[[i]] <- v` and `x[i] <- v` on unshared vectors, which the fir2c runtime stores directly: value and vector types, attributes, a class, growth, a real index, an alias.
 - `.../examples/R/unused_load_unbound_variable.R` — An unused load of an unbound variable still raises "object 'y' not found" (`InferEffects#maySignal`, `Cleanup`).
+- `.../examples/R/unused_print_constant.R` — An unused `print(5L)` still prints, in a loop too (the typed `print` versions are reflective).
 - `.../examples/R/missing_default_after_supplied.R` — `missing` of parameters with a default (a promise, a constant) after a warm-up that supplied them, and after an assignment.
 - `.../examples/R/quote_empty_arg.R` — `quote(expr = )`: a supplied empty argument of a builtin call.
 - `.../examples/R/subscript_symbol_value.R` — A subscript whose value is a symbol, in a static call's `...` and in a dynamic call: the special must not evaluate it again.

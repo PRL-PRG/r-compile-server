@@ -890,12 +890,14 @@ fun stopifnot(`...`, exprs, exprObject, local) {
   (ddd:dots, exprs:*@!, exprObject:*@!, local:*@!) -+> V { ... }
 }
 
+# Writes output, and dispatches on the implicit class too (a `print.integer` method), which can run
+# any R code and return anything.
 fun print(x, `...`) {
   (x:*@!, ddd:dots) -+> V { ... }
-  (x:v(L), ddd:miss) --> v(L) { ... }
-  (x:v(I), ddd:miss) --> v(I) { ... }
-  (x:v(R), ddd:miss) --> v(R) { ... }
-  (x:v(S), ddd:miss) --> v(S) { ... }
+  (x:v(L), ddd:miss) -+> V { ... }
+  (x:v(I), ddd:miss) -+> V { ... }
+  (x:v(R), ddd:miss) -+> V { ... }
+  (x:v(S), ddd:miss) -+> V { ... }
 }
 
 fun unclass(x) {

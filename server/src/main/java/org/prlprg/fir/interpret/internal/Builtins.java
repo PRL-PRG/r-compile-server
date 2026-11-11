@@ -2695,7 +2695,7 @@ public final class Builtins {
               }
               return args.getFirst();
             }));
-    // v1-v4: (v(T), miss) --> v(T) for T = L, I, R, S
+    // v1-v4: (v(T), miss) -+> V for T = L, I, R, S
     Type[] vecTypes = {
       Type.SHARED_LOGICAL_VECTOR,
       Type.SHARED_INTEGER_VECTOR,
@@ -2705,7 +2705,7 @@ public final class Builtins {
     for (int t = 0; t < 4; t++) {
       interpreter.registerExternal(
           "print",
-          sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.MISSING),
+          sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, vecTypes[t], Type.MISSING),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 var sexp = args.getFirst().box();
