@@ -1447,22 +1447,23 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       }
 
       // Merge env stacks. Well-formed IR balances mkenv/popenv, so the depths should match.
-      // If they don't, the stack is ambiguous; we collapse to the shorter depth and taint the
-      // surviving frames (leaking any promises we forget).
-      if (envs.size() == other.envs.size()) {
-        for (int i = 0; i < envs.size(); i++) {
+      // If they don't (a promise body runs where different environments are pushed), the stack is
+      // ambiguous; we collapse to the shorter depth, merging the frames from the bottom, and taint
+      // the surviving frames (leaking any promises we forget).
+      while (envs.size() > other.envs.size()) {
+        var dropped = envs.removeLast();
+        leakedPromises.addAll(dropped.variablePromises.values());
+      }
+      for (var i = 0; i < other.envs.size(); i++) {
+        if (i < envs.size()) {
           envs.get(i).merge(other.envs.get(i), canonical, leakedPromises);
-        }
-      } else {
-        while (envs.size() > other.envs.size()) {
-          var dropped = envs.removeLast();
-          leakedPromises.addAll(dropped.variablePromises.values());
-        }
-        for (var env : other.envs) {
-          for (var po : env.variablePromises.values()) {
+        } else {
+          for (var po : other.envs.get(i).variablePromises.values()) {
             leakedPromises.add(incorporate(po, canonical));
           }
         }
+      }
+      if (envs.size() != other.envs.size()) {
         taintViaReflection();
       }
     }

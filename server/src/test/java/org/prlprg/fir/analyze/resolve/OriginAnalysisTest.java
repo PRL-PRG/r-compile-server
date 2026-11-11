@@ -776,6 +776,40 @@ class OriginAnalysisTest {
         analysis.getPossible(entry, 4, Variable.named("a")));
   }
 
+  /// The leaked promise's body runs where the inner environment is pushed (`x` is 1), and at the
+  /// last `popenv` after it is popped (`x` is 99). The merge of the two entry states, which have
+  /// different environment depths, keeps both bindings of `x`.
+  @Test
+  void testPromiseBodyRunAtDifferentEnvDepthsMergesTheirFrames() {
+    var firText =
+        """
+        fun main() {
+          (c:B) -+> V {
+            mkenv~;
+            st x = <int 1>;
+            pr:p(V +) = prom<V +>{ x1:* = ld x; return x1; };
+            st-super gp = pr;
+            mkenv;
+            if c then L1() else L2();
+          L1():
+            force pr;
+            goto L2();
+          L2():
+            popenv;
+            st x = <int 99>;
+            popenv;
+            return <nil>;
+          }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertNotEquals(new Constant(SEXPs.integer(1)), analysis.get(reg(main, "x1")));
+  }
+
   /// Same as [#testLeakedPromiseMaybeForcedAtCall], except the call is effect-free. Forcing the
   /// promise would run its store, which the call would have to declare, so it can't be the thing
   /// that forces it, and `a` keeps the value stored before the call.
