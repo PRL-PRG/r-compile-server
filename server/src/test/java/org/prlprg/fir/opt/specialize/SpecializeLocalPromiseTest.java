@@ -2,6 +2,7 @@ package org.prlprg.fir.opt.specialize;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
@@ -64,9 +65,23 @@ class SpecializeLocalPromiseTest {
         printed.contains("prom-<"), "promise should remain non-local; printed:\n" + printed);
   }
 
+  @Test
+  void notRunWhileRecorded_notMarked() {
+    // A promise that an optimization created after the feedback was recorded, such as the wrapper
+    // that `StrictifyPromise` gives a value parameter.
+    var abstraction = ParseUtil.parseAbstraction(SOURCE);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
+    feedback.recordCall();
+
+    assertFalse(
+        optimization.run(null, feedback, abstraction),
+        "a promise without recorded runs should not be marked");
+  }
+
   private static AbstractionFeedback recordedFeedback(Abstraction abstraction) {
     var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
     feedback.recordCall();
+    feedback.recordAssign(Objects.requireNonNull(promisePosition(abstraction).assignee()));
     return feedback;
   }
 

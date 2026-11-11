@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt.specialize;
 
+import java.util.Objects;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -39,9 +40,11 @@ public record SpecializeLocalPromise(int threshold) implements SpecializeOptimiz
 
     // Only specialize if we have feedback that specifies this promise didn't escape.
     // Without enough recorded calls, or if they may have stopped early, the absence of a recorded
-    // escape isn't reliable.
+    // escape isn't reliable. Neither is it for a promise that never ran while feedback was
+    // recorded, such as one an optimization created.
     if (feedback.numCalls() < threshold
         || feedback.module().isPartial()
+        || feedback.times(Objects.requireNonNull(statement.assignee())) == 0
         || feedback.escapingPromises.contains(statement)) {
       return Result.UNCHANGED;
     }
