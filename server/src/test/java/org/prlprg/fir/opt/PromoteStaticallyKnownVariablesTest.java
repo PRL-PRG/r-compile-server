@@ -284,6 +284,25 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
         "load should remain:\n" + Printer.toString(module));
   }
 
+  /// `ld ..1` reads the `...` binding, and the promotion can't rewrite it.
+  @Test
+  void dotsReadByDdNum_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (ddd:dots) --> * {
+              mkenv~;
+              st `...` = ddd;
+              a: * = ld `..1`;
+              b: * = ld `...`;
+              popenv;
+              return a;
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
   private static void assertNoVariableTraffic(String printed, String variable) {
     assertFalse(printed.contains("st " + variable + " ="), "store should be removed:\n" + printed);
     assertFalse(printed.contains("ld " + variable), "load should be removed:\n" + printed);

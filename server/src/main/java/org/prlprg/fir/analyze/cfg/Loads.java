@@ -24,9 +24,10 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.StrSXP;
 
-/// Computes a map of [NamedVariable] to the local [Load] statements that load said variable, or to
-/// statements with symbol or language constant arguments that may load said variable when evaluated
-/// (e.g. a GNU-R special evaluates its unevaluated symbol arguments in the caller's environment).
+/// Computes a map of [NamedVariable] to the local [Load] statements that load said variable (a load
+/// of `..N` also loads `...`), or to statements with symbol or language constant arguments that may
+/// load said variable when evaluated (e.g. a GNU-R special evaluates its unevaluated symbol
+/// arguments in the caller's environment).
 public final class Loads implements Analysis {
   private final Multimap<NamedVariable, Statement> loads = ArrayListMultimap.create();
 
@@ -47,8 +48,13 @@ public final class Loads implements Analysis {
       for (var statement : bb.statements()) {
         switch (statement.expression()) {
           case Load(var loadType, var variable)
-              when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN ->
-              loads.put(variable, statement);
+              when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN -> {
+            loads.put(variable, statement);
+            // `..N` reads an element of the `...` binding.
+            if (variable.isDdNum()) {
+              loads.put(NamedVariable.DOTS, statement);
+            }
+          }
           case Promise(_, _, var code, _, _) -> run(code);
           default -> {}
         }

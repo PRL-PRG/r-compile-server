@@ -280,13 +280,17 @@ public final class PromoteStaticallyKnownVariables extends AbstractionOptimizati
       // A symbol or language constant argument is evaluated in this environment by whatever
       // receives it (a GNU-R special gets `x[i]` as the symbols `x` and `i`), so it reads the
       // variable by name at runtime, with no load to rewrite. [Loads] records those alongside real
-      // loads, so a statement it lists that isn't a [Load] is one of them.
+      // loads, so a statement it lists that isn't a [Load] of the variable is one of them (or a
+      // load of `..N`, which reads `...`).
       candidates
           .values()
           .removeIf(
               candidate ->
                   loads.get(candidate.variable()).stream()
-                      .anyMatch(load -> !(load.expression() instanceof Load)));
+                      .anyMatch(
+                          load ->
+                              !(load.expression() instanceof Load(_, var loaded)
+                                  && loaded.equals(candidate.variable()))));
       candidates
           .values()
           .removeIf(candidate -> !candidate.hasLoads() || candidate.storeBlocks().isEmpty());
