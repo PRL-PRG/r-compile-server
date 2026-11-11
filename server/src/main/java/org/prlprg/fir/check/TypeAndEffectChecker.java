@@ -141,17 +141,31 @@ public final class TypeAndEffectChecker extends Checker {
   }
 
   public static boolean assumeCanSucceed(Assumption assumption, Type argType) {
-    var requiredType =
-        switch (assumption) {
-          case AssumeType(var type) -> type;
-          case AssumeConstant(var constant) -> constant.type();
-          case AssumeFunction _ -> Type.CLOSURE;
-          case AssumeLoadFun _, AssumeLoadVar _ ->
-              throw new IllegalArgumentException("Assumption has no target, so this isn't called");
-        };
+    var requiredType = requiredType(assumption);
     // Every runtime value's type is guaranteed to either be `argType` or a subtype.
     // Iff `requiredType` is disjoint, the assumption can't succeed.
     return argType.isSubtypeOf(requiredType) || requiredType.isSubtypeOf(argType);
+  }
+
+  /// Whether a value of `argType` can pass the assumption. Ownership is static, and two types that
+  /// may be promises share the promise without effects.
+  private static boolean assumeMayHold(Assumption assumption, Type argType) {
+    var required = requiredType(assumption);
+    var promisity = required.promisity();
+    return (argType.kind().isSubtypeOf(required.kind())
+            || required.kind().isSubtypeOf(argType.kind()))
+        && !(argType.promisity().isValue() && promisity.isPromise())
+        && !(argType.promisity().isPromise() && promisity.isValue());
+  }
+
+  private static Type requiredType(Assumption assumption) {
+    return switch (assumption) {
+      case AssumeType(var type) -> type;
+      case AssumeConstant(var constant) -> constant.type();
+      case AssumeFunction _ -> Type.CLOSURE;
+      case AssumeLoadFun _, AssumeLoadVar _ ->
+          throw new IllegalArgumentException("Assumption has no target, so this isn't called");
+    };
   }
 
   private class OnAbstraction {
@@ -159,10 +173,20 @@ public final class TypeAndEffectChecker extends Checker {
     final InferType inferType;
     final InferEffects inferEffects;
 
+    /// Whether the version's parameter types differ from its baseline's.
+    final boolean hasNarrowerParameters;
+
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
       inferType = new InferType(scope);
       inferEffects = new InferEffects(scope);
+      var function = function();
+      hasNarrowerParameters =
+          function != null
+              && !scope
+                  .signature()
+                  .parameterTypes()
+                  .equals(function.baseline().signature().parameterTypes());
     }
 
     void run() {
@@ -255,7 +279,13 @@ public final class TypeAndEffectChecker extends Checker {
             if (target != null) {
               var argType = scope.typeOf(target);
 
-              if (!assumeCanSucceed(assumption, argType)) {
+              // A version's narrower parameter types can make an assumption that it copied from a
+              // wider version fail in a branch that they make dead (e.g. `x ?: v1(R)` when
+              // `missing(x)` is false, in the version for a missing `x`), also on a register
+              // that they select (the promise of `x`'s default value, when `missing(x)` is true).
+              if (!scope.parameters().contains(target.variable())
+                  && !hasNarrowerParameters
+                  && !assumeMayHold(assumption, argType)) {
                 report(
                     "Assumption can't succeed, clearly we never recorded it ("
                         + target
