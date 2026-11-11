@@ -2099,10 +2099,21 @@ public final class Fir2CCompiler {
               }
               case Store(var storeType, var variable) -> {
                 var arg = emitArgument(args.getFirst());
+                var parameter = defaultedParameter(variable, args.getFirst());
                 switch (storeType) {
-                  case LOCAL_VAR ->
+                  case LOCAL_VAR -> {
+                    if (parameter == null) {
                       cCode.stmt(
                           "Rf_defineVar(%s, %s, %s);", nvSymbolRef(pool, variable), arg, VAR_ENV);
+                    } else {
+                      cCode.stmt(
+                          "Fir_store_parameter(%s, %s, %s, %s);",
+                          nvSymbolRef(pool, variable),
+                          arg,
+                          VAR_ENV,
+                          emitArgument(new Read(parameter)));
+                    }
+                  }
                   case SUPER_VAR ->
                       cCode.stmt(
                           "Fir_super_store(%s, %s, %s);",
@@ -3042,6 +3053,33 @@ public final class Fir2CCompiler {
             if (!(instr instanceof Statement s && s.expression() instanceof Promise)) {
               debugArgs(cCode, instr.args());
             }
+          }
+
+          /// The parameter of `st variable = value` at the closure's entry, if `value` is the phi
+          /// that merges the parameter with its default (see `bc2fir`'s `compileParameter`). GNU-R
+          /// marks the binding of an unsupplied parameter with a default, so `missing` is TRUE
+          /// until it is assigned again.
+          private @Nullable Register defaultedParameter(NamedVariable variable, Argument value) {
+            var index = function.parameterNames().indexOf(variable);
+            if (cfg != root
+                || index < 0
+                || function.formals().get(index).value().equals(SEXPs.MISSING_ARG)
+                || !(value instanceof Read(var phi))) {
+              return null;
+            }
+            Register parameter = version.parameters().get(index);
+            var parameterRead = new Read(parameter);
+            return registerRepr(parameter) == Repr.SEXP
+                    && cfg.bbs().stream()
+                        .anyMatch(
+                            bb -> {
+                              var phiIndex = bb.phiParameters().indexOf(phi);
+                              return phiIndex >= 0
+                                  && bb.phiArguments(phiIndex).stream()
+                                      .anyMatch(as -> as.contains(parameterRead));
+                            })
+                ? parameter
+                : null;
           }
 
           /// Bit `i` is set if `args[i]` is a register whose value may be a symbol or a call,

@@ -427,6 +427,10 @@ SEXP Fir_subscript_write_logical(SEXP vector, int index, Rboolean value);
 SEXP Fir_subscript_write_string(SEXP vector, int index, char* value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
+/// `Rf_defineVar` of a parameter at the closure's entry, where `value` is `parameter` or its
+/// default. If `parameter` is missing, the binding gets GNU-R's mark of a missing parameter with a
+/// default (`missing` is TRUE until it is assigned again).
+void Fir_store_parameter(SEXP symbol, SEXP value, SEXP env, SEXP parameter);
 /// `call` is the source call of the FIŘ statement, or `NULL`. The callee gets it as its `call` (for
 /// errors, `sys.call()`, and dispatch). If it is `NULL`, or it has a `...` that `env` does not bind,
 /// the callee gets a call built from the arguments.

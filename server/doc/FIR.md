@@ -27,7 +27,7 @@ fun functionName(x, y) {
 
 Each function has a name and parameter names (R names) and one or more **versions**. The first version is the function's **baseline**; the rest are specializations. Every version has the same number of parameters as the function has parameter names. When a function is "dispatched", the version whose parameter types best match the argument types is selected.
 
-A parameter may carry the default expression of the GNU-R formal it came from, as an SEXP constant: `fun addNA(x, ifany = <lgl FALSE>)`. FIŘ code doesn't use it (the body computes the default itself, `missing(x)` tests the parameter), but the closures of the function (`clos`) get it as their formals, so `formals()`, `match.arg` and printing agree with GNU-R.
+A parameter may carry the default expression of the GNU-R formal it came from, as an SEXP constant: `fun addNA(x, ifany = <lgl FALSE>)`. FIŘ code doesn't use it (the body computes the default itself, `missing(x)` tests the parameter), but the closures of the function (`clos`) get it as their formals, so `formals()`, `match.arg` and printing agree with GNU-R. Fir2C only reads which parameters have one: the entry store of such a parameter's default marks its binding as GNU-R's `applyClosure` does, so R code's `missing(x)` is TRUE until `x` is assigned.
 
 A version whose body is `{ ... }` is a **stub**: a declaration without code. Builtins and intrinsics (`src/main/resources/org/prlprg/fir/builtins.fir` and `intrinsics.fir`) are declared this way and are implicitly in scope in every module.
 

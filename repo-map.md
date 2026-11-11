@@ -673,6 +673,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/mod_max_builtins_{int,real}.R` — `%%` and `max` edge cases (signs, zero divisor, `NA`/`NaN`, recycling) with integer and real results, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_na_nan_consts.R` — `` `%%`(NA_real_, y) `` and `` `%%`(NaN, y) `` in one function: the two call constants must stay apart (bytecode RDS round trip, constant pools).
 - `.../examples/R/subassign_scalar.R` — Scalar `x[[i]] <- v` and `x[i] <- v` on unshared vectors, which the fir2c runtime stores directly: value and vector types, attributes, a class, growth, a real index, an alias.
+- `.../examples/R/missing_default_after_supplied.R` — `missing` of parameters with a default (a promise, a constant) after a warm-up that supplied them, and after an assignment.
 - `.../examples/R/quote_empty_arg.R` — `quote(expr = )`: a supplied empty argument of a builtin call.
 - `.../examples/R/subscript_symbol_value.R` — A subscript whose value is a symbol, in a static call's `...` and in a dynamic call: the special must not evaluate it again.
 - `.../examples/R/s3_subscript_untagged.R` — Static `[<-`, `[` and `as.character` calls on an S3 object: the methods see the tags of the R call (none), not the builtin's parameter names.

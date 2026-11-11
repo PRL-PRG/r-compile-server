@@ -1097,6 +1097,17 @@ SEXP Fir_super_load(SEXP symbol, SEXP env) {
   Rf_error("Unbound variable");
 }
 
+void Fir_store_parameter(SEXP symbol, SEXP value, SEXP env, SEXP parameter) {
+  Rf_defineVar(symbol, value, env);
+  if (parameter == R_MissingArg && value != R_MissingArg) {
+    // `applyClosure` binds a default with `MISSING` 2.
+    R_varloc_t loc = R_findVarLocInFrame(env, symbol);
+    if (!R_VARLOC_IS_NULL(loc)) {
+      SET_MISSING(loc.cell, 2);
+    }
+  }
+}
+
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
   Fir_assert_symbol(symbol, "super_store");
   ASSERT(TYPEOF(env) == ENVSXP, "super_store requires an environment");
