@@ -2719,7 +2719,9 @@ DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, doub
 }
 
 static double Fir_sign(double value) {
-  if (value > 0) {
+  if (ISNAN(value)) {
+    return value;
+  } else if (value > 0) {
     return 1.0;
   } else if (value < 0) {
     return -1.0;
