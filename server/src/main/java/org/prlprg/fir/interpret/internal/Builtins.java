@@ -2423,25 +2423,18 @@ public final class Builtins {
               var sexp = args.getFirst().box();
               return new Value.Int(sexpToInt(sexp, interpreter, "as.integer"));
             }));
-    // v2: (R, miss) --> I, the unboxed overload `SpecializeRealIndex` inserts
-    interpreter.registerExternal(
-        "as.integer",
-        sig(Type.INTEGER, Effects.NONE, Type.REAL, Type.MISSING),
+    // v2-v4: (R, miss) --> I, (v1(R), miss) --> v1(I), (v(R), miss) --> v(I); and without `miss`,
+    // the `realToIndex` intrinsic that `SpecializeRealIndex` inserts
+    var scalar =
         ExternalVersion.strict(
-            (_, _, args, _) -> new Value.Int(realToInt(((Value.Real) args.getFirst()).value()))));
-    // v3: (v1(R), miss) --> v1(I)
-    interpreter.registerExternal(
-        "as.integer",
-        sig(Type.BOXED_INTEGER, Effects.NONE, Type.BOXED_REAL, Type.MISSING),
+            (_, _, args, _) -> new Value.Int(realToInt(((Value.Real) args.getFirst()).value())));
+    var vector1 =
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var reals = (RealSXP) args.getFirst().box();
               return new Value.Sexp(SEXPs.integer(realToInt(reals.get(0))));
-            }));
-    // v4: (v(R), miss) --> v(I)
-    interpreter.registerExternal(
-        "as.integer",
-        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.SHARED_REAL_VECTOR, Type.MISSING),
+            });
+    var vector =
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var reals = (RealSXP) args.getFirst().box();
@@ -2450,12 +2443,29 @@ public final class Builtins {
                 ints[i] = realToInt(reals.get(i));
               }
               return new Value.Sexp(SEXPs.integer(ints));
-            }));
+            });
+    interpreter.registerExternal(
+        "as.integer", sig(Type.INTEGER, Effects.NONE, Type.REAL, Type.MISSING), scalar);
+    interpreter.registerExternal(
+        "as.integer",
+        sig(Type.BOXED_INTEGER, Effects.NONE, Type.BOXED_REAL, Type.MISSING),
+        vector1);
+    interpreter.registerExternal(
+        "as.integer",
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.SHARED_REAL_VECTOR, Type.MISSING),
+        vector);
+    interpreter.registerExternal("realToIndex", sig(Type.INTEGER, Effects.NONE, Type.REAL), scalar);
+    interpreter.registerExternal(
+        "realToIndex", sig(Type.BOXED_INTEGER, Effects.NONE, Type.BOXED_REAL), vector1);
+    interpreter.registerExternal(
+        "realToIndex",
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.SHARED_REAL_VECTOR),
+        vector);
   }
 
   /// R's real-to-integer coercion: truncate toward zero, and anything that doesn't fit is `NA`.
   private static int realToInt(double value) {
-    return Double.isNaN(value) || value <= Integer.MIN_VALUE || value > Integer.MAX_VALUE
+    return Double.isNaN(value) || value <= Integer.MIN_VALUE || value >= Integer.MAX_VALUE + 1.0
         ? Constants.NA_INT
         : (int) value;
   }

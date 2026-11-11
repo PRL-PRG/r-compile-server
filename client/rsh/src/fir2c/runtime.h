@@ -541,6 +541,9 @@ DEFINE_INTRINSIC(bool, naToFalse, vec1_logical_fx_none_ret_bool, SEXP value);
 DEFINE_INTRINSIC(bool, naToFalse, scalar_logical_fx_none_ret_bool, Rboolean value);
 DEFINE_INTRINSIC(bool, naToTrue, vec1_logical_fx_none_ret_bool, SEXP value);
 DEFINE_INTRINSIC(bool, naToTrue, scalar_logical_fx_none_ret_bool, Rboolean value);
+DEFINE_INTRINSIC(int, realToIndex, scalar_real_fx_none_ret_scalar_int, double value);
+DEFINE_INTRINSIC(SEXP, realToIndex, vec1_real_fx_none_ret_vec1_int, SEXP value);
+DEFINE_INTRINSIC(SEXP, realToIndex, vec_real_fx_none_ret_vec_int, SEXP value);
 
 // box: scalar → vector (length-1 SEXP)
 DEFINE_INTRINSIC(SEXP, box, scalar_logical_fx_none_ret_vec1_logical, Rboolean value);

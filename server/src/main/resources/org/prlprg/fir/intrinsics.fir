@@ -25,6 +25,13 @@ fun naToTrue(r) {
   (r:v1(L)) --> B { ... }
   (r:L) --> B { ... }
 }
+# GNU-R's coercion of a real subscript to an integer (`SpecializeRealIndex`): as `as.integer`, but
+# silent out of the integer range.
+fun realToIndex(r) {
+  (r:R) --> I { ... }
+  (r:v1(R)) --> v1(I) { ... }
+  (r:v(R)) --> v(I) { ... }
+}
 fun box(r) {
   (r:L) --> v1(L) { ... }
   (r:I) --> v1(I) { ... }

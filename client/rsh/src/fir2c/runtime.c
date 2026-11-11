@@ -3095,9 +3095,30 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_int_sc
 /// GNU-R's real-to-integer subscript coercion: truncate toward zero, and anything that doesn't fit
 /// (including `NA`/`NaN`) becomes `NA`, which then reads as `NA` or fails like any out-of-range one.
 static int Fir_index_from_real(double index) {
-  return ISNAN(index) || index <= (double)INT_MIN || index > (double)INT_MAX
+  return ISNAN(index) || index <= (double)INT_MIN || index >= (double)INT_MAX + 1.
       ? NA_INTEGER
       : (int)index;
+}
+
+/// Whether `as.integer` of `x` warns (GNU-R's `IntegerFromReal`).
+static bool Fir_real_out_of_int_range(double x) {
+  return !ISNAN(x) && Fir_index_from_real(x) == NA_INTEGER;
+}
+
+// === realToIndex ===
+DEFINE_INTRINSIC(int, realToIndex, scalar_real_fx_none_ret_scalar_int, double value) {
+  return Fir_index_from_real(value);
+}
+
+DEFINE_INTRINSIC(SEXP, realToIndex, vec1_real_fx_none_ret_vec1_int, SEXP value) {
+  return Rf_ScalarInteger(Fir_index_from_real(REAL(value)[0]));
+}
+
+DEFINE_INTRINSIC(SEXP, realToIndex, vec_real_fx_none_ret_vec_int, SEXP value) {
+  R_xlen_t count = XLENGTH(value);
+  SEXP res = Rf_allocVector(INTSXP, count);
+  for (R_xlen_t k = 0; k < count; k++) INTEGER(res)[k] = Fir_index_from_real(REAL(value)[k]);
+  return res;
 }
 
 /// The `k`-th subscript in `indices`, which is an integer or (coerced here) a real vector.
@@ -3343,17 +3364,24 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_real_vec_
 // === as.integer(x) (real overloads) ===
 DEFINE_OVERRIDDEN_BUILTIN(int, as_u2einteger, scalar_real_missing_fx_none_ret_scalar_int, double x, SEXP ddd) {
   (void)ddd;
+  if (Fir_real_out_of_int_range(x)) Rf_warning("NAs introduced by coercion to integer range");
   return Fir_index_from_real(x);
 }
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, as_u2einteger, vec1_real_missing_fx_none_ret_vec1_int, SEXP x, SEXP ddd) {
   (void)ddd;
+  if (Fir_real_out_of_int_range(REAL(x)[0])) Rf_warning("NAs introduced by coercion to integer range");
   return Rf_ScalarInteger(Fir_index_from_real(REAL(x)[0]));
 }
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, as_u2einteger, vec_real_missing_fx_none_ret_vec_int, SEXP x, SEXP ddd) {
   (void)ddd;
   R_xlen_t count = XLENGTH(x);
   SEXP res = PROTECT(Rf_allocVector(INTSXP, count));
-  for (R_xlen_t k = 0; k < count; k++) INTEGER(res)[k] = Fir_index_from_real(REAL(x)[k]);
+  bool warn = false;
+  for (R_xlen_t k = 0; k < count; k++) {
+    warn |= Fir_real_out_of_int_range(REAL(x)[k]);
+    INTEGER(res)[k] = Fir_index_from_real(REAL(x)[k]);
+  }
+  if (warn) Rf_warning("NAs introduced by coercion to integer range");
   UNPROTECT(1);
   return res;
 }

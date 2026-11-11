@@ -850,9 +850,8 @@ fun length(x) {
   (x:V) --> I { ... }
 }
 
-# The real overloads are what `org.prlprg.fir.opt.specialize.SpecializeRealIndex` inserts to make a
-# real subscript integral: `as.integer` truncates toward zero and maps out-of-range and `NaN` to
-# `NA`, which is exactly how the `[`-family builtins coerce a subscript.
+# The real overloads truncate toward zero and map `NaN` and out-of-range to `NA`, with a warning
+# for out-of-range. (A real subscript is coerced by the silent `realToIndex` intrinsic.)
 @signals
 fun `as.integer`(x, `...`) {
   (x:*@!, ddd:dots) -+> v(I) { ... }

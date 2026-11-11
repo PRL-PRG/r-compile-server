@@ -2,6 +2,7 @@ package org.prlprg.fir.opt.specialize;
 
 import static org.prlprg.fir.GlobalModules.BASE;
 import static org.prlprg.fir.GlobalModules.BUILTINS;
+import static org.prlprg.fir.GlobalModules.INTRINSICS;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
@@ -35,7 +36,8 @@ import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXPs;
 
 /// Optimization that makes a `[`-family call with a *real* subscript take an integer one, by
-/// coercing the subscript with `as.integer` and calling the integer-subscript version.
+/// coercing the subscript with the `realToIndex` intrinsic and calling the integer-subscript
+// version.
 ///
 /// A subscript is a position, so GNU-R coerces a real one to an integer; `builtins.fir` declares a
 /// real-subscript version for each integer-subscript one, defined to do exactly that and forward.
@@ -49,8 +51,8 @@ public record SpecializeRealIndex() implements SpecializeOptimization {
       Set.of(
           Variable.named("["), Variable.named("[["), Variable.named("[<-"), Variable.named("[[<-"));
 
-  private static final Function AS_INTEGER =
-      Objects.requireNonNull(BUILTINS.localFunction(Variable.named("as.integer")));
+  private static final Function REAL_TO_INDEX =
+      Objects.requireNonNull(INTRINSICS.localFunction(Variable.named("realToIndex")));
 
   @Override
   public AnalysisTypes analyses() {
@@ -111,7 +113,7 @@ public record SpecializeRealIndex() implements SpecializeOptimization {
         new Call(new StaticFnCallee(function, false, integerSignature)), newArgs);
   }
 
-  /// Stage an `as.integer` of `subscript` before the statement at `(bb, statementIndex)`, and the
+  /// Stage a `realToIndex` of `subscript` before the statement at `(bb, statementIndex)`, and the
   /// rewrite of that statement's subscript argument to its result.
   ///
   /// Both wait until the end of the pass, because inserting a statement invalidates the analyses
@@ -132,26 +134,23 @@ public record SpecializeRealIndex() implements SpecializeOptimization {
       int statementIndex,
       Abstraction scope,
       DeferredInsertions defer) {
-    var asInteger =
+    var coercion =
         new Statement(
             new Call(
                 new StaticFnCallee(
-                    AS_INTEGER,
+                    REAL_TO_INDEX,
                     false,
-                    new Signature(
-                        ImmutableList.of(realType, Type.MISSING), integerType, Effects.NONE))),
-            List.of(Constant.ELIDED_CLOSURE, Constant.ELIDED_CLOSURE, MISSING));
-    var integerSubscript = asInteger.setAssignee(scope.freshName("idx"), integerType);
+                    new Signature(ImmutableList.of(realType), integerType, Effects.NONE))),
+            List.of(Constant.ELIDED_CLOSURE, Constant.ELIDED_CLOSURE));
+    var integerSubscript = coercion.setAssignee(scope.freshName("idx"), integerType);
     defer.stage(
         () -> {
           var call = bb.statements().get(statementIndex);
-          asInteger.setArg(1, subscript);
-          asInteger.insertBefore(call);
+          coercion.setArg(1, subscript);
+          coercion.insertBefore(call);
           call.setArg(2, new Read(integerSubscript));
         });
   }
-
-  private static final Constant MISSING = new Constant(SEXPs.MISSING_ARG);
 
   /// `subscript` coerced now, if it's a scalar numeric constant, in `integerType`'s representation.
   private static @Nullable Constant coerceConstant(Argument subscript, Type integerType) {
@@ -180,7 +179,7 @@ public record SpecializeRealIndex() implements SpecializeOptimization {
   /// GNU-R's real-to-integer subscript coercion: truncate toward zero, anything that doesn't fit is
   /// `NA` (which then reads as `NA` or fails, like any other out-of-range subscript).
   private static Integer asPosition(double real) {
-    return Double.isNaN(real) || real <= Integer.MIN_VALUE || real > Integer.MAX_VALUE
+    return Double.isNaN(real) || real <= Integer.MIN_VALUE || real >= Integer.MAX_VALUE + 1.0
         ? Constants.NA_INT
         : (int) real;
   }
