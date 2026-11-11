@@ -141,6 +141,10 @@ public final class IrPrintContext {
 
     p.print(abstraction.comments());
 
+    if (abstraction.signals()) {
+      w.write("@signals ");
+    }
+
     // Parameters, e.g. `(n:*, m:I@!)`.
     w.write('(');
     var firstParam = true;

@@ -49,6 +49,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   private final FunctionParameter[] parameters;
   private Type returnType;
   private Effects effects;
+  private boolean signals;
   /// Declared types of named environment variables. Register types live on the registers
   /// themselves ([Register#type]).
   private final Map<NamedVariable, Type> namedVariableTypes = new LinkedHashMap<>();
@@ -122,6 +123,16 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   public void setEffects(Effects effects) {
     this.effects = effects;
+  }
+
+  /// Whether the version (a `builtins.fir` stub) can warn or raise an error, which its effects
+  /// don't say (`@signals`).
+  public boolean signals() {
+    return signals;
+  }
+
+  public void setSignals(boolean signals) {
+    this.signals = signals;
   }
 
   // --- Named-variable declared types ----------------------------------------------------------

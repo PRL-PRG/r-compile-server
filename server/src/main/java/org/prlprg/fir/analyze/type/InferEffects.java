@@ -1,5 +1,6 @@
 package org.prlprg.fir.analyze.type;
 
+import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -37,6 +38,7 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 
 /// Infer the effects of [CFG]s, [Instruction]s, and [Statement]s.
 ///
@@ -115,6 +117,43 @@ public final class InferEffects implements Analysis {
       case SubscriptRead(var outOfRangeIsNa) -> outOfRangeIsNa ? Effects.NONE : Effects.IMPURE;
       case SubscriptWrite _ -> Effects.IMPURE;
     };
+  }
+
+  /// Whether `statement` can warn or raise an error, which [#of(Statement)] doesn't say for a
+  /// statement without effects. Code that runs where GNU-R wouldn't run it, or not where GNU-R
+  /// would, must not.
+  ///
+  /// So can a call of a `@signals` builtin version, a call of a module function (whose body this
+  /// doesn't look into), and a `force` of a promise whose body can or isn't known. An [Assume]
+  /// can't: a failed assumption deoptimizes.
+  public boolean maySignal(Statement statement) {
+    return of(statement) != Effects.NONE
+        || switch (statement.expression()) {
+          case Call(StaticFnCallee callee) -> {
+            var owner = callee.function().owner();
+            var version = callee.exactVersion();
+            yield (owner != GlobalModules.BUILTINS
+                    && owner != GlobalModules.BASE
+                    && owner != GlobalModules.INTRINSICS)
+                || version == null
+                || version.signals();
+          }
+          case Call _ -> true;
+          case Force _ ->
+              !(statement.arg(0).variable() instanceof AssigneeOf promise
+                  && promise.statement().expression() instanceof Promise(_, _, var code, _, _)
+                  && !maySignal(code));
+          default -> false;
+        };
+  }
+
+  /// Whether some instruction of `cfg` can warn or raise an error (see [#maySignal(Statement)]).
+  public boolean maySignal(CFG cfg) {
+    return cfg.bbs().stream()
+        .anyMatch(
+            bb ->
+                of(bb.jump()) != Effects.NONE
+                    || bb.statements().stream().anyMatch(this::maySignal));
   }
 
   public Effects of(Jump jump) {

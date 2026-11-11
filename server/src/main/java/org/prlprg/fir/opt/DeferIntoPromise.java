@@ -20,7 +20,6 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Defers pure instructions that only affect registers used inside a promise into that promise.
@@ -34,7 +33,7 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Not moved:
 /// - Instructions used outside the promise (in other not-moved instructions)
-/// - Impure or hoisted instructions
+/// - Impure or hoisted instructions, and instructions that can warn or raise an error
 ///
 /// Because the deferred instructions are pure, *moving* them into the promise body (rather than
 /// copying the control-flow subgraph) computes the same values, only lazily.
@@ -113,8 +112,9 @@ public final class DeferIntoPromise extends AbstractionOptimization {
           continue;
         }
 
+        // The promise may never run, so a statement that can warn or raise an error can't move.
         if (stmt.assignee() != null
-            && inferEffects.of(stmt) == Effects.NONE
+            && !inferEffects.maySignal(stmt)
             && HOIST_RULES.stream().noneMatch(rule -> rule.test(stmt))) {
           candidates.add(stmt);
           defOf.put(stmt.assignee(), stmt);

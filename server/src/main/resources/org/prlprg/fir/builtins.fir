@@ -1,14 +1,14 @@
 fun `+`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(I) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
-  (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(I) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  @signals (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
   (lhs:v1(R), rhs:v1(I)) --> v1(R) { ... }
-  (lhs:I, rhs:I) --> I { ... }
+  @signals (lhs:I, rhs:I) --> I { ... }
   (lhs:R, rhs:R) --> R { ... }
   (lhs:I, rhs:R) --> R { ... }
   (lhs:R, rhs:I) --> R { ... }
@@ -23,11 +23,11 @@ fun `+`(lhs, rhs) {
 
 fun `-`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(I) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
-  (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(I) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  @signals (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
   (lhs:v1(R), rhs:v1(I)) --> v1(R) { ... }
@@ -35,7 +35,7 @@ fun `-`(lhs, rhs) {
   (unary:v(R), rhs:miss) --> v(R) { ... }
   (unary:v1(I), rhs:miss) --> v1(I) { ... }
   (unary:v1(R), rhs:miss) --> v1(R) { ... }
-  (lhs:I, rhs:I) --> I { ... }
+  @signals (lhs:I, rhs:I) --> I { ... }
   (lhs:R, rhs:R) --> R { ... }
   (lhs:I, rhs:R) --> R { ... }
   (lhs:R, rhs:I) --> R { ... }
@@ -46,15 +46,15 @@ fun `-`(lhs, rhs) {
 
 fun `*`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(I) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
-  (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(I) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  @signals (lhs:v1(I), rhs:v1(I)) --> v1(I) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
   (lhs:v1(R), rhs:v1(I)) --> v1(R) { ... }
-  (lhs:I, rhs:I) --> I { ... }
+  @signals (lhs:I, rhs:I) --> I { ... }
   (lhs:R, rhs:R) --> R { ... }
   (lhs:I, rhs:R) --> R { ... }
   (lhs:R, rhs:I) --> R { ... }
@@ -62,10 +62,10 @@ fun `*`(lhs, rhs) {
 
 fun `/`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(R) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(R) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(R) { ... }
   (lhs:v1(I), rhs:v1(I)) --> v1(R) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
@@ -78,10 +78,10 @@ fun `/`(lhs, rhs) {
 
 fun `^`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(R) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(R) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(R) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(R) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(R) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(R) { ... }
   (lhs:v1(I), rhs:v1(I)) --> v1(R) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(R) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(R) { ... }
@@ -94,10 +94,10 @@ fun `^`(lhs, rhs) {
 
 fun `<`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(L) { ... }
   (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(L) { ... }
@@ -114,10 +114,10 @@ fun `<`(lhs, rhs) {
 
 fun `<=`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(L) { ... }
   (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(L) { ... }
@@ -134,10 +134,10 @@ fun `<=`(lhs, rhs) {
 
 fun `>`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(L) { ... }
   (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(L) { ... }
@@ -150,10 +150,10 @@ fun `>`(lhs, rhs) {
 
 fun `>=`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(I), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(I)) --> v(L) { ... }
   (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
   (lhs:v1(I), rhs:v1(R)) --> v1(L) { ... }
@@ -166,10 +166,10 @@ fun `>=`(lhs, rhs) {
 
 fun `==`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
-  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(S), rhs:v(S)) --> v(L) { ... }
+  @signals (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(S), rhs:v(S)) --> v(L) { ... }
   (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
   (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
@@ -188,10 +188,10 @@ fun `==`(lhs, rhs) {
 
 fun `!=`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
-  (lhs:v(I), rhs:v(I)) --> v(L) { ... }
-  (lhs:v(R), rhs:v(R)) --> v(L) { ... }
-  (lhs:v(S), rhs:v(S)) --> v(L) { ... }
+  @signals (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  @signals (lhs:v(I), rhs:v(I)) --> v(L) { ... }
+  @signals (lhs:v(R), rhs:v(R)) --> v(L) { ... }
+  @signals (lhs:v(S), rhs:v(S)) --> v(L) { ... }
   (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
   (lhs:v1(I), rhs:v1(I)) --> v1(L) { ... }
   (lhs:v1(R), rhs:v1(R)) --> v1(L) { ... }
@@ -210,7 +210,7 @@ fun `!=`(lhs, rhs) {
 
 fun `&`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  @signals (lhs:v(L), rhs:v(L)) --> v(L) { ... }
   (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
   (lhs:B, rhs:B) --> B { ... }
 }
@@ -223,7 +223,7 @@ fun `&&`(lhs, rhs) {
 
 fun `|`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  @signals (lhs:v(L), rhs:v(L)) --> v(L) { ... }
   (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
   (lhs:B, rhs:B) --> B { ... }
 }
@@ -236,7 +236,7 @@ fun `||`(lhs, rhs) {
 
 fun xor(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
-  (lhs:v(L), rhs:v(L)) --> v(L) { ... }
+  @signals (lhs:v(L), rhs:v(L)) --> v(L) { ... }
   (lhs:v1(L), rhs:v1(L)) --> v1(L) { ... }
   (lhs:B, rhs:B) --> B { ... }
 }
@@ -284,6 +284,7 @@ fun `!`(x) {
   (x:R) --> L { ... }
 }
 
+@signals
 fun `:`(lhs, rhs) {
   (lhs:*@!, rhs:*@!) -+> V { ... }
   (lhs:v1(I), rhs:v1(I)) --> v(I) { ... }
@@ -488,16 +489,19 @@ fun `[[<-`(x, i, value) {
   (x:v(S)o, i:R, value:S) -~> v(S)f { ... }
 }
 
+@signals
 fun `$`(x, name) {
   (x:*@!, name:*) -+> V { ... }
   (x:V, name:V) --> V { ... }
 }
 
+@signals
 fun `$<-`(x, name, value) {
   (x:*@!, name:*, value:*) -+> V { ... }
   (x:V, name:V, value:V) --> V { ... }
 }
 
+@signals
 @liteSpecial
 fun rep(x, `...`) {
   (x:*@!, ddd:dots) -+> V { ... }
@@ -559,6 +563,7 @@ fun abs(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun sqrt(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -579,6 +584,7 @@ fun exp(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun log(x, base) {
   (x:*@!, base:*@!) -+> V { ... }
   (x:v(I), base:v(R)) --> v(R) { ... }
@@ -634,6 +640,7 @@ fun expm1(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun log1p(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -644,6 +651,7 @@ fun log1p(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun cos(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -654,6 +662,7 @@ fun cos(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun sin(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -664,6 +673,7 @@ fun sin(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun tan(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -674,6 +684,7 @@ fun tan(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun acos(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -684,6 +695,7 @@ fun acos(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun asin(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -734,6 +746,7 @@ fun tanh(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun acosh(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -754,6 +767,7 @@ fun asinh(x) {
   (x:R) --> R { ... }
 }
 
+@signals
 fun atanh(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -776,6 +790,7 @@ fun lgamma(x) {
 
 # `gamma` to `tanpi` have no unboxed versions: the `fir2c` runtime has no helper for them (see
 # `DEFINE_MATH1_BUILTINS`).
+@signals
 fun gamma(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -784,6 +799,7 @@ fun gamma(x) {
   (x:v1(R)) --> v1(R) { ... }
 }
 
+@signals
 fun digamma(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -800,6 +816,7 @@ fun trigamma(x) {
   (x:v1(R)) --> v1(R) { ... }
 }
 
+@signals
 fun cospi(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -808,6 +825,7 @@ fun cospi(x) {
   (x:v1(R)) --> v1(R) { ... }
 }
 
+@signals
 fun sinpi(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -816,6 +834,7 @@ fun sinpi(x) {
   (x:v1(R)) --> v1(R) { ... }
 }
 
+@signals
 fun tanpi(x) {
   (x:*@!) -+> V { ... }
   (x:v(I)) --> v(R) { ... }
@@ -834,6 +853,7 @@ fun length(x) {
 # The real overloads are what `org.prlprg.fir.opt.specialize.SpecializeRealIndex` inserts to make a
 # real subscript integral: `as.integer` truncates toward zero and maps out-of-range and `NaN` to
 # `NA`, which is exactly how the `[`-family builtins coerce a subscript.
+@signals
 fun `as.integer`(x, `...`) {
   (x:*@!, ddd:dots) -+> v(I) { ... }
   (x:V, ddd:miss) --> I { ... }
@@ -842,6 +862,7 @@ fun `as.integer`(x, `...`) {
   (x:v(R), ddd:miss) --> v(I) { ... }
 }
 
+@signals
 fun `as.logical`(x, `...`) {
   (x:*@!, ddd:dots) -+> v(L) { ... }
   (x:V, ddd:miss) --> v(L) { ... }
@@ -851,6 +872,7 @@ fun `as.logical`(x, `...`) {
   (x:L, ddd:miss) --> B { ... }
 }
 
+@signals
 fun `as.character`(x, `...`) {
   (x:*@!, ddd:dots) -+> v(S) { ... }
   (x:V, ddd:miss) --> S { ... }

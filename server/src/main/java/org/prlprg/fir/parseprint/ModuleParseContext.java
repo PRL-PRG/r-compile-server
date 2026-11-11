@@ -201,6 +201,7 @@ public final class ModuleParseContext {
       var needsContext = false;
       var readsPromise = false;
       var needsPromises = false;
+      var signals = false;
       while (s.trySkip('@')) {
         switch (s.readIdentifierOrKeyword()) {
           case "strict" -> strict = true;
@@ -209,6 +210,7 @@ public final class ModuleParseContext {
           case "needsContext" -> needsContext = true;
           case "readsPromise" -> readsPromise = true;
           case "needsPromises" -> needsPromises = true;
+          case "signals" -> signals = true;
           case String unknown -> throw s.fail("unknown user property: @" + unknown);
         }
       }
@@ -250,6 +252,8 @@ public final class ModuleParseContext {
         if (function.versions().isEmpty()) {
           function.addBaseline(version);
         } else {
+          // `@signals` on a function is `@signals` on each version but the (generic) baseline.
+          version.setSignals(version.signals() || signals);
           function.addVersion(version);
         }
       }
@@ -348,6 +352,7 @@ public final class ModuleParseContext {
         var s = p.scanner();
 
         var comments = p.parse(Comments.class);
+        var signals = s.trySkip("@signals");
 
         // Parameters, e.g. `(n:*, m:I@!)`.
         var parameters = new ArrayList<FunctionParameter>();
@@ -380,6 +385,7 @@ public final class ModuleParseContext {
         abstraction.comments().addAll(comments);
         abstraction.setReturnType(returnType);
         abstraction.setEffects(effects);
+        abstraction.setSignals(signals);
 
         if (isStub) {
           s.assertAndSkip('}');

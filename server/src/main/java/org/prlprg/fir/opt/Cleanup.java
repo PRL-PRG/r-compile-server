@@ -29,7 +29,6 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.AssigneeOf;
@@ -507,7 +506,7 @@ public final class Cleanup extends AbstractionOptimization {
           var stmt = bb.statements().get(i);
           if ((stmt.assignee() != null && stmt.assignee().isUsed())
               || stmt.expression() instanceof Assume
-              || inferEffects.of(stmt) != Effects.NONE) {
+              || inferEffects.maySignal(stmt)) {
             i++;
             continue;
           }

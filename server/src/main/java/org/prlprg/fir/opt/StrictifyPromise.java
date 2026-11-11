@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -61,7 +62,9 @@ import org.prlprg.util.Streams;
 ///   object
 /// - Singly-used
 /// - Time-invariant ([#isTimeInvariant]), or passed to a strict parameter that the callee forces
-///   before it can disturb what the promise reads ([#forcesUndisturbed])
+///   before it can disturb what the promise reads ([#forcesFirst])
+/// - If it can warn or raise an error, passed to a strict parameter or one that the callee forces
+///   before it returns
 ///
 /// Skips a callee that is `@needsContext` or `@needsPromises`: a version that takes a value wraps
 // it
@@ -135,11 +138,18 @@ public final class StrictifyPromise extends AbstractionOptimization {
           }
 
           // The promise's value must not depend on when it's computed, or the callee must force
-          // it -- so the work isn't wasted -- before it can change what the body reads.
-          if (j >= parameterStrictnesses.length()
-              || !(isTimeInvariant(code)
-                  || (parameterStrictnesses.get(j)
-                      && forcesUndisturbed(callee.exactVersion(), j)))) {
+          // it -- so the work isn't wasted -- before it can change what the body reads. A body
+          // that can warn or raise an error runs only if the callee forces it before it returns.
+          if (j >= parameterStrictnesses.length()) {
+            continue;
+          }
+          var isStrict = parameterStrictnesses.get(j);
+          if (!((isTimeInvariant(code)
+                  && (isStrict
+                      || !new InferEffects(scope).maySignal(code)
+                      || forcesFirst(callee.exactVersion(), j, _ -> true)))
+              || (isStrict
+                  && forcesFirst(callee.exactVersion(), j, StrictifyPromise::cannotDisturb)))) {
             continue;
           }
 
@@ -301,7 +311,7 @@ public final class StrictifyPromise extends AbstractionOptimization {
   /// binding makes a body time-variant; building one out of registers, which are SSA, doesn't.
   ///
   /// A body that fails this can still be inlined into a callee that forces it early enough; that's
-  /// [#forcesUndisturbed].
+  /// [#forcesFirst].
   ///
   /// This is only the body's own statements. A nested `prom` doesn't run until it's forced, and
   /// inlining doesn't move that force.
@@ -331,18 +341,19 @@ public final class StrictifyPromise extends AbstractionOptimization {
     };
   }
 
-  /// Whether `version` forces its `argIndex`-th parameter before it can change what the promise
-  /// that parameter holds reads.
+  /// Whether `version` forces its `argIndex`-th parameter on every path from entry to a `return`,
+  /// and only runs statements that `before` accepts until then.
   ///
-  /// Strictness alone doesn't give this. A strict parameter is only guaranteed to be forced before
-  /// the version's first *reflective* operation
+  /// With [#cannotDisturb], this is whether the version forces the promise before it can change
+  /// what the promise reads. Strictness alone doesn't give that. A strict parameter is only
+  /// guaranteed to be forced before the version's first *reflective* operation
   /// ([org.prlprg.fir.check.StrictnessChecker]), and a merely impure statement -- a `st-super`, a
   /// subscript write, a call to anything -- can still write somewhere the promise reads. Hoisting
   /// the body past one of those makes it read the old value.
   ///
-  /// Only paths that reach a force constrain this. On one that doesn't, nothing ever looks at the
-  /// promise's value, so having computed it for nothing is invisible: it has no effects.
-  private static boolean forcesUndisturbed(@Nullable Abstraction version, int argIndex) {
+  /// A path that ends in an error or a `deopt` doesn't constrain this.
+  private static boolean forcesFirst(
+      @Nullable Abstraction version, int argIndex, Predicate<Expression> before) {
     if (version == null || !version.isEvaluated() || argIndex >= version.parameters().size()) {
       // A dispatch call, a stub, or an unevaluated version: no body to look at (without
       // evaluating it, which only inlining is worth).
@@ -366,13 +377,16 @@ public final class StrictifyPromise extends AbstractionOptimization {
           isForced = true;
           break;
         }
-        if (!cannotDisturb(statement.expression())) {
+        if (!before.test(statement.expression())) {
           return false;
         }
       }
       // Everything past the force runs after the promise's value is fixed.
       if (isForced) {
         continue;
+      }
+      if (bb.jump().expression() instanceof Return) {
+        return false;
       }
 
       for (var successor : bb.successors()) {
