@@ -124,8 +124,11 @@ public final class InferEffects implements Analysis {
   /// would, must not.
   ///
   /// So can a call of a `@signals` builtin version, a call of a module function (whose body this
-  /// doesn't look into), and a `force` of a promise whose body can or isn't known. An [Assume]
-  /// can't: a failed assumption deoptimizes.
+  /// doesn't look into), a `force` of a promise whose body can or isn't known, and a load of a
+  /// variable that may be unbound ("object 'x' not found"; [org.prlprg.fir.opt.Cleanup] removes
+  /// an unused load whose value [org.prlprg.fir.analyze.resolve.OriginAnalysis] knows).
+  ///
+  /// An [Assume] can't: a failed assumption deoptimizes.
   public boolean maySignal(Statement statement) {
     return of(statement) != Effects.NONE
         || switch (statement.expression()) {
@@ -143,6 +146,7 @@ public final class InferEffects implements Analysis {
               !(statement.arg(0).variable() instanceof AssigneeOf promise
                   && promise.statement().expression() instanceof Promise(_, _, var code, _, _)
                   && !maySignal(code));
+          case Load(var loadType, _) -> loadType != LoadType.BASE_FUN;
           default -> false;
         };
   }

@@ -5,6 +5,7 @@ import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
@@ -22,6 +23,8 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Dup;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -96,6 +99,9 @@ public final class Cleanup extends AbstractionOptimization {
     final Abstraction scope;
     final InferEffects inferEffects;
     final Substituter substituter;
+    /// Variable loads whose value [#substituteWithOrigins] replaced. Each reads a variable that the
+    /// analysis knows is bound, so it can't raise "object not found".
+    final Set<Statement> resolvedLoads = new LinkedHashSet<>();
     boolean changed = false;
 
     OnAbstraction(Abstraction scope) {
@@ -459,6 +465,11 @@ public final class Cleanup extends AbstractionOptimization {
         }
 
         substituter.stage(register, origin);
+        if (register instanceof AssigneeOf a
+            && a.statement().expression() instanceof Load(var loadType, _)
+            && (loadType == LoadType.LOCAL_VAR || loadType == LoadType.SUPER_VAR)) {
+          resolvedLoads.add(a.statement());
+        }
         changed = true;
       }
 
@@ -506,7 +517,7 @@ public final class Cleanup extends AbstractionOptimization {
           var stmt = bb.statements().get(i);
           if ((stmt.assignee() != null && stmt.assignee().isUsed())
               || stmt.expression() instanceof Assume
-              || inferEffects.maySignal(stmt)) {
+              || (inferEffects.maySignal(stmt) && !resolvedLoads.contains(stmt))) {
             i++;
             continue;
           }

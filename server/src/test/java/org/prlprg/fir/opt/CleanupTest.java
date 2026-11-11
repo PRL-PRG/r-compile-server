@@ -652,6 +652,28 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
           printed.contains("?: v1(I)"),
           "assume should not be removed (used by checkpoint); got:\n" + printed);
     }
+
+    @Test
+    void loadWithKnownOrigin_removed() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (x:V) -~> V {
+                mkenv;
+                st y = x;
+                y1: * = ld y;
+                popenv;
+                return y1;
+              }
+              """);
+
+      run(abstraction);
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(
+          printed.contains("ld y"),
+          "a load of a variable that is bound can't raise an error; got:\n" + printed);
+    }
   }
 
   // endregion

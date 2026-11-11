@@ -111,7 +111,7 @@ Effects track potential side effects of expressions. There are 3 kinds of effect
 - `~` - Maybe effects, no reflection (impure)
 - `+` - Any effects (reflective)
 
-Environment operations (`mkenv`, `popenv`, `st`), casts, in-place subscript writes, and `[[` reads are impure. Reflective loads and stores (`r$x`), function lookups (`ldf`), dynamic calls, and forcing a maybe-typed value are reflective. A call has the effects of its signature, and a `force` has the effects of the promise's type.
+Environment operations (`mkenv`, `popenv`, `st`), casts, in-place subscript writes, and `[[` reads are impure. Reflective loads and stores (`r$x`), function lookups (`ldf`), dynamic calls, and forcing a maybe-typed value are reflective. A call has the effects of its signature, and a `force` has the effects of the promise's type. A load (`ld x`, `ldf-glob x`) has no effects, but it raises an error if `x` is unbound, so the optimizer keeps an unused one (`InferEffects#maySignal`), unless `OriginAnalysis` knows the value of `x` there.
 
 If an effectful or unknown function is called, the calling version must have effects. If an effectful or unknown promise is forced, the forcing version must have effects. Any version containing reflective operations must have effects.
 
