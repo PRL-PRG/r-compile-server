@@ -95,6 +95,11 @@ public record ElideDeadStore() implements SpecializeOptimization {
                   Objects.requireNonNull(
                       analyses.get(CfgHierarchy.class).commonAncestor(cfg, loadCfg),
                       "both are in the same scope, so at worst their ancestor is the scope's CFG");
+              // A promise body can run again for another instance of the promise, after this run
+              // or during it (when the body forces an earlier instance).
+              if (commonCfg != scope.body()) {
+                return true;
+              }
               var storePos =
                   Objects.requireNonNull(
                       analyses.get(CfgHierarchy.class).projectInto(commonCfg, statement));
