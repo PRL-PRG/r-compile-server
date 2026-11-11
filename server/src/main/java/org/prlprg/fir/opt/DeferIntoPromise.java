@@ -18,7 +18,9 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Kind;
@@ -39,6 +41,7 @@ import org.prlprg.fir.ir.variable.Register;
 ///   and instructions whose result is unused
 /// - Instructions that read a vector that a not-moved instruction makes, since a later write can
 ///   change it in place (a `dup` of a shared vector can reuse it)
+/// - Loads, which read a binding that a later store can rebind
 ///
 /// Because the deferred instructions are pure, *moving* them into the promise body (rather than
 /// copying the control-flow subgraph) computes the same values, only lazily.
@@ -123,13 +126,14 @@ public final class DeferIntoPromise extends AbstractionOptimization {
           continue;
         }
 
-        // The promise may never run, so a statement that can warn or raise an error can't move,
-        // and an assumption must stay where its checkpoint checks it. A statement whose result is
-        // unused has no reason to.
+        // A load reads a binding, which a later store rebinds. The promise may never run, so a
+        // statement that can warn or raise an error can't move, and an assumption must stay
+        // where its checkpoint checks it. A statement whose result is unused has no reason to.
         if (stmt.assignee() != null
             && stmt.assignee().isUsed()
             && !(stmt.expression() instanceof Assume)
             && !inferEffects.maySignal(stmt)
+            && !(stmt.expression() instanceof Load || stmt.expression() instanceof ReflectiveLoad)
             && HOIST_RULES.stream().noneMatch(rule -> rule.test(stmt))) {
           candidates.add(stmt);
           defOf.put(stmt.assignee(), stmt);

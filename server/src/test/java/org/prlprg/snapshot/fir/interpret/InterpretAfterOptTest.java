@@ -1,5 +1,7 @@
 package org.prlprg.snapshot.fir.interpret;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.prlprg.fir.check.Checker.checkAll;
 import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
 
 import java.util.Objects;
@@ -40,6 +42,7 @@ public class InterpretAfterOptTest {
   void testForced(Example example, SnapshotStore store) {
     var module =
         store.load(example, new ForcedFirQuery(new OptimizedFirQuery(optimizations()))).deepCopy();
+    assertTrue(checkAll(module), "Optimized FIŘ is invalid (see stderr)");
     var interpreter = new TestInterpreter(module);
 
     store.verify(example, InterpretQuery.MAIN, interpreter.call("main"));

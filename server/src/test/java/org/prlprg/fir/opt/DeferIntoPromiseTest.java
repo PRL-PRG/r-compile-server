@@ -133,6 +133,29 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     assertFalse(run(abstraction), Printer.toString(abstraction));
   }
 
+  /// `st x` rebinds `x` after the load, so the promise must read the old binding.
+  @Test
+  void loadBeforeAStoreOfItsVariable_notDeferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (a:v1(I), b:v1(I)) -+> v1(I) {
+              mkenv;
+              st x = a;
+              l: * = ld x;
+              st x = b;
+              p: p(v1(I) -) = prom<v1(I) ->{
+                return l;
+              };
+              st p = p;
+              popenv;
+              return a;
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
   @Test
   void impureInstruction_notDeferred() {
     var abstraction =

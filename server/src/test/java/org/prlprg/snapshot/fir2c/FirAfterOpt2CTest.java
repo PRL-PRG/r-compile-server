@@ -19,23 +19,7 @@ class FirAfterOpt2CTest implements Gen2CCompilerTest {
   private static final Set<String> BROKEN_UNDER_OPTIMIZATION =
       Set.of(
           // crashes
-          "dd_val2",
-          "leak_promise2",
-          "vecsubset2_n6",
-          // returns a different value
-          "inline_is_xyz",
-          "is",
-          "is7",
-          "is8",
-          "vecsubset_n6",
-          // prints different diagnostics (extra warnings, or a different message)
-          "inline_square_subset3",
-          "inline_square_subset4",
-          "log2",
-          "log4",
-          "log6",
-          "log8",
-          "matsubset2");
+          "leak_promise2");
 
   @Override
   public CompiledModuleQuery moduleQuery() {
