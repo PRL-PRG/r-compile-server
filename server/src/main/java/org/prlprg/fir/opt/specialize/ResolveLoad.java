@@ -2,6 +2,7 @@ package org.prlprg.fir.opt.specialize;
 
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -19,7 +20,7 @@ import org.prlprg.fir.ir.type.Type;
 public record ResolveLoad() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
-    return new AnalysisTypes(OriginAnalysis.class, InferType.class);
+    return new AnalysisTypes(OriginAnalysis.class, InferType.class, DominatorTree.class);
   }
 
   @Override
@@ -39,6 +40,14 @@ public record ResolveLoad() implements SpecializeOptimization {
 
     var origin = analyses.get(OriginAnalysis.class).get(bb, index, variable);
     if (origin == null) {
+      return Result.UNCHANGED;
+    }
+
+    // The origin can be a register of another promise, whose force the analysis looks through.
+    var originRegister = origin.variable();
+    if (originRegister != null
+        && (originRegister.definingBB() == null
+            || !analyses.get(DominatorTree.class).dominates(originRegister, statement))) {
       return Result.UNCHANGED;
     }
 
