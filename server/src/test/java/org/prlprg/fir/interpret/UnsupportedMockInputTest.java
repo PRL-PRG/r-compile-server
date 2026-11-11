@@ -27,6 +27,12 @@ class UnsupportedMockInputTest {
         """
         x: v(R)o = v(R)[];
         r: V = `*`%< *@!,*@! -+> V >(x, <real 1.0>);
+        """,
+        // An argument with names: `c` keeps them.
+        """
+        x: v(R)o = v(R)[a=1.0];
+        vargs: dots = dots[x, <real 2.0>];
+        r: V = c%< dots --> V >(vargs);
         """
       })
   void isUnsupported(String body) {

@@ -3202,8 +3202,11 @@ public final class Builtins {
                 throw interpreter.fail("`c` requires a `...` argument");
               }
               if (dots.isEmpty()) return Value.NULL;
-              if (dots.names().stream().anyMatch(x -> !x.isEmpty())) {
-                throw interpreter.failUnsupported("Mock `c` doesn't support named arguments");
+              if (dots.names().stream().anyMatch(x -> !x.isEmpty())
+                  || dots.values().stream()
+                      .anyMatch(v -> v instanceof ListOrVectorSXP<?> l && !l.names().isEmpty())) {
+                throw interpreter.failUnsupported(
+                    "Mock `c` doesn't support named arguments or arguments with names");
               }
 
               // Determine the widest element type
