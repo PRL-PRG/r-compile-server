@@ -810,6 +810,45 @@ class OriginAnalysisTest {
     assertNotEquals(new Constant(SEXPs.integer(1)), analysis.get(reg(main, "x1")));
   }
 
+  /// A reflective call taints the inner environment, where the variable `p` holds the promise.
+  /// The call may take the promise from there (`parent.frame()$p`) and force it after the
+  /// function returns, so the promise leaks, and its load of `x` may see the later store.
+  @Test
+  void testPromiseInTaintedEnvironmentLeaks() {
+    var firText =
+        """
+        fun main() {
+          (c:B) -+> V {
+            mkenv~;
+            st x = <int 1>;
+            pr:p(V +) = prom<V +>{ x1:* = ld x; return x1; };
+            mkenv;
+            st p = pr;
+            if c then L1() else L2();
+          L1():
+            force pr;
+            goto L2();
+          L2():
+            g< -+> V >();
+            popenv;
+            st x = <int 99>;
+            popenv;
+            return <nil>;
+          }
+        }
+
+        fun g() {
+          () -+> V { return <int 0>; }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertNotEquals(new Constant(SEXPs.integer(1)), analysis.get(reg(main, "x1")));
+  }
+
   /// Same as [#testLeakedPromiseMaybeForcedAtCall], except the call is effect-free. Forcing the
   /// promise would run its store, which the call would have to declare, so it can't be the thing
   /// that forces it, and `a` keeps the value stored before the call.

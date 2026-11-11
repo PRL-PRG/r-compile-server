@@ -1381,6 +1381,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     private void taintViaReflection() {
       for (var env : envs) {
         if (env.reflectivelyAccessible) {
+          // Reflection can take a promise out of a variable and force it later.
+          leakedPromises.addAll(env.variablePromises.values());
           env.taint();
         }
       }
