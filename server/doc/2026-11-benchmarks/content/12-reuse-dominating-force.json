@@ -1,0 +1,15 @@
+{
+ "title": "Reuse a dominating force of the same promise",
+ "motivation": "In `bench_shootout_binarytrees_naive` `tree`, the argument promise for `depth - 1` forced and type-checked `depth` again, although the version had already forced it. The second force brought a checkpoint into the promise body. That checkpoint stopped `StrictifyPromise` from inlining the promise, so each recursive call allocated it. `permute` and `queens` had the same pattern.",
+ "solution": "`DefiniteForce` now forwards a `force` to the result of a dominating `force` of the same SEXP. It looks through `AssumeType` and `Cast` chains, and it crosses only local promises (`prom-`). The earlier result type must be a subtype of the later one. `ElideTrivialAssume` also removes a type assumption whose result is unused, because only that result carries the assumption. Then `StrictifyPromise` can inline the promise, and `tree` passes an unboxed `R` instead of a promise.",
+ "commitKinds": {
+  "53c9d9839": "optimization"
+ },
+ "files": {
+  "repo-map.md": "Updates the descriptions of `DefiniteForce.java` and `ElideTrivialAssume.java` to name the new rules.",
+  "server/src/main/java/org/prlprg/fir/opt/specialize/DefiniteForce.java": "Adds `dominatingForce`, which finds a dominating force of the same SEXP through assumptions and casts, across local promises only.",
+  "server/src/main/java/org/prlprg/fir/opt/specialize/ElideTrivialAssume.java": "Removes an `AssumeType` that has no assignee or an unused assignee.",
+  "server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java": "Adds tests for forwarding through local promises and assumption chains, and for the non-local, non-dominated, and narrower-type cases.",
+  "server/src/test/java/org/prlprg/fir/opt/specialize/ElideTrivialAssumeTest.java": "Adds tests that an unused type assumption is removed and that used, function, and constant assumptions stay."
+ }
+}

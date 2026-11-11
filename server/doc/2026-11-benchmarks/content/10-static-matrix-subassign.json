@@ -1,0 +1,22 @@
+{
+ "title": "Make matrix sub-assignment a static builtin call",
+ "motivation": "`builtins.fir` declared `[[<-` with one subscript, so bc2fir could not match `x[[i, j]] <- v` against it. In matrix_for, `x[[i, j]] <- 5` was an `ldf-base` and a `dyn` call, which went through GNU-R's generic dispatch and argument list on every iteration. The backend's typed fast paths could not apply to a dynamic call.",
+ "solution": "`[[<-` is now `(x, i, value, ...)` like `[<-`, in `builtins.fir`, the interpreter mocks and the `[[<-` runtime versions in `runtime.c` and `runtime.h`. bc2fir matches `x[i, j] <- v` and `x[[i, j]] <- v` statically when `value` is last. `Fir2CCompiler.valueLast` moves `value` back to the last position for the primitive, and the interpreter's `registerUnmatchedExternal` hook is removed. This change is mainly an enabler for later backend fast paths for matrix writes. Also in this range: `OriginAnalysis` no longer folds a subscript with a matrix column or `[` of a named vector (`0f4e4afd4`), which gave `m[[1, 2]]` the value of `m[[1]]`.",
+ "commitKinds": {
+  "0f4e4afd4": "fix",
+  "9c8f164b4": "enabler"
+ },
+ "files": {
+  "client/rsh/src/fir2c/runtime.c": "Renames the `[[<-` scalar versions and adds their trailing `...` parameter, to match the new signature.",
+  "client/rsh/src/fir2c/runtime.h": "Declares the renamed `[[<-` scalar versions with the trailing `...` parameter.",
+  "server/src/main/java/org/prlprg/bc2fir/BC2FirCFGCompiler.java": "A sub-assignment matches statically when `value` is the last argument, named or the third of three, for `[<-` and `[[<-`.",
+  "server/src/main/java/org/prlprg/fir/analyze/resolve/OriginAnalysis.java": "Does not fold a subscript with a matrix column or `[` of a named vector, and folds `[<-` and `[[<-` with one rule.",
+  "server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java": "Registers `[<-` and `[[<-` with the same four-parameter signature and removes the special mock for a dynamic `x[[i, j]] <- v`.",
+  "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java": "Removes `registerUnmatchedExternal`, which the static `[[<-` makes unnecessary.",
+  "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java": "Adds `valueLast`, which passes `value` as the last argument to the `[<-` and `[[<-` primitives.",
+  "server/src/main/resources/org/prlprg/fir/builtins.fir": "Declares `[[<-` as `(x, i, value, ...)` with a `dots` parameter in each version, like `[<-`.",
+  "server/src/test/java/org/prlprg/fir/analyze/resolve/OriginAnalysisTest.java": "Adds tests that constant folding skips matrix subscripts and `[` of a named vector.",
+  "server/src/test/java/org/prlprg/fir2c/Fir2CCompilerTest.java": "Adds a test that a static sub-assignment passes `value` last to the primitive.",
+  "server/src/test/resources/org/prlprg/examples/R/mod_matrix.R": "Adds `s[[1, 2]] <- 3`, `s[2, 3] <- 1` and a named `value` call, where a wrong argument order writes elsewhere."
+ }
+}

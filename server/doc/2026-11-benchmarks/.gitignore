@@ -1,0 +1,10 @@
+/report.html
+__pycache__/
+/rlib/
+/chain.lock
+/runs/*/*
+!/runs/*/csv
+!/runs/*/commit
+!/runs/*/notes.json
+!/runs/*/sizes.tsv
+!/runs/*/DONE

@@ -1,0 +1,14 @@
+{
+ "title": "Call the default subscript method on non-object targets",
+ "motivation": "A generic `x[[i]]`, `x[i]`, `x[[i]] <- v`, or `x[i] <- v` called the GNU-R special. The special evaluated its arguments again and built a second argument list, and a setter also wrapped the target in a promise. This allocation showed in `matrix_for`, `bench_shootout_binarytrees_naive`, `bounce`, `bounce_nonames`, and the list loops.",
+ "solution": "The new `Fir_call_subscript_default` in `runtime.c` handles `[`, `[[`, `[<-`, and `[[<-` when the target is not an object and the special would not evaluate any argument in the environment. It forces the arguments once, builds one list of `CONS_NR` cells, and calls `do_subset_dflt`, `do_subset2_dflt`, `do_subassign_dflt`, or `do_subassign2_dflt` directly. A setter gets no target promise. `Fir_call_builtin_values`, `Fir_call_dynamic`, and `Fir_call_setter_primitive` try this path first. Also in this range: `OriginAnalysis` orders origins by a `Read`'s register name instead of the printed argument, which cuts compile time with byte-identical output.",
+ "commitKinds": {
+  "68c3f6727": "fix",
+  "ca5752665": "optimization"
+ },
+ "files": {
+  "client/rsh/src/fir2c/runtime.c": "Adds `Fir_call_subscript_default` and an all-`CONS_NR` mode of `Fir_build_arglist`, and calls the default method first from the builtin, dynamic, and setter calls.",
+  "server/src/main/java/org/prlprg/fir/analyze/resolve/OriginAnalysis.java": "The origin-set comparator uses a `Read`'s register name instead of `toString`, which avoids printing each argument per comparison.",
+  "server/src/test/resources/org/prlprg/examples/R/subscript_default_method.R": "New `#? gcTorture` example with subscript reads and writes on plain targets and on S3 objects that must still dispatch."
+ }
+}

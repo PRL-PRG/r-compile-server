@@ -1,0 +1,12 @@
+{
+ "title": "Re-run maybe-forced promise bodies in origin analysis",
+ "motivation": "The optimized queens module returned `queens(10) = 7362` instead of 1902. `OriginAnalysis.maybeForce` analysed a maybe-forced promise body only once, so in a loop the body kept the first iteration's origins, and `Cleanup.substituteWithOrigins` replaced `ld board` by the parameter `board`. The hot `solve_queens` version then passed the initial board to `is_safe` instead of the loop-carried one, which made the search do many more calls than the correct program.",
+ "solution": "`OriginAnalysis.maybeForce` now returns early only when the promise is definitely forced (`Maybe.YES`), as `force` does. Otherwise it runs the body again with the current state, so a load in the body sees the current bindings. The analysis still terminates, because a body's `OnCfg` does not re-run on an unchanged state and `runPromiseBody` does not re-enter a running body. The new unit test `CleanupTest.loadInLoopPromise_afterRebinding_notSubstitutedWithFirstIterationValue` reproduces the miscompile.",
+ "commitKinds": {
+  "b1a76b719": "fix"
+ },
+ "files": {
+  "server/src/main/java/org/prlprg/fir/analyze/resolve/OriginAnalysis.java": "`maybeForce` skips only a definitely forced promise and re-runs a maybe-forced body with the current state; the comment explains why this terminates.",
+  "server/src/test/java/org/prlprg/fir/opt/CleanupTest.java": "Adds a test that a load inside a loop's promise is not replaced by the value from before the loop rebinds the variable."
+ }
+}

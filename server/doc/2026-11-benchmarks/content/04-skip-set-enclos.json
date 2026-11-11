@@ -1,0 +1,20 @@
+{
+ "title": "Skip no-op parent writes of the elided frame",
+ "motivation": "A version with an elided frame (`mkenv-`) pushes and pops the shared singleton environment on each call, and `Fir_push_env` and `Fir_pop_env` called `SET_ENCLOS` both times. `SET_ENCLOS` walks the new parent chain to reject cycles, and in a recursive call the parent usually already has the target value. fibonacci spent a large share of its time in this walk, and towers and permute also paid it. Separately, `Fir_from_r_arg` scanned the caller's frame twice for each argument from R.",
+ "solution": "In `client/rsh/src/fir2c/runtime.c`, `Fir_push_env` and `Fir_pop_env` call `SET_ENCLOS` only when the elided frame's parent differs from the target. `Fir_from_r_arg` reads the binding through the location it already looked up (`R_GetVarLocValue`), instead of a second `Rf_findVarInFrame`. Also in this range: the eval tests of a `#? benchmark:` example now run the benchmark call once and compare its value with the oracle's and the snapshot's, `OptimizedFirQuery` evaluates the baselines of inner closures so the `opt/fir` snapshot parses, and `AGENTS.md` documents the new check.",
+ "commitKinds": {
+  "4d97e9612": "optimization",
+  "0de79cd72": "test",
+  "8e93b2a91": "docs"
+ },
+ "files": {
+  "AGENTS.md": "Adds a line that the eval tests of a `#? benchmark:` example run and compare the benchmark call's value (`benchValue.rds`, `noBenchEval`).",
+  "client/rsh/src/fir2c/runtime.c": "`Fir_push_env` and `Fir_pop_env` skip `SET_ENCLOS` when the parent is unchanged; `Fir_from_r_arg` reuses its variable location instead of a second frame scan.",
+  "server/doc/lazy-versions.md": "Documents that `OptimizedFirQuery` evaluates inner closures' baselines and that `EvalQuery` runs and compares a benchmark example's call.",
+  "server/src/test/java/org/prlprg/snapshot/bench/BenchmarkQuery.java": "Makes `benchmarkCall` public so that `EvalQuery` can read an example's `#? benchmark:` call.",
+  "server/src/test/java/org/prlprg/snapshot/fir/opt/OptimizedFirQuery.java": "After it evaluates the best versions, the snapshot module also evaluates the baselines of the inner closures that this adds.",
+  "server/src/test/java/org/prlprg/snapshot/gen2c/EvalOutput.java": "Adds a `benchValue` field that equality, hashing and printing include.",
+  "server/src/test/java/org/prlprg/snapshot/gen2c/EvalQuery.java": "For a `#? benchmark:` example, runs the benchmark call after the warmup and compares its value with the oracle and the previous snapshot.",
+  "server/src/test/resources/org/prlprg/snapshot/gen2c/eval.R": "The benchmark loop reseeds before each run, keeps the last run's value, and tolerates a runtime without `Fir_stats_versions_get`."
+ }
+}

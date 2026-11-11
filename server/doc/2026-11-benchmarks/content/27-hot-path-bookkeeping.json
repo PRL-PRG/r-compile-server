@@ -1,0 +1,14 @@
+{
+ "title": "Trim frame, promise and closure bookkeeping on calls",
+ "motivation": "In permute, `permute` has a real frame (`mkenv~`), so each call of `swap` pushes the outermost elided frame. That push set the singleton's parent from the empty environment to the caller's frame, and the pop set it back, so each call ran two `SET_ENCLOS`. Each return of a version that creates promises also called `Fir_mark_promises_escaped` on a tracking list that was often empty, and `Fir_assume_function`, which guards each call of a known closure, was an out-of-line call. The native profile still showed the `SET_ENCLOS` pair in permute, queens and bounce_nonames.",
+ "solution": "A new global `Fir_elided_depth` counts the active outermost elided pushes. `Fir_push_env` and `Fir_push_env_elided` increment it, and the pop restores the singleton's parent only if `--Fir_elided_depth > 0`, so the next outermost push finds the right parent and writes nothing. The from-R entry saves and restores the count with the other two from-R globals. `Fir2CCompiler` emits an inline test `if (local_promises != R_NilValue)` before `Fir_mark_promises_escaped`, and `Fir_assume_function` and `Fir_is_compiled_closure` move to `runtime_inline.h` as `static ALWAYS_INLINE`.",
+ "commitKinds": {
+  "002d1662f": "optimization"
+ },
+ "files": {
+  "client/rsh/src/fir2c/runtime.c": "Adds `Fir_elided_depth`, which the push increments, the pop decrements, and the from-R entry saves and restores; removes the out-of-line closure tests.",
+  "client/rsh/src/fir2c/runtime.h": "Declares `Fir_elided_depth`, adds the depth parameter to the from-R set and unset functions, and removes two out-of-line declarations.",
+  "client/rsh/src/fir2c/runtime_inline.h": "The inline elided push and pop keep `Fir_elided_depth`; adds `Fir_is_compiled_closure` and `Fir_assume_function` as `static ALWAYS_INLINE`.",
+  "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java": "The from-R entry saves and restores the elided depth, and a return calls `Fir_mark_promises_escaped` only on a non-empty tracking list."
+ }
+}

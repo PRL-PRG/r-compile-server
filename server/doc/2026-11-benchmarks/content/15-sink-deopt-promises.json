@@ -1,0 +1,13 @@
+{
+ "title": "Sink deopt-only value promises into deopt branches",
+ "motivation": "A value promise such as `n13 = prom-{ box(n) }` in `bench_ai_awf_towers` was made at version entry on every call. Only the deopt blocks used it, to rebuild the frame binding for the baseline. So each call allocated a promise that the normal path never touched. `queens`, `permute`, and `permute_fake` had the same pattern.",
+ "solution": "`SchedulePure` gets a defer rule for a value promise: a one-block body that returns a constant, an outside register, or the result of one `box`. It defers such a promise only if each use is in a deopt branch, and copies it into each branch with a new body CFG and fresh register names. Only one deopt branch runs per activation, so the activation makes at most one promise. A new limit also stops any deferred statement from moving into a loop that does not contain it. `InternalInterpreter` accepts a promise statement in a deopt branch when it builds the checkpoint snapshot.",
+ "commitKinds": {
+  "1340e864c": "optimization"
+ },
+ "files": {
+  "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java": "The deopt-branch snapshot evaluation accepts a `Promise` statement and binds its register to an unforced SEXP promise.",
+  "server/src/main/java/org/prlprg/fir/opt/SchedulePure.java": "Adds the deopt-only value-promise defer rule, copies a promise with its own body CFG, and defers nothing into a loop without the statement.",
+  "server/src/test/java/org/prlprg/fir/opt/SchedulePureTest.java": "Adds tests for copying a promise into deopt branches, promises that stay, no deferral into a loop, and the deopt state."
+ }
+}

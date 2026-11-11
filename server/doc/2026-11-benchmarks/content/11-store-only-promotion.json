@@ -1,0 +1,22 @@
+{
+ "title": "Promote store-only variables to registers",
+ "motivation": "`PromoteStaticallyKnownVariables` (PSKV) only promoted a variable that the code also loads. A variable that is only stored kept a real frame (`mkenv~`) and one `st` per loop iteration, although only the deopt blocks read the binding. `bench_simple_bytecodes` has 24 such variables, and `bench_simple_scalar-while` stores `x` this way.",
+ "solution": "PSKV now makes a candidate from a store and no longer needs a load. The promoted value lives in registers and phis, and only the deopt branches store it, so the frame can become elided (`mkenv-`). A store in a deopt branch does not make a candidate, because the promotion would only put it back. A variable that `ld-super` or `st-super` names (an inlined callee's frame) is not promoted. Also in this range: a `#? gcTorture` option for eval tests, and a fix in `Fir_push_env`, which bound the marker of a new non-reflective frame before it protected the frame.",
+ "commitKinds": {
+  "db205c9e7": "test",
+  "102740bb0": "fix",
+  "eb8a02c08": "optimization"
+ },
+ "files": {
+  "AGENTS.md": "Documents the `#? gcTorture` example option under the snapshot integration tests.",
+  "client/rsh/src/fir2c/runtime.c": "`Fir_push_env` protects the new environment at creation, before `Rf_defineVar` binds the reflection marker and can trigger a GC.",
+  "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java": "A store outside a deopt branch makes a candidate, the load requirement is removed, and `ld-super`/`st-super` make a variable forbidden.",
+  "server/src/test/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariablesTest.java": "Adds tests for a store-only loop variable, its deopt state, a maybe-unbound store-only variable, and a variable read by `ld-super`.",
+  "server/src/test/java/org/prlprg/snapshot/gen2c/EvalQuery.java": "Defines `gc_torture <- TRUE` for an example with the `gcTorture` option and documents the option.",
+  "server/src/test/resources/org/prlprg/examples/R/bench_ai_awf_fibonacci.R": "Adds the `#? gcTorture` option.",
+  "server/src/test/resources/org/prlprg/examples/R/bench_simple_vector_for.R": "Adds the `#? gcTorture` option.",
+  "server/src/test/resources/org/prlprg/examples/R/deopt_elided_env_store.R": "Adds the `#? gcTorture` option.",
+  "server/src/test/resources/org/prlprg/examples/R/elided_env_parent_promise.R": "Adds the `#? gcTorture` option.",
+  "server/src/test/resources/org/prlprg/snapshot/gen2c/eval.R": "Adds `tortured`, which runs `main` under `gctorture2(1)` and switches the torture off in `finally`."
+ }
+}

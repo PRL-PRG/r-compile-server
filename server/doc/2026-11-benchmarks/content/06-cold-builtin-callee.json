@@ -1,0 +1,13 @@
+{
+ "title": "Speculate builtin callees of calls that never ran",
+ "motivation": "In mandelbrot, the block that calls `bitwXor(sum, byteAcc)` never ran in the warmup, so it had no feedback. The call stayed `dyn` with symbol promises, and these promises kept the version's frame a regular `mkenv`. So the loop variables stayed in the frame, and each inner iteration did many `ld`, `st`, type checks, `unbox`es and `box`es.",
+ "solution": "`SpeculateAssume` adds the assumption `f ?- F` for an `ldf f` that has no feedback in a warm version, when `F` is a function that `builtins.fir` defines. The `ldf` must be used only as a `dyn` callee, the builtin must not be `@readsPromise` or `@readsContext`, and no module function may define `f` or store to it. `ResolveDynamicCallee` then makes the call static, the frame becomes `mkenv~`, and promotion runs. `GlobalModules.isDefinedBuiltin` separates the defined builtins from the FUNTAB entries without a definition.",
+ "commitKinds": {
+  "78949105b": "optimization"
+ },
+ "files": {
+  "server/src/main/java/org/prlprg/fir/GlobalModules.java": "Adds `isDefinedBuiltin`, which tells a function that `builtins.fir` defines from a FUNTAB entry without a definition.",
+  "server/src/main/java/org/prlprg/fir/opt/SpeculateAssume.java": "Adds `neverRunBuiltinCallee`, which assumes the builtin for a never-run `ldf` used only as a `dyn` callee in a warm version.",
+  "server/src/test/java/org/prlprg/fir/opt/SpeculateAssumeTest.java": "Tests the new speculation, and that base closures, FUNTAB stubs and context readers are not speculated."
+ }
+}
