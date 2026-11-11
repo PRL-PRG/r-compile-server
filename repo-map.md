@@ -630,7 +630,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../bc2fir/GnurBytecodeTest.java` — `bc2fir` compiles the inlined subscripts of GNU-R compiler bytecode (what the rsh JIT sends) into static calls.
 - `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples), and their per-test timeout (`ExampleTimeout`).
 - `.../fir/analyze/`, `.../fir/check/`, `.../fir/feedback/`, `.../fir/ir/` — Unit tests of FIŘ analyses, checkers, feedback, and IR.
-- `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises).
+- `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises, mocks of builtins against GNU-R).
 - `.../fir/opt/`, `.../fir/opt/specialize/` — One unit test class per optimization (`AbstractionOptimizationUnitTest`, `OptimizationUnitTest`), and `OptimizationsTest` (pipeline variants, `REQUIRES`).
 - `.../fir2c/BytecodeBaselineFeedbackTest.java` — Recording translation and baseline pool layout.
 - `.../fir2c/Fir2CCompilerTest.java` — FIŘ→C unit tests.

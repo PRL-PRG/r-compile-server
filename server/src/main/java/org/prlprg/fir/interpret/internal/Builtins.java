@@ -1250,7 +1250,7 @@ public final class Builtins {
                         + (outOfRangeIsNa ? "drop" : "exact")
                         + " = FALSE` with one subscript");
               }
-              int idx = sexpToInt(args.get(1).box(), interpreter, name);
+              int idx = positionSubscript(interpreter, name, args.get(1).box());
               return new Value.Sexp(
                   subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa).box());
             }));
@@ -1332,6 +1332,17 @@ public final class Builtins {
                 }));
       }
     }
+  }
+
+  /// The position that the numeric scalar subscript `index` of a generic `[`, `[[`, `[<-`, or
+  /// `[[<-` selects. A logical `[[` subscript selects like an integer one; a logical `[` one is a
+  /// mask, which this doesn't implement.
+  private static int positionSubscript(InternalInterpreter interpreter, String name, SEXP index) {
+    if (index instanceof LglSXP && !name.startsWith("[[")) {
+      throw interpreter.failUnsupported(
+          "Mock `" + name + "` doesn't implement a logical subscript");
+    }
+    return sexpToInt(index, interpreter, name);
   }
 
   /// Reject a sub-assignment subscript these versions don't implement.
@@ -1463,7 +1474,7 @@ public final class Builtins {
                 throw interpreter.failUnsupported(
                     "Mock `" + name + "` not implemented for non-vector objects");
               }
-              int idx = sexpToInt(args.get(1).box(), interpreter, name);
+              int idx = positionSubscript(interpreter, name, args.get(1).box());
               var value = args.get(2).box();
               var result = subAssignTarget(interpreter, name, vector, value);
               checkInRange(interpreter, name, result, idx);
