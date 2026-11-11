@@ -627,6 +627,9 @@ DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_missing_fx_none_ret_scalar_re
 DEFINE_OVERRIDDEN_BUILTIN(int, abs, scalar_int_fx_none_ret_scalar_int, int value);
 DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, double value);
 
+// R's own `lgamma` (`Rmath.h`, which can't be included: it renames `sign`)
+double Rf_lgammafn(double x);
+
 #define DEFINE_MATH1_BUILTINS(V)\
   V(sqrt, sqrt)\
   V(exp, exp)\
@@ -647,7 +650,7 @@ DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, doub
   V(acosh, acosh)\
   V(asinh, asinh)\
   V(atanh, atanh)\
-  V(lgamma, lgamma)
+  V(lgamma, Rf_lgammafn)
 // TODO: import from Rmath.h
 //  V(gamma, gammaf)\
 //  V(digamma, digamma)\
