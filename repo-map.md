@@ -677,6 +677,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/quote_empty_arg.R` — `quote(expr = )`: a supplied empty argument of a builtin call.
 - `.../examples/R/subscript_symbol_value.R` — A subscript whose value is a symbol, in a static call's `...` and in a dynamic call: the special must not evaluate it again.
 - `.../examples/R/s3_subscript_untagged.R` — Static `[<-`, `[` and `as.character` calls on an S3 object: the methods see the tags of the R call (none), not the builtin's parameter names.
+- `.../examples/R/substitute_in_parent_frame.R` — `substitute(a, parent.frame())` in a function with no context reader by name: the special evaluates `parent.frame()`, so the function needs a context.
 - `.../examples/R/unused_call_keeps_warning.R` — An unused `x + 1L` call still warns "NAs produced by integer overflow" (`@signals`, `Cleanup`).
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
 - `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), bench scripts (`bench.R`, `optbench.R`, `synergy.R`, `ownership.R`, `promisebench.R`, which also counts `OwnershipBenchmark`'s copies), `order.txt`.

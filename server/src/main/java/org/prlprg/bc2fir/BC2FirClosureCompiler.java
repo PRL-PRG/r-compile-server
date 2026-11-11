@@ -121,7 +121,9 @@ public final class BC2FirClosureCompiler {
                   case GetGlobFun(var name) -> isIn(consts.get(name), names);
                   case GetBuiltin(var name) -> isIn(consts.get(name), names);
                   case GetIntlBuiltin(var name) -> isIn(consts.get(name), names);
-                  case CallSpecial(var ast) -> isIn(consts.get(ast).fun(), names);
+                  // A special evaluates some of its AST arguments (`substitute(a,
+                  // parent.frame())`).
+                  case CallSpecial(var ast) -> calls(consts.get(ast), names);
                   case BaseGuard(var expr, var _) -> isIn(consts.get(expr).fun(), names);
                   case MakeProm(var code) -> calls(consts.get(code), names);
                   default -> false;
