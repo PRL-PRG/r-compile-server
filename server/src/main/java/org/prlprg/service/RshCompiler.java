@@ -45,6 +45,9 @@ public class RshCompiler {
           "-fno-plt",
           "-fexceptions",
           "-fstack-clash-protection",
+          // GNU-R rounds each arithmetic operation, so `a * b + c` must not become a fused
+          // multiply-add (GCC's default contracts across statements, clang's within one).
+          "-ffp-contract=off",
           //          "-fcf-protection",
           "-Wformat",
           "-Werror=format-security",

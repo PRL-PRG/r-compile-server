@@ -641,6 +641,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../server/ServerTests.java` — RPC tests (`Compile`, `CompileFirVersion`, `CompileFirClosure`).
 - `.../server/JitTieringTest.java` — End-to-end test of the JIT tiers with an R process.
 - `.../server/RshConstants.java` — Constants shared with `rsh`.
+- `.../service/RshCompilerTest.java` — Modules compile without floating-point contraction (`-ffp-contract=off`).
 - `.../session/`, `.../session/gnur/` — R session tests, and `GNUR`, the R processes that tests evaluate in.
 - `.../snapshot/` — Snapshot framework (`Query`, `SnapshotStore`, `DeterminismTest`).
 - `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand; `bench/VersionBenchmark` counts the versions per function after the benchmark call runs on the lazy module).
