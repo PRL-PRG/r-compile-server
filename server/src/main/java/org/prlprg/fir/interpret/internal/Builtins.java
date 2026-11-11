@@ -2466,7 +2466,7 @@ public final class Builtins {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
                 throw interpreter.fail("`as.character` generic takes (sexp, dots)");
               }
-              return new Value.Sexp(SEXPs.string(sexpToString(sexp)));
+              return new Value.Sexp(SEXPs.string(sexpToString(sexp, interpreter, "as.character")));
             }));
     // v1: (V, miss) --> S
     interpreter.registerExternal(
@@ -2475,7 +2475,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
-              return new Value.Str(sexpToString(sexp));
+              return new Value.Str(sexpToString(sexp, interpreter, "as.character"));
             }));
   }
 
@@ -2718,7 +2718,7 @@ public final class Builtins {
       case LglSXP l -> l.stream().map(e -> e == Logical.NA ? "NA" : e.toString()).toList();
       case IntSXP i ->
           i.stream().map(e -> e == Constants.NA_INT ? "NA" : String.valueOf(e)).toList();
-      case RealSXP r -> r.stream().map(Builtins::formatReal).toList();
+      case RealSXP r -> r.stream().map(e -> formatReal(e, 7)).toList();
       case ListOrVectorSXP<?> v when v.isEmpty() -> List.of();
       default ->
           throw interpreter.fail(
@@ -2730,14 +2730,14 @@ public final class Builtins {
     };
   }
 
-  /// GNU-R's `formatReal` of one element with the default 7 significant digits: fixed notation,
-  /// unless scientific notation is shorter.
-  private static String formatReal(double x) {
+  /// GNU-R's `formatReal` of one element with `significant` digits (7 by default, 15 in
+  /// `as.character`): fixed notation, unless scientific notation is shorter.
+  private static String formatReal(double x, int significant) {
     if (Constants.isNaReal(x)) return "NA";
     if (Double.isNaN(x)) return "NaN";
     if (Double.isInfinite(x)) return x > 0 ? "Inf" : "-Inf";
     if (x == 0) return "0";
-    var rounded = new BigDecimal(x).round(new MathContext(7)).stripTrailingZeros();
+    var rounded = new BigDecimal(x).round(new MathContext(significant)).stripTrailingZeros();
     var fixed = rounded.toPlainString();
     var digits = rounded.unscaledValue().abs().toString();
     var exponent = rounded.precision() - rounded.scale() - 1;
@@ -3279,7 +3279,7 @@ public final class Builtins {
             case RealSXP rv -> {
               for (int i = 0; i < rv.size(); i++)
                 res[idx++] =
-                    Constants.isNaReal(rv.get(i)) ? Constants.NA_STRING : String.valueOf(rv.get(i));
+                    Constants.isNaReal(rv.get(i)) ? Constants.NA_STRING : formatReal(rv.get(i), 15);
             }
             case StrSXP sv -> {
               for (int i = 0; i < sv.size(); i++) res[idx++] = sv.get(i);
@@ -3599,7 +3599,7 @@ public final class Builtins {
       case REAL -> new Value.Real(sexpToDouble(sexp, interpreter, ctx));
       case INT -> new Value.Int(sexpToInt(sexp, interpreter, ctx));
       case LGL -> new Value.Lgl(sexpToLogical(sexp, interpreter, ctx));
-      case STR -> new Value.Str(sexpToString(sexp));
+      case STR -> new Value.Str(sexpToString(sexp, interpreter, ctx));
       default -> throw interpreter.failUnsupported("Unsupported target type for " + ctx);
     };
   }
@@ -3646,12 +3646,22 @@ public final class Builtins {
         "Mock " + ctx + " only implemented for scalar convertible to logical");
   }
 
-  private static String sexpToString(SEXP sexp) {
+  /// GNU-R's `as.character` of a scalar.
+  private static String sexpToString(SEXP sexp, InternalInterpreter interpreter, String ctx) {
     if (sexp.asScalarString().isPresent()) return sexp.asScalarString().get();
-    if (sexp.asScalarInteger().isPresent()) return String.valueOf(sexp.asScalarInteger().get());
-    if (sexp.asScalarReal().isPresent()) return String.valueOf(sexp.asScalarReal().get());
-    if (sexp.asScalarLogical().isPresent()) return sexp.asScalarLogical().get().toString();
-    return sexp.toString();
+    if (sexp.asScalarInteger().isPresent()) {
+      var i = sexp.asScalarInteger().get();
+      return i == Constants.NA_INT ? Constants.NA_STRING : String.valueOf(i);
+    }
+    if (sexp.asScalarReal().isPresent()) {
+      var r = sexp.asScalarReal().get();
+      return Constants.isNaReal(r) ? Constants.NA_STRING : formatReal(r, 15);
+    }
+    if (sexp.asScalarLogical().isPresent()) {
+      var l = sexp.asScalarLogical().get();
+      return l == Logical.NA ? Constants.NA_STRING : l.toString();
+    }
+    throw interpreter.failUnsupported("Mock " + ctx + " only implemented for an atomic scalar");
   }
 
   private static SEXP valueToSexp(Value value) {
