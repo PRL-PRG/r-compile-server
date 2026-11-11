@@ -3055,31 +3055,11 @@ public final class Fir2CCompiler {
             }
           }
 
-          /// The parameter of `st variable = value` at the closure's entry, if `value` is the phi
-          /// that merges the parameter with its default (see `bc2fir`'s `compileParameter`). GNU-R
-          /// marks the binding of an unsupplied parameter with a default, so `missing` is TRUE
-          /// until it is assigned again.
+          /// [Function#defaultedParameter] at the closure's entry, if the C code keeps it a SEXP.
           private @Nullable Register defaultedParameter(NamedVariable variable, Argument value) {
-            var index = function.parameterNames().indexOf(variable);
-            if (cfg != root
-                || index < 0
-                || function.formals().get(index).value().equals(SEXPs.MISSING_ARG)
-                || !(value instanceof Read(var phi))) {
-              return null;
-            }
-            Register parameter = version.parameters().get(index);
-            var parameterRead = new Read(parameter);
-            return registerRepr(parameter) == Repr.SEXP
-                    && cfg.bbs().stream()
-                        .anyMatch(
-                            bb -> {
-                              var phiIndex = bb.phiParameters().indexOf(phi);
-                              return phiIndex >= 0
-                                  && bb.phiArguments(phiIndex).stream()
-                                      .anyMatch(as -> as.contains(parameterRead));
-                            })
-                ? parameter
-                : null;
+            var parameter =
+                cfg == root ? function.defaultedParameter(version, cfg, variable, value) : null;
+            return parameter != null && registerRepr(parameter) == Repr.SEXP ? parameter : null;
           }
 
           /// Bit `i` is set if `args[i]` is a register whose value may be a symbol or a call,

@@ -153,6 +153,10 @@ public final class InternalInterpreter implements Interpreter {
   /// compiler assumed weren't reflectively accessed ([MkEnvType#NON_REFLECTIVE]) or were
   /// [elided][MkEnvType#ELIDED].
   private final Map<EnvSXP, Statement> userEnvPositions = new HashMap<>();
+  /// GNU-R's `MISSING` mark of a binding of an unsupplied parameter with a default: each
+  /// environment's marked variables, with the value they were bound to (another binding clears
+  /// the mark).
+  private final Map<EnvSXP, Map<String, SEXP>> missingMarks = new IdentityHashMap<>();
 
   /// Whether the most-recently-returned [#run(StackFrame, CFG, Abstraction)] deopt-restored at
   /// some point. Set right before `run` returns and consumed (reset) by [#call]; used to check
@@ -849,6 +853,7 @@ public final class InternalInterpreter implements Interpreter {
             case LOCAL_VAR -> {
               var value = run(statement.arg(0));
               topFrame().put(variable, value);
+              markMissing(statement, variable, value);
               yield null;
             }
             case SUPER_VAR -> {
@@ -1035,6 +1040,34 @@ public final class InternalInterpreter implements Interpreter {
       throw fail("Uninitialized register: " + register);
     }
     return value;
+  }
+
+  /// Mark the binding of `st variable = value` missing if it binds an unsupplied parameter's
+  /// default at the closure's entry ([Function#defaultedParameter]), and clear the mark otherwise.
+  private void markMissing(Statement statement, NamedVariable variable, Value value) {
+    var frame = topFrame();
+    var cfg = Objects.requireNonNull(statement.parentBB()).owner();
+    var version = cfg.scope();
+    var parameter =
+        cfg == version.body() || cfg == version.fallback()
+            ? frame.function().defaultedParameter(version, cfg, variable, statement.arg(0))
+            : null;
+    var marks = missingMarks.computeIfAbsent(frame.environment(), _ -> new HashMap<>());
+    if (parameter != null
+        && new Value.Sexp(SEXPs.MISSING_ARG).equals(frame.get(parameter))
+        && value instanceof Value.Sexp(var sexp)
+        && sexp != SEXPs.MISSING_ARG) {
+      marks.put(variable.name(), sexp);
+    } else {
+      marks.remove(variable.name());
+    }
+  }
+
+  /// Whether `binding`, the value of `name` in the current environment, has GNU-R's `MISSING`
+  /// mark (see [#markMissing]).
+  boolean isMarkedMissing(String name, SEXP binding) {
+    var marks = missingMarks.get(topFrame().environment());
+    return marks != null && marks.get(name) == binding;
   }
 
   /// Lookup the named variable (in the environment hierarchy) and crash if it's not defined.

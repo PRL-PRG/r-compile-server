@@ -16,6 +16,9 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.LazyBody;
+import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.properties.FunctionUserProperties;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
@@ -146,6 +149,32 @@ public final class Function {
           "Formals " + formals + " don't match parameter names " + parameterNames);
     }
     this.formals = formals;
+  }
+
+  /// The parameter of `st variable = value` in `cfg`, a CFG of `version` that runs at the
+  /// closure's entry, if `value` is the phi that merges the parameter with its default (see
+  /// `bc2fir`'s `compileParameter`). GNU-R marks the binding of an unsupplied parameter with a
+  /// default, so `missing` is TRUE until it is assigned again.
+  public @Nullable FunctionParameter defaultedParameter(
+      Abstraction version, CFG cfg, NamedVariable variable, Argument value) {
+    var index = parameterNames.indexOf(variable);
+    if (index < 0
+        || formals().get(index).value().equals(SEXPs.MISSING_ARG)
+        || !(value instanceof Read(var phi))) {
+      return null;
+    }
+    var parameter = version.parameters().get(index);
+    var parameterRead = new Read(parameter);
+    return cfg.bbs().stream()
+            .anyMatch(
+                bb -> {
+                  var phiIndex = bb.phiParameters().indexOf(phi);
+                  return phiIndex >= 0
+                      && bb.phiArguments(phiIndex).stream()
+                          .anyMatch(as -> as.contains(parameterRead));
+                })
+        ? parameter
+        : null;
   }
 
   /// Returns the function's baseline.

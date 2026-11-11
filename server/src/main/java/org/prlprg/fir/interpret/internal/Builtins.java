@@ -2573,7 +2573,8 @@ public final class Builtins {
   /// is missing if that symbol is missing in the promise's environment. Reading that environment
   /// is reflective (it observes the caller's frame), so it's marked
   /// [reflective][org.prlprg.fir.feedback.AbstractionFeedback#reflectiveEnvs]. Any other argument
-  /// is missing only if it is the missing argument.
+  /// is missing only if it is the missing argument. A parameter's default bound at the closure's
+  /// entry is missing until the variable is bound again (GNU-R's `MISSING` mark).
   private static boolean isMissing(InternalInterpreter runtime, Value arg) {
     var name =
         switch (arg) {
@@ -2585,6 +2586,9 @@ public final class Builtins {
       return isMissingArg(arg);
     }
     SEXP binding = runtime.load(Variable.named(name));
+    if (runtime.isMarkedMissing(name, binding)) {
+      return true;
+    }
     while (binding instanceof PromSXP promise
         && promise.boundVal() == null
         && promise.expr() instanceof RegSymSXP promiseSymbol) {
