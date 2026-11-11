@@ -654,6 +654,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/closure_called_from_inlined_frame_in_elided_frame.R` — A closure made in a real frame inside an elided frame, called with its own elided frame: no cycle in the parent chain.
 - `.../examples/R/closure_from_frame_nested_in_elided_frame.R` — A closure from a real frame that an elided frame contains: its lookups reach the elided frame's parent, not the elided environment's current parent.
 - `.../examples/R/elided_frame_after_caught_error.R` — An elided frame whose callee, called from R, catches an error past a pushed elided frame: the from-R exit restores the elided environment's parent.
+- `.../examples/R/attributes_fail_type_guard.R` — A value with attributes (a name) fails the type guard of a version typed from plain values (`Fir_value_kind_matches`), and deopts.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
 - `.../examples/R/closure_super_assigns_defining_frame.R` — A closure stores into a variable of its defining frame with `<<-` (`OriginAnalysis` must not keep the variable's origin across the call).
 - `.../examples/R/promise_forced_after_rebinding.R` — A closure keeps a promise argument, and the function rebinds the variable before it returns; the promise is forced later, so it reads the new binding (`OriginAnalysis` must see the bindings at `popenv`).

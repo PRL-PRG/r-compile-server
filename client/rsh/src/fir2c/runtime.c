@@ -215,6 +215,11 @@ bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type) {
 }
 
 static bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
+  // A primitive kind means no attributes, as in the server's `Type.of`.
+  if ((kind.tag == FIR_KIND_PRIMITIVE_SCALAR || kind.tag == FIR_KIND_PRIMITIVE_VECTOR1 ||
+       kind.tag == FIR_KIND_PRIMITIVE_VECTOR || kind.tag == FIR_KIND_BOOLEAN) &&
+      ATTRIB(value) != R_NilValue)
+    return false;
   switch (kind.tag) {
   case FIR_KIND_ANY_VALUE:
     return true;
