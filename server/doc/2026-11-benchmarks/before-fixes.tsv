@@ -1,0 +1,26 @@
+benchmark	time	bc_opt	note
+ai_awf_fibonacci	0.02812	0.292	
+ai_awf_permute	0.01431	0.08475	
+ai_awf_permute_fake	0.00125	0.0125	
+ai_awf_queens	0.02256	0.04725	
+ai_awf_sieve	9.546e-05	0.001242	
+ai_awf_towers	0.006016	0.122	
+awf_bounce	0.002742	0.002719	
+awf_bounce_nonames	0.0009844	0.00168	
+awf_mandelbrot	4.492e-05	0.0002822	
+awf_storage	0.002344	0.003141	
+shootout_binarytrees_naive	0.175	0.217	
+simple_bytecodes	6.104e-06	0.004172	
+simple_empty_for	9.766e-07	3.613e-05	
+simple_empty_while	6.348e-06	0.0001392	
+simple_lapply	0.001695	0.00175	
+simple_lapply_dots	0.002344	0.002398	
+simple_list_for	0.001828	0.001656	
+simple_list_while	0.001766	0.001781	
+simple_matrix_for	0.0005664	0.0002061	
+simple_promise_reflect	0.0009609	0.0009531	
+simple_scalar-while	6.104e-06	0.0002686	
+simple_scalar_for	9.766e-07	0.0001519	
+simple_super_while	0.000374	0.001137	
+simple_vector_for	0.0001533	0.0001509	
+simple_vector_while	0.0001538	0.0002939	

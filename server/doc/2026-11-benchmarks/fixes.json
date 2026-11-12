@@ -1,3 +1,34 @@
 {
- "blockRoot": "3042a7d73"
+ "blockRoot": "3042a7d73",
+ "blockIntro": "State `00` is not the old base of the chain. It adds a block of fixes of problems that are older than the chain. So every state of the chain contains them. The list shows the fixes in groups. Open a group to see its commits.",
+ "blockGroups": {
+  "ownership": "Ownership: a dots element or another use that is not a borrow shares an owned vector.",
+  "origins": "Origin analysis, loads and stores: promise origins, leaked promises, forces, and the stores that a promise can read.",
+  "effects": "Effects and promises: `@signals` versions, assumptions in promise bodies, and the order of a strict promise and the callee.",
+  "mocks": "Interpreter mocks: the mocks of the FIŘ interpreter match GNU-R, or fail as unsupported.",
+  "frames": "Frames: the parent of a real frame in an elided frame, and the elided parent after a caught error.",
+  "calls": "Calls: tags and promise arguments of static and dynamic calls, defaults and `missing`, and the context of a special call.",
+  "values": "Runtime values: type guards, unboxed builtins and subscripts, `:`, `for` sequences, and floating-point contraction.",
+  "checker": "Checker and parser: the type of `...` and the check of an assumption.",
+  "R": "Vendored R: the reflection mark, the frames of compiled code for `sys.frame`, and the source of a compiled closure's body."
+ },
+ "costs": "The fixes make four benchmarks slower. The numbers come from the checks of each fix, not from the table. `binarytrees_naive` is about 30 % slower: `StrictifyPromise` keeps a promise that can warn in order with the callee's own conditions, so the versions with the arguments `(item:I, depth:R)` are gone. `permute` is about 14 % slower: at `popenv`, the origin analysis gives a leaked promise's body the last bindings, which is less precise, so `count` is not promoted. `mandelbrot` is about 12 % slower: `SpecializeLocalPromise` does not speculate that a promise is local when it never ran while the feedback was recorded. `queens` is about 6 % slower: a definite force keeps the leaked promises, so seven `prom{ld board}` are no longer strict. The earlier speedup of `queens` came from that fault.",
+ "findings": {
+  "01-origins-rerun": "Re-entrant force: a force of a promise whose body's analysis runs applies the effects of the body.",
+  "06-cold-builtin-callee": "F06a: `SpeculateAssume` assumes a cold builtin callee only if it runs no R code. F06b (before the chain): `DeferIntoPromise` does not move an assumption into a promise body.",
+  "07-forward-param-promise": "F07a: `StrictifyPromise` forwards a promise parameter only to a callee whose frame does not escape. F07b (before the chain): a deopt stub reads its variables, and at `popenv` a leaked promise's body sees the last bindings.",
+  "08-interpreter-mocks": "Mock differences from GNU-R: the empty name, `drop` and `exact`, a matrix without dimensions, logical subscripts, and the reflection mark of `ls`.",
+  "10-static-matrix-subassign": "F10 (before the chain): a static builtin call passes the tags of its source call, not the parameter names.",
+  "11-store-only-promotion": "F11 (before the chain): a load of `..N` is a load of `...`.",
+  "12-reuse-dominating-force": "F12 (before the chain): `@signals` marks the versions that can warn or raise an error, and `StrictifyPromise` keeps them in order.",
+  "16-inline-scalar-helpers": "F16 (before the chain): the modules and the runtime compile with `-ffp-contract=off`.",
+  "17-maybe-unbound-promotion": "F17: a merge without a phi puts its dominance frontier on the worklist (before the chain), and a write-back on a check edge goes before the check.",
+  "18-subscript-default-method": "F18: the default subassign method gets a counted reference to its target.",
+  "19-store-only-store-back": "F19: `PromoteStaticallyKnownVariables` removes the unreachable blocks first.",
+  "21-shared-promise-code": "F21: a pop marks R's frame as returned only if `applyClosure` made it for this activation.",
+  "24-inline-elided-push-pop": "`sys.frame`: the inline push and pop of an elided frame record it in the vendored R's `Rsh_Frames`.",
+  "25-elide-range-read": "F25 (before the chain): the unboxed `:` is GNU-R's `seq_colon`. The loop index is the `forIndex` intrinsic, and `ElideRangeRead` matches it.",
+  "27-hot-path-bookkeeping": "F27: the outermost pop sets the elided environment's parent to `R_EmptyEnv`, and the elided depth lives in the vendored R.",
+  "28-own-phi-web": "F28: `OwnPhiWeb` does not take a register that an earlier use shares. The checker shares an owned value where a shared one is expected, and `DeferIntoPromise` does not defer a read of a vector that a statement outside the promise makes."
+ }
 }

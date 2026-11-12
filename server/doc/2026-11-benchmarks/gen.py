@@ -2,6 +2,7 @@
 """Write report.html: the fir2c.opt optimization log (list, code changes, optional speedup table).
 
 Usage: python3 gen.py [--bench DIR] [--out FILE] [--allow-empty]
+       python3 gen.py --save-before RUNDIR
 """
 import argparse, base64, csv, glob, html, json, math, os, re, statistics, subprocess, sys, zlib
 
@@ -379,6 +380,85 @@ def table_html(bench, opts):
             f'<tbody>{"".join(rows)}</tbody><tfoot><tr>{"".join(gm)}</tr></tfoot></table></div>')
 
 
+# ---------------------------------------------------------------- fixes (fixes.json, block.tsv, before-fixes.tsv)
+
+def best(rows):
+    """The faster of the two fir2c.opt runs of one benchmark (rows: removed -> time), or None."""
+    return min((x for x in (rows.get('<none>'), rows.get('<none> (rerun)')) if x), default=None)
+
+
+def save_before(rundir):
+    """Write before-fixes.tsv from the run of the final state before the fixes."""
+    notes = {}
+    if os.path.exists(os.path.join(rundir, 'notes.json')):
+        notes = json.load(open(os.path.join(rundir, 'notes.json')))
+    out = ['benchmark\ttime\tbc_opt\tnote']
+    for f in sorted(glob.glob(os.path.join(rundir, 'csv', 'bench_*.csv'))):
+        rows = {r['removed']: num(r['time']) for r in csv.DictReader(open(f, encoding='utf-8'))}
+        b = os.path.basename(f)[:-len('.csv')]
+        out.append('\t'.join([b.removeprefix('bench_'), str(best(rows) or ''), str(rows.get('bc.opt') or ''), notes.get(b, '')]))
+    with open(os.path.join(HERE, 'before-fixes.tsv'), 'w', encoding='utf-8') as f: f.write('\n'.join(out) + '\n')
+    print(f'wrote before-fixes.tsv ({len(out) - 1} benchmarks from {rundir})')
+
+
+def load_fixes(opts):
+    fx = json.load(open(os.path.join(HERE, 'fixes.json'), encoding='utf-8'))
+    group = dict(l.rstrip('\n').split('\t', 1)[::-1] for l in open(os.path.join(HERE, 'block.tsv'), encoding='utf-8'))
+    subs = git('log', '--reverse', '--format=%s', f'{fx["blockRoot"]}..{opts[0]["pre"]}').splitlines()
+    errs = [f'block.tsv: no group for the commit "{x}"' for x in subs if x not in group]
+    errs += [f'block.tsv: the group "{g}" is not in fixes.json' for g in set(group.values()) if g not in fx['blockGroups']]
+    errs += [f'fixes.json: "findings" has {k}, which is not an optimization' for k in fx['findings'] if k not in {o['id'] for o in opts}]
+    if errs: sys.exit('gen.py: the fixes are not valid:\n  ' + '\n  '.join(errs))
+    fx['block'] = {}
+    for x in subs: fx['block'].setdefault(group[x], []).append(x)
+    fx['before'] = {r['benchmark']: r for r in csv.DictReader(open(os.path.join(HERE, 'before-fixes.tsv'), encoding='utf-8'), delimiter='\t')}
+    return fx
+
+
+def block_html(fx, pre):
+    n = sum(map(len, fx['block'].values()))
+    items = ''.join(f'<li><details><summary><b>{len(fx["block"][g])}</b> {mdi(t)}</summary><ul>'
+                    + ''.join(f'<li>{mdi(x)}</li>' for x in fx['block'][g]) + '</ul></details></li>'
+                    for g, t in fx['blockGroups'].items() if g in fx['block'])
+    return (f'<section class="part" id="pre"><div class="wrap"><h2>Before the chain</h2>'
+            f'<p class="lede">{n} commits <code>{fx["blockRoot"]}..{pre}</code>, in state <code>00</code>.</p>'
+            f'<div class="prose">{md(fx["blockIntro"])}</div><ul class="blockg">{items}</ul></div></section>')
+
+
+def fixes_html(fx, bench, opts):
+    last = opts[-1]['id']
+    st = next((s for s in bench['states'] if s['id'] == last), None) if bench else None
+    rows, sps, rel = [], [], []
+    for b in sorted(set(fx['before']) | set(st['data'] if st else ())):
+        o, n = fx['before'].get(b, {}), (st['data'].get(b, {}) if st else {})
+        to, bo, tn, bn = num(o.get('time')), num(o.get('bc_opt')), best(n), n.get('bc.opt')
+        bad = [x for x in (o.get('note'), st and st['notes'].get(b)) if x and x.startswith('value:')]
+        cell = lambda v: f'<b class="{sp_class(v)}">{sp_pct(v)}</b>' if v else '–'
+        sp = to / tn if to and tn and not bad else None
+        r = sp * bn / bo if sp and bo and bn else None
+        if sp: sps.append(sp)
+        if r: rel.append(r)
+        rows.append(f'<tr><th scope="row">{esc(b)}</th><td>{fmt_t(to) if to else "–"}</td><td>{fmt_t(tn) if tn else "–"}</td>'
+                    f'<td>{cell(sp)}</td><td>{cell(r)}{"<span class=\"fl bad\" title=\"" + esc("; ".join(bad)) + "\">!</span>" if bad else ""}</td></tr>')
+    g = lambda xs: f'<b class="{sp_class(gmean(xs))}">{sp_pct(gmean(xs))}</b>' if xs else '–'
+    table = ('<div class="tw"><table class="sf"><thead><tr><th scope="col">Benchmark</th><th scope="col">before</th><th scope="col">after</th>'
+             '<th scope="col">speedup</th><th scope="col">speedup vs. bc.opt</th></tr></thead>'
+             f'<tbody>{"".join(rows)}</tbody><tfoot><tr><th scope="row">geomean</th><td></td><td></td><td>{g(sps)}</td><td>{g(rel)}</td></tr></tfoot></table></div>')
+    byid = {o['id']: o for o in opts}
+    finds = ''.join(f'<li><a href="#opt-{k}"><span class="no">{k[:2]}</span>{mdi(byid[k]["title"])}</a>: {mdi(v)}</li>'
+                    for k, v in sorted(fx['findings'].items()))
+    when = f'state <code>{last[:2]}</code> of this run' if st else 'state <code>%s</code> (not measured)' % last[:2]
+    return ('<section class="part" id="fixes"><div class="wrap"><h2>Soundness fixes</h2>'
+            f'<p class="lede">The final state before the fixes (<code>before-fixes.tsv</code>, from the run of the old history) and after them ({when}).</p>'
+            '<div class="caption"><p>A time is the faster of the two fir2c.opt runs, without load correction. The speedup is the time before divided by '
+            'the time after. The speedup vs. bc.opt divides each time by the bc.opt time of the same run first, so it does not depend on the load. '
+            'A value within ±12 % is noise. A red <b>!</b> marks a wrong benchmark value; its speedups are not computed.</p></div>'
+            + table + f'<div class="prose">{md(fx["costs"])}</div>'
+            '<h3>Fixes of each optimization</h3><p class="lede">The faults that the fixes of each optimization remove. '
+            'A fix “before the chain” is in state <code>00</code>; the others are part of the commits of the optimization.</p>'
+            f'<ul class="finds">{finds}</ul></div></section>')
+
+
 # ---------------------------------------------------------------- page
 
 LIGHT = {'bg': '#f5f6f8', 'panel': '#ffffff', 'sunk': '#eef0f4', 'fg': '#1a1e26', 'muted': '#5a6372', 'line': '#dbe0e8',
@@ -492,6 +572,9 @@ table.diff tr.fold td { padding: 0; }
 table.diff tr.fold button { all: unset; box-sizing: border-box; cursor: pointer; display: block; width: 100%; padding: 3px 10px; background: var(--accentbg); color: var(--accent); font: 0.76rem var(--sans); }
 table.diff tr.fold button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* table */
+ul.blockg, ul.finds { margin: 12px 0 0; padding-left: 1.2rem; display: grid; gap: 6px; max-width: 80ch; } ul.blockg summary { cursor: pointer; } ul.blockg ul { font-size: 0.86rem; color: var(--muted); }
+ul.finds .no { font: 600 0.8rem var(--mono); margin-right: 6px; } table.sf { border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; margin: 12px 0 18px; }
+table.sf th, table.sf td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; } table.sf td { font-family: var(--mono); font-size: 0.76rem; } table.sf tbody th, table.sf tfoot th { text-align: left; font-family: var(--mono); font-weight: 500; } table.sf thead th { background: var(--sunk); }
 .caption { max-width: 90ch; color: var(--muted); font-size: 0.86rem; margin: 0 0 14px; }
 .caption p { margin: 0 0 6px; }
 .notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; } .notes li { display: flex; gap: 8px; align-items: baseline; }
@@ -682,9 +765,10 @@ PAGE = '''<title>fir2c.opt Optimization Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Space+Grotesk:wght@500;600&display=swap">
 <style><!--@CSS@--></style>
-<nav class="top" aria-label="Sections"><div class="wrap"><b>fir2c.opt log</b><a href="#list">List</a><a href="#code">Code changes</a><!--@NAVTABLE@--></div></nav>
+<nav class="top" aria-label="Sections"><div class="wrap"><b>fir2c.opt log</b><a href="#pre">Before the chain</a><a href="#list">List</a><a href="#code">Code changes</a><!--@NAVTABLE@--><a href="#fixes">Soundness fixes</a></div></nav>
 <main>
 <header class="intro wrap"><!--@HEADER@--></header>
+<!--@PRE@-->
 <section class="part" id="list"><div class="wrap"><h2>Optimizations</h2>
 <p class="lede">In the order they were committed. Line counts are without tests (with tests) and link to the code changes; the speedups link to the column in the speedup table.</p>
 <ol class="opts"><!--@LIST@--></ol></div></section>
@@ -692,6 +776,7 @@ PAGE = '''<title>fir2c.opt Optimization Log</title>
 <p class="lede">Commits and changed files of each optimization. Select a file to compare it before and after the range. Line counts are without tests (with tests); a directory with only test files or no test files shows one pair.</p>
 <!--@CODE@--></div></section>
 <!--@TABLE@-->
+<!--@FIXES@-->
 </main>
 <script async id="hljs-js" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script><!--@JS@--></script>
@@ -703,10 +788,13 @@ def main():
     ap.add_argument('--bench', default=os.path.join(HERE, 'runs'), help='benchmark directory: <dir>/<state>/csv/bench_*.csv (default: runs)')
     ap.add_argument('--out', default=os.path.join(HERE, 'report.html'), help='output file (default: report.html)')
     ap.add_argument('--allow-empty', action='store_true', help='accept empty strings in content files')
+    ap.add_argument('--save-before', metavar='RUNDIR', help='write before-fixes.tsv from the run of the final state before the fixes, then exit')
     args = ap.parse_args()
+    if args.save_before: return save_before(args.save_before)
     opts = json.load(open(os.path.join(HERE, 'skeleton.json'), encoding='utf-8'))
     RANGE = (opts[0]['pre'], opts[-1]['post'])  # the pins (see ranges.tsv)
     content = load_content(opts, args.allow_empty)
+    fx = load_fixes(opts)
     ids = [o['id'] for o in opts]
     if args.bench and not os.path.isdir(args.bench): sys.exit(f'gen.py: {args.bench} is not a directory')
     bench = load_bench(args.bench, ids) if args.bench else None
@@ -800,7 +888,7 @@ def main():
                  + notes_html(bench) + '</div>' + table_html(bench, opts) + '</div></section>')
 
     parts = {'CSS': CSS.replace('@@LIGHT@@', tokens(LIGHT)).replace('@@DARK@@', tokens(DARK)), 'JS': JS,
-             'HEADER': header, 'LIST': ''.join(lst), 'CODE': ''.join(code), 'TABLE': table, 'NAVTABLE': nav_table}
+             'HEADER': header, 'PRE': block_html(fx, RANGE[0]), 'FIXES': fixes_html(fx, bench, opts), 'LIST': ''.join(lst), 'CODE': ''.join(code), 'TABLE': table, 'NAVTABLE': nav_table}
     page = re.sub(r'<!--@(\w+)@-->', lambda m: parts.pop(m.group(1)), PAGE)
     assert not parts, parts
     assert '@@' not in page[:page.index('</style>')], 'unresolved CSS marker'
