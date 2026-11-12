@@ -4,7 +4,7 @@
 # (00-pre, then each id of skeleton.json), or NAME@SHA for an extra state. Default: all 29.
 # A state with a DONE marker is skipped. A failed state does not stop the chain.
 # Env overrides (for scratch runs): RUNS (results root), EXAMPLES (space-separated example names;
-# default: every `#? benchmark:` example), MIN_TIMED (default 24, or the count of EXAMPLES),
+# default: every `bench_*` example with a `#? benchmark:` line), MIN_TIMED (default 24, or the count of EXAMPLES),
 # BUILD_LIMIT, BENCH_LIMIT, CHECK_LIMIT (seconds), QUIET_LOAD, QUIET_WAIT, MIN_FREE_GB.
 set -uo pipefail
 B=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -121,7 +121,7 @@ measure() {
   [ -x "$W/R/bin/R" ] && [ ! -L "$W/R" ] || { REASON="worktree R is broken"; return 1; }
   echo "$full" >"$D/commit"
   if (( EXAMPLES_SET )); then EXAMPLE_LIST=$EXAMPLES
-  else EXAMPLE_LIST=$(grep -l '^#? benchmark:' "$EXDIR"/*.R | xargs -n1 basename | sed 's/\.R$//' | LC_ALL=C sort); fi
+  else EXAMPLE_LIST=$(grep -l '^#? benchmark:' "$EXDIR"/bench_*.R | xargs -n1 basename | sed 's/\.R$//' | LC_ALL=C sort); fi
 
   # 2. Build from scratch: no stale classes, compile cache or snapshots of an earlier state.
   wipe_output
