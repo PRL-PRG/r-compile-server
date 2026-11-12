@@ -94,7 +94,7 @@ machine_id() {   # "key: value" lines; export_csv.py reads os and cpu
   echo "os: $os"; echo "kernel: $(uname -srm)"; echo "cpu: ${cpu:-unknown}"
   echo "cores: $cores"; echo "memory_gb: $mem"; echo "host: $(hostname)"
   echo "cc: $(${CC:-gcc} --version 2>&1 | head -1)"   # AppConfig.CC, default gcc
-  echo "java: $(java -version 2>&1 | head -1) (JAVA_HOME=${JAVA_HOME:-unset})"
+  echo "java: $(java -version 2>&1 | grep -m1 version) (JAVA_HOME=${JAVA_HOME:-unset})"
   echo "R: $(env -u R_HOME "$REPO/R/bin/R" --version 2>&1 | head -1)"
 }
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
