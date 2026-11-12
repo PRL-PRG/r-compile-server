@@ -1,16 +1,17 @@
 {
  "title": "Reuse a dominating force of the same promise",
  "motivation": "In `bench_shootout_binarytrees_naive` `tree`, the argument promise for `depth - 1` forced and type-checked `depth` again, although the version had already forced it. The second force brought a checkpoint into the promise body. That checkpoint stopped `StrictifyPromise` from inlining the promise, so each recursive call allocated it. `permute` and `queens` had the same pattern.",
- "solution": "`DefiniteForce` now forwards a `force` to the result of a dominating `force` of the same SEXP. It looks through `AssumeType` and `Cast` chains, and it crosses only local promises (`prom-`). The earlier result type must be a subtype of the later one. `ElideTrivialAssume` also removes a type assumption whose result is unused, because only that result carries the assumption. Then `StrictifyPromise` can inline the promise, and `tree` passes an unboxed `R` instead of a promise.",
+ "solution": "`DefiniteForce` now forwards a `force` to the result of a dominating `force` of the same SEXP. It looks through `AssumeType` and `Cast` chains, and it crosses only local promises (`prom-`). The earlier result type must be a subtype of the later one. `ElideTrivialAssume` also removes an unused maybe-promise type assumption if a dominating force of the same SEXP has a result of its kind, because then the assumption always succeeds. An unused assumption without such a force stays: another statement can depend on its type, for example a removed `checkMissing`. Then `StrictifyPromise` can inline the promise, and `tree` passes an unboxed `R` instead of a promise.",
  "commitKinds": {
   "a5dbe03b5": "optimization"
  },
  "files": {
-  "repo-map.md": "Names the new rules in the lines of `DefiniteForce.java` and `ElideTrivialAssume.java`, and adds an entry for the example `unforced_promise_overflow.R`.",
+  "repo-map.md": "Names the new rules in the lines of `DefiniteForce.java` and `ElideTrivialAssume.java`, and adds entries for the examples `unforced_promise_overflow.R` and `missing_arg_forced_in_branch.R`.",
   "server/src/main/java/org/prlprg/fir/opt/specialize/DefiniteForce.java": "Adds `dominatingForce`, which finds a dominating force of the same SEXP through assumptions and casts, across local promises only.",
-  "server/src/main/java/org/prlprg/fir/opt/specialize/ElideTrivialAssume.java": "Removes an `AssumeType` that has no assignee or an unused assignee.",
+  "server/src/main/java/org/prlprg/fir/opt/specialize/ElideTrivialAssume.java": "Removes an unused maybe-promise `AssumeType` if `DefiniteForce#dominatingForce` finds a dominating force whose result has the kind of the assumption.",
   "server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java": "Adds tests for forwarding through local promises and assumption chains, and for the non-local, non-dominated, and narrower-type cases.",
-  "server/src/test/java/org/prlprg/fir/opt/specialize/ElideTrivialAssumeTest.java": "Adds tests that an unused type assumption is removed and that used, function, and constant assumptions stay.",
+  "server/src/test/java/org/prlprg/fir/opt/specialize/ElideTrivialAssumeTest.java": "Adds tests that an unused maybe-promise assumption after a force is removed, and that an unused assumption without a force, a used assumption, and function and constant assumptions stay.",
+  "server/src/test/resources/org/prlprg/examples/R/missing_arg_forced_in_branch.R": "New example: `if (b) a` forces a missing `a` after a warmup that passed `a` only with a TRUE `b`. The call `f(, TRUE)` must stop with an error, not return 2.",
   "server/src/test/resources/org/prlprg/examples/R/unforced_promise_overflow.R": "New example: a promise `d + 1L` that would overflow goes to a recursive call that returns without forcing it, so nothing warns."
  }
 }
