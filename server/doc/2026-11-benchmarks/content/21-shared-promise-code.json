@@ -1,16 +1,17 @@
 {
  "title": "Allocate only the promise cell for capture-free promises",
  "motivation": "Each compiled promise cost four allocations (the data vector, the local-data raw vector, the external pointer to the code, and the `PROMSXP`) and one cons on the tracking list. This was also the case for a promise whose body captures no register and reads only its environment, so the per-execution parts carried no per-execution state. The promise-heavy benchmarks permute, binarytrees, storage and queens paid this cost on each call.",
- "solution": "For a promise without captures, `Fir2CCompiler` builds the code object once per site with the new `Fir_promise_site_code` and stores it in pool slot 2. Each execution then calls `Fir_mk_promise_shared`, which allocates only the `PROMSXP` and does not track it. A local promise qualifies only in the version's root CFG and only if the version has one real frame that it pops right before a return. Its escape test uses the new `FIR_FRAME_RETURNED` `gp` bit, which `Fir_pop_env` sets on a real frame it pops and which `Fir_handle_escape` reads through the new `frame_tested` field.",
+ "solution": "For a promise without captures, `Fir2CCompiler` builds the code object once per site with the new `Fir_promise_site_code` and stores it in pool slot 2. Each execution then calls `Fir_mk_promise_shared`, which allocates only the `PROMSXP` and does not track it. A local promise qualifies only in the version's root CFG and only if the version has one real frame that it pops right before a return. Its escape test uses the new `FIR_FRAME_RETURNED` `gp` bit, which `Fir_pop_env` sets on a real frame it pops and which `Fir_handle_escape` reads through the new `frame_tested` field. The pop of the frame that R made for a from-R call sets the bit only if that frame belongs to the innermost closure call, so an `eval` of compiled code in a live frame does not mark that frame.",
  "commitKinds": {
   "c0637a17a": "optimization"
  },
  "files": {
-  "client/rsh/src/fir2c/runtime.c": "Adds `Fir_promise_site_code` and `Fir_mk_promise_shared`, sets `FIR_FRAME_RETURNED` in `Fir_pop_env`, and makes the escape test read that bit for frame-tested promises.",
+  "client/rsh/src/fir2c/runtime.c": "Adds `Fir_promise_site_code` and `Fir_mk_promise_shared`, sets `FIR_FRAME_RETURNED` in `Fir_pop_env` (on the from-R frame only if `Fir_is_closure_frame` accepts it), and makes the escape test read that bit for frame-tested promises.",
   "client/rsh/src/fir2c/runtime.h": "Adds the `frame_tested` field, `FIR_FRAME_RETURNED`, the two new promise constructors, and the `env` parameter of `Fir_check_promise_escaped`.",
-  "repo-map.md": "Adds the example `promise_site_code.R`.",
+  "repo-map.md": "Adds the examples `promise_site_code.R` and `eval_compiled_body_in_live_frame.R`.",
   "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java": "Adds the `PromiseSharing` enum (`NONE`, `STUB`, `CODE`) and `hasOneRealFrame`, and emits shared site code and `Fir_mk_promise_shared` for capture-free promises.",
   "server/src/test/java/org/prlprg/fir2c/Fir2CCompilerTest.java": "Adds tests for which promises share their code: local or not, real or elided frame, a statement before the frame, and with captures.",
+  "server/src/test/resources/org/prlprg/examples/R/eval_compiled_body_in_live_frame.R": "New example that `eval`s a compiled closure's body in a live frame and then forces a promise of that frame.",
   "server/src/test/resources/org/prlprg/examples/R/promise_site_code.R": "New `gcTorture` example with capture-free promises forced in a loop, and one that a closure keeps and forces after its creator returns."
  }
 }

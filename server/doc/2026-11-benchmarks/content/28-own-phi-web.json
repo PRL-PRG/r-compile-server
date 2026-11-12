@@ -1,7 +1,7 @@
 {
  "title": "Own loop phi webs to remove per-trip vector copies",
  "motivation": "In sieve, the loop phis of the vector `primes` form a cycle through the loop nest. A phi's type is the union of its arguments' types, and each phi had another web phi as an argument, so the web stayed shared even though every vector that enters it is owned. So each trip copied the vector (`primes14 = dup primes12`) before the in-place write.",
- "solution": "The new pass `OwnPhiWeb` runs in the main fixpoint after `CallOwnedVersion` and before `ConsumeDeadDup`. It finds a web of loop phis of a primitive vector type whose arguments are web phis or owned movable registers that the jump kills and passes once. Every other use must be a borrow (an element read or a `dup`), a hand-off in a block that deopts (a `st` or a `deopt` argument), or a `return` or `dots` element after which no web use is reachable. The pass gives the web the owned type, and `ConsumeDeadDup` and `ElideConsumedDup` then remove the copy; sieve's `dup`s go from 6 to 3. Also in this range: `DeferIntoPromise` no longer defers a read of an owned vector or a load, phis are assigned in parallel in the interpreter and fir2c, `OwnPhiWeb` exempts only hand-offs in a deopt block, and `TypeAndEffectChecker` accepts a `st` of an owned register in a block that deopts.",
+ "solution": "The new pass `OwnPhiWeb` runs in the main fixpoint after `CallOwnedVersion` and before `ConsumeDeadDup`. It finds a web of loop phis of a primitive vector type whose arguments are web phis or owned movable registers that no other use shares and that the jump kills and passes once. Every other use must be a borrow (an element read or a `dup`), a hand-off in a block that deopts (a `st` or a `deopt` argument), or a `return` or `dots` element after which no web use is reachable. The pass gives the web the owned type, and `ConsumeDeadDup` and `ElideConsumedDup` then remove the copy; sieve's `dup`s go from 6 to 3. Also in this range: `DeferIntoPromise` no longer defers a read of a vector that a statement it does not move makes, or a load; phis are assigned in parallel in the interpreter and fir2c; `OwnPhiWeb` exempts only hand-offs in a deopt block; and `TypeAndEffectChecker` accepts an owned value where a shared one is expected (a `st`, a return, a shared register or parameter) and treats the register as shared from then on, so `Provenance` reports a later write.",
  "commitKinds": {
   "e6a6a3c69": "fix",
   "1be5f92ee": "fix",
@@ -11,18 +11,23 @@
   "195211c02": "fix"
  },
  "files": {
-  "repo-map.md": "Adds the lines for `OwnPhiWeb.java`, `ForLoopTest.java`, and the examples `loop_owned_vector{,_capture}.R`.",
-  "server/src/main/java/org/prlprg/fir/check/TypeAndEffectChecker.java": "Treats a `st` of an owned register in a block that ends in `deopt` as shared, so the checker accepts the hand-off.",
+  "AGENTS.md": "Documents that `InterpretAfterOptTest#testForced` runs the checkers on the optimized module.",
+  "repo-map.md": "Adds the lines for `OwnPhiWeb.java` and the examples `loop_owned_vector{,_capture}.R`.",
+  "server/doc/FIR.md": "States that a shared register, named variable, return type or parameter accepts an owned value, which is then shared.",
+  "server/src/main/java/org/prlprg/fir/analyze/type/Provenance.java": "Removes the special case for `st`, so a `st` of an owned register counts as a share.",
+  "server/src/main/java/org/prlprg/fir/check/TypeAndEffectChecker.java": "Adds `sharedIfOwned`: an owned value where a shared one is expected (a `st`, a return, a shared register or parameter) is checked as shared, in any block.",
   "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java": "Evaluates all phi arguments before it assigns any phi, so an argument that reads another phi of the target sees the old value.",
-  "server/src/main/java/org/prlprg/fir/opt/ConsumeDeadDup.java": "Makes `isMovableFrom` package-visible, so `OwnPhiWeb` can use it.",
-  "server/src/main/java/org/prlprg/fir/opt/DeferIntoPromise.java": "Does not defer a statement that reads an owned register, nor a `Load` or `ReflectiveLoad`.",
+  "server/src/main/java/org/prlprg/fir/opt/ConsumeDeadDup.java": "Makes `isMovableFrom` package-visible for `OwnPhiWeb`, ignores the use at the moving instruction, and exempts any use in another block that deopts.",
+  "server/src/main/java/org/prlprg/fir/opt/DeferIntoPromise.java": "Does not defer a `Load` or `ReflectiveLoad`, nor a statement that reads a vector that a statement it does not move makes.",
   "server/src/main/java/org/prlprg/fir/opt/Optimizations.java": "Adds `OwnPhiWeb` to the main fixpoint, after `CallOwnedVersion` and before `ConsumeDeadDup`.",
   "server/src/main/java/org/prlprg/fir/opt/OwnPhiWeb.java": "New pass that gives the owned type to a web of loop phis that only moves owned vectors, so the copy before a write disappears.",
   "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java": "When a phi argument reads another phi of the target, the jump reads all arguments into C temporaries before it assigns the phis.",
-  "server/src/test/java/org/prlprg/fir/check/TypeAndEffectCheckerTest.java": "New test: a store of an owned register is accepted in a block that deopts and rejected in a block that returns.",
+  "server/src/test/java/org/prlprg/fir/check/ProvenanceCheckerTest.java": "New test: a write of an owned register after a `st` hands it off is an error.",
+  "server/src/test/java/org/prlprg/fir/check/TypeAndEffectCheckerTest.java": "New tests: a store of an owned register is accepted in a block that deopts and in one that returns, and so is a return of an owned register with a shared return type.",
   "server/src/test/java/org/prlprg/fir/interpret/SimpleInternalInterpretTest.java": "Adds a test where a jump swaps two phis, so each must read the other's old value.",
-  "server/src/test/java/org/prlprg/fir/opt/DeferIntoPromiseTest.java": "Adds tests that a read of an owned vector before a write, and a load before a store, are not deferred.",
-  "server/src/test/java/org/prlprg/fir/opt/OwnPhiWebTest.java": "New tests: the copy goes away in single and sieve-shaped loops; aliases, captures, shared sources, repeated arguments and live sources stay unchanged.",
+  "server/src/test/java/org/prlprg/fir/opt/DeferIntoPromiseTest.java": "Adds tests that a read of an owned or a reused shared vector before a write, and a load before a store, are not deferred.",
+  "server/src/test/java/org/prlprg/fir/opt/OwnPhiWebTest.java": "New tests: the copy goes away in single and sieve-shaped loops; aliases, captures, shared sources, sources shared before the jump, repeated arguments and live sources stay unchanged.",
+  "server/src/test/java/org/prlprg/snapshot/fir/interpret/InterpretAfterOptTest.java": "`testForced` runs the checkers, without `CaptureChecker`, on the optimized module.",
   "server/src/test/resources/org/prlprg/examples/R/loop_owned_vector.R": "New example with loops that write a vector in place: reads across an inner loop, an alias, a changed element type, returns, and parallel phis.",
   "server/src/test/resources/org/prlprg/examples/R/loop_owned_vector_capture.R": "New example, C only, where closures and a lazy argument read a vector that a loop writes in place later."
  }

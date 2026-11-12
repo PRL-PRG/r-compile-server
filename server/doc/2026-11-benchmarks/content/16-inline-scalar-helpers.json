@@ -1,12 +1,12 @@
 {
  "title": "Inline scalar helpers and subscript reads into modules",
  "motivation": "Each FIŘ scalar operation on unboxed values (`+`, `<`, `naToFalse`, `box`, `unbox`, the `is.*` tests) and each scalar subscript read or write was a small function in `runtime.c`. The module saw only a declaration, so the C compiler could not inline it. Each operation became a real call with an unused `R_EmptyEnv` argument, even when its body was one compare. The cost showed in the loop benchmarks (`bench_simple_scalar_for`, `bench_simple_empty_for`, `bench_simple_vector_for`, `matrix_for`) and in `bench_ai_awf_towers`.",
- "solution": "About 150 scalar builtin and intrinsic versions, the scalar subscript reads and writes, and their helpers move from `runtime.c` to the new header `runtime_inline.h` as `static inline` functions. `runtime.h` includes the header at its end, for C only. The bodies and the emitted C text do not change, but the C compiler now inlines them into each module. In the `vector_for` loop test, only the overflow warning is still a call on the normal path.",
+ "solution": "About 150 scalar builtin and intrinsic versions, the scalar subscript reads and writes, and their helpers move from `runtime.c` to the new header `runtime_inline.h` as `static inline` functions. `runtime.h` includes the header at its end, for C only. The bodies and the emitted C text do not change, but the C compiler now inlines them into each module. The out-of-range paths of the subscript reads (`Fir_subscript_offset_slow`, `Fir_subscript_na_offset_slow`) stay out of line in `runtime.c`. In the `vector_for` loop test, only the overflow warning is still a call on the normal path.",
  "commitKinds": {
   "4abb269d8": "optimization"
  },
  "files": {
-  "client/rsh/src/fir2c/runtime.c": "Removes the scalar builtin and intrinsic bodies, the subscript reads and writes, and their helpers, which move to `runtime_inline.h`.",
+  "client/rsh/src/fir2c/runtime.c": "Removes the scalar builtin and intrinsic bodies, the subscript reads and writes, and their helpers, which move to `runtime_inline.h`; the out-of-range subscript paths stay.",
   "client/rsh/src/fir2c/runtime.h": "Removes the declarations of the moved functions and includes `runtime_inline.h` at the end for C.",
   "client/rsh/src/fir2c/runtime_inline.h": "New header with the scalar builtins and intrinsics and the subscript reads and writes as `static inline` functions.",
   "repo-map.md": "Adds an entry for `runtime_inline.h`."

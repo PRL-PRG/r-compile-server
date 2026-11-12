@@ -1,7 +1,7 @@
 {
  "title": "Complete the interpreter mocks that produce optimizer feedback",
  "motivation": "The FIŘ interpreter runs the warmup and records the feedback that the optimizer speculates on. It failed on bounce, list_for, list_while, matrix_for and promise_reflect, because its mocks of R builtins lacked operations that these benchmarks use. So these benchmarks timed only the unspeculated baseline, with a regular `mkenv` and frame loads and stores of every variable. promise_reflect still fails after this range, because it also needs a `tryCatch` mock.",
- "solution": "`fir/interpret/internal/Builtins.java` extends the mocks. The generic `[[<-` and `[<-` grow a vector past its end, `[`, `[[`, `[<-` and `[[<-` accept name subscripts, and arithmetic, comparison, `abs` and `as.logical` keep or drop names like GNU-R. `matrix` and row-and-column subscripts work, with `InternalInterpreter#registerUnmatchedExternal` for a dynamic `x[[i, j]] <- v`. `environment()` and `ls` of a frame work, including the vendored R's reflection marker. Also in this range: `[[` reads an absent list name as `NULL`, and `ls` only accepts names that sort the same in the C and UTF-8 collations.",
+ "solution": "`fir/interpret/internal/Builtins.java` extends the mocks. The generic `[[<-` and `[<-` grow a vector past its end, `[`, `[[`, `[<-` and `[[<-` accept name subscripts, and arithmetic, comparison, `abs` and `as.logical` keep or drop names like GNU-R. `matrix` and row-and-column subscripts work, with `InternalInterpreter#registerUnmatchedExternal` for a dynamic `x[[i, j]] <- v`. `environment()` and `ls` of a frame work. Also in this range: `[[` reads an absent list name as `NULL`, `[[` with `exact = FALSE` matches a unique name prefix, the name `\"\"` never matches, and `ls` only accepts names that sort the same in the C and UTF-8 collations. A mock fails as unsupported where it does not copy GNU-R, for example for a logical matrix subscript or for `matrix` of empty data with a zero size.",
  "commitKinds": {
   "40e5f05b4": "optimization",
   "af5862327": "optimization",
@@ -11,13 +11,19 @@
   "cb7ac40a3": "fix"
  },
  "files": {
-  "repo-map.md": "Adds entries for the five new `mod_*` examples.",
-  "server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java": "Adds subscript growth, name subscripts, name propagation in arithmetic, `matrix`, matrix subscripts, `environment()` and `ls` to the interpreter mocks.",
+  "repo-map.md": "Adds entries for the nine new examples.",
+  "server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java": "Adds subscript growth, name subscripts, partial name matches for `exact = FALSE`, name propagation in arithmetic, `matrix`, matrix subscripts, `environment()` and `ls` to the interpreter mocks.",
   "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java": "Adds `registerUnmatchedExternal`, which runs a mock for a dynamic call whose arguments do not match the function's parameters.",
+  "server/src/test/java/org/prlprg/fir/interpret/LogicalSubscriptMockTest.java": "Moves the module setup to `assertUnsupported`, and adds a test that a logical matrix subscript of `[` and `[<-` is unsupported.",
+  "server/src/test/resources/org/prlprg/examples/R/as_integer_real_range.R": "The warmup reads `x[i]` with `i` from 0.5 to 2.5, so it also reads a subscript below 1.",
+  "server/src/test/resources/org/prlprg/examples/R/empty_name_subscript.R": "New example: `[`, `[[`, `[<-` and `[[<-` with the name `\"\"`, which never matches, so reads are out of range and assignments append.",
+  "server/src/test/resources/org/prlprg/examples/R/ls_unmarked_frame.R": "New example: `ls` of a frame that `sys.frame` returns.",
+  "server/src/test/resources/org/prlprg/examples/R/matrix_empty_data.R": "New example: `matrix` of empty data with missing dimensions, which has one column.",
   "server/src/test/resources/org/prlprg/examples/R/mod_arith_names.R": "New example: arithmetic, comparison, unary minus and `abs` of named vectors, to check which names the result keeps.",
-  "server/src/test/resources/org/prlprg/examples/R/mod_ls.R": "New example: `ls` of frames from `environment()`, with hidden names and the vendored R's reflection marker.",
+  "server/src/test/resources/org/prlprg/examples/R/mod_ls.R": "New example: `ls` of frames from `environment()`, with hidden names.",
   "server/src/test/resources/org/prlprg/examples/R/mod_matrix.R": "New example: `matrix` with missing or recycled arguments, and `[[`, `[`, `[[<-`, `[<-` with a row and column.",
   "server/src/test/resources/org/prlprg/examples/R/mod_subassign_grow.R": "New example: `[[<-` and `[<-` past the end of lists and of integer, real and named string vectors.",
-  "server/src/test/resources/org/prlprg/examples/R/mod_subscript_names.R": "New example: `[`, `[[`, `[<-` and `[[<-` with present, absent and appended name subscripts."
+  "server/src/test/resources/org/prlprg/examples/R/mod_subscript_names.R": "New example: `[`, `[[`, `[<-` and `[[<-` with present, absent and appended name subscripts.",
+  "server/src/test/resources/org/prlprg/examples/R/subscript_exact_drop.R": "New example: `[[` with `exact = FALSE`, which matches a unique name prefix, and `[` with `drop`."
  }
 }

@@ -1,12 +1,17 @@
 {
  "title": "Re-run maybe-forced promise bodies in origin analysis",
  "motivation": "The optimized queens module returned `queens(10) = 7362` instead of 1902. `OriginAnalysis.maybeForce` analysed a maybe-forced promise body only once, so in a loop the body kept the first iteration's origins, and `Cleanup.substituteWithOrigins` replaced `ld board` by the parameter `board`. The hot `solve_queens` version then passed the initial board to `is_safe` instead of the loop-carried one, which made the search do many more calls than the correct program.",
- "solution": "`OriginAnalysis.maybeForce` now returns early only when the promise is definitely forced (`Maybe.YES`), as `force` does. Otherwise it runs the body again with the current state, so a load in the body sees the current bindings. The analysis still terminates, because a body's `OnCfg` does not re-run on an unchanged state and `runPromiseBody` does not re-enter a running body. The new unit test `CleanupTest.loadInLoopPromise_afterRebinding_notSubstitutedWithFirstIterationValue` reproduces the miscompile.",
+ "solution": "`OriginAnalysis.maybeForce` now returns early only when the promise is definitely forced (`Maybe.YES`), as `force` does. Otherwise it runs the body again with the current state, so a load in the body sees the current bindings. The analysis still terminates, because a body's `OnCfg` does not re-run on an unchanged state and `runPromiseBody` does not re-enter a running body. Instead, `State.mayRunBody` applies the effects that the body may have: the promises that it may force become maybe-forced and leaked, and each variable that their bodies store becomes `unknown`. The new unit test `CleanupTest.loadInLoopPromise_afterRebinding_notSubstitutedWithFirstIterationValue` reproduces the miscompile.",
  "commitKinds": {
   "427e36086": "fix"
  },
  "files": {
-  "server/src/main/java/org/prlprg/fir/analyze/resolve/OriginAnalysis.java": "`maybeForce` skips only a definitely forced promise and re-runs a maybe-forced body with the current state; the comment explains why this terminates.",
-  "server/src/test/java/org/prlprg/fir/opt/CleanupTest.java": "Adds a test that a load inside a loop's promise is not replaced by the value from before the loop rebinds the variable."
+  "repo-map.md": "Adds entries for the three new promise examples.",
+  "server/src/main/java/org/prlprg/fir/analyze/resolve/OriginAnalysis.java": "`maybeForce` skips only a definitely forced promise and re-runs a maybe-forced body with the current state; a force of a running body applies its possible effects (`mayRunBody`), and a variable whose value may be anything is marked `unknown`.",
+  "server/src/test/java/org/prlprg/fir/analyze/resolve/OriginAnalysisTest.java": "Adds a test that a force of another instance of a running promise body keeps the store of that body, and leaks the promise of `testLeakedPromiseMaybeForcedAfterDefiniteForce` into a call instead of a dots vector.",
+  "server/src/test/java/org/prlprg/fir/opt/CleanupTest.java": "Adds a test that a load inside a loop's promise is not replaced by the value from before the loop rebinds the variable.",
+  "server/src/test/resources/org/prlprg/examples/R/closure_captures_promise_argument.R": "New example: a closure captures a callee's environment with a promise argument, and a later call forces that promise.",
+  "server/src/test/resources/org/prlprg/examples/R/promise_reads_variable_stored_by_other_promise.R": "New example: a promise reads a variable that an earlier forced promise stores, and the first promise is forced again.",
+  "server/src/test/resources/org/prlprg/examples/R/promise_store_read_by_other_instance.R": "New example: a loop's promise forces, through a callee, the promise of the same code from the previous iteration, which stores a variable that the first one reads."
  }
 }

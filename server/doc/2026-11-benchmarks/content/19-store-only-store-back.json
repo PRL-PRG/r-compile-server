@@ -1,13 +1,13 @@
 {
  "title": "Store back store-only variables outside their hot loop",
  "motivation": "`mandelbrot`'s `zr` is store-only and maybe unbound at a deopt, so neither the store-only promotion nor the store-back mode applied. It kept one frame store per innermost iteration.",
- "solution": "PSKV promotes such a store-only variable in store-back mode only if one of its stores is in a loop that contains no end of its region (`storesLessOften`). The store-back then runs less often than the removed stores, and the next round rejects the variable, so the fixpoint stops. In `mandelbrot` the store of `zr` now runs once per pixel. Also in this range: a fix for store-back mode, which lost a binding when a call that may force a leaked promise made the origins unknown inside a block; `lostAt` finds such statements, and a store goes before each one.",
+ "solution": "PSKV promotes such a store-only variable in store-back mode only if one of its stores is in a loop that contains no end of its region (`storesLessOften`). The store-back then runs less often than the removed stores, and the next round rejects the variable, so the fixpoint stops. In `mandelbrot` the store of `zr` now runs once per pixel. Also in this range: a fix for store-back mode, which lost a binding when a call that may force a leaked promise made the origins unknown inside a block; `lostAt` finds such statements, and a store goes before each one. Before its first round, PSKV removes the unreachable blocks, because the origin analysis has no state for them.",
  "commitKinds": {
   "0a68ef6b3": "fix",
   "49e7da0fc": "optimization"
  },
  "files": {
-  "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java": "Adds `lostAt`, a store-back before a statement where the analysis loses the variable, and `storesLessOften` to admit store-only variables in store-back mode.",
-  "server/src/test/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariablesTest.java": "Adds a test for a binding lost inside a block, a store-only `k` in the inner-loop tests, and a second-run check."
+  "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java": "Removes unreachable blocks first, and adds `lostAt`, a store-back before a statement where the analysis loses the variable, and `storesLessOften` to admit store-only variables in store-back mode.",
+  "server/src/test/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariablesTest.java": "Adds tests for a binding lost inside a block and for an unreachable block, a store-only `k` in the inner-loop tests, and a second-run check."
  }
 }

@@ -1,14 +1,14 @@
 {
  "title": "Inline the elided frame push and the frame pop",
  "motivation": "Each call of a version with an elided frame (`mkenv-`) called the out-of-line `Fir_push_env` and `Fir_pop_env`, which test globals and run `ASSERT`s. After the push, the version also `REPROTECT`ed the environment and the saved parent, even when the singleton's parent did not change. In fibonacci and towers, which call small elided versions recursively, this bookkeeping was a large share of each call.",
- "solution": "`runtime_inline.h` adds `Fir_push_env_elided` and `Fir_pop_env_inline`, and `runtime.c` makes the two from-R globals (`Fir_env_pushed_from_r`, `Fir_env_push_suppressed`) `extern` so the inline push can read them. `Fir2CCompiler` emits the inline push for `mkenv-` and the inline pop for every `popenv`; the inline pop handles an elided frame itself and calls `Fir_pop_env` for any other frame. The elided push does not `REPROTECT` the environment, and it `REPROTECT`s the saved parent only if it replaces the singleton's parent. When the parent stays the same, as in fibonacci's recursion, the push is two compares and two stores with no call.",
+ "solution": "`runtime_inline.h` adds `Fir_push_env_elided` and `Fir_pop_env_inline`, and `runtime.c` makes the two from-R globals (`Fir_env_pushed_from_r`, `Fir_env_push_suppressed`) `extern` so the inline push can read them. `Fir2CCompiler` emits the inline push for `mkenv-` and the inline pop for every `popenv`; the inline pop handles an elided frame itself and calls `Fir_pop_env` for any other frame. The elided push does not `REPROTECT` the environment, and it `REPROTECT`s the saved parent only if it replaces the singleton's parent. Like the out-of-line versions, the inline push records the frame in `Rsh_Frames` (`Fir_push_frame`) and the inline pop removes it, so `sys.frame` and the like count it. When the parent stays the same, as in fibonacci's recursion, the push is a few compares and stores with no call.",
  "commitKinds": {
   "697b2d548": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Makes `Fir_env_pushed_from_r` and `Fir_env_push_suppressed` non-static, so the inline push in `runtime_inline.h` can read them.",
   "client/rsh/src/fir2c/runtime.h": "Declares `Fir_env_pushed_from_r` and `Fir_env_push_suppressed` as `extern`.",
-  "client/rsh/src/fir2c/runtime_inline.h": "Adds `Fir_push_env_elided`, which `REPROTECT`s the saved parent only when it changes it, and `Fir_pop_env_inline`, which pops an elided frame inline.",
+  "client/rsh/src/fir2c/runtime_inline.h": "Adds `Fir_push_env_elided`, which records the frame in `Rsh_Frames` and `REPROTECT`s the saved parent only when it changes it, and `Fir_pop_env_inline`, which pops an elided frame inline.",
   "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java": "Emits `Fir_push_env_elided` without `REPROTECT`s for an elided `MkEnv`, and `Fir_pop_env_inline` for every `PopEnv`.",
   "server/src/test/java/org/prlprg/fir2c/Fir2CCompilerTest.java": "Updates `pushedFramesAreInActivationProtectSlots` to expect the inline elided push and the inline pop."
  }

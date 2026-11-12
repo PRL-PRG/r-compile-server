@@ -9,10 +9,11 @@
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Adds `Fir_math1_result`, so the unboxed math1 builtins warn \"NaNs produced\" when a number becomes NaN.",
-  "repo-map.md": "Adds `BaseGuardTest` and notes the base-guard deopt tests in the interpreter test directory.",
+  "repo-map.md": "Adds `BaseGuardTest`, notes the base-guard deopt tests in the interpreter test directory, and updates the line of `unused_call_keeps_warning.R`.",
   "server/src/main/java/org/prlprg/bc2fir/BC2FirCFGCompiler.java": "A `BASEGUARD` becomes a checkpoint with `_guard ?= TRUE` instead of a branch to a fallback call and a merge phi.",
   "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java": "The deopt-restore check compares the cursor's CFG, not the version's, so a failed baseline assumption errors instead of looping.",
   "server/src/test/java/org/prlprg/bc2fir/BaseGuardTest.java": "New test: bc2fir compiles a `BASEGUARD` into an assumption whose deopt stack holds the values below the guard.",
-  "server/src/test/java/org/prlprg/fir/interpret/BaseGuardInterpretTest.java": "New test: a version deopts into a guarded baseline, and a rebound function fails there instead of looping."
+  "server/src/test/java/org/prlprg/fir/interpret/BaseGuardInterpretTest.java": "New test: a version deopts into a guarded baseline, and a rebound function fails there instead of looping.",
+  "server/src/test/resources/org/prlprg/examples/R/unused_call_keeps_warning.R": "The unused call is now `sqrt(x)`, which warns \"NaNs produced\" for `f(-i)`, in place of an overflowing `x + 1L`."
  }
 }
