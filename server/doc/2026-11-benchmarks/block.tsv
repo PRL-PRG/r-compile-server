@@ -69,3 +69,5 @@ calls	fir2c: a dynamic call of a special passes an unforced promise of the frame
 captures	fir2c: a promise keeps copies of the registers that it captures, so a force after its activation is gone reads no dead stack
 captures	remove CaptureChecker: a non-local promise may read registers of its frame, since it keeps copies of them
 origins	OriginAnalysis: copies of a state share its register origins and promise "present" sets, so the analysis is faster with the same result
+inlining	a forced promise's body runs in its creation environment, not in an inlined callee's
+inlining	Inline does not inline a callee that creates a non-static closure or uses a super-load or super-store

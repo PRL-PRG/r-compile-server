@@ -8,6 +8,7 @@
   "mocks": "Interpreter mocks: the mocks of the FIŘ interpreter match GNU-R, or fail as unsupported.",
   "frames": "Frames: the parent of a real frame in an elided frame, and the elided parent after a caught error.",
   "calls": "Calls: tags and promise arguments of static and dynamic calls, defaults and `missing`, and the context of a special call.",
+  "inlining": "Inlining: a forced promise's body runs in its creation environment, and a callee that creates a non-static closure or uses a super-load or super-store is not inlined.",
   "captures": "Promise captures: a promise keeps copies of the registers that it captures, so a force after its activation reads no dead stack, and the capture check goes.",
   "values": "Runtime values: type guards, unboxed builtins and subscripts, `:`, `for` sequences, and floating-point contraction.",
   "checker": "Checker and parser: the type of `...` and the check of an assumption.",
