@@ -3,7 +3,7 @@
  "motivation": "The dispatcher that Fir2C emits for entry from GNU-R called `Fir_value_matches` once per version and parameter, also for a `*` parameter. For `*` the call still forced and inspected a promise argument, and the result was always true. lapply and lapply_dots enter compiled versions from R on every element, so they paid this test per call. Blocks also emitted a useless `UNPROTECT(0)`.",
  "solution": "`Fir2CCompiler` emits no `Fir_value_matches` test for a parameter of type `*`, because every argument the entry can receive matches it. The per-version `incompatible[i]` flag now always ORs onto its earlier value, since the first parameter test can be skipped. A block emits `UNPROTECT(n)` only when `n` is positive.",
  "commitKinds": {
-  "ce42cd95c": "optimization"
+  "022abd6af": "optimization"
  },
  "files": {
   "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java": "The R entry dispatcher skips the argument test of a `*` parameter, and a block omits `UNPROTECT` when it protected nothing."

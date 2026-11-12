@@ -3,7 +3,7 @@
  "motivation": "The optimized queens module returned `queens(10) = 7362` instead of 1902. `OriginAnalysis.maybeForce` analysed a maybe-forced promise body only once, so in a loop the body kept the first iteration's origins, and `Cleanup.substituteWithOrigins` replaced `ld board` by the parameter `board`. The hot `solve_queens` version then passed the initial board to `is_safe` instead of the loop-carried one, which made the search do many more calls than the correct program.",
  "solution": "`OriginAnalysis.maybeForce` now returns early only when the promise is definitely forced (`Maybe.YES`), as `force` does. Otherwise it runs the body again with the current state, so a load in the body sees the current bindings. The analysis still terminates, because a body's `OnCfg` does not re-run on an unchanged state and `runPromiseBody` does not re-enter a running body. Instead, `State.mayRunBody` applies the effects that the body may have: the promises that it may force become maybe-forced and leaked, and each variable that their bodies store becomes `unknown`. The new unit test `CleanupTest.loadInLoopPromise_afterRebinding_notSubstitutedWithFirstIterationValue` reproduces the miscompile.",
  "commitKinds": {
-  "524c7a4b3": "fix"
+  "95dfd0b84": "fix"
  },
  "files": {
   "repo-map.md": "Adds entries for the three new promise examples.",

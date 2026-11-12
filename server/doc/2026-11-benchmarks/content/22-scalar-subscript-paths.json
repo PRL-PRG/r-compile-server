@@ -3,8 +3,8 @@
  "motivation": "After the subscript specials went straight to their default method, `x[[i, j]] <- 5` still forced three operands, built an argument list of four cons cells, and ran `do_subassign2_dflt`. Reads such as `x[i, j]` and list stores went the same way, and only a vector store with one index had an allocation-free path (`Fir_subassign_scalar`). GNU-R bytecode has allocation-free scalar paths for all of these. matrix_for, binarytrees, bounce_nonames and storage showed the cost.",
  "solution": "`runtime.c` adds `Fir_subscript_scalar`, which copies GNU-R bytecode's scalar paths (`bcStackIndex`, `getMatrixDim`, `DO_FAST_VECELT`, `DO_FAST_SETVECELT`) for `[`, `[[`, `[<-` and `[[<-` with 1 or 2 scalar indices on a vector or matrix that is not an object. A read makes a new scalar or takes the list element, and a store writes in place, with `R_FixupRHS` for a list. `Fir_call_setter_builtin` keeps a short inline path for the static `x[[i]] <- v` with 3 arguments, so the function stays small and needs no stack array; every other shape calls `Fir_subscript_scalar` out of line, and anything else still takes the default method. Also in this range: a `SchedulePure` fix that never defers a statement to a use in a checkpoint's assumptions, so a deferred `box` no longer goes in front of them and leaves an `ldf` assumption unchecked.",
  "commitKinds": {
-  "b4938b616": "optimization",
-  "6fecdff63": "fix"
+  "1b3c8e0a6": "optimization",
+  "fe01348ca": "fix"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Adds `Fir_subscript_scalar` and its inline helpers for scalar reads and stores, uses them in the default-method path and setter builtin, and removes `Fir_subassign_scalar`.",

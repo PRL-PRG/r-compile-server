@@ -3,7 +3,7 @@
  "motivation": "`PromoteStaticallyKnownVariables.appendPhis` folded the input types with `*` as the identity, so every promoted phi had type `*`. `UnboxPhi` skips a `*` phi, so each use of the loop variable needed a checkpoint, a `?: v1(R)` test and an `unbox`, and each redefinition needed a `box`, which allocates a vector per iteration. The while-loop examples (empty_while, scalar-while, vector_while, bytecodes) and vector_for paid this on every iteration.",
  "solution": "`appendPhis` seeds the fold with `null`, which `Type.union` treats as bottom, and falls back to `*` only when there is no input. A promoted phi now has the union type of its inputs, for example `R` for a real loop counter. `UnboxPhi` then unboxes it, and the per-iteration checks, `unbox`es and `box`es disappear.",
  "commitKinds": {
-  "d588e489d": "optimization"
+  "d588a0c6b": "optimization"
  },
  "files": {
   "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java": "The phi type fold starts from bottom (`null`) instead of `*`, and the phi gets `*` only when the fold has no input."

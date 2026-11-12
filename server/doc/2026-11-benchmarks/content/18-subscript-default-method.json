@@ -3,8 +3,8 @@
  "motivation": "A generic `x[[i]]`, `x[i]`, `x[[i]] <- v`, or `x[i] <- v` called the GNU-R special. The special evaluated its arguments again and built a second argument list, and a setter also wrapped the target in a promise. This allocation showed in `matrix_for`, `bench_shootout_binarytrees_naive`, `bounce`, `bounce_nonames`, and the list loops.",
  "solution": "The new `Fir_call_subscript_default` in `runtime.c` handles `[`, `[[`, `[<-`, and `[[<-` when the target is not an object and the special would not evaluate any argument in the environment. It forces the arguments once, builds one list of `CONS_NR` cells, and calls `do_subset_dflt`, `do_subset2_dflt`, `do_subassign_dflt`, or `do_subassign2_dflt` directly. A setter gets no target promise. Outside the setter protocol, the cell of a sub-assignment's target counts its reference, so the default method copies a target that something else references, like GNU-R. `Fir_call_primitive_values` (the builtin and dynamic calls) and `Fir_call_setter_primitive` try this path first. Also in this range: `OriginAnalysis` orders origins by a `Read`'s register name instead of the printed argument, which cuts compile time with byte-identical output.",
  "commitKinds": {
-  "2654c21b8": "fix",
-  "e6f1873e7": "optimization"
+  "135daf28c": "fix",
+  "4995a44ad": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Adds `Fir_call_subscript_default` and the `FIR_NR_ALL` and `FIR_NR_REST` modes of `Fir_build_arglist`, and calls the default method first from `Fir_call_primitive_values` and `Fir_call_setter_primitive`.",
