@@ -22,7 +22,6 @@ class FirAfterOpt2CTest implements Gen2CCompilerTest {
           "dd_val2",
           "leak_promise",
           "leak_promise2",
-          "non_bytecode_closure",
           "vecsubset2_n6",
           // returns a different value
           "inline_is_xyz",

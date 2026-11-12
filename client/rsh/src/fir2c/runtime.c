@@ -1376,11 +1376,35 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SE
   return Fir_call_dynamic_values(callee, call, env, argc, args, names, 0);
 }
 
+// The source expression of `promise`, or NULL if it's unknown.
+static SEXP Fir_promise_source_expr(SEXP promise) {
+  SEXP code = PRCODE(promise);
+  if (TYPEOF(code) == EXTPTRSXP && R_ExternalPtrTag(code) == Rsh_CodeTag) {
+    SEXP expr = Fir_prom_expr(R_ExternalPtrProtected(code));
+    return expr == R_UnboundValue ? NULL : expr;
+  }
+  return R_PromiseExpr(promise);
+}
+
 SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
                              uint64_t values) {
   switch (TYPEOF(callee)) {
-    case BUILTINSXP:
     case SPECIALSXP:
+      // GNU-R's `CALL` (`bcEval`) passes a special its source arguments, so pass the expression of
+      // an unforced promise of this frame (`function` would make the promise its body). A
+      // forwarded promise belongs to another frame, so it stays.
+      for (int i = 0; i < argc; i++) {
+        if ((i >= 64 || !((values >> i) & 1)) && names[i] != R_DotsSymbol &&
+            TYPEOF(args[i]) == PROMSXP && PRVALUE(args[i]) == R_UnboundValue &&
+            PRENV(args[i]) == env) {
+          SEXP expr = Fir_promise_source_expr(args[i]);
+          if (expr != NULL) {
+            args[i] = expr;
+          }
+        }
+      }
+      // fallthrough
+    case BUILTINSXP:
       return Fir_call_primitive_values(PRIMOFFSET(callee), call, env, argc, args, names, values,
                                        false);
     case CLOSXP: {
