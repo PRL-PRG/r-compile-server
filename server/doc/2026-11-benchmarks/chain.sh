@@ -15,9 +15,11 @@ RLIB=$B/rlib                       # private library; holds only the rsh probe (
 PROBE=$RLIB/rsh-probe-loaded       # the probe's record of a load of rsh
 SNAP=$W/server/src/test/snapshots/R
 EXDIR=$W/server/src/test/resources/org/prlprg/examples/R
-MAIN_RSH=$REPO/R/library/rsh/libs/rsh.so
+MAIN_RSH=$REPO/R/library/rsh/libs/rsh.so   # must not change during the chain
 BUILD_LIMIT=${BUILD_LIMIT:-600} BENCH_LIMIT=${BENCH_LIMIT:-720} CHECK_LIMIT=${CHECK_LIMIT:-300}
 MIN_FREE_GB=${MIN_FREE_GB:-5}
+# State 00-pre: the parent of the first commit of ranges.tsv (the pins; see repin.py).
+PRE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[0]["pre"])' "$B/skeleton.json") || exit 1
 unset R_HOME
 mkdir -p "$RUNS"
 
@@ -79,17 +81,24 @@ mvn_w() {
 }
 
 setup_worktree() {
-  [ -d "$W" ] || git -C "$REPO" worktree add --detach "$W" 3042a7d73 >/dev/null || return 1
-  # R: a directory of per-entry symlinks to the main tree's built R, never a symlink itself.
+  [ -d "$W" ] || git -C "$REPO" worktree add --detach "$W" "$PRE" >/dev/null || return 1
+  # R: a directory of per-entry symlinks to the built R of this tree (whose R can itself be such a
+  # directory: then the links go to the same targets), never a symlink itself.
   [ -L "$W/R" ] && return 1
   mkdir -p "$W/R"
   local x
-  for x in "$REPO"/R/*; do [ -e "$W/R/${x##*/}" ] || ln -s "$x" "$W/R/"; done
+  for x in "$REPO"/R/*; do [ -e "$W/R/${x##*/}" ] || ln -s "$(readlink "$x" || echo "$x")" "$W/R/"; done
   cp "$REPO/server/.config.properties" "$W/server/"
+  # The private library holds the probe, so that a load of rsh fails instead of using R/library/rsh.
+  if ! grep -q '^Title: Probe' "$RLIB/rsh/DESCRIPTION" 2>/dev/null; then
+    mkdir -p "$RLIB" && env -u R_HOME "$REPO/R/bin/R" CMD INSTALL --no-test-load -l "$RLIB" "$B/rsh-probe" >"$RLIB/install.log" 2>&1 \
+      || { echo "the install of rsh-probe failed (see $RLIB/install.log)" >&2; return 1; }
+  fi
 }
+rsh_sha() { if [ -e "$MAIN_RSH" ]; then shasum -a 256 "$MAIN_RSH" | cut -d' ' -f1; else echo none; fi; }
 
 all_states() {
-  echo "00-pre 3042a7d73"
+  echo "00-pre $PRE"
   python3 -c 'import json,sys; [print(x["id"], x["post"]) for x in json.load(open(sys.argv[1]))]' \
     "$B/skeleton.json"
 }
@@ -168,7 +177,7 @@ n = dict(l.rstrip("\n").split("\t", 1) for l in open(sys.argv[1]) if l.strip())
 json.dump(n, open(sys.argv[2], "w"), indent=1)' "$D/notes.tsv" "$D/notes.json"
   rm -f "$D/notes.tsv"
   [ -e "$PROBE" ] && { cp "$PROBE" "$D/"; REASON="check.R loaded rsh"; return 1; }
-  [ "$(shasum -a 256 "$MAIN_RSH" | cut -d' ' -f1)" = "$MAIN_RSH_SHA" ] || { REASON="the main rsh.so changed"; return 1; }
+  [ "$(rsh_sha)" = "$MAIN_RSH_SHA" ] || { REASON="the main rsh.so changed"; return 1; }
   local min=${MIN_TIMED:-$(( EXAMPLES_SET ? total : 24 ))}
   SUMMARY="timed $timed/$total, notes $(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$D/notes.json"), load $load, $((SECONDS - t0)) s"
   (( timed >= min )) || { REASON="only $timed of $total examples have a time (need $min)"; return 1; }
@@ -178,7 +187,7 @@ json.dump(n, open(sys.argv[2], "w"), indent=1)' "$D/notes.tsv" "$D/notes.json"
 
 # --- main
 setup_worktree || { echo "worktree setup failed" >&2; exit 1; }
-MAIN_RSH_SHA=$(shasum -a 256 "$MAIN_RSH" | cut -d' ' -f1)
+MAIN_RSH_SHA=$(rsh_sha)
 if [ -n "${EXAMPLES:-}" ]; then
   EXAMPLES_SET=1 FILTER="(?!stdlib_).*($(echo $EXAMPLES | tr ' ' '|'))\.R"
 else

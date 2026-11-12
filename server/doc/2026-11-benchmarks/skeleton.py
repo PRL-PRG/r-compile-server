@@ -4,12 +4,13 @@ import json, os, subprocess
 here = os.path.dirname(os.path.abspath(__file__))
 REPO = subprocess.run(['git', '-C', here, 'rev-parse', '--show-toplevel'], capture_output=True, text=True, check=True).stdout.strip()
 def git(*a): return subprocess.run(['git', '-C', REPO, *a], capture_output=True, text=True, check=True).stdout
-chain = git('rev-list', '--reverse', '3042a7d73..b9f8ca942').split()
+# The pins: the first and last commit of ranges.tsv. State 00-pre is the parent of the first.
+rows = [l.rstrip('\n').split('\t') for l in open(os.path.join(here, 'ranges.tsv'))]
+chain = git('rev-list', '--reverse', f'{rows[0][2]}^..{rows[-1][3]}').split()
 short = lambda s: s[:9]
 pos = {short(s): i for i, s in enumerate(chain)}
 opts, nxt = [], 0
-for line in open(os.path.join(here, 'ranges.tsv')):
-    num, key, first, last, label, src = line.rstrip('\n').split('\t')
+for num, key, first, last, label, src in rows:
     assert pos[first] == nxt, (key, 'range does not start where the previous one ended')
     commits = chain[pos[first]:pos[last] + 1]; nxt = pos[last] + 1
     pre = short(git('rev-parse', first + '^').strip())

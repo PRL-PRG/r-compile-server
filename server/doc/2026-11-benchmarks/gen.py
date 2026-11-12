@@ -11,7 +11,6 @@ KINDS = ('optimization', 'fix', 'test', 'docs', 'enabler')
 GNUR = ('ast', 'bc.default', 'bc.opt')
 NOISE = 0.12
 NOTE_KINDS = (('value:', 'invalid'), ('no time', 'missing'), ('rerun:', 'rerun'))  # notes.json prefixes
-RANGE = ('3042a7d73', 'b9f8ca942')
 
 
 def git(*a):
@@ -706,6 +705,7 @@ def main():
     ap.add_argument('--allow-empty', action='store_true', help='accept empty strings in content files')
     args = ap.parse_args()
     opts = json.load(open(os.path.join(HERE, 'skeleton.json'), encoding='utf-8'))
+    RANGE = (opts[0]['pre'], opts[-1]['post'])  # the pins (see ranges.tsv)
     content = load_content(opts, args.allow_empty)
     ids = [o['id'] for o in opts]
     if args.bench and not os.path.isdir(args.bench): sys.exit(f'gen.py: {args.bench} is not a directory')
@@ -716,7 +716,7 @@ def main():
         o['prev'] = '00-pre' if i == 0 else opts[i - 1]['id']
         o['title'] = c['title'] or f'(title pending) {o["id"]}'
         for cm in o['commits']:
-            date, _, msg = git('log', '-1', '--format=%cs%x00%B', cm['sha']).partition('\x00')
+            date, _, msg = git('log', '-1', '--format=%as%x00%B', cm['sha']).partition('\x00')
             cm.update(date=date.strip(), msg=msg.strip(), kind=c['commitKinds'].get(cm['sha'], ''))
         # The main commit: the first of kind optimization, else enabler, else fix, else the last commit.
         main_c = next((cm for k in ('optimization', 'enabler', 'fix') for cm in o['commits'] if cm['kind'] == k), o['commits'][-1])
