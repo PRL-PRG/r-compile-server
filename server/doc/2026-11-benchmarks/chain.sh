@@ -5,7 +5,8 @@
 # A state with a DONE marker is skipped. A failed state does not stop the chain.
 # Env overrides (for scratch runs): RUNS (results root), EXAMPLES (space-separated example names;
 # default: every `bench_*` example with a `#? benchmark:` line), MIN_TIMED (default 24, or the count of EXAMPLES),
-# BUILD_LIMIT, BENCH_LIMIT, CHECK_LIMIT (seconds), QUIET_LOAD, QUIET_WAIT, MIN_FREE_GB.
+# BUILD_LIMIT, BENCH_LIMIT, CHECK_LIMIT (seconds), QUIET_LOAD, QUIET_WAIT, MIN_FREE_GB, OFFLINE (0: Maven
+# may use the network). Runs on macOS and Linux.
 set -uo pipefail
 B=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(git -C "$B" rev-parse --show-toplevel)
@@ -18,6 +19,7 @@ EXDIR=$W/server/src/test/resources/org/prlprg/examples/R
 MAIN_RSH=$REPO/R/library/rsh/libs/rsh.so   # must not change during the chain
 BUILD_LIMIT=${BUILD_LIMIT:-600} BENCH_LIMIT=${BENCH_LIMIT:-720} CHECK_LIMIT=${CHECK_LIMIT:-300}
 MIN_FREE_GB=${MIN_FREE_GB:-5}
+OS=$(uname -s)
 # State 00-pre: the parent of the first commit of ranges.tsv (the pins; see repin.py).
 PRE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[0]["pre"])' "$B/skeleton.json") || exit 1
 unset R_HOME
@@ -65,19 +67,42 @@ run_limited() {
 wait_quiet() {   # up to QUIET_WAIT s for the 1-min load to fall below QUIET_LOAD; prints the load
   local waited=0 load
   while :; do
-    load=$(sysctl -n vm.loadavg | awk '{print $2}')
+    if [ "$OS" = Linux ]; then load=$(cut -d' ' -f1 /proc/loadavg); else load=$(sysctl -n vm.loadavg | awk '{print $2}'); fi
     if awk -v l="$load" -v q="${QUIET_LOAD:-3}" 'BEGIN{exit !(l < q)}' || (( waited >= ${QUIET_WAIT:-120} )); then
       echo "$load"; return
     fi
     sleep 15; waited=$((waited + 15))
   done
 }
-machine_state() { uptime; ps -Ao pid,pcpu,etime,comm -r | head -8 | cut -c1-150; }
+machine_state() {   # the load and the 7 processes with the most CPU
+  uptime
+  if [ "$OS" = Linux ]; then ps -eo pid,pcpu,etime,args --sort=-pcpu; else ps -Ao pid,pcpu,etime,comm -r; fi | head -8 | cut -c1-150
+}
+machine_id() {   # "key: value" lines; export_csv.py reads os and cpu
+  local os cpu cores mem
+  if [ "$OS" = Linux ]; then
+    os=$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-}"); os=${os:-Linux}
+    cpu=$(lscpu 2>/dev/null | awk -F': *' '/^Model name/{print $2; exit}')
+    [ -n "$cpu" ] || cpu=$(awk -F': *' '/^(model name|Model|Hardware)[[:space:]]*:/{print $2; exit}' /proc/cpuinfo)
+    cores=$(nproc) mem=$(awk '/^MemTotal/{printf "%.1f", $2 / 1048576}' /proc/meminfo)
+    echo "governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo NA)"
+  else
+    os="macOS $(sw_vers -productVersion) ($(sw_vers -buildVersion))"
+    cpu=$(sysctl -n machdep.cpu.brand_string) cores=$(sysctl -n hw.ncpu)
+    mem=$(sysctl -n hw.memsize | awk '{printf "%.1f", $1 / 1073741824}')
+  fi
+  echo "os: $os"; echo "kernel: $(uname -srm)"; echo "cpu: ${cpu:-unknown}"
+  echo "cores: $cores"; echo "memory_gb: $mem"; echo "host: $(hostname)"
+  echo "cc: $(${CC:-gcc} --version 2>&1 | head -1)"   # AppConfig.CC, default gcc
+  echo "java: $(java -version 2>&1 | head -1) (JAVA_HOME=${JAVA_HOME:-unset})"
+  echo "R: $(env -u R_HOME "$REPO/R/bin/R" --version 2>&1 | head -1)"
+}
+sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
 # Maven in the worktree with the measurement environment pinned (the properties file is a copy).
 mvn_w() {
   (cd "$W/server" && env -u R_HOME R_LIBS="$RLIB" R_BIN="$W/R/bin/R" IGNORE_SNAPSHOTS=true DEBUG=true \
-    EXAMPLE_FILTER="$FILTER" BENCHMARK_OPTIMIZATIONS='$^' ./mvnw -o "$@")
+    EXAMPLE_FILTER="$FILTER" BENCHMARK_OPTIMIZATIONS='$^' ./mvnw $( [ "${OFFLINE:-1}" = 0 ] || echo -o ) "$@")
 }
 
 setup_worktree() {
@@ -88,14 +113,15 @@ setup_worktree() {
   mkdir -p "$W/R"
   local x
   for x in "$REPO"/R/*; do [ -e "$W/R/${x##*/}" ] || ln -s "$(readlink "$x" || echo "$x")" "$W/R/"; done
-  cp "$REPO/server/.config.properties" "$W/server/"
+  # Untracked, so a fresh clone has none; mvn_w sets the same values in the environment.
+  [ ! -f "$REPO/server/.config.properties" ] || cp "$REPO/server/.config.properties" "$W/server/"
   # The private library holds the probe, so that a load of rsh fails instead of using R/library/rsh.
   if ! grep -q '^Title: Probe' "$RLIB/rsh/DESCRIPTION" 2>/dev/null; then
     mkdir -p "$RLIB" && env -u R_HOME "$REPO/R/bin/R" CMD INSTALL --no-test-load -l "$RLIB" "$B/rsh-probe" >"$RLIB/install.log" 2>&1 \
       || { echo "the install of rsh-probe failed (see $RLIB/install.log)" >&2; return 1; }
   fi
 }
-rsh_sha() { if [ -e "$MAIN_RSH" ]; then shasum -a 256 "$MAIN_RSH" | cut -d' ' -f1; else echo none; fi; }
+rsh_sha() { if [ -e "$MAIN_RSH" ]; then sha256 "$MAIN_RSH"; else echo none; fi; }
 
 all_states() {
   echo "00-pre $PRE"
@@ -108,7 +134,7 @@ wipe_output() { rm -rf "$W/server/target" "$W/server/src/test/snapshots"; }   # 
 # measure NAME SHA DIR: one state. Sets REASON on failure, SUMMARY after the timing.
 measure() {
   local name=$1 sha=$2 D=$3 ex
-  local free; free=$(df -g "$REPO" | awk 'NR==2{print $4}')
+  local free; free=$(df -Pk "$REPO" | awk 'NR==2{print int($4 / 1048576)}')
   (( free >= MIN_FREE_GB )) || { REASON="DISK: only ${free} GB free"; return 3; }
   rm -rf "$D"; mkdir -p "$D/csv" "$D/fir" "$D/check"
 
@@ -130,7 +156,7 @@ measure() {
 
   # 3. Time, on a quiet machine.
   local load; load=$(wait_quiet)
-  { echo "## before (load $load)"; machine_state; } >"$D/machine.txt"
+  { echo "## machine"; machine_id; echo "## before (load $load)"; machine_state; } >"$D/machine.txt"
   rm -f "$PROBE"
   touch "$D/.start"
   local t0=$SECONDS st=0
@@ -153,10 +179,10 @@ measure() {
       note="no time"
     fi
     cl=NA cb=NA sb=NA fs=NA cs=NA value=NA
-    [ "$fir" -nt "$D/.start" ] && { fs=$(shasum -a 256 "$fir" | cut -d' ' -f1); cp "$fir" "$D/fir/"; }
+    [ "$fir" -nt "$D/.start" ] && { fs=$(sha256 "$fir"); cp "$fir" "$D/fir/"; }
     if [ "$mod/code.c" -nt "$D/.start" ]; then
       cl=$(wc -l <"$mod/code.c" | tr -d ' ') cb=$(wc -c <"$mod/code.c" | tr -d ' ')
-      cs=$(shasum -a 256 "$mod/code.c" | cut -d' ' -f1)
+      cs=$(sha256 "$mod/code.c")
     fi
     if [ "$mod/code.so" -nt "$D/.start" ] && [ "$mod/bindings.rds" -nt "$D/.start" ]; then
       sb=$(wc -c <"$mod/code.so" | tr -d ' ')
