@@ -183,4 +183,60 @@ class InlineTest implements AbstractionOptimizationUnitTest {
         Checker.checkAll(main(module), Checker.Exclude.STRICT_CFG),
         "the inlined code should type-check:\n" + printed);
   }
+
+  /// `main` is a caller after it inlined a callee that binds `q` and forces its argument `p`. The
+  /// closure that `p` creates captures the caller's environment, so it reads the global `q`.
+  @Test
+  void closureCreatedInPromiseForcedBelowAnotherEnvironment_keepsItsEnvironment() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                p: p(cls -) = prom<cls ->{
+                  c: cls = clos g;
+                  return c;
+                };
+                mkenv;
+                st q = <real 1.0>;
+                k: cls = force p;
+                popenv;
+                r: V = dyn k();
+                popenv;
+                return r;
+              }
+            }
+
+            fun g() {
+              () -+> V {
+                mkenv;
+                q: * = ld q;
+                q1: V = force? q;
+                popenv;
+                return q1;
+              }
+            }
+
+            fun init() {
+              () -+> V {
+                mkenv;
+                st-super q = <real 100.0>;
+                popenv;
+                return <real 0.0>;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+    interpreter.call("init");
+    var before = interpreter.call("main");
+
+    runOnMain(module);
+
+    assertEquals(
+        before,
+        interpreter.call("main"),
+        "inlining changed the output:\n" + Printer.toString(main(module)));
+  }
 }

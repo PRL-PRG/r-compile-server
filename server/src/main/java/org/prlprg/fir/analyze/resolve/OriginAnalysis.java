@@ -110,6 +110,7 @@ import org.prlprg.util.Streams;
 /// - A local load reads from the highest environment in which the variable is present, falling
 ///   through to the parent if the topmost may or may not have it.
 /// - A super load/store works the same way, but starts from the highest non-topmost environment.
+/// - A forced promise's body runs without the environments pushed after the promise was created.
 /// - A reflective instruction "taints" every environment; any lookup that reaches a tainted
 ///   environment is ambiguous. Static environments are always tainted.
 public final class OriginAnalysis extends AbstractInterpretation<State> implements Analysis {
@@ -121,6 +122,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   private final InferEffects inferEffects;
   private final Map<Register, Argument> registerOrigins = new HashMap<>();
   private @Nullable Set<Promise> promisesOnlyForcedInFrame = null;
+  /// The number of environments where each analyzed [Promise] is created, by identity.
+  private final Map<Promise, Integer> promiseEnvDepths = new IdentityHashMap<>();
 
   /// Creates and runs the analysis.
   public OriginAnalysis(Abstraction scope) {
@@ -356,10 +359,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// the forced *value*) clears the entry.
     private void trackAssigneePromise(Register assignee, Statement statement) {
       switch (statement.expression()) {
-        case Promise promise ->
-            state()
-                .registerPromises
-                .put(assignee, new PromiseOrigin(promise, Maybe.NO, null, state().present()));
+        case Promise promise -> {
+          promiseEnvDepths.put(promise, state().envs.size());
+          state()
+              .registerPromises
+              .put(assignee, new PromiseOrigin(promise, Maybe.NO, null, state().present()));
+        }
         // A cast or type-assumption is value-preserving, so it propagates the promise (if any).
         case Cast _ -> copyArgPromise(statement.arg(0), assignee);
         case Assume(AssumeType _) -> copyArgPromise(statement.arg(0), assignee);
@@ -679,6 +684,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         return;
       }
 
+      // The body runs in the environment where the promise is created, not in the environments
+      // that an inlined callee pushed after it.
+      var depth = promiseEnvDepths.get(po.promise);
+      var envs = state().envs;
+      var pushed =
+          depth == null || depth >= envs.size()
+              ? List.<EnvFrame>of()
+              : List.copyOf(envs.subList(depth, envs.size()));
+      envs.subList(envs.size() - pushed.size(), envs.size()).clear();
+
       subAnalysis.run(state());
 
       var returnState = subAnalysis.returnState();
@@ -693,6 +708,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           state().merge(returnState);
         }
         state().assumePresent(present);
+      }
+      state().envs.addAll(pushed);
+      if (!pushed.isEmpty() && po.promise.effects().reflect()) {
+        state().taintViaReflection();
       }
       po.value = subAnalysis.returnOrigin();
     }

@@ -15,6 +15,7 @@ import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.CfgReachability;
+import org.prlprg.fir.analyze.resolve.EnvironmentLiveness;
 import org.prlprg.fir.analyze.resolve.NamedVariablesOf;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -28,10 +29,14 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGInliner;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Force;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -135,7 +140,8 @@ public final class Inline extends AbstractionOptimization {
               CfgReachability.class,
               CfgHierarchy.class,
               OriginAnalysis.class,
-              NamedVariablesOf.class);
+              NamedVariablesOf.class,
+              EnvironmentLiveness.class);
     }
 
     void run() {
@@ -194,7 +200,8 @@ public final class Inline extends AbstractionOptimization {
       if (!(promiseReg instanceof AssigneeOf promiseAssignee)
           || !(promiseAssignee.statement().expression()
               instanceof Promise(var valueType, var effects, var code, _, var promExpr))
-          || effects.reflect()) {
+          || effects.reflect()
+          || !runsInSameEnvironment(promiseAssignee.statement(), bb, statementIndex, code)) {
         return;
       }
 
@@ -286,6 +293,35 @@ public final class Inline extends AbstractionOptimization {
         bb.statements().get(statementIndex).remove();
         inline(code, bb, statementIndex - 1, returnDest, Map.of());
       }
+    }
+
+    /// Whether `code`, the body of the promise that `promise` creates, does the same when inlined
+    /// before instruction `index` of `bb`. A promise runs in the environment it's created in, but
+    /// an inlined callee may push environments between it and the force. A load falls through
+    /// these (the callee doesn't share named variables with this scope), but a store would bind in
+    /// the callee's environment, a super-load or super-store would skip it instead, and a closure
+    /// would capture it (the variables that the closure's body loads aren't checked).
+    private boolean runsInSameEnvironment(Statement promise, BB bb, int index, CFG code) {
+      var liveness = analyses.get(EnvironmentLiveness.class);
+      var atPromise =
+          List.copyOf(
+              liveness.envsAt(Objects.requireNonNull(promise.parentBB()), promise.indexInBB()));
+      var atForce = List.copyOf(liveness.envsAt(bb, index - 1));
+      if (atForce.equals(atPromise)) {
+        return true;
+      }
+      return atForce.size() > atPromise.size()
+          && atForce.subList(0, atPromise.size()).equals(atPromise)
+          && Abstraction.streamCfgs(code)
+              .flatMap(cfg -> cfg.bbs().stream())
+              .flatMap(bb1 -> bb1.statements().stream())
+              .noneMatch(
+                  s ->
+                      switch (s.expression()) {
+                        case Store _, Closure _ -> true;
+                        case Load(var type, _) -> type == LoadType.SUPER_VAR;
+                        default -> false;
+                      });
     }
 
     private void tryInlineCall(
