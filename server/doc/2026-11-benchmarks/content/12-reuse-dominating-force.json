@@ -6,7 +6,7 @@
   "50252dd7c": "optimization"
  },
  "files": {
-  "repo-map.md": "Names the new rules in the lines of `DefiniteForce.java` (which moves to the top of the file) and `ElideTrivialAssume.java`, and adds an entry for the example `unforced_promise_overflow.R`.",
+  "repo-map.md": "Names the new rules in the lines of `DefiniteForce.java` and `ElideTrivialAssume.java`, and adds an entry for the example `unforced_promise_overflow.R`.",
   "server/src/main/java/org/prlprg/fir/opt/specialize/DefiniteForce.java": "Adds `dominatingForce`, which finds a dominating force of the same SEXP through assumptions and casts, across local promises only.",
   "server/src/main/java/org/prlprg/fir/opt/specialize/ElideTrivialAssume.java": "Removes an `AssumeType` that has no assignee or an unused assignee.",
   "server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java": "Adds tests for forwarding through local promises and assumption chains, and for the non-local, non-dominated, and narrower-type cases.",
