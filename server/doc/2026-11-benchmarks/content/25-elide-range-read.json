@@ -3,9 +3,9 @@
  "motivation": "A `for` loop over a scalar `:` range read each element from the range vector with `_seq[[idx]]` (`Fir_subscript_read_int` in C), and for a compact `1:n` that read is an ALTREP method call. The value is only `from + idx` or `from - idx`, so each trip paid a vector access for a value that two registers already give. permute_fake, permute, queens, sieve and vector_for showed the cost; for example permute_fake had 10 such reads and queens 25.",
  "solution": "The new pass `ElideRangeRead` runs in the main fixpoint after `ElideRedundantBoxUnbox`. It matches the loop shape that bc2fir gives over a static `:` call on two scalars whose result is known to be an integer vector, proves that the read is in bounds, and replaces the read with `from + idx` or `from - idx`; it removes a read whose value is unused. If the direction is not constant, a new block on the loop's entry edge tests `from <= to` once. The `:` allocation and `length` stay, because the `:` result is on the deopt stack of its checkpoint. Also in this range: a bc2fir fix that steps the `for` loop index with the new intrinsic `forIndex`, which gives `NA` after `INT_MAX` without the overflow warning of `+`, and ends the loop when the index is `NA` (`naToTrue`); the pass matches this step, and an `OptimizeCallee` fix that keeps an intrinsic call such as `toForSeq` static.",
  "commitKinds": {
-  "b28084ce4": "fix",
-  "5551ea7ba": "fix",
-  "882c59710": "optimization"
+  "82c85bfbf": "fix",
+  "e545ad2b0": "fix",
+  "e64872c8e": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime_inline.h": "Adds the inline `forIndex` intrinsic (`Fir_for_index`), which gives `NA` for `NA` and past `INT_MAX`.",

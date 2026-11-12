@@ -3,7 +3,7 @@
  "motivation": "towers passed its own promise parameters on to its recursive call as new stub promises `[<sym from_peg>]{ deopt 0 [] }`. Each call allocated three promises that nobody forced, and storage had the same pattern. The allocation and tracking of these promises dominated the cost of each call.",
  "solution": "`StrictifyPromise` replaces a single-use argument promise by the version's own promise parameter `x`. The promise must be a stub of the symbol that names `x`, or `{ v = force x; return v }`. `x` must be a definite promise whose type matches the callee's parameter, and the callee must not reflect on that parameter or be `@readsPromise`. Other R code must also not see the promise's expression: `exposesFrame` rejects a builtin that runs R code, and a callee version that creates a closure or calls a dynamic callee, a context reader or a GNU-R base closure. For a stub, `bindingHoldsParameter` checks that every `st` of the name stores `x`, that the version has at most one non-regular frame, and that it has no non-static closure or reflective store of the name. `Cleanup` then removes the unused promise.",
  "commitKinds": {
-  "1e9ef5fa0": "optimization"
+  "64655b287": "optimization"
  },
  "files": {
   "repo-map.md": "Adds an entry for the example `forwarded_promise_substitute_closure.R`.",

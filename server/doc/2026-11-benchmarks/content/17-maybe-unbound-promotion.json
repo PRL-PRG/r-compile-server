@@ -3,8 +3,8 @@
  "motivation": "PSKV rejected a variable that is maybe unbound at some deopt, because a deopt branch could not restore a binding that may not exist. In `sieve` this is `j`, and in `mandelbrot` 10 of 15 variables. Each inner trip of these loops kept three `ld`s, a type check, an `unbox`, a `box`, and a `st` on the frame.",
  "solution": "If the abstraction has one `mkenv` and the variable has a load, PSKV promotes it in store-back mode. Inside the region where `OriginAnalysis` knows the variable's origins, its loads and stores become registers and phis. On each edge out of that region to a non-deopt block, `writeBack` adds `st x = current`: at the end of a block that ends in `goto` or `check`, or in a new block on an `if` edge. Also in this range: a fix for a merge of paths that stored the same value without a phi, where `rename` took the dominator's older value (\"Missing promoted value\").",
  "commitKinds": {
-  "dbbf2c842": "optimization",
-  "4d2789462": "fix"
+  "81f5f16a3": "optimization",
+  "2102332dc": "fix"
  },
  "files": {
   "repo-map.md": "Adds an entry for `maybe_bound_merge_of_equal_stores.R`.",

@@ -3,12 +3,12 @@
  "motivation": "The FIŘ interpreter runs the warmup and records the feedback that the optimizer speculates on. It failed on bounce, list_for, list_while, matrix_for and promise_reflect, because its mocks of R builtins lacked operations that these benchmarks use. So these benchmarks timed only the unspeculated baseline, with a regular `mkenv` and frame loads and stores of every variable. promise_reflect still fails after this range, because it also needs a `tryCatch` mock.",
  "solution": "`fir/interpret/internal/Builtins.java` extends the mocks. The generic `[[<-` and `[<-` grow a vector past its end, `[`, `[[`, `[<-` and `[[<-` accept name subscripts, and arithmetic, comparison, `abs` and `as.logical` keep or drop names like GNU-R. `matrix` and row-and-column subscripts work, with `InternalInterpreter#registerUnmatchedExternal` for a dynamic `x[[i, j]] <- v`. `environment()` and `ls` of a frame work. Also in this range: `[[` reads an absent list name as `NULL`, `[[` with `exact = FALSE` matches a unique name prefix, the name `\"\"` never matches, and `ls` only accepts names that sort the same in the C and UTF-8 collations. A mock fails as unsupported where it does not copy GNU-R, for example for a logical matrix subscript or for `matrix` of empty data with a zero size.",
  "commitKinds": {
-  "90a788939": "optimization",
-  "49caa2e08": "optimization",
-  "321d9b20b": "optimization",
-  "a15b22020": "optimization",
-  "59d13c3df": "fix",
-  "533e458e5": "fix"
+  "69f1b18ae": "optimization",
+  "550fdae16": "optimization",
+  "e390bc61f": "optimization",
+  "2244314a0": "optimization",
+  "545fbd6fc": "fix",
+  "7a9d2516e": "fix"
  },
  "files": {
   "repo-map.md": "Adds entries for the nine new examples.",

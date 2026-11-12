@@ -3,9 +3,9 @@
  "motivation": "`PromoteStaticallyKnownVariables` (PSKV) only promoted a variable that the code also loads. A variable that is only stored kept a real frame (`mkenv~`) and one `st` per loop iteration, although only the deopt blocks read the binding. `bench_simple_bytecodes` has 24 such variables, and `bench_simple_scalar-while` stores `x` this way.",
  "solution": "PSKV now makes a candidate from a store and no longer needs a load. The promoted value lives in registers and phis, and only the deopt branches store it, so the frame can become elided (`mkenv-`). A store in a deopt branch does not make a candidate, because the promotion would only put it back. A variable that `ld-super` or `st-super` names (an inlined callee's frame) is not promoted. Also in this range: a `#? gcTorture` option for eval tests, and `Fir_push_env` protects a new frame when it creates it.",
  "commitKinds": {
-  "e13629685": "test",
-  "2428e7eb3": "fix",
-  "a31586ef6": "optimization"
+  "6396be3c9": "test",
+  "8001c8ee6": "fix",
+  "07d34c963": "optimization"
  },
  "files": {
   "AGENTS.md": "Documents the `#? gcTorture` example option under the snapshot integration tests.",

@@ -3,7 +3,7 @@
  "motivation": "The FIŘ runtime and the generated modules did not define `RSH`, so `Rinternals.h` did not include R's inline functions. Each `PROTECT`, `UNPROTECT`, `REAL`, `XLENGTH` and `CAR` was a call into `libR` through a linker stub. The compiled code of bench_simple_vector_for had 150 calls to `Rf_protect`, 82 to `Rf_unprotect`, 97 to `DATAPTR` and 90 to `XLENGTH_EX`, and every benchmark paid this overhead.",
  "solution": "`client/rsh/src/common2c/rsh_utils.h` defines `RSH` before it includes `Rinternals.h` in C units (not in C++, where the names collide with LLVM's). R's inline functions are then inlined at -O1 and above. The generated C text does not change; only its machine code does, and the calls to those functions disappear.",
  "commitKinds": {
-  "23a2395b5": "optimization"
+  "f19493a3a": "optimization"
  },
  "files": {
   "client/rsh/src/common2c/rsh_utils.h": "Defines `RSH` in C units before `Rinternals.h`, so R's inline functions and the inline `PROTECT` apply."

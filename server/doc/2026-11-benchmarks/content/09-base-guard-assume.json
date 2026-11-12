@@ -1,11 +1,11 @@
 {
  "title": "Compile base-function guards as assumptions",
  "motivation": "GNU-R's `BASEGUARD` checks that a call like `sum(...)` still calls the base function. bc2fir compiled it as a branch to a fallback `dyn _base(<constants>)` and a merge phi of type `V`. The fallback was also wrong: it called the base function with unevaluated arguments. Its symbol constants counted as loads, so variables like sieve's `primes` stayed in the frame, and the `V` phi hid the result type; sieve, queens, bounce and bounce_nonames paid for this in their loops.",
- "solution": "`BC2FirCFGCompiler` keeps the two lookups and the compare `_guard`, then adds a checkpoint and the assumption `_guard ?= TRUE`, which deoptimizes to the `BASEGUARD` instruction. The fallback block, the branch and the merge phi are gone, and the guard's label block gets no phi. This also removes the wrong fallback. Also in this range: the interpreter no longer restores into the same baseline forever when an assumption fails in the deopt-restore CFG (`3189c1967`), and the unboxed math1 builtins in `runtime.c` warn \"NaNs produced\" like GNU-R (`fa509abbf`), which the promotion of `x` in `inline_math1` exposed.",
+ "solution": "`BC2FirCFGCompiler` keeps the two lookups and the compare `_guard`, then adds a checkpoint and the assumption `_guard ?= TRUE`, which deoptimizes to the `BASEGUARD` instruction. The fallback block, the branch and the merge phi are gone, and the guard's label block gets no phi. This also removes the wrong fallback. Also in this range: the interpreter no longer restores into the same baseline forever when an assumption fails in the deopt-restore CFG (`8a5445975`), and the unboxed math1 builtins in `runtime.c` warn \"NaNs produced\" like GNU-R (`eb417fa61`), which the promotion of `x` in `inline_math1` exposed.",
  "commitKinds": {
-  "3189c1967": "fix",
-  "fa509abbf": "fix",
-  "07928ce6f": "optimization"
+  "8a5445975": "fix",
+  "eb417fa61": "fix",
+  "996062e48": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Adds `Fir_math1_result`, so the unboxed math1 builtins warn \"NaNs produced\" when a number becomes NaN.",

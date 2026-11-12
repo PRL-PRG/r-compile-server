@@ -68,3 +68,4 @@ values	&& and || check their operands like GNU-R (logicalOperand): a non-number 
 calls	fir2c: a dynamic call of a special passes an unforced promise of the frame as its expression, as GNU-R's `CALL` passes the source argument (`function` made the promise its body: non_bytecode_closure)
 captures	fir2c: a promise keeps copies of the registers that it captures, so a force after its activation is gone reads no dead stack
 captures	remove CaptureChecker: a non-local promise may read registers of its frame, since it keeps copies of them
+origins	OriginAnalysis: copies of a state share its register origins and promise "present" sets, so the analysis is faster with the same result

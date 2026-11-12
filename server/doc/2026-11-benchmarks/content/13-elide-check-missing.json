@@ -3,7 +3,7 @@
  "motivation": "`ElideCheckMissing` only looked at the inferred type of the argument itself. When the argument was a type assumption or cast of a value whose type already excluded `miss`, the `checkMissing` call stayed. In `bench_shootout_binarytrees_naive` this kept a checkpoint in promise bodies, so `StrictifyPromise` could not inline them and each call allocated them.",
  "solution": "`ElideCheckMissing` now walks the chain of `AssumeType` and `Cast` statements that the argument comes from. It removes the `checkMissing` if any value in the chain has a type without `miss`, because these statements do not change the SEXP. After that, `StrictifyPromise` inlines the promises in binarytrees.",
  "commitKinds": {
-  "0f080f0a4": "optimization"
+  "d357dfb1b": "optimization"
  },
  "files": {
   "server/src/main/java/org/prlprg/fir/opt/specialize/ElideCheckMissing.java": "Walks back through `AssumeType` and `Cast` statements and removes `checkMissing` when any value in the chain cannot be missing.",
