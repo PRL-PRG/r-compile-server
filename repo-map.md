@@ -86,7 +86,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `server/doc/bytecode-baseline-feedback.md` — What rcp records and how the server translates it.
 - `server/doc/speculation-and-deoptimization.md` — Speculation and deoptimization.
 - `server/doc/variadic-and-default-arguments.md` — `...` and default arguments.
-- `server/doc/2026-11-benchmarks/` — Sources of the 2026-11-09..11 `fir2c.opt` optimization report: report generator (`gen.py`, `skeleton.py`, `ranges.tsv`), text per optimization (`content/`), benchmark harness (`chain.sh`), and the benchmark CSVs of each state (`runs/`).
+- `server/doc/2026-11-benchmarks/` — Sources of the 2026-11-09..11 `fir2c.opt` optimization report: report generator (`gen.py`, `skeleton.py`, `ranges.tsv`, `repin.py` for a rewritten history), text per optimization (`content/`), the fix block and the soundness fixes (`fixes.json`, `block.tsv`, `before-fixes.tsv`), benchmark harness (`chain.sh`), and the benchmark CSVs of each state (`runs/`).
 - `server/src/main/protobuf/` — Copies of `proto/*.proto` (Maven generates Java from them).
 - `server/src/main/resources/logging.properties` — Logging configuration.
 - `server/src/main/resources/org/prlprg/fir/builtins.fir`, `intrinsics.fir` — FIŘ signatures of builtins and intrinsics.

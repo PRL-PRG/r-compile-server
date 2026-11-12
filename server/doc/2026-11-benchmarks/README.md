@@ -1,15 +1,16 @@
 # `fir2c.opt` optimization log, 2026-11-09 to 2026-11-11
 
 The sources of the report <https://claude.ai/artifact/KwRoURiYMgSD9oojwndCjV>. The report lists
-the 28 optimizations of the commits `3042a7d73..195211c02` (branch `lazy-closure-versions`). For
-each optimization it gives the cause of the slowness, the solution, the code changes, and the
-speedup of the 25 `bench_*` examples.
+the 28 optimizations of a chain of commits (branch `lazy-closure-versions`). For each optimization
+it gives the cause of the slowness, the solution, the code changes, and the speedup of the 25
+`bench_*` examples. It also lists the fixes before the chain and the effect of the soundness fixes.
 
 ## Files
 
 - `ranges.tsv`: one line per optimization: number, key, first commit, last commit, campaign label,
   and the earlier report that describes it (those reports are not kept). The ranges are contiguous
-  and cover the chain.
+  and cover the chain. The first commit of the first line and the last commit of the last line
+  are the pins of the report: state `00-pre` is the parent of the first commit.
 - `skeleton.py`: reads `ranges.tsv` and the history, and writes `skeleton.json` (commits and
   changed files of each range). It also writes an empty `content/<id>.json` for a new range.
 - `content/<id>.json`: the text of one optimization: title, motivation, solution, the kind of each
@@ -17,7 +18,15 @@ speedup of the 25 `bench_*` examples.
 - `runs/<state>/`: one benchmark run per state (`00-pre`, then the state after each optimization):
   `commit`, `csv/bench_*.csv` (the output of `OptimizationBenchmark`), `sizes.tsv` (size and hash
   of the generated code, and the result of the value check), and `notes.json`.
+- `fixes.json`: the text of the parts "Before the chain" and "Soundness fixes": the root of the
+  fix block (`blockRoot`, the parent of its first commit), one line per group of the block, the
+  costs of the fixes, and one line of fixed faults per optimization.
+- `block.tsv`: the group of each commit of the block (`blockRoot..00-pre`), by subject. `gen.py`
+  fails if a commit of the block has no line.
+- `before-fixes.tsv`: the times of the final state before the soundness fixes, from the old run of
+  that state (`gen.py --save-before runs/28-own-phi-web`, made before `runs/` was replaced).
 - `gen.py`: writes `report.html` (not tracked) from all of the above.
+- `repin.py`: applies a map of old to new commits after a rewrite of the history (see below).
 - `chain.sh`, `check.R`, `validate.py`, `rsh-probe/`: the benchmark harness.
 
 ## Regenerate the report
@@ -26,9 +35,19 @@ speedup of the 25 `bench_*` examples.
 python3 gen.py            # [--bench DIR] [--out FILE]
 ```
 
-The report pins both ends of the commit chain, so later commits do not change it. `gen.py` reads
-every diff from the commits `3042a7d73..195211c02`; the diffs are stored nowhere else. If a rebase
-or a squash removes those commits, `gen.py` cannot write the report again.
+The report pins both ends of the commit chain (`ranges.tsv`), so later commits do not change it.
+`gen.py` reads every diff from the commits of the chain; the diffs are stored nowhere else.
+
+After a rebase, give `repin.py` a map of the old to the new commits: a TSV file with a header line,
+then one line per commit (old sha, new sha, other columns are ignored). The map must name every
+commit of the chain, and state `00-pre` (old base, new base). The script replaces the shas in all
+files of this directory except `runs/` and `blockRoot`, then runs `skeleton.py`. It changes no
+file if a sha of the files is not in the map. Then run `gen.py`, and correct what its content
+check reports (new or removed files of a range) and the text of each changed optimization.
+
+```sh
+python3 repin.py MAP.tsv
+```
 
 The diff view loads highlight.js 11.9.0 from cdnjs for syntax highlighting. Without it (offline),
 the code is plain text.
@@ -37,14 +56,19 @@ the code is plain text.
 
 ```sh
 ./chain.sh [STATE...]     # default: all 29 states, about 7.5 minutes each
+RUNS=DIR EXAMPLES="bench_ai_awf_towers bench_awf_bounce" ./chain.sh 00-pre 28-own-phi-web   # smoke test
 ```
 
-`chain.sh` checks out each state in the worktree `.claude/worktrees/bench-chain`, builds it, and
-times the examples with `OptimizationBenchmark` (`BENCHMARK_OPTIMIZATIONS='$^'`). It needs the
-built vendored R of the main tree, and it does not use an installed `rsh`. It skips a state that
+`chain.sh` checks out each state in the worktree `.claude/worktrees/bench-chain` of the tree that
+holds this directory, builds it, and times the examples with `OptimizationBenchmark`
+(`BENCHMARK_OPTIMIZATIONS='$^'`). It needs the built vendored R of that tree (`R`, a build or a
+directory of links to one); the worktree gets links to the same entries, and `check.R` runs in
+that R. The timed modules are standalone, so the chain uses no installed `rsh`: it installs
+`rsh-probe/` into the private library `rlib/`, and a state fails if anything loads `rsh`. It skips a state that
 has a `DONE` file. To measure a state again, delete its `DONE` file; `chain.sh` then replaces the
 directory of that state. The logs, the FIŘ, and the private R library that it writes are not
-tracked (see `.gitignore`).
+tracked (see `.gitignore`). The states of `runs/` have `DONE` files, so a new run of all
+states needs a new directory in `RUNS`; it then replaces `runs/`.
 
 ## `notes.json`
 
