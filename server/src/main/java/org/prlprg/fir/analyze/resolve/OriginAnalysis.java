@@ -1112,7 +1112,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       } else {
         registerOrigins.put(register, origin);
       }
-      state().registerOrigins.put(register, Optional.ofNullable(origin));
+      state().putRegisterOrigin(register, Optional.ofNullable(origin));
     }
   }
 
@@ -1120,7 +1120,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// Register origins are global, but `State` must store them, so that states with different
     /// register origins aren't equal, so that we re-run blocks whose register origin
     /// dependencies changed.
-    private final Map<Register, Optional<Argument>> registerOrigins = new LinkedHashMap<>();
+    ///
+    /// A copy shares the map until one of them writes it.
+    private Map<Register, Optional<Argument>> registerOrigins = new LinkedHashMap<>();
+    private boolean registerOriginsShared = false;
     /// The stack of local environments; the last entry is the topmost (innermost).
     private final List<EnvFrame> envs = new ArrayList<>();
     /// Registers known to hold a specific promise (assigned a [Promise], or copied/loaded from
@@ -1130,6 +1133,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// a call, super-/reflectively-stored, captured, ...). They're maybe-forced within any call and
     /// any force of an unknown promise, since we can no longer tell when they're forced.
     private final Set<PromiseOrigin> leakedPromises = new LinkedHashSet<>();
+
+    private void putRegisterOrigin(Register register, Optional<Argument> origin) {
+      if (origin.equals(registerOrigins.get(register))) {
+        return;
+      }
+      if (registerOriginsShared) {
+        registerOrigins = new LinkedHashMap<>(registerOrigins);
+        registerOriginsShared = false;
+      }
+      registerOrigins.put(register, origin);
+    }
 
     private void mkEnv(Statement mkEnv, boolean reflectivelyAccessible) {
       envs.add(new EnvFrame(mkEnv, reflectivelyAccessible));
@@ -1403,7 +1417,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     @Override
     public State copy() {
       var copy = new State();
-      copy.registerOrigins.putAll(registerOrigins);
+      copy.registerOrigins = registerOrigins;
+      copy.registerOriginsShared = registerOriginsShared = true;
       var poMap = new IdentityHashMap<PromiseOrigin, PromiseOrigin>();
       registerPromises.forEach((r, po) -> copy.registerPromises.put(r, po.copyVia(poMap)));
       for (var po : leakedPromises) {
@@ -1418,8 +1433,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// Replaces the state with a copy of `other`
     private void replaceWith(State other) {
       var copy = other.copy();
-      registerOrigins.clear();
-      registerOrigins.putAll(copy.registerOrigins);
+      registerOrigins = copy.registerOrigins;
+      registerOriginsShared = true;
       envs.clear();
       envs.addAll(copy.envs);
       registerPromises.clear();
@@ -1434,10 +1449,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // - `null` = 0 possibilities
       // - `Optional.empty()` = infinite possibilities
       // - `Optional.of(arg)` = 1 possibility, `arg`
-      other.registerOrigins.forEach(
-          (register, otherOrigin) ->
-              registerOrigins.merge(
-                  register, otherOrigin, (a, b) -> a.equals(b) ? a : Optional.empty()));
+      if (registerOrigins != other.registerOrigins) {
+        other.registerOrigins.forEach(
+            (register, otherOrigin) -> {
+              var origin = registerOrigins.get(register);
+              putRegisterOrigin(
+                  register,
+                  origin == null || origin.equals(otherOrigin) ? otherOrigin : Optional.empty());
+            });
+      }
 
       var canonical = canonicalPromises();
 
@@ -1703,7 +1723,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// The variables that are definitely in each environment (by the statement that creates it)
     /// when the promise is created. They stay there while the environment exists, because only
     /// reflection removes a variable, and it taints the environment.
-    final Map<Statement, Set<NamedVariable>> present = new LinkedHashMap<>();
+    ///
+    /// Never mutated, so copies share it.
+    Map<Statement, Set<NamedVariable>> present;
 
     PromiseOrigin(Promise promise) {
       this(promise, Maybe.NO, null);
@@ -1721,8 +1743,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       this.promise = promise;
       this.forced = forced;
       this.value = value;
-      present.forEach(
-          (mkEnv, variables) -> this.present.put(mkEnv, new LinkedHashSet<>(variables)));
+      this.present = present;
     }
 
     PromiseOrigin copy() {
@@ -1732,8 +1753,20 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// Makes this origin stand for `other` too.
     void merge(PromiseOrigin other) {
       forced = forced.union(other.forced);
-      present.keySet().retainAll(other.present.keySet());
-      present.forEach((mkEnv, variables) -> variables.retainAll(other.present.get(mkEnv)));
+      if (present.equals(other.present)) {
+        return;
+      }
+      var merged = new LinkedHashMap<Statement, Set<NamedVariable>>();
+      present.forEach(
+          (mkEnv, variables) -> {
+            var otherVariables = other.present.get(mkEnv);
+            if (otherVariables != null) {
+              var both = new LinkedHashSet<>(variables);
+              both.retainAll(otherVariables);
+              merged.put(mkEnv, both);
+            }
+          });
+      present = merged;
     }
 
     /// Copies via `poMap`, so references shared within a state stay shared in the copy.
