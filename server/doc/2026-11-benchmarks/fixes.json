@@ -1,6 +1,6 @@
 {
  "blockRoot": "3042a7d73",
- "blockIntro": "State `00` is not the old base of the chain. It adds a block of fixes of problems that are older than the chain. So every state of the chain contains them. The list shows the fixes in groups. Open a group to see its commits.",
+ "blockIntro": "State `00` is not the old base of the chain. It adds a block of fixes of problems that are older than the chain. So every state of the chain contains them. The list shows the fixes in groups. Open a group to see its commits. With the block, 14 of the 15 examples that failed under optimization (`BROKEN_UNDER_OPTIMIZATION`) pass and give the GNU-R value, output and error text; only `leak_promise2` stays on the list. The three examples of promise captures that outlive their frame give the GNU-R values.",
  "blockGroups": {
   "ownership": "Ownership: a dots element or another use that is not a borrow shares an owned vector.",
   "origins": "Origin analysis, loads and stores: promise origins, leaked promises, forces, and the stores that a promise can read.",
@@ -8,6 +8,7 @@
   "mocks": "Interpreter mocks: the mocks of the FIŘ interpreter match GNU-R, or fail as unsupported.",
   "frames": "Frames: the parent of a real frame in an elided frame, and the elided parent after a caught error.",
   "calls": "Calls: tags and promise arguments of static and dynamic calls, defaults and `missing`, and the context of a special call.",
+  "captures": "Promise captures: a promise keeps copies of the registers that it captures, so a force after its activation reads no dead stack, and the capture check goes.",
   "values": "Runtime values: type guards, unboxed builtins and subscripts, `:`, `for` sequences, and floating-point contraction.",
   "checker": "Checker and parser: the type of `...` and the check of an assumption.",
   "R": "Vendored R: the reflection mark, the frames of compiled code for `sys.frame`, and the source of a compiled closure's body."

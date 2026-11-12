@@ -23,8 +23,9 @@ it gives the cause of the slowness, the solution, the code changes, and the spee
   costs of the fixes, and one line of fixed faults per optimization.
 - `block.tsv`: the group of each commit of the block (`blockRoot..00-pre`), by subject. `gen.py`
   fails if a commit of the block has no line.
-- `before-fixes.tsv`: the times of the final state before the soundness fixes, from the old run of
-  that state (`gen.py --save-before runs/28-own-phi-web`, made before `runs/` was replaced).
+- `before-fixes.tsv`: the times of the final state before the soundness fixes: a run of the old
+  final commit with the old vendored R and the old `chain.sh`, in the same session as the new run
+  (`gen.py --save-before DIR/28-own-phi-web`, where `DIR` is the `RUNS` of that run).
 - `gen.py`: writes `report.html` (not tracked) from all of the above.
 - `repin.py`: applies a map of old to new commits after a rewrite of the history (see below).
 - `chain.sh`, `check.R`, `validate.py`, `rsh-probe/`: the benchmark harness.

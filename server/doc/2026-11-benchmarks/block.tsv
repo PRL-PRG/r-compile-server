@@ -65,3 +65,6 @@ mocks	Interpreter mocks: `as.logical` of a logical, integer, or real vector conv
 calls	fir2c: the error of `checkMissing` names the argument (`argument "x" is missing, with no default`), as GNU-R's does
 values	the typed `sum` of integers out of the integer range deopts (GNU-R's `isum` gives a double), and the typed real `sum` adds in a `long double` like `rsum`
 values	&& and || check their operands like GNU-R (logicalOperand): a non-number or a longer vector raises an error
+calls	fir2c: a dynamic call of a special passes an unforced promise of the frame as its expression, as GNU-R's `CALL` passes the source argument (`function` made the promise its body: non_bytecode_closure)
+captures	fir2c: a promise keeps copies of the registers that it captures, so a force after its activation is gone reads no dead stack
+captures	remove CaptureChecker: a non-local promise may read registers of its frame, since it keeps copies of them

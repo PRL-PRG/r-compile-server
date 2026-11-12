@@ -449,9 +449,11 @@ def fixes_html(fx, bench, opts):
                     for k, v in sorted(fx['findings'].items()))
     when = f'state <code>{last[:2]}</code> of this run' if st else 'state <code>%s</code> (not measured)' % last[:2]
     return ('<section class="part" id="fixes"><div class="wrap"><h2>Soundness fixes</h2>'
-            f'<p class="lede">The final state before the fixes (<code>before-fixes.tsv</code>, from the run of the old history) and after them ({when}).</p>'
-            '<div class="caption"><p>A time is the faster of the two fir2c.opt runs, without load correction. The speedup is the time before divided by '
-            'the time after. The speedup vs. bc.opt divides each time by the bc.opt time of the same run first, so it does not depend on the load. '
+            f'<p class="lede">The final state before the fixes (<code>before-fixes.tsv</code>) and after them ({when}).</p>'
+            '<div class="caption"><p>Both columns come from the same session on the same machine. The column before is the final commit of the old '
+            'history, built with the old vendored R; the column after uses the new vendored R. A time is the faster of the two fir2c.opt runs, '
+            'without load correction. The speedup is the time before divided by the time after. The speedup vs. bc.opt divides each time by the '
+            'bc.opt time of the same run first, so it also removes the change of the GNU-R bytecode time between the two vendored Rs. '
             'A value within ±12 % is noise. A red <b>!</b> marks a wrong benchmark value; its speedups are not computed.</p></div>'
             + table + f'<div class="prose">{md(fx["costs"])}</div>'
             '<h3>Fixes of each optimization</h3><p class="lede">The faults that the fixes of each optimization remove. '
