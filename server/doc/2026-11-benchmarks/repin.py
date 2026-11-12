@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Usage: repin.py MAP.tsv
+"""Usage: repin.py MAP.tsv [OLD NEW]
 
 Apply a map of old to new commits after a rewrite of the history, then run skeleton.py.
 
-MAP.tsv has a header line, then one line per commit: old sha, new sha, and optional more columns.
+MAP.tsv has one line per commit, and maybe a header line (a line whose first field is not a sha).
+OLD and NEW are the numbers of the columns of the old and the new sha (default: 1 2).
 The script replaces each commit sha (9 or 40 hex digits that name a commit) in the files of this
 directory: ranges.tsv (the pins), the keys and the text of content/*.json, and every other file.
 It does not change runs/ (each run records the commit it measured), skeleton.json (skeleton.py
@@ -29,10 +30,12 @@ def full(sha):
 
 
 def main():
-    if len(sys.argv) != 2: sys.exit(__doc__)
-    rows = [l.rstrip('\n').split('\t') for l in open(sys.argv[1], encoding='utf-8')][1:]
+    if len(sys.argv) not in (2, 4): sys.exit(__doc__)
+    a, b = (int(x) - 1 for x in sys.argv[2:4]) if len(sys.argv) == 4 else (0, 1)
+    rows = [l.rstrip('\n').split('\t') for l in open(sys.argv[1], encoding='utf-8') if l.strip()]
+    rows = [r for r in rows if re.fullmatch(r'[0-9a-f]{7,40}', r[0])]
     sub = {}
-    for old, new, *_ in rows:
+    for old, new in ((r[a], r[b]) for r in rows):
         fo, fn = full(old), full(new)
         if not (fo and fn): sys.exit(f'repin.py: {old if not fo else new} names no commit')
         sub[fo[:9]], sub[fo] = fn[:9], fn
