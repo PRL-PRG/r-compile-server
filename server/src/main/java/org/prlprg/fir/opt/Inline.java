@@ -37,6 +37,7 @@ import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -366,6 +367,27 @@ public final class Inline extends AbstractionOptimization {
               .flatMap(cfg -> cfg.bbs().stream())
               .anyMatch(bb1 -> bb1.jump().expression() instanceof Deopt);
       if (hasDeopt) {
+        return;
+      }
+
+      // The inlined environment's parent is this scope's environment, not the callee's closure
+      // environment. The name-clash check doesn't cover a super-load or super-store, which looks
+      // in the parent, nor a closure that the callee creates, which captures the inlined
+      // environment and can look up any name later.
+      var usesParentEnvironment =
+          callee
+              .streamCfgs()
+              .flatMap(cfg -> cfg.bbs().stream())
+              .flatMap(bb1 -> bb1.statements().stream())
+              .anyMatch(
+                  s ->
+                      switch (s.expression()) {
+                        case Closure(var isStatic, _) -> !isStatic;
+                        case Store(var type, _) -> type == StoreType.SUPER_VAR;
+                        case Load(var type, _) -> type == LoadType.SUPER_VAR;
+                        default -> false;
+                      });
+      if (usesParentEnvironment) {
         return;
       }
 

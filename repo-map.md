@@ -669,6 +669,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/sign_nan.R` — The unboxed `sign` returns `NaN` and `NA` unchanged.
 - `.../examples/R/deopt_elided_env_store.R` — A deopt branch of a version with an elided environment stores the parameters: the fir2c backend materializes the environment first (`Fir_materialize_env`).
 - `.../examples/R/closure_super_assigns_defining_frame.R` — A closure stores into a variable of its defining frame with `<<-` (`OriginAnalysis` must not keep the variable's origin across the call).
+- `.../examples/R/callee_closure_sees_global_not_caller.R` — A closure that a callee creates looks up names in the callee's closure environment, not in the caller's frame (`Inline` must not inline a callee that creates a non-static closure or uses `<<-`).
 - `.../examples/R/promise_forced_after_rebinding.R` — A closure keeps a promise argument, and the function rebinds the variable before it returns; the promise is forced later, so it reads the new binding (`OriginAnalysis` must see the bindings at `popenv`).
 - `.../examples/R/promise_store_in_inlined_callee.R` — The argument promise `x <- 2` of an inlined callee stores into the caller's environment, not the callee's (`Inline` must not inline the force there, and `OriginAnalysis` must run the body without the callee's environment).
 - `.../examples/R/promise_of_copied_vector_subscript.R` — A kept promise `w[1]` of a constant vector: the folded subscript of a `v1(R)` version is a boxed constant (`OriginAnalysis` constant folding).
