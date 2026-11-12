@@ -3,12 +3,12 @@
  "motivation": "In sieve, the loop phis of the vector `primes` form a cycle through the loop nest. A phi's type is the union of its arguments' types, and each phi had another web phi as an argument, so the web stayed shared even though every vector that enters it is owned. So each trip copied the vector (`primes14 = dup primes12`) before the in-place write.",
  "solution": "The new pass `OwnPhiWeb` runs in the main fixpoint after `CallOwnedVersion` and before `ConsumeDeadDup`. It finds a web of loop phis of a primitive vector type whose arguments are web phis or owned movable registers that no other use shares and that the jump kills and passes once. Every other use must be a borrow (an element read or a `dup`), a hand-off in a block that deopts (a `st` or a `deopt` argument), or a `return` or `dots` element after which no web use is reachable. The pass gives the web the owned type, and `ConsumeDeadDup` and `ElideConsumedDup` then remove the copy; sieve's `dup`s go from 6 to 3. Also in this range: `DeferIntoPromise` no longer defers a read of a vector that a statement it does not move makes, or a load; phis are assigned in parallel in the interpreter and fir2c; `OwnPhiWeb` exempts only hand-offs in a deopt block; and `TypeAndEffectChecker` accepts an owned value where a shared one is expected (a `st`, a return, a shared register or parameter) and treats the register as shared from then on, so `Provenance` reports a later write.",
  "commitKinds": {
-  "e6a6a3c69": "fix",
-  "1be5f92ee": "fix",
-  "8dd1afad2": "optimization",
-  "941b3c340": "fix",
-  "1a61f9684": "fix",
-  "195211c02": "fix"
+  "eb32d18cb": "fix",
+  "64805a370": "fix",
+  "c565ae01d": "optimization",
+  "43268a3f5": "fix",
+  "2a3a1d01c": "fix",
+  "49d322962": "fix"
  },
  "files": {
   "AGENTS.md": "Documents that `InterpretAfterOptTest#testForced` runs the checkers on the optimized module.",
@@ -27,7 +27,8 @@
   "server/src/test/java/org/prlprg/fir/interpret/SimpleInternalInterpretTest.java": "Adds a test where a jump swaps two phis, so each must read the other's old value.",
   "server/src/test/java/org/prlprg/fir/opt/DeferIntoPromiseTest.java": "Adds tests that a read of an owned or a reused shared vector before a write, and a load before a store, are not deferred.",
   "server/src/test/java/org/prlprg/fir/opt/OwnPhiWebTest.java": "New tests: the copy goes away in single and sieve-shaped loops; aliases, captures, shared sources, sources shared before the jump, repeated arguments and live sources stay unchanged.",
-  "server/src/test/java/org/prlprg/snapshot/fir/interpret/InterpretAfterOptTest.java": "`testForced` runs the checkers, without `CaptureChecker`, on the optimized module.",
+  "server/src/test/java/org/prlprg/snapshot/fir/interpret/InterpretAfterOptTest.java": "`testForced` runs every checker on the optimized module.",
+  "server/src/test/java/org/prlprg/snapshot/fir2c/FirAfterOpt2CTest.java": "Runs 14 of the 15 examples of `BROKEN_UNDER_OPTIMIZATION` again; only `leak_promise2` stays on the list.",
   "server/src/test/resources/org/prlprg/examples/R/loop_owned_vector.R": "New example with loops that write a vector in place: reads across an inner loop, an alias, a changed element type, returns, and parallel phis.",
   "server/src/test/resources/org/prlprg/examples/R/loop_owned_vector_capture.R": "New example, C only, where closures and a lazy argument read a vector that a loop writes in place later."
  }

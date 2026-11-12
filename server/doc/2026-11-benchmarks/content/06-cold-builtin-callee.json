@@ -3,7 +3,7 @@
  "motivation": "In mandelbrot, the block that calls `bitwXor(sum, byteAcc)` never ran in the warmup, so it had no feedback. The call stayed `dyn` with symbol promises, and these promises kept the version's frame a regular `mkenv`. So the loop variables stayed in the frame, and each inner iteration did many `ld`, `st`, type checks, `unbox`es and `box`es.",
  "solution": "`SpeculateAssume` adds the assumption `f ?- F` for an `ldf f` that has no feedback in a warm version, when `F` is a function that `builtins.fir` defines and that runs no R code. The `ldf` must be used only as a `dyn` callee, and no module function may define `f` or store to it. `ResolveDynamicCallee` then makes the call static, the frame becomes `mkenv~`, and promotion runs. `GlobalModules.isDefinedBuiltin` separates the defined builtins from the FUNTAB entries without a definition. `GlobalModules.runsNoRCode` admits only builtins that call no method, condition handler or `eval`, because no feedback recorded what such code would do, e.g. a `print` method that writes to `parent.frame()`.",
  "commitKinds": {
-  "b49f057a4": "optimization"
+  "43bf189c8": "optimization"
  },
  "files": {
   "repo-map.md": "Adds entries for the examples `cold_print_method_writes_caller.R` and `cold_shadowed_builtin_guard.R`.",

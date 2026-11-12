@@ -3,9 +3,9 @@
  "motivation": "A version with an elided frame (`mkenv-`) pushes and pops the shared singleton environment on each call, and `Fir_push_env` and `Fir_pop_env` called `SET_ENCLOS` both times. `SET_ENCLOS` walks the new parent chain to reject cycles, and in a recursive call the parent usually already has the target value. fibonacci spent a large share of its time in this walk, and towers and permute also paid it. Separately, `Fir_from_r_arg` scanned the caller's frame twice for each argument from R.",
  "solution": "In `client/rsh/src/fir2c/runtime.c`, `Fir_push_env` and `Fir_pop_env` call `SET_ENCLOS` only when the elided frame's parent differs from the target. `Fir_from_r_arg` reads the binding through the location it already looked up (`R_GetVarLocValue`), instead of a second `Rf_findVarInFrame`. Also in this range: the eval tests of a `#? benchmark:` example now run the benchmark call once and compare its value with the oracle's and the snapshot's, `OptimizedFirQuery` evaluates the baselines of inner closures so the `opt/fir` snapshot parses, and `AGENTS.md` documents the new check.",
  "commitKinds": {
-  "2afcd218d": "optimization",
-  "0b304ca4d": "test",
-  "b4ad41760": "docs"
+  "07531200f": "optimization",
+  "8fdc62bf4": "test",
+  "bd2ed6764": "docs"
  },
  "files": {
   "AGENTS.md": "Adds a line that the eval tests of a `#? benchmark:` example run and compare the benchmark call's value (`benchValue.rds`, `noBenchEval`).",

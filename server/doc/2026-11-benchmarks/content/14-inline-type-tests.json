@@ -3,7 +3,7 @@
  "motivation": "A type assumption such as `r ?: v(I)` compiled to `Fir_assume_type(r, Fir_type(Fir_kind_primitive_vector(1), ...))`. At run time that was five out-of-line calls: a table read, a struct build, `Fir_assume_type`, `Fir_value_matches`, and `Fir_value_kind_matches` with `Rf_length`. The needed test is one `TYPEOF` compare and one attribute test, sometimes with a length test. The cost showed most in the loop benchmarks with many type checks (`bench_simple_empty_while`, `bench_simple_bytecodes`, `bench_simple_scalar-while`, `sieve`).",
  "solution": "The type descriptors (`Fir_kind_*`, `Fir_promisity_*`, `Fir_type`, `Fir_signature`) and the value tests (`Fir_value_kind_matches`, `Fir_value_matches`, `Fir_assume_type`) move from `runtime.c` to `runtime.h` as `static ALWAYS_INLINE` functions and constant compound literals (C only). With constant arguments, the C compiler reduces a type assumption to a few loads and compares: the `TYPEOF` tag, the attributes, and sometimes the length. Only the promise slow path `Fir_promise_value_matches` stays out of line. The emitted C text does not change.",
  "commitKinds": {
-  "5513a0d49": "optimization"
+  "7d4d1d1ad": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Removes the type descriptor globals and constructors and the value type tests, and exports `Fir_promise_value_matches` as the slow path.",
