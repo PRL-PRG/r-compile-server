@@ -3,7 +3,7 @@
  "motivation": "Each compiled promise cost four allocations (the data vector, the local-data raw vector, the external pointer to the code, and the `PROMSXP`) and one cons on the tracking list. This was also the case for a promise whose body captures no register and reads only its environment, so the per-execution parts carried no per-execution state. The promise-heavy benchmarks permute, binarytrees, storage and queens paid this cost on each call.",
  "solution": "For a promise without captures, `Fir2CCompiler` builds the code object once per site with the new `Fir_promise_site_code` and stores it in pool slot 2. Each execution then calls `Fir_mk_promise_shared`, which allocates only the `PROMSXP` and does not track it. A local promise qualifies only in the version's root CFG and only if the version has one real frame that it pops right before a return. Its escape test uses the new `FIR_FRAME_RETURNED` `gp` bit, which `Fir_pop_env` sets on a real frame it pops and which `Fir_handle_escape` reads through the new `frame_tested` field.",
  "commitKinds": {
-  "f260b3964": "optimization"
+  "c0637a17a": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Adds `Fir_promise_site_code` and `Fir_mk_promise_shared`, sets `FIR_FRAME_RETURNED` in `Fir_pop_env`, and makes the escape test read that bit for frame-tested promises.",

@@ -3,8 +3,8 @@
  "motivation": "PSKV rejected a variable that is maybe unbound at some deopt, because a deopt branch could not restore a binding that may not exist. In `sieve` this is `j`, and in `mandelbrot` 10 of 15 variables. Each inner trip of these loops kept three `ld`s, a type check, an `unbox`, a `box`, and a `st` on the frame.",
  "solution": "If the abstraction has one `mkenv` and the variable has a load, PSKV promotes it in store-back mode. Inside the region where `OriginAnalysis` knows the variable's origins, its loads and stores become registers and phis. On each edge out of that region to a non-deopt block, `writeBack` adds `st x = current`, and splits an `if` edge for it. Also in this range: a fix for a merge of paths that stored the same value without a phi, where `rename` took the dominator's older value (\"Missing promoted value\").",
  "commitKinds": {
-  "9b9562ef2": "optimization",
-  "8a3da4045": "fix"
+  "f77fcc71a": "optimization",
+  "ba5c441b4": "fix"
  },
  "files": {
   "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java": "Adds store-back mode for a maybe-bound loaded variable with one environment (`hasOneEnv`, `writeBack`), and takes the single origin at a phi-less merge.",

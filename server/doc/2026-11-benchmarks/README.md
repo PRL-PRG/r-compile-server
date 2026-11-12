@@ -1,7 +1,7 @@
 # `fir2c.opt` optimization log, 2026-11-09 to 2026-11-11
 
 The sources of the report <https://claude.ai/artifact/KwRoURiYMgSD9oojwndCjV>. The report lists
-the 28 optimizations of the commits `3042a7d73..b9f8ca942` (branch `lazy-closure-versions`). For
+the 28 optimizations of the commits `3042a7d73..195211c02` (branch `lazy-closure-versions`). For
 each optimization it gives the cause of the slowness, the solution, the code changes, and the
 speedup of the 25 `bench_*` examples.
 
@@ -27,7 +27,7 @@ python3 gen.py            # [--bench DIR] [--out FILE]
 ```
 
 The report pins both ends of the commit chain, so later commits do not change it. `gen.py` reads
-every diff from the commits `3042a7d73..b9f8ca942`; the diffs are stored nowhere else. If a rebase
+every diff from the commits `3042a7d73..195211c02`; the diffs are stored nowhere else. If a rebase
 or a squash removes those commits, `gen.py` cannot write the report again.
 
 The diff view loads highlight.js 11.9.0 from cdnjs for syntax highlighting. Without it (offline),

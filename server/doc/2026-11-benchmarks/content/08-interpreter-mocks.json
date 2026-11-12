@@ -3,12 +3,12 @@
  "motivation": "The FIŘ interpreter runs the warmup and records the feedback that the optimizer speculates on. It failed on bounce, list_for, list_while, matrix_for and promise_reflect, because its mocks of R builtins lacked operations that these benchmarks use. So these benchmarks timed only the unspeculated baseline, with a regular `mkenv` and frame loads and stores of every variable. promise_reflect still fails after this range, because it also needs a `tryCatch` mock.",
  "solution": "`fir/interpret/internal/Builtins.java` extends the mocks. The generic `[[<-` and `[<-` grow a vector past its end, `[`, `[[`, `[<-` and `[[<-` accept name subscripts, and arithmetic, comparison, `abs` and `as.logical` keep or drop names like GNU-R. `matrix` and row-and-column subscripts work, with `InternalInterpreter#registerUnmatchedExternal` for a dynamic `x[[i, j]] <- v`. `environment()` and `ls` of a frame work, including the vendored R's reflection marker. Also in this range: `[[` reads an absent list name as `NULL`, and `ls` only accepts names that sort the same in the C and UTF-8 collations.",
  "commitKinds": {
-  "0256ededb": "optimization",
-  "a62056ef9": "optimization",
-  "be059c463": "optimization",
-  "ea15ea559": "optimization",
-  "d6a042f74": "fix",
-  "e8285f621": "fix"
+  "40e5f05b4": "optimization",
+  "af5862327": "optimization",
+  "e76da4d38": "optimization",
+  "f7447f802": "optimization",
+  "d9734731a": "fix",
+  "cb7ac40a3": "fix"
  },
  "files": {
   "repo-map.md": "Adds entries for the five new `mod_*` examples.",

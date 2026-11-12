@@ -3,9 +3,9 @@
  "motivation": "A `for` loop over a scalar `:` range read each element from the range vector with `_seq[[idx]]` (`Fir_subscript_read_int` in C), and for a compact `1:n` that read is an ALTREP method call. The value is only `from + idx` or `from - idx`, so each trip paid a vector access for a value that two registers already give. permute_fake, permute, queens, sieve and vector_for showed the cost; for example permute_fake had 10 such reads and queens 25.",
  "solution": "The new pass `ElideRangeRead` runs in the main fixpoint after `ElideRedundantBoxUnbox`. It matches the loop shape that bc2fir gives over a static `:` call on two scalars whose result is known to be an integer vector, proves that the read is in bounds, and replaces the read with `from + idx` or `from - idx`; it removes a read whose value is unused. If the direction is not constant, a new block on the loop's entry edge tests `from <= to` once. The `:` allocation and `length` stay, because the `:` result is on the deopt stack of its checkpoint. Also in this range: a bc2fir fix that ends a `for` loop when its index is `NA` (`naToTrue`), which the pass needs, and an `OptimizeCallee` fix that keeps an intrinsic call such as `toForSeq` static.",
  "commitKinds": {
-  "99c1868a4": "fix",
-  "7e2b685c6": "fix",
-  "fdc938fd9": "optimization"
+  "58b59cb69": "fix",
+  "3a9cc3030": "fix",
+  "71dc8fe28": "optimization"
  },
  "files": {
   "repo-map.md": "Adds the lines for `ElideRangeRead.java` and the example `for_colon_ranges.R`.",

@@ -3,8 +3,8 @@
  "motivation": "`ElideUnforcedPromise` turns a promise that is never forced into a stub whose body is only `deopt 0 []`. The C code still built a full promise for each execution of the stub site: the external pointer to its code, its data vector, the local-data raw vector, the `PROMSXP`, and one cons on the tracking list. permute_fake made 69,280 such promises per call, none forced, and queens and storage also made many stubs.",
  "solution": "`Promise#isDeoptStub` recognizes the stub body, and `Fir2CCompiler` compiles a stub site to one `PROMSXP` that the promise's init function makes with the new `Fir_mk_stub_promise` (`PRENV = Rsh_ElidedEnv`) and stores in pool slot 2. Each execution reads it with `Fir_const(cp, 2)`, and a CFG whose promises are all shared stubs needs no tracking list. A stub whose expression is a symbol stays a per-execution promise if the version may have a regular environment, because `missing` reads `PRENV` of such a promise. Also in this range: a fix that keeps a pushed frame and each saved elided parent in protect slots of the activation, which the env operations `REPROTECT`; before it, the first block's `UNPROTECT` released the frame.",
  "commitKinds": {
-  "9b675547c": "fix",
-  "be6d32b28": "optimization"
+  "d1f9a24ba": "fix",
+  "32df243b5": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Factors out `Fir_promise_code`, adds `Fir_mk_stub_promise`, and removes the `PROTECT`/`UNPROTECT` of the frame from `Fir_push_env`, `Fir_pop_env` and `Fir_materialize_env`.",
