@@ -7,7 +7,7 @@
  },
  "files": {
   "repo-map.md": "Names the new rules in the lines of `DefiniteForce.java` and `ElideTrivialAssume.java`, and adds entries for the examples `unforced_promise_overflow.R` and `missing_arg_forced_in_branch.R`.",
-  "server/src/main/java/org/prlprg/fir/opt/specialize/DefiniteForce.java": "Adds `dominatingForce`, which finds a dominating force of the same SEXP through assumptions and casts, across local promises only.",
+  "server/src/main/java/org/prlprg/fir/opt/specialize/DefiniteForce.java": "Adds `dominatingForce`, which finds a dominating force of the same SEXP through assumptions and casts, across local promises only, whose result passes a given test. `ElideTrivialAssume` also uses it.",
   "server/src/main/java/org/prlprg/fir/opt/specialize/ElideTrivialAssume.java": "Removes an unused maybe-promise `AssumeType` if `DefiniteForce#dominatingForce` finds a dominating force whose result has the kind of the assumption.",
   "server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java": "Adds tests for forwarding through local promises and assumption chains, and for the non-local, non-dominated, and narrower-type cases.",
   "server/src/test/java/org/prlprg/fir/opt/specialize/ElideTrivialAssumeTest.java": "Adds tests that an unused maybe-promise assumption after a force is removed, and that an unused assumption without a force, a used assumption, and function and constant assumptions stay.",
