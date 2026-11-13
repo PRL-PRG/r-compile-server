@@ -13,16 +13,22 @@ run<-function(data) {
     r
 }
 
-n <- 2000000L
+# Calls `run` `reps` times, like the upstream harness, because one call is too short to time.
+bench_reps <- function(reps, data) {
+  for (bench_i in 1:reps) r <- run(data)
+  r
+}
+
+n <- 100000L
 data <- list(
         as.double(1:n),
         as.double(1:n)
 )
 
-#? benchmark: run(data)
+#? benchmark: bench_reps(20L, data)
 
 # warmup
 warmup_data <- list(as.double(1:4), as.double(1:4))
 for (i in 1:12) {
-  run(warmup_data)
+  bench_reps(2L, warmup_data)
 }

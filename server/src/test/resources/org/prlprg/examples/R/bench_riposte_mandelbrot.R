@@ -35,6 +35,12 @@ run<-function(dataset) {
 
 }
 
+# Calls `run` `reps` times, like the upstream harness, because one call is too short to time.
+bench_reps <- function(reps, data) {
+  for (bench_i in 1:reps) r <- run(data)
+  r
+}
+
 # The data of upstream `setup`, with the size as parameters (upstream: 2048 x 1536).
 mandelbrot_data <- function(width, height, maxIterations) {
     x0 <- -2
@@ -56,12 +62,12 @@ mandelbrot_data <- function(width, height, maxIterations) {
     list(c_re, c_im, maxIterations);
 }
 
-data <- mandelbrot_data(320, 240, 100L)
+data <- mandelbrot_data(160, 120, 100L)
 
-#? benchmark: run(data)
+#? benchmark: bench_reps(4L, data)
 
 # warmup
 warmup_data <- mandelbrot_data(2, 2, 2L)
 for (i in 1:12) {
-  run(warmup_data)
+  bench_reps(2L, warmup_data)
 }
