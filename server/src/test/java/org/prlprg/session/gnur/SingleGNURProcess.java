@@ -192,14 +192,19 @@ class SingleGNURProcess implements GNUR {
 
   @Override
   public SEXP eval(String source, SEXP input) {
+    File inputFile = null;
     try {
-      var inputFile = File.createTempFile("RCS-input", ".rds");
+      inputFile = File.createTempFile("RCS-input", ".rds");
       RDSWriter.writeFile(inputFile, input);
       String full_source = "input <- readRDS('" + inputFile.getAbsolutePath() + "')\n" + source;
 
       return eval(full_source);
     } catch (Exception e) {
       throw new RuntimeException("Unable to eval R source", e);
+    } finally {
+      if (inputFile != null) {
+        var _ = inputFile.delete();
+      }
     }
   }
 
