@@ -3,10 +3,14 @@ package org.prlprg.fir.opt;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
@@ -75,6 +79,39 @@ public final class Cleanup extends AbstractionOptimization {
       }
     }
     return changed;
+  }
+
+  /// The text of each version after a [#debugCleanup] of it that changed nothing, and the number
+  /// of changes that optimizations had reported then.
+  private static final Map<Abstraction, Clean> CLEAN =
+      Collections.synchronizedMap(new WeakHashMap<>());
+
+  private static final AtomicLong REPORTED_CHANGES = new AtomicLong();
+
+  private record Clean(String text, long reportedChanges) {}
+
+  /// Counts a change that an optimization reports (see [#debugCleanup]).
+  static void reportChange() {
+    REPORTED_CHANGES.incrementAndGet();
+  }
+
+  /// [#cleanup(Abstraction)], except when the last one of `abstraction` changed nothing, and since
+  /// then no optimization reported a change and its text stayed the same.
+  static void debugCleanup(Abstraction abstraction) {
+    if (!abstraction.isStub() && !abstraction.isEvaluated()) {
+      return;
+    }
+    var reported = REPORTED_CHANGES.get();
+    var text = abstraction.toString();
+    var clean = CLEAN.get(abstraction);
+    if (clean != null && clean.reportedChanges == reported && clean.text.equals(text)) {
+      return;
+    }
+    if (cleanup(abstraction)) {
+      CLEAN.remove(abstraction);
+    } else {
+      CLEAN.put(abstraction, new Clean(text, reported));
+    }
   }
 
   /// Run the [Cleanup] optimization on `abstraction`, unless it's unevaluated

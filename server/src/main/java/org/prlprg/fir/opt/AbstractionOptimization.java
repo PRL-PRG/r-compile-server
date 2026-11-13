@@ -1,6 +1,6 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.opt.Cleanup.cleanup;
+import static org.prlprg.fir.opt.Cleanup.debugCleanup;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,8 +34,11 @@ public abstract class AbstractionOptimization extends Optimization {
             () -> {
               var changed = runWithoutRecording(topLevel, function, feedback, abstraction);
 
+              if (changed) {
+                Cleanup.reportChange();
+              }
               if (AppConfig.DEBUG) {
-                cleanup(abstraction);
+                debugCleanup(abstraction);
               }
 
               return changed;

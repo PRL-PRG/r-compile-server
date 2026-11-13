@@ -97,10 +97,15 @@ public abstract class Optimization {
   /// Run as a sub-optimization of `topLevel` (or as `topLevel` itself). Returns `true` if it made
   /// progress.
   public final boolean run(Optimization topLevel, ModuleFeedback feedback, Module module) {
-    return module.record(
-        "Optimization#run",
-        List.of(this, feedback),
-        () -> runWithoutRecording(topLevel, feedback, module));
+    var changed =
+        module.record(
+            "Optimization#run",
+            List.of(this, feedback),
+            () -> runWithoutRecording(topLevel, feedback, module));
+    if (changed) {
+      Cleanup.reportChange();
+    }
+    return changed;
   }
 
   public boolean runWithoutRecording(
@@ -117,12 +122,17 @@ public abstract class Optimization {
   /// Run as a sub-optimization of `topLevel` (or as `topLevel` itself). Returns `true` if it made
   /// progress.
   public final boolean run(Optimization topLevel, ModuleFeedback feedback, Function function) {
-    return function
-        .owner()
-        .record(
-            "Optimization#run",
-            List.of(this, feedback, function),
-            () -> runWithoutRecording(topLevel, feedback, function));
+    var changed =
+        function
+            .owner()
+            .record(
+                "Optimization#run",
+                List.of(this, feedback, function),
+                () -> runWithoutRecording(topLevel, feedback, function));
+    if (changed) {
+      Cleanup.reportChange();
+    }
+    return changed;
   }
 
   public abstract boolean runWithoutRecording(
