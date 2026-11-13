@@ -2206,10 +2206,18 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   return NULL;
 }
 
-bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* found_ref) {
+bool Fir_is_bytecode_closure_of(SEXP value, SEXP origin) {
+  // Numbers are compared bitwise (`num.eq = FALSE, single.NA = FALSE`), and environments too.
+  const int flags = 1 | 2 | 16;
+  return TYPEOF(value) == CLOSXP && TYPEOF(BODY(value)) == BCODESXP &&
+         R_compute_identical(BODY(value), VECTOR_ELT(origin, 1), flags) &&
+         R_compute_identical(FORMALS(value), VECTOR_ELT(origin, 0), flags);
+}
+
+bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP origin,
+                         SEXP* found_ref) {
   SEXP found = Fir_load_fun_for_assume(symbol, env);
-  Fir_FunctionData *data = NULL;
-  if (found == NULL || !Fir_is_compiled_closure(found, &data) || data->dispatch != dispatch) {
+  if (found == NULL || !Fir_assume_function(found, dispatch, origin)) {
     return false;
   }
 

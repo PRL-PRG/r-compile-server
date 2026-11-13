@@ -992,7 +992,11 @@ static ALWAYS_INLINE bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData *
   return true;
 }
 
-static ALWAYS_INLINE bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
+/// `origin` is as for `Fir_is_bytecode_closure_of`, or NULL.
+static ALWAYS_INLINE bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch, SEXP origin) {
   Fir_FunctionData *data;
-  return Fir_is_compiled_closure(value, &data) && data->dispatch == dispatch;
+  if (Fir_is_compiled_closure(value, &data)) {
+    return data->dispatch == dispatch;
+  }
+  return origin != NULL && Fir_is_bytecode_closure_of(value, origin);
 }

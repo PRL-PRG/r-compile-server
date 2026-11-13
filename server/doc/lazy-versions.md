@@ -140,6 +140,11 @@ evaluated. Fallbacks are a new way into that shim from FIŘ code, so it now bind
 argument (a `DOTSXP`, or `NULL`) the way `applyClosure` binds `...` (a `DOTSXP`, or missing),
 which the bytecode expects.
 
+The shim's bytecode creates bytecode closures, not FIŘ closures. So a closure guard (`?-`, and
+the `ldf` guard) also accepts a closure whose formals and bytecode body are identical to those that
+its function was compiled from (`Fir_is_bytecode_closure_of`). The guarded code then calls the
+function's versions with the environment of that closure, which does what its bytecode does.
+
 The runtime (`client/rsh/src/fir2c/runtime.c`) doesn't know how to reach the server, so it takes a
 `Fir_StubCompiler` from whoever does (`Fir_set_stub_compiler`). Without one, stubs run their
 fallbacks forever. A stub counts its calls (`Fir_Stub.calls`), and call N (the

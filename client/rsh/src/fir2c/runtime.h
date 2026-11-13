@@ -623,7 +623,13 @@ SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
 bool Fir_assume_builtin_function(SEXP value, int blt_idx);
 bool Fir_assume_base_function(SEXP value, SEXP symbol);
-bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* found_ref);
+/// Whether `value` is a closure with GNU-R bytecode that is identical to `origin`, the formals and
+/// bytecode body (a list) that a FIR function was compiled from. A bytecode baseline creates such
+/// closures, and calling the function's versions with one's environment does what it would do.
+bool Fir_is_bytecode_closure_of(SEXP value, SEXP origin);
+/// `origin` is as for `Fir_is_bytecode_closure_of`, or NULL.
+bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP origin,
+                         SEXP* found_ref);
 bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found_ref);
 bool Fir_assume_load_base_fun(SEXP symbol, SEXP env, SEXP base_symbol, SEXP* found_ref);
 bool Fir_assume_load_var(SEXP symbol, SEXP env, SEXP constant);

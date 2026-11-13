@@ -2966,6 +2966,15 @@ public final class Fir2CCompiler {
             }
           }
 
+          /// The formals and GNU-R bytecode body that `function` was compiled from, which a
+          /// closure guard also accepts (`Fir_is_bytecode_closure_of`), or `NULL`.
+          private String bytecodeOriginRef(Function function) {
+            var origin = bytecodes == null ? null : bytecodes.get(function.name().name());
+            return origin == null
+                ? "NULL"
+                : constantRef(pool, SEXPs.vec(origin.formals(), SEXPs.bcode(origin.bc())));
+          }
+
           private String emitAssumptionCondition(
               Statement statement, Assumption assumption, @Nullable Argument target) {
             assert statement.expression() instanceof Assume(var a) && a == assumption;
@@ -3001,10 +3010,11 @@ public final class Fir2CCompiler {
                 // (without duplicates, builtins, or intrinsics).
                 referenceFunction(a.function());
 
-                yield "Fir_assume_function(%s, &%s)"
+                yield "Fir_assume_function(%s, &%s, %s)"
                     .formatted(
                         emitArgument(Objects.requireNonNull(target)),
-                        functionDispatchCName(a.function()));
+                        functionDispatchCName(a.function()),
+                        bytecodeOriginRef(a.function()));
               }
               case AssumeLoadFun a when a.function().owner() == BUILTINS -> {
                 var builtinIndex = builtinIndex(a.function());
@@ -3030,11 +3040,12 @@ public final class Fir2CCompiler {
                 // (without duplicates, builtins, or intrinsics).
                 referenceFunction(a.function());
 
-                yield "Fir_assume_load_fun(%s, %s, &%s, %s)"
+                yield "Fir_assume_load_fun(%s, %s, &%s, %s, %s)"
                     .formatted(
                         nvSymbolRef(pool, a.variable()),
                         VAR_ENV,
                         functionDispatchCName(a.function()),
+                        bytecodeOriginRef(a.function()),
                         refAssigneePlace);
               }
               case AssumeLoadVar(var variable, var constant) ->

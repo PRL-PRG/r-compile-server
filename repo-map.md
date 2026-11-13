@@ -663,6 +663,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/eval_compiled_body_in_live_frame.R` — `eval` of a compiled closure's body in a live frame: its pop must not mark that frame as returned (`FIR_FRAME_RETURNED`).
 - `.../examples/R/closure_called_from_inlined_frame_in_elided_frame.R` — A closure made in a real frame inside an elided frame, called with its own elided frame: no cycle in the parent chain.
 - `.../examples/R/closure_from_frame_nested_in_elided_frame.R` — A closure from a real frame that an elided frame contains: its lookups reach the elided frame's parent, not the elided environment's current parent.
+- `.../examples/R/closure_guard_accepts_bytecode_closure.R` — A closure guard passes on a closure that a bytecode baseline creates (identical formals and bytecode).
 - `.../examples/R/elided_callee_env_collected.R` — After the outermost elided frame returns, the elided environment doesn't keep its parent alive: `gc()` runs the parent's finalizer.
 - `.../examples/R/elided_frame_after_caught_error.R` — An elided frame whose callee, called from R, catches an error past a pushed elided frame: the from-R exit restores the elided environment's parent.
 - `.../examples/R/attributes_fail_type_guard.R` — A value with attributes (a name) fails the type guard of a version typed from plain values (`Fir_value_kind_matches`), and deopts.
