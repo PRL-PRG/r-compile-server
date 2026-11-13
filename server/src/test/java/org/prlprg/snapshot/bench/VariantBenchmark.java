@@ -79,6 +79,28 @@ final class VariantBenchmark {
   /// @param sameAs The label of the earlier variant with the same C, whose time this reuses.
   record Measurement(Variant variant, double time, @Nullable String sameAs) {}
 
+  /// Benchmark the example compiled by the default optimizations (the [#BASELINE] row), then by
+  /// each of `optimizations` (by label), then the baseline again ([#BASELINE_RERUN]) and the
+  /// [reference rows][#referenceRows], and report the table of `optbench.R`'s `report`.
+  static BenchmarkOutput benchmark(
+      Example example, SnapshotStore store, SequencedMap<String, Optimization> optimizations) {
+    var baseline = compiled(example, store, BASELINE, null);
+    var variants = new ArrayList<Variant>();
+    variants.add(baseline);
+    optimizations.forEach(
+        (label, optimization) -> variants.add(compiled(example, store, label, optimization)));
+    // Benchmark the baseline a second time, at the end. It's the same code as the first row, so
+    // the difference between the two rows is this benchmark's noise floor: two runs of identical
+    // code were observed to differ by up to 20%, apparently depending on how the shared object
+    // happened to be loaded, so a smaller difference than that doesn't mean anything.
+    variants.add(baseline.rerun(BASELINE_RERUN));
+    variants.addAll(referenceRows(example, store, baseline));
+
+    var log = new StringBuilder();
+    var measurements = measure(variants, BenchmarkQuery.benchmarkCall(example), log);
+    return report("", "report", columns(measurements), log.toString());
+  }
+
   /// Optimize and compile the example with `optimization` (or the default optimizations, if it's
   /// `null`), storing every intermediate in `store`.
   ///
