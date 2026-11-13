@@ -38,6 +38,8 @@ final class StackFrame {
   /// InternalInterpreter#call][InternalInterpreter]) they can all be marked
   /// [escaped][PromiseCode#escaped].
   private final List<PromiseCode> createdPromises = new ArrayList<>();
+  /// What [InternalInterpreter#onExit(Runnable)] registered.
+  private final List<Runnable> onExit = new ArrayList<>();
   /// Shared with [InternalInterpreter]: maps user-created environments to the `mkenv` statement
   /// that created them. [#mkEnv()] adds to it; [#put(NamedVariable, Value)] reads it to reject
   /// stores to elided environments.
@@ -187,6 +189,15 @@ final class StackFrame {
       promise.escaped = true;
     }
     createdPromises.clear();
+  }
+
+  void addOnExit(Runnable action) {
+    onExit.add(action);
+  }
+
+  void runOnExit() {
+    onExit.forEach(Runnable::run);
+    onExit.clear();
   }
 
   public void mkEnv() {

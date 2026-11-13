@@ -133,6 +133,7 @@ public final class InternalInterpreter implements Interpreter {
   /// evaluated once it returns (see [#call(String, Value...)]), like the compiler compiles a
   /// version while the client runs its stub's fallback.
   private final Set<Abstraction> ranFallback = new LinkedHashSet<>();
+  private @Nullable Fallback fallback;
 
   // State
   private final GlobalEnvSXP globalEnv;
@@ -165,6 +166,10 @@ public final class InternalInterpreter implements Interpreter {
   /// the result against the deopt-restore CFG's return type instead of the version's, since a
   /// version's return type only describes its normal returns.
   private boolean lastRunDeopted = false;
+  /// The stack size at which [#failUnsupported(String)] makes an exception without a printed
+  /// stack: that of the innermost running [ExternalVersion] that has a [#fallback] (which prints
+  /// the stack if the fallback doesn't run the call either), or -1.
+  private int lazyUnsupportedDepth = -1;
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
   private final MockModuleFeedback feedback;
@@ -307,11 +312,27 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   /// Bind `name` in the base environment to a closure `function(...)` whose calls run
-  /// `javaClosure`, like a function of an attached package (e.g. `stats::runif`).
+  /// `javaClosure`, like a function of an attached package (e.g. `utils::capture.output`).
   public void registerAttached(String name, ExternalVersion javaClosure) {
-    var function = attached.addFunction(Variable.named(name), List.of(NamedVariable.DOTS), true);
+    var function = attach(name);
     registerExternal(function, function.baseline(), javaClosure);
+  }
+
+  /// Bind `name` in the base environment to a closure `function(...)` that is a stub.
+  private Function attach(String name) {
+    var function = attached.addFunction(Variable.named(name), List.of(NamedVariable.DOTS), true);
     addFunctionToEnv(function, baseEnv());
+    return function;
+  }
+
+  /// Whether `function` is one that [#registerAttached] or a [Fallback] lookup bound.
+  public boolean isAttached(Function function) {
+    return function.owner() == attached;
+  }
+
+  /// Run what this doesn't support in `fallback`.
+  public void setFallback(Fallback fallback) {
+    this.fallback = fallback;
   }
 
   private void registerExternal(
@@ -443,11 +464,15 @@ public final class InternalInterpreter implements Interpreter {
     // Hijack if we registered external code for this version
     var hijacker = externalVersions.get(abstraction);
     if (hijacker != null) {
-      return callExternal(hijacker, abstraction, arguments, closureEnv);
+      return callExternal(hijacker, function, abstraction, arguments, closureEnv);
     }
 
     if (abstraction.isStub()) {
-      throw failUnsupported("Can't call unregistered stub: " + function.name());
+      var result = callFallback(function, abstraction, arguments);
+      if (result == null) {
+        throw failUnsupported("Can't call unregistered stub: " + function.name());
+      }
+      return result;
     }
 
     var fallback = abstraction.isEvaluated() ? null : abstraction.fallback();
@@ -495,53 +520,83 @@ public final class InternalInterpreter implements Interpreter {
       // baseline's, then adapt the representation to the version's, since the caller relies on
       // the version's (possibly without a checkpoint).
       checkType(result, function.baseline().returnType(), "return (after deopt)");
-      result = adaptDeoptResult(result, abstraction.returnType());
+      var adapted = adaptResult(result, abstraction.returnType());
+      if (adapted == null) {
+        throw fail(
+            "Deopt result can't be adapted to the version's return type (cascading the deopt to"
+                + " the caller is unimplemented): "
+                + result
+                + " isn't a(n) "
+                + abstraction.returnType());
+      }
+      result = adapted;
     } else {
       checkType(result, abstraction.returnType(), "return");
     }
+    frame.runOnExit();
     return result;
   }
 
-  /// Adapt a deopt-restored result to the version's declared return type: unbox if the declared
-  /// type is an unboxed scalar and the result is a corresponding boxed scalar.
-  ///
-  /// @throws InternalInterpretException if the result can't be adapted; the caller may rely on
-  ///   the declared type without a checkpoint, and cascading the deopt to the caller is
-  ///   unimplemented.
-  private Value adaptDeoptResult(Value result, Type returnType) {
-    var actual = inferType(result, returnType.ownership());
-    if (actual.isSubtypeOf(returnType)) {
+  /// Run `action` when the current call returns, like GNU-R's `on.exit` (but not when it fails).
+  public void onExit(Runnable action) {
+    topFrame().addOnExit(action);
+  }
+
+  /// `result` in the representation of `returnType`: unboxed if that's an unboxed scalar and
+  /// `result` is the corresponding boxed scalar. `null` if `result` isn't a `returnType`.
+  private @Nullable Value adaptResult(Value result, Type returnType) {
+    if (inferType(result, returnType.ownership()).isSubtypeOf(returnType)) {
       return result;
     }
 
     if (returnType.kind() instanceof Kind.PrimitiveScalar(var primitive)
         && result instanceof Value.Sexp(var sexp)) {
-      var adapted =
-          switch (primitive) {
-            case LOGICAL -> sexp.asScalarLogical().<Value>map(Value.Lgl::new);
-            case INTEGER -> sexp.asScalarInteger().<Value>map(Value.Int::new);
-            case REAL -> sexp.asScalarReal().<Value>map(Value.Real::new);
-            case STRING -> sexp.asScalarString().<Value>map(Value.Str::new);
-          };
-      if (adapted.isPresent()) {
-        return adapted.get();
-      }
+      return switch (primitive) {
+        case LOGICAL -> sexp.asScalarLogical().<Value>map(Value.Lgl::new).orElse(null);
+        case INTEGER -> sexp.asScalarInteger().<Value>map(Value.Int::new).orElse(null);
+        case REAL -> sexp.asScalarReal().<Value>map(Value.Real::new).orElse(null);
+        case STRING -> sexp.asScalarString().<Value>map(Value.Str::new).orElse(null);
+      };
     }
+    return null;
+  }
 
-    throw fail(
-        "Deopt result can't be adapted to the version's return type (cascading the deopt to the"
-            + " caller is unimplemented): "
-            + result
-            + " isn't a(n) "
-            + returnType);
+  /// The result of `version` of `function` in the [#fallback], or `null` if it doesn't run this
+  /// call or its result isn't of the version's return type.
+  private @Nullable Value callFallback(
+      Function function, Abstraction version, List<Value> arguments) {
+    var result = fallback == null ? null : fallback.call(this, function, version, arguments);
+    return result == null ? null : adaptResult(result, version.returnType());
   }
 
   private Value callExternal(
-      ExternalVersion hijacker, Abstraction hijacked, List<Value> arguments, EnvSXP environment) {
+      ExternalVersion hijacker,
+      Function function,
+      Abstraction hijacked,
+      List<Value> arguments,
+      EnvSXP environment) {
     checkStack();
 
+    var outerLazyUnsupportedDepth = lazyUnsupportedDepth;
+    lazyUnsupportedDepth = fallback == null ? -1 : stack.size();
     try {
-      var result = hijacker.call(this, hijacked, arguments, environment);
+      Value result;
+      try {
+        result = hijacker.call(this, hijacked, arguments, environment);
+      } catch (InternalInterpretUnsupportedException e) {
+        if (e.hasStack()) {
+          throw e;
+        }
+        // Thrown by `hijacker` itself, so no frame was left on the stack.
+        lazyUnsupportedDepth = outerLazyUnsupportedDepth;
+        result = callFallback(function, hijacked, arguments);
+        if (result == null) {
+          e.printStack(stack, globalEnv);
+          throw e;
+        }
+      } finally {
+        lazyUnsupportedDepth = outerLazyUnsupportedDepth;
+      }
 
       checkType(result, hijacked.returnType(), "return (from external)");
       return result;
@@ -797,10 +852,19 @@ public final class InternalInterpreter implements Interpreter {
               case BASE_FUN -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
             };
 
+        var isFunLoad =
+            loadType == LoadType.LOCAL_FUN
+                || loadType == LoadType.GLOBAL_FUN
+                || loadType == LoadType.BASE_FUN;
+        if (valueSxp == null
+            && isFunLoad
+            && fallback != null
+            && fallback.isAttachedFunction(variable.name())) {
+          attach(variable.name());
+          valueSxp = baseEnv().getFunction(variable.name(), this::force).orElse(null);
+        }
         if (valueSxp == null) {
-          if (loadType == LoadType.LOCAL_FUN
-              || loadType == LoadType.GLOBAL_FUN
-              || loadType == LoadType.BASE_FUN) {
+          if (isFunLoad) {
             throw failUnsupported(
                 "Unbound function: "
                     + variable.name()
@@ -1118,10 +1182,14 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     var value = topFrame().get(nv);
-    if (value == null) {
+    if (value != null) {
+      return ((Value.Sexp) value).value();
+    }
+    var attachedValue = fallback == null ? null : fallback.attachedVariable(nv.name());
+    if (attachedValue == null) {
       throw fail("Unbound variable: " + nv.name());
     }
-    return ((Value.Sexp) value).value();
+    return attachedValue;
   }
 
   /// Function lookup
@@ -1829,7 +1897,7 @@ public final class InternalInterpreter implements Interpreter {
 
   /// The environment of the current (innermost) call frame, e.g. where a reflective builtin like
   /// `substitute` is being evaluated (builtins don't push their own frame).
-  EnvSXP currentEnvironment() {
+  public EnvSXP currentEnvironment() {
     return topFrame().environment();
   }
 
@@ -2026,7 +2094,8 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   public InterpretException failUnsupported(String message) {
-    return new InternalInterpretUnsupportedException(message, null, stack, globalEnv);
+    return new InternalInterpretUnsupportedException(
+        message, null, stack.size() == lazyUnsupportedDepth ? null : stack, globalEnv);
   }
 
   public String stackToString() {
