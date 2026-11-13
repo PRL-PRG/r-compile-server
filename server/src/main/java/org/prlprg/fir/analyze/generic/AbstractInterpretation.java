@@ -128,6 +128,15 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
     }
 
     public final void run(S entryState) {
+      // The entry state adds nothing, so no block runs.
+      var storedEntry = states.get(cursor.cfg().entry());
+      if (storedEntry != null
+          && (storedEntry.equals(entryState) || storedEntry.subsumes(entryState))) {
+        ran = true;
+        state = null;
+        return;
+      }
+
       // Blocks run in reverse postorder, and a block's pending entry states are merged before it
       // runs. So outside of loops, a block runs once, after all its predecessors. Otherwise (e.g.
       // depth-first), each branch before a block can double how often the block runs, until the
