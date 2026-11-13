@@ -757,8 +757,6 @@ public final class BC2FirCFGCompiler {
       case PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
       case PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));
       case BcInstr.Call(var _) -> {
-        // The callee sets `R_Visible`, unless it's a builtin that becomes inline code.
-        insertVisibleBeforeTail();
         compileCall();
         // The JIT records the type of the value `CALL` leaves on the stack, i.e. the call's result
         // (`CALLBUILTIN` isn't recorded).
@@ -786,6 +784,7 @@ public final class BC2FirCFGCompiler {
         // formal parameters of all specials, and some arguments may be `...`.
         var loadFun =
             insertAndReturn(builtinName, new Load(LoadType.BASE_FUN, Variable.named(builtinName)));
+        insertVisibleBeforeTail();
         pushInsertThenCp(
             new Built(
                 new org.prlprg.fir.ir.expression.Call(new DynamicCallee(argNames)),
@@ -1392,6 +1391,10 @@ public final class BC2FirCFGCompiler {
             }
           }
         };
+    // A dynamic callee sets `R_Visible`, unless it becomes a builtin with inline code.
+    if (callInstr.expression() instanceof org.prlprg.fir.ir.expression.Call(DynamicCallee _)) {
+      insertVisibleBeforeTail();
+    }
     pushInsertThenCp(callInstr);
     if (call.source != null) {
       ((AssigneeOf) ((Read) top()).variable()).statement().setSource(call.source);

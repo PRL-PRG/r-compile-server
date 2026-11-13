@@ -53,8 +53,9 @@ import org.prlprg.fir.ir.variable.Register;
 ///     substitute occurrences of `a` with `b`).
 ///   - Remove unused assignees (convert `r = e` to `e` if `r` is unused) and phis.
 /// - Instructions
-///   - Remove trivial no-ops (pure expressions not assigned to anything), except a block's last
-///     `setVisible` or `setInvisible` in a closure or in a promise that can set `R_Visible` off.
+///   - Remove trivial no-ops (pure expressions not assigned to anything), except a `setVisible` or
+///     `setInvisible` that no later write or module function call in its block replaces, in a
+///     closure or in a promise that can set `R_Visible` off.
 ///
 /// This is a special optimization that's implicitly run after other optimizations, and never
 /// reports changes.

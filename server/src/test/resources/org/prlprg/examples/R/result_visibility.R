@@ -78,6 +78,18 @@ d5 <- function(n) {
   asg <- function(x) y <- x
   inner(asg(n))
 }
+# Tail calls that bytecode compiles to `CALLSPECIAL` and to a subset with a tag.
+d7 <- function(n) {
+  asg <- function(x) y <- x
+  asg(n)
+  rep(n, 2L)
+}
+d8 <- function(n) {
+  asg <- function(x) y <- x
+  v <- c(n, n)
+  asg(n)
+  v[1L, drop = TRUE]
+}
 # A pure promise that ends invisibly, forced after the callee's write.
 d6 <- function() {
   id <- function(x) x
@@ -88,6 +100,8 @@ w_d1 <- function() d1(3L)
 w_d2 <- function() d2(3L)
 w_d4 <- function() d4(3L)
 w_d5 <- function() d5(3L)
+w_d7 <- function() d7(3L)
+w_d8 <- function() d8(3L)
 w_call_assign <- function() f_call_assign(3L)
 w_var_after_call_assign <- function() f_var_after_call_assign(3L)
 w_promise_loop <- function() f_promise_loop(3L)
@@ -133,7 +147,11 @@ visibility <- function() {
     withVisible(w_d1())$visible,
     withVisible(w_d2())$visible,
     withVisible(w_d4())$visible,
-    withVisible(w_d5())$visible
+    withVisible(d7(3L))$visible,
+    withVisible(d8(3L))$visible,
+    withVisible(w_d5())$visible,
+    withVisible(w_d7())$visible,
+    withVisible(w_d8())$visible
   )
 }
 
@@ -169,7 +187,11 @@ for (i in 1:12) {
   w_d1()
   w_d2()
   w_d4()
+  d7(3L)
+  d8(3L)
   w_d5()
+  w_d7()
+  w_d8()
 }
 for (i in 1:12) {
   f_invisible(3L)
