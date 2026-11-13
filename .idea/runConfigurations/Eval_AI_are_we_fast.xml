@@ -12,7 +12,7 @@
     <option name="METHOD_NAME" value="testEval" />
     <option name="TEST_OBJECT" value="method" />
     <envs>
-      <env name="EXAMPLE_FILTER" value="bench_ai_awf_.*" />
+      <env name="EXAMPLE_FILTER" value="(?!stdlib_).*bench_awf_.*" />
     </envs>
     <method v="2">
       <option name="Make" enabled="true" />
