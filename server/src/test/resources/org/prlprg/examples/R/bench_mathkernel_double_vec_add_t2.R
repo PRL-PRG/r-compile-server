@@ -14,7 +14,7 @@ run = function(data) {
 
 # The data of upstream `setup()`, smaller. The warmup uses a prefix of it.
 set.seed(42)
-n <- 10000000L
+n <- 4000000L
 A <- rnorm(n)
 B <- rnorm(n)
 data <- list(A, B, n)
