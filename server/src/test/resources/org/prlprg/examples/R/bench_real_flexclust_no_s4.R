@@ -1,5 +1,5 @@
 # https://github.com/reactorlabs/RBenchmarking/blob/a92447b37a03e96f8da1e18eb3cd8ab3b46fbf89/Benchmarks/RealThing/flexclust_no_s4.r
-# License: GPL-2+, see server/doc/benchmark-licenses.md
+# License: GPL-2, see server/doc/benchmark-licenses.md
 
 #  Original flexclust code is 
 #    Copyright (C) 2005-2009 Friedrich Leisch

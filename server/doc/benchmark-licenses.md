@@ -85,11 +85,10 @@ The header of `R-benchmark-25.R` says:
 - Repository: https://github.com/reactorlabs/RBenchmarking
 - Commit: `a92447b37a03e96f8da1e18eb3cd8ab3b46fbf89`
 - License: none stated. The repository has no license file, and its files have no license header. Without a license, the default is "all rights reserved".
-- Files (48):
+- Files (48, and the 2 files of the next section):
   - `bench_awf_{bounce,bounce_nonames,bounce_nonames_simple,mandelbrot,storage}.R` (`Benchmarks/areWeFast/`)
   - `bench_real_{convolution,convolution_slow,convolution_v,volcano}.R` (`Benchmarks/RealThing/`)
   - `bench_shootout_*.R` except the 9 files of the rbenchmark section (39 files, `Benchmarks/shootout/`)
-  - The 2 flexclust files of the next section
 
 Origins that the upstream files and documents state:
 
@@ -102,7 +101,7 @@ Origins that the upstream files and documents state:
 
 - Repository and commit: as in the previous section
 - Files (2): `bench_real_{flexclust,flexclust_no_s4}.R` (`Benchmarks/RealThing/flexclust*.r`)
-- License: the code comes from the CRAN package flexclust, whose license is GPL-2 (https://cran.r-project.org/package=flexclust). Line 2 of these files says `GPL-2+`, but the package license is GPL-2 only.
+- License: the code comes from the CRAN package flexclust, whose license is GPL-2 (https://cran.r-project.org/package=flexclust).
 
 The header of `flexclust_no_s4.r` says:
 
