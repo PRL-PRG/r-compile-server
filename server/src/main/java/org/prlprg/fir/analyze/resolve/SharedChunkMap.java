@@ -1,13 +1,11 @@
 package org.prlprg.fir.analyze.resolve;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /// A map whose copies share its entries in chunks: a copy is cheap, a write copies one chunk, and
 /// [#join] and [#equals] skip the chunks that both maps share.
-///
-/// It can't be iterated, so the iteration order of its chunks doesn't matter.
 final class SharedChunkMap<K, V> {
   private static final int CHUNKS = 64;
 
@@ -119,7 +117,7 @@ final class SharedChunkMap<K, V> {
   private Map<K, V> writable(int i) {
     var chunk = chunks[i];
     if (chunk == null || (owned & (1L << i)) == 0) {
-      chunk = chunk == null ? new HashMap<>() : new HashMap<>(chunk);
+      chunk = chunk == null ? new LinkedHashMap<>() : new LinkedHashMap<>(chunk);
       chunks[i] = chunk;
       owned |= 1L << i;
     }
