@@ -8,7 +8,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -1579,21 +1578,25 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// Checks that [#merge] of `other` adds nothing to each part of this state.
     @Override
     public boolean subsumes(State other) {
-      // A copy drops each leaked promise that became equal to another one (when its `forced`
-      // changed), so it isn't equal to this state.
       if (envs.size() != other.envs.size()
-          || new HashSet<>(leakedPromises).size() != leakedPromises.size()
           || !registerOrigins.subsumes(other.registerOrigins, Optional.empty())
           || !subsumesVariablePromises(registerPromises, other.registerPromises)) {
         return false;
       }
-      if (!other.leakedPromises.isEmpty()) {
-        var canonical = canonicalPromises();
-        for (var po : other.leakedPromises) {
-          var existing = canonical.get(po.promise);
-          if (existing == null || !existing.subsumes(po) || !leakedPromises.contains(existing)) {
-            return false;
-          }
+      // With two leaked origins of a promise, a copy may drop one that became equal to the other
+      // (when its `forced` changed), so the copy isn't equal to this state.
+      var leaked = new IdentityHashMap<Promise, PromiseOrigin>();
+      for (var po : leakedPromises) {
+        if (leaked.put(po.promise, po) != null) {
+          return false;
+        }
+      }
+      for (var po : other.leakedPromises) {
+        var existing = canonicalPromise(po.promise, leaked);
+        if (existing == null
+            || !existing.subsumes(po)
+            || !existing.equals(leaked.get(po.promise))) {
+          return false;
         }
       }
       for (var i = 0; i < envs.size(); i++) {
@@ -1612,6 +1615,28 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       var canonical = new IdentityHashMap<Promise, PromiseOrigin>();
       forEachPromise(po -> canonical.putIfAbsent(po.promise, po));
       return canonical;
+    }
+
+    /// The origin of `promise` in [#canonicalPromises()], given the leaked origins by promise.
+    private @Nullable PromiseOrigin canonicalPromise(
+        Promise promise, Map<Promise, PromiseOrigin> leaked) {
+      for (var po : registerPromises.values()) {
+        if (po.promise == promise) {
+          return po;
+        }
+      }
+      var po = leaked.get(promise);
+      if (po != null) {
+        return po;
+      }
+      for (var env : envs) {
+        for (var envPo : env.variablePromises.values()) {
+          if (envPo.promise == promise) {
+            return envPo;
+          }
+        }
+      }
+      return null;
     }
 
     /// Runs `action` on the promises of the registers, the leaked promises, then the promises of
