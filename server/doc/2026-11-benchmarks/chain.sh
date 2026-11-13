@@ -21,7 +21,7 @@ BOPT='$^'
 # State 00-pre: the parent of the first commit of ranges.tsv (the pins; see repin.py).
 PRE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[0]["pre"])' "$B/skeleton.json") || exit 1
 FROM=${EXAMPLES_FROM:-}
-[ "$FROM" = tip ] && FROM=$TIP
+if [ "$FROM" = tip ]; then FROM=$TIP; [ -n "$FROM" ] || { echo "EXAMPLES_FROM=tip, but tip.json has no commit" >&2; exit 1; }; fi
 if [ -n "$FROM" ]; then FROM=$(git -C "$REPO" rev-parse "$FROM^{commit}") || exit 1; fi
 mkdir -p "$RUNS"
 
@@ -43,7 +43,7 @@ measure() {
   checkout "$sha" "$D/checkout.log" || return 1
   git -C "$W" rev-parse HEAD >"$D/commit"
   if [ -n "$FROM" ]; then copy_examples "$FROM" || { REASON="the copy of the examples failed"; return 1; }; echo "$FROM" >"$D/examples-from"; fi
-  if [ -n "${EXAMPLES:-}" ]; then EXAMPLE_LIST=$EXAMPLES; else EXAMPLE_LIST=$(bench_examples); fi
+  if [ -n "${EXAMPLES:-}" ]; then EXAMPLE_LIST=$EXAMPLES; else EXAMPLE_LIST=$(bench_examples "$FROM"); fi
   FILTER=$(filter_of $EXAMPLE_LIST)
   local total; total=$(echo $EXAMPLE_LIST | wc -w | tr -d ' ')
 
@@ -99,6 +99,7 @@ json.dump(n, open(sys.argv[2], "w"), indent=1)' "$D/notes.tsv" "$D/notes.json"
   [ -e "$PROBE" ] && { cp "$PROBE" "$D/"; REASON="check.R loaded rsh"; return 1; }
   [ "$(rsh_sha)" = "$MAIN_RSH_SHA" ] || { REASON="the main rsh.so changed"; return 1; }
   SUMMARY="timed $timed/$total, notes $(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$D/notes.json"), load $load, $((SECONDS - t0)) s$( ((st)) && echo ", status $st")"
+  (( st == 124 )) && { REASON="TIMEOUT after ${BENCH_LIMIT:-$((300 + 90 * total))} s"; return 1; }
   (( timed >= ${MIN_TIMED:-1} )) || { REASON="only $timed of $total examples have a time (need ${MIN_TIMED:-1})"; return 1; }
   gzip -f "$D/bench.log" "$D/build.log"
   touch "$D/DONE"

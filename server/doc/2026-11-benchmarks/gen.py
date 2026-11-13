@@ -515,7 +515,7 @@ def variants_head(v, tip_commit, what):
     if loads: out += f', 1-minute load average at the start of an example {min(loads):.1f} to {max(loads):.1f}'
     out += '.'
     if fails:
-        out += f' {len(fails)} examples have no result: ' + '; '.join(f'<code>{esc(short(b))}</code> ({esc(r)})' for b, r in sorted(fails.items())) + '.'
+        out += f' {len(fails)} examples have a failure: ' + '; '.join(f'<code>{esc(short(b))}</code> ({esc(r)})' for b, r in sorted(fails.items())) + '.'
     return out + '</p>'
 
 
@@ -530,7 +530,7 @@ def opt_html(v, tip_commit):
     for l in v['labels']:
         m = slow_stats(v, l, v['benches'])
         es = {b: e for b in v['benches'] if (e := v['ent'].get((b, l))) and e['base']}
-        changed = sum(e['same'] != BASE for e in es.values())
+        changed = sum(e['same'] != BASE for e in es.values() if e['t'])
         failed = sorted(b for b, e in es.items() if not e['t'])
         top = sorted(((e['t'] / e['base'], b) for b, e in es.items() if e['t'] and e['same'] != BASE and e['rerun']
                       and e['t'] / e['base'] > max(e['rerun'] / e['base'], e['base'] / e['rerun'])), reverse=True)[:3]
@@ -735,7 +735,7 @@ section.part h3 { margin: 22px 0 6px; } .caption details summary { cursor: point
 .caption p { margin: 0 0 6px; }
 .notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; } .notes li { display: flex; gap: 8px; align-items: baseline; }
 .notes .fl { flex-shrink: 0; } .fl.bad { background: var(--del); }
-.excl { flex-basis: 100%; } .excl .fl { margin-right: 6px; } table.bt .ex { color: var(--del); margin-right: 4px; cursor: help; } .bn { font: 0.82rem var(--mono); color: var(--muted); }
+.excl { flex-basis: 100%; } .excl .fl { margin-right: 6px; } .bn { font: 0.82rem var(--mono); color: var(--muted); }
 .tw { overflow: auto; max-height: 82vh; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 table.bt { border-collapse: separate; border-spacing: 0; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 table.bt th, table.bt td { padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: right; background: var(--panel); }

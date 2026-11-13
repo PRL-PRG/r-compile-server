@@ -35,7 +35,12 @@ if [ -f "$OUT/commit" ] && [ "$(cat "$OUT/commit")" != "$full" ]; then
   echo "$OUT holds a run of $(cat "$OUT/commit"), not of $full: choose another OUT" >&2; exit 1
 fi
 echo "$full" >"$OUT/commit"
-[ "$MODE" = opt ] && { echo "$BOPT" >"$OUT/optimizations"; }
+if [ "$MODE" = opt ]; then
+  if [ -f "$OUT/optimizations" ] && [ "$(cat "$OUT/optimizations")" != "$BOPT" ]; then
+    echo "$OUT holds a run with BENCHMARK_OPTIMIZATIONS=$(cat "$OUT/optimizations"): choose another OUT" >&2; exit 1
+  fi
+  echo "$BOPT" >"$OUT/optimizations"
+fi
 
 # Build once per run.
 if [ "$(git -C "$W" rev-parse HEAD)" != "$full" ] || [ ! -d "$W/server/target/test-classes" ]; then
@@ -57,7 +62,7 @@ elif [ "$(cat "$RLIB/commit" 2>/dev/null)" != "$full" ]; then
 fi
 MAIN_RSH_SHA=$(rsh_sha)
 
-if [ $# -gt 0 ]; then EXS="$*"; else EXS=$(bench_examples); fi
+if [ $# -gt 0 ]; then EXS="$*"; else EXS=$(bench_examples "$full"); fi
 n=$(echo $EXS | wc -w | tr -d ' ') i=0 ran=0 t_all=0
 { echo "## machine"; machine_id; echo "## start"; machine_state; } >"$OUT/machine-$(date +%Y%m%d-%H%M%S).txt"
 log "$MODE: $n examples, load $(load1), BENCHMARK_OPTIMIZATIONS=$BOPT"
@@ -67,8 +72,10 @@ for ex in $EXS; do
   if [ -f "$S" ] && ! { [ "${RETRY_FAILED:-0}" = 1 ] && grep -q '"status": "failed"' "$S"; }; then continue; fi
   (( $(free_gb) >= MIN_FREE_GB )) || { log "stopping: only $(free_gb) GB free"; exit 3; }
   [ -f "$EXDIR/$ex.R" ] || { log "$ex: no such example at the tip"; continue; }
+  maven_busy && { log "stopping: another Maven process uses $W"; exit 2; }
   load=$(wait_quiet)
   FILTER=$(filter_of "$ex")
+  rm -f "$OUT/$ex.csv" "$OUT"/*/"$ex.csv"
   rm -f "$RLIB/rsh-probe-loaded"
   mkdir -p "$OUT/log"
   rm -rf "$W/server/target/surefire-reports"
@@ -84,6 +91,7 @@ for ex in $EXS; do
   done
   info=$(reasons "$CLASS" "$OUT/log/$ex.log" "$st" "$ex")
   reason=$(echo "$info" | awk -F'\t' '$1 != "#"' | cut -f2)
+  [ -z "$reason" ] && (( $(echo "$info" | grep -c '^#') )) && reason="$(echo "$info" | grep -c '^#') tests failed"
   [ -e "$RLIB/rsh-probe-loaded" ] && reason="the run loaded rsh"
   [ "$(rsh_sha)" = "$MAIN_RSH_SHA" ] || { log "stopping: the main rsh.so changed"; exit 1; }
   python3 - "$S" "$ex" "$full" "$st" "$secs" "$load" "$(load1)" "$found" "$reason" "$BOPT" "$info" <<'EOF'

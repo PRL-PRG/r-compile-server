@@ -136,8 +136,11 @@ copy_examples() {
     git -C "$REPO" show "$1:$f" >"$W/$f" || return 1
   done
 }
-# The examples of EXDIR with a `#? benchmark:` line.
-bench_examples() { grep -l '^#? benchmark:' "$EXDIR"/bench_*.R | xargs -n1 basename | sed 's/\.R$//' | LC_ALL=C sort; }
+# The bench_* examples with a `#? benchmark:` line of commit $1, or of EXDIR without $1.
+bench_examples() {
+  if [ -n "${1:-}" ]; then git -C "$REPO" grep -l '^#? benchmark:' "$1" -- "$EXREL/bench_*.R" | sed 's/.*://'
+  else grep -l '^#? benchmark:' "$EXDIR"/bench_*.R; fi | xargs -n1 basename | sed 's/\.R$//' | LC_ALL=C sort
+}
 wipe_output() { rm -rf "$W/server/target" "$W/server/src/test/snapshots"; }   # worktree output only
 
 # reasons CLASS LOG STATUS EX...: one line "EX<TAB>reason" for each EX of the run of CLASS that has no
@@ -153,9 +156,13 @@ for f in glob.glob(os.path.join(rep, f'TEST-*{cls}*.xml')):
         el = next((e for e in tc if e.tag in ('failure', 'error')), None)
         if el is None: continue
         msg = ' '.join(((el.get('message') or el.text or '').strip().splitlines() or [''])[:3])[:300]
+        full = (el.get('message') or '') + (el.text or '')
+        # The messages of EvalQuery#verifyEqual, and the exception of a failed C compilation.
+        kind = ('wrong value' if re.search(r'Benchmark value changed|Return value or crash reason changed|Output changed', full) else
+                'compile error' if 'CCompilationException' in full else 'test failure')
         for ex in exs:
             if re.search(rf'\b{re.escape(ex)}\b', tc.get('name', '')):
-                fails.setdefault(ex, msg)
+                fails.setdefault(ex, f'{kind}: {msg}')
                 print(f'#\t{tc.get("name")}\t{msg}'.replace('\n', ' '))
 log = open(logf, errors='replace').read() if os.path.exists(logf) else ''
 for ex in exs:
@@ -163,11 +170,7 @@ for ex in exs:
     ok = any(re.search(r'^"\d+","<none>",[^,]*,[^,]*,[0-9.e+-]+,', open(c).read(), re.M) for c in csvs)
     if ok: continue
     so = os.path.exists(os.path.join(snap, 'opt', 'fir2c', 'opt', 'opt', ex, 'code.so'))
-    if ex in fails:
-        m = fails[ex]
-        kind = ('wrong value' if re.search(r'(?i)mismatch|not equal|expected .* but|differ', m) else
-                'compile error' if re.search(r'(?i)compil|gcc|clang|cc failed|parse', m) else 'test failure')
-        r = f'{kind}: {m}'
+    if ex in fails: r = fails[ex]
     elif csvs:
         r = 'test failure: the benchmark call of <none> failed' if so else 'compile error: no module for <none>'
     elif status == '124': r = 'timeout'
