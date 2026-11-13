@@ -1348,7 +1348,8 @@ public final class Builtins {
 
   private static SEXP colonSeq(double start, double end) {
     boolean coerceToInt = start == (int) start;
-    int size = (int) (Math.abs(end - start) + 1);
+    // GNU-R's `seq_colon` adds `FLT_EPSILON`, so `1:3.9999999` is `1:4`.
+    int size = (int) (Math.abs(end - start) + 1 + Math.ulp(1.0f));
     int step = start <= end ? 1 : -1;
     if (coerceToInt) {
       int[] result = new int[size];
@@ -1395,6 +1396,9 @@ public final class Builtins {
               }
               if (vector instanceof NilSXP) {
                 return new Value.Sexp(SEXPs.NULL);
+              }
+              if (vector.isObject()) {
+                throw interpreter.failUnsupported("Mock `" + name + "` doesn't dispatch");
               }
               var index = args.get(1).box();
               var column = column(interpreter, name, args.get(2));
@@ -1785,6 +1789,9 @@ public final class Builtins {
               var args = specialArgs(interpreter, strictArgs);
               if (args.size() != 4) {
                 throw interpreter.fail("`" + name + "` generic takes 4 arguments");
+              }
+              if (args.getFirst().box().isObject()) {
+                throw interpreter.failUnsupported("Mock `" + name + "` doesn't dispatch");
               }
               return genericSubAssign(
                   interpreter,

@@ -67,6 +67,11 @@ final class GnuRFallback implements Fallback {
           .add("system", "system2", "quit", "q", "gc", "gctorture", "browser", "debug", "trace")
           .build();
 
+  /// Special builtins that the bytecode calls with values. Any other one gets the code of its
+  /// arguments.
+  private static final @Unmodifiable Set<String> VALUE_SPECIALS =
+      ImmutableSet.of("[", "[[", "[<-", "[[<-", "$", "$<-", "&&", "||", "log");
+
   /// Functions that read the code of their arguments, which GNU-R gets in place of the values.
   private static final @Unmodifiable Set<String> UNEVALUATED =
       ImmutableSet.of("library", "require", "::", ":::");
@@ -136,7 +141,7 @@ final class GnuRFallback implements Fallback {
       Abstraction version,
       List<Value> arguments) {
     var name = function.name().name();
-    if (!canRun(interpreter, function)) {
+    if (!canRun(interpreter, function) || isFeedbackStop(interpreter, name, arguments)) {
       return null;
     }
 
@@ -151,6 +156,20 @@ final class GnuRFallback implements Fallback {
     } catch (Decline e) {
       throw interpreter.failUnsupported("GNU-R can't run `" + name + "`: " + e.getMessage());
     }
+  }
+
+  /// Whether the call is `.Machine$...`, which examples have to stop the interpreter where the
+  /// feedback must end (`invisible(.Machine$integer.max)`).
+  private static boolean isFeedbackStop(
+      InternalInterpreter interpreter, String name, List<Value> arguments) {
+    if (!name.equals("$") || arguments.isEmpty()) {
+      return false;
+    }
+    EnvSXP base = interpreter.globalEnv();
+    while (!(base instanceof BaseEnvSXP)) {
+      base = base.parent();
+    }
+    return base.getLocal(".Machine").filter(m -> m == arguments.getFirst().box()).isPresent();
   }
 
   /// A function that runs `code` (a call of a base or attached function) in GNU-R, with the
@@ -209,7 +228,9 @@ final class GnuRFallback implements Fallback {
         }
         return value;
       }
-      case StrSXP message when message.size() == 1 -> throw interpreter.fail(message.get(0));
+      // Not a failure: the error can also be that of a call which GNU-R got wrong.
+      case StrSXP message when message.size() == 1 ->
+          throw interpreter.failUnsupported("GNU-R error in `" + name + "`: " + message.get(0));
       case SEXP other -> throw interpreter.fail("`" + name + "` in GNU-R returned " + other);
     }
   }
@@ -334,7 +355,7 @@ final class GnuRFallback implements Fallback {
     var formals = function.parameterNames();
     var isSubAssign = name.equals("[<-") || name.equals("[[<-");
     var isSubscript = isSubAssign || name.equals("[") || name.equals("[[");
-    var isSpecial = GNUR.instance().getSession().isSpecial(name);
+    var isSpecial = GNUR.instance().getSession().isSpecial(name) && !VALUE_SPECIALS.contains(name);
 
     var result = new ArrayList<TaggedElem>();
     TaggedElem last = null;
@@ -417,6 +438,8 @@ final class GnuRFallback implements Fallback {
         bindVariables(interpreter, interpreter.currentEnvironment(), argument, bindings);
         yield argument;
       }
+      // The name that `$` selects.
+      case RegSymSXP _ when function.equals("$") || function.equals("$<-") -> argument;
       default -> {
         var builtin = builtinName(interpreter, argument);
         yield builtin != null ? SEXPs.symbol(builtin) : constant(interpreter, argument);
@@ -490,6 +513,19 @@ final class GnuRFallback implements Fallback {
   /// `sexp` for GNU-R: itself if it's data, and with [proxies][#proxy] for the interpreter's
   /// closures (which can also be elements of a list).
   private SEXP encode(InternalInterpreter interpreter, SEXP sexp) {
+    var attributes = sexp.attributes();
+    if (attributes != null && attributes.get("class") instanceof StrSXP classes) {
+      // GNU-R would dispatch to its own method, or to the default one.
+      for (var env = interpreter.currentEnvironment();
+          !(env instanceof BaseEnvSXP);
+          env = env.parent()) {
+        for (var binding : env.bindings()) {
+          if (classes.stream().anyMatch(c -> binding.getKey().endsWith("." + c))) {
+            throw new Decline("the example has the method `" + binding.getKey() + "`");
+          }
+        }
+      }
+    }
     return switch (sexp) {
       case CloSXP closure -> proxy(interpreter, closure);
       case VecSXP vec when vec.stream().anyMatch(CloSXP.class::isInstance) ->
@@ -571,7 +607,7 @@ final class GnuRFallback implements Fallback {
               eval(
                   """
                   local({
-                    value <- get0(input, envir = as.environment(2L))
+                    value <- get0(input, envir = as.environment(2L), ifnotfound = globalenv())
                     if (is.function(value) || is.environment(value)) NULL else list(value)
                   })""",
                   SEXPs.string(name));

@@ -1,7 +1,6 @@
 package org.prlprg.snapshot.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,6 +39,9 @@ class GnuRFallbackTest {
           r: V = nchar%< *,*,*,* -+> V >(<str "abc">, <str "chars">, <lgl FALSE>, <lgl NA_LGL>); | 3L
           # A mock that doesn't support an argument: `sum(y, na.rm = TRUE)`.
           y: v(R)o = v(R)[1.5, NA_REAL]; e: dots = dots[y]; r: V = sum%< dots,*@! -+> V >(e, <lgl TRUE>); | 1.5
+          # A language object is a value for a subscript, and code for another special builtin.
+          e: dots = dots[]; r: V = `[[`%< *@!,*,dots,*@! -+> V >(<lang f(a, 2)>, <int 3>, e, <missing>); | 2L
+          f: cls = ldf rep; r: V = dyn f[, times](<lang `+`(1, 2)>, <int 2>);   | c(3L, 3L)
           # A base closure and a function of an attached package, with data.
           f: cls = ldf strsplit; r: V = dyn f(<str "a b">, <str " ">);          | strsplit("a b", " ")
           f: cls = ldf paste; r: V = dyn f[, , sep](x, <str "u">, <str "">);    | paste(c(1.5, 2.5, 3.5), "u", sep = "")
@@ -79,12 +81,13 @@ class GnuRFallbackTest {
     assertTrue(result.isSimplyUnsupported(), result::toString);
   }
 
+  /// The error can be that of a call which GNU-R got wrong, so it isn't a failure.
   @Test
-  void errorInGnuRFails() {
+  void errorInGnuRIsUnsupported() {
     var result =
         assertInstanceOf(
             SexpResult.Error.class, run("f: cls = ldf strsplit; r: V = dyn f(<int 1>, x);"));
-    assertFalse(result.isSimplyUnsupported(), result::toString);
+    assertTrue(result.isSimplyUnsupported(), result::toString);
     assertTrue(result.toString().contains("non-character argument"), result::toString);
   }
 
