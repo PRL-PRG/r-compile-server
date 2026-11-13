@@ -656,6 +656,8 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `server/src/test/resources/org/prlprg/examples/` — R and FIŘ example programs (data).
 - `.../examples/R/bench_simple_promise_reflect.R` — A benchmark whose argument promises reflect (`environment()`) and exit by an error (`stop`), to check the promise benchmark's reflection detection.
 - `.../examples/R/bench_scalar_{crt,fib,fib_rec,for_loop_add,gcd,gcd_rec,prime}.R` — Ports of the `scalar` benchmarks of rbenchmark (https://github.com/rbenchmark/benchmarks); the first line of each names its upstream file.
+- `.../examples/R/bench_ati_att{1_1,1_2,1_3,1_4,1_5,2_1,2_2,2_3,2_4,2_5,3_1,3_2,3_3,3_4,3_5}.R` — Ports of the R-benchmark-25 (ATT) tests of rbenchmark (https://github.com/rbenchmark/benchmarks); the first line of each names its upstream file.
+- `.../examples/R/bench_mathkernel_{double,double_na,int,int_na}_vec_add_t{1,2}.R`, `bench_mathkernel_mmm_t{1,2,3}.R` — Ports of the `mathkernel` benchmarks of rbenchmark; the first line of each names its upstream file.
 - `.../examples/R/complex_assign_aliasing.R` — Setter calls on vectors that something else holds (a variable, a parameter, a closure, the index or value), which the assignment protocol must copy.
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
 - `.../examples/R/for_colon_ranges.R` — `for` loops over `a:b` that count up, down, once, or from a real bound, and nested ranges (`ElideRangeRead`).
