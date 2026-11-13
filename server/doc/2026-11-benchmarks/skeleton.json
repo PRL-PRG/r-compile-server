@@ -3,11 +3,11 @@
   "id": "01-origins-rerun",
   "campaignLabel": null,
   "source": "old/monday-825a/report.md",
-  "pre": "729cbc6cf",
-  "post": "95dfd0b84",
+  "pre": "c31aa14db",
+  "post": "8687b89ac",
   "commits": [
    {
-    "sha": "95dfd0b84",
+    "sha": "8687b89ac",
     "subject": "OriginAnalysis: re-run a maybe-forced promise body with the current state, so a loop's promise doesn't keep the first iteration's origins (queens returned 7362 instead of 1902)"
    }
   ],
@@ -53,11 +53,11 @@
   "id": "02-phi-union-type",
   "campaignLabel": null,
   "source": "old/monday-825a/report.md",
-  "pre": "95dfd0b84",
-  "post": "d588a0c6b",
+  "pre": "8687b89ac",
+  "post": "1fa230776",
   "commits": [
    {
-    "sha": "d588a0c6b",
+    "sha": "1fa230776",
     "subject": "PromoteStaticallyKnownVariables: type a promoted phi as the union of its inputs instead of *"
    }
   ],
@@ -73,11 +73,11 @@
   "id": "03-r-entry",
   "campaignLabel": null,
   "source": "old/monday-825a/report.md",
-  "pre": "d588a0c6b",
-  "post": "022abd6af",
+  "pre": "1fa230776",
+  "post": "823644050",
   "commits": [
    {
-    "sha": "022abd6af",
+    "sha": "823644050",
     "subject": "Fir2C: the R entry doesn't test arguments against a * parameter, and blocks don't emit UNPROTECT(0)"
    }
   ],
@@ -93,19 +93,19 @@
   "id": "04-skip-set-enclos",
   "campaignLabel": null,
   "source": "old/monday-825a/report.md",
-  "pre": "022abd6af",
-  "post": "1f8611888",
+  "pre": "823644050",
+  "post": "8badbdb2a",
   "commits": [
    {
-    "sha": "42185eaf5",
+    "sha": "c2842945e",
     "subject": "rsh runtime: skip the no-op SET_ENCLOS in the elided-frame push and pop, and look an R argument up once"
    },
    {
-    "sha": "c95733607",
+    "sha": "622c41040",
     "subject": "Snapshot tests: the eval of a benchmark example also runs and compares its benchmark call's value; the optimized FIŘ snapshot evaluates the baselines of inner closures so it parses"
    },
    {
-    "sha": "1f8611888",
+    "sha": "8badbdb2a",
     "subject": "AGENTS.md: the eval tests compare a benchmark example's call value"
    }
   ],
@@ -156,11 +156,11 @@
   "id": "05-rsh-inline",
   "campaignLabel": "B0",
   "source": "proposals.md §1",
-  "pre": "1f8611888",
-  "post": "0793a19c0",
+  "pre": "8badbdb2a",
+  "post": "9c3efa48c",
   "commits": [
    {
-    "sha": "0793a19c0",
+    "sha": "9c3efa48c",
     "subject": "backend B0: define RSH in C units of rsh_utils.h, so R's inline functions and the inline PROTECT apply to the FIŘ runtime and modules"
    }
   ],
@@ -176,11 +176,11 @@
   "id": "06-cold-builtin-callee",
   "campaignLabel": "D1",
   "source": "proposals.md §2",
-  "pre": "0793a19c0",
-  "post": "081f35786",
+  "pre": "9c3efa48c",
+  "post": "95e889d25",
   "commits": [
    {
-    "sha": "081f35786",
+    "sha": "95e889d25",
     "subject": "promise P1: SpeculateAssume assumes the builtins.fir callee of a ldf that never ran in a warm version"
    }
   ],
@@ -221,11 +221,11 @@
   "id": "07-forward-param-promise",
   "campaignLabel": "D2",
   "source": "proposals.md §3",
-  "pre": "081f35786",
-  "post": "22206cdee",
+  "pre": "95e889d25",
+  "post": "28d4584e3",
   "commits": [
    {
-    "sha": "22206cdee",
+    "sha": "28d4584e3",
     "subject": "promise P2: StrictifyPromise passes the caller's own promise parameter in place of a stub or force-only promise of it"
    }
   ],
@@ -256,31 +256,31 @@
   "id": "08-interpreter-mocks",
   "campaignLabel": "M1",
   "source": "proposals.md §4",
-  "pre": "22206cdee",
-  "post": "3c6eb545e",
+  "pre": "28d4584e3",
+  "post": "65fc16a31",
   "commits": [
    {
-    "sha": "87e07475d",
+    "sha": "c8053ba76",
     "subject": "mocks M1: Interpreter mocks: generic [[<- and [<- grow the vector past its end, like GNU-R"
    },
    {
-    "sha": "c1d0c1d32",
+    "sha": "b80c4fcec",
     "subject": "mocks M1: Interpreter mocks: name subscripts in generic [, [[, [<- and [[<-; generic arithmetic, comparison, abs and as.logical keep or drop names like GNU-R"
    },
    {
-    "sha": "74abb90cb",
+    "sha": "ac3f0a8cf",
     "subject": "mocks M1: Interpreter mocks: add matrix and matrix subscripts in generic [, [[, [<- and dynamic [[<- (InternalInterpreter#registerUnmatchedExternal); a coerced sub-assignment target keeps its attributes"
    },
    {
-    "sha": "7b8e71edf",
+    "sha": "9e82bb705",
     "subject": "mocks M1: Interpreter mocks: add environment() and ls of a frame (with the vendored R's reflection marker)"
    },
    {
-    "sha": "a73a90ea7",
+    "sha": "23edfea1d",
     "subject": "mocks M1: Interpreter mocks: [[ reads an absent name of a list as NULL, [ names an out-of-range list element NA"
    },
    {
-    "sha": "3c6eb545e",
+    "sha": "65fc16a31",
     "subject": "mocks M1: Interpreter mocks: ls only accepts names that sort the same in the C and UTF-8 collations (_ before digits); test environment() in a promise"
    }
   ],
@@ -361,19 +361,19 @@
   "id": "09-base-guard-assume",
   "campaignLabel": "P1",
   "source": "proposals.md §5-7",
-  "pre": "3c6eb545e",
-  "post": "41169fc3d",
+  "pre": "65fc16a31",
+  "post": "c090931e4",
   "commits": [
    {
-    "sha": "831167231",
+    "sha": "89aae9dd6",
     "subject": "Interpreter: a failed assumption in the deopt-restore CFG errors instead of restoring into it again forever"
    },
    {
-    "sha": "5f791e2d8",
+    "sha": "88c464042",
     "subject": "rsh runtime: the unboxed math1 builtins warn \"NaNs produced\" like GNU-R's math1 (inline_math1 lost its warnings once x was promoted)"
    },
    {
-    "sha": "41169fc3d",
+    "sha": "c090931e4",
     "subject": "promo P1: bc2fir compiles a base-function guard into an assumption that deoptimizes to the BASEGUARD, without the fallback call"
    }
   ],
@@ -419,15 +419,15 @@
   "id": "10-static-matrix-subassign",
   "campaignLabel": "M2",
   "source": "proposals.md §8-9",
-  "pre": "41169fc3d",
-  "post": "bed13f3a8",
+  "pre": "c090931e4",
+  "post": "eead3fab7",
   "commits": [
    {
-    "sha": "58e204719",
+    "sha": "437894636",
     "subject": "mocks M2: OriginAnalysis doesn't fold a subscript with a matrix column, or [ of a named vector (dropped the column and the name)"
    },
    {
-    "sha": "bed13f3a8",
+    "sha": "eead3fab7",
     "subject": "mocks M2: [[<- is (x, i, value, ...) like [<-, so x[[i, j]] <- v and x[i, j] <- v are static builtin calls (fir2c passes value last)"
    }
   ],
@@ -503,19 +503,19 @@
   "id": "11-store-only-promotion",
   "campaignLabel": "P2",
   "source": "proposals.md §10,11,13",
-  "pre": "bed13f3a8",
-  "post": "a2387832c",
+  "pre": "eead3fab7",
+  "post": "0d2d0812d",
   "commits": [
    {
-    "sha": "51f0d34d7",
+    "sha": "81e16cdef",
     "subject": "Snapshot tests: the gcTorture example option runs main under gctorture"
    },
    {
-    "sha": "336a16d45",
+    "sha": "aef9f2a89",
     "subject": "rsh runtime: Fir_push_env protects a new non-reflective frame before it binds the marker; four examples run under gcTorture"
    },
    {
-    "sha": "a2387832c",
+    "sha": "0d2d0812d",
     "subject": "promo P2: PromoteStaticallyKnownVariables promotes a variable that is only stored, and leaves a variable that an ld-super or st-super names"
    }
   ],
@@ -586,11 +586,11 @@
   "id": "12-reuse-dominating-force",
   "campaignLabel": "D3",
   "source": "proposals.md §14",
-  "pre": "a2387832c",
-  "post": "a5dbe03b5",
+  "pre": "0d2d0812d",
+  "post": "fc4d4d3cf",
   "commits": [
    {
-    "sha": "a5dbe03b5",
+    "sha": "fc4d4d3cf",
     "subject": "promise P3: DefiniteForce reuses a dominating force of the same SEXP; ElideTrivialAssume drops an unused AssumeType"
    }
   ],
@@ -636,11 +636,11 @@
   "id": "13-elide-check-missing",
   "campaignLabel": "D3b",
   "source": "proposals.md §15",
-  "pre": "a5dbe03b5",
-  "post": "083517761",
+  "pre": "fc4d4d3cf",
+  "post": "a7f4f60a0",
   "commits": [
    {
-    "sha": "083517761",
+    "sha": "a7f4f60a0",
     "subject": "promise P3b: ElideCheckMissing elides a checkMissing whose argument comes, through type assumptions and casts, from a value that can't be missing"
    }
   ],
@@ -661,11 +661,11 @@
   "id": "14-inline-type-tests",
   "campaignLabel": "B2",
   "source": "proposals.md §16",
-  "pre": "083517761",
-  "post": "6c3e79f67",
+  "pre": "a7f4f60a0",
+  "post": "544395514",
   "commits": [
    {
-    "sha": "6c3e79f67",
+    "sha": "544395514",
     "subject": "backend B2: the type descriptors and value type tests are inline in runtime.h, so the C compiler folds a type assumption to its TYPEOF and length tests"
    }
   ],
@@ -686,11 +686,11 @@
   "id": "15-sink-deopt-promises",
   "campaignLabel": "P3",
   "source": "proposals.md §17",
-  "pre": "6c3e79f67",
-  "post": "c4875fec9",
+  "pre": "544395514",
+  "post": "32c448f09",
   "commits": [
    {
-    "sha": "c4875fec9",
+    "sha": "32c448f09",
     "subject": "promo P3: SchedulePure defers a value promise used only in deopt branches into each of them, and defers nothing into a loop that does not contain it"
    }
   ],
@@ -716,11 +716,11 @@
   "id": "16-inline-scalar-helpers",
   "campaignLabel": "B3",
   "source": "proposals.md §18",
-  "pre": "c4875fec9",
-  "post": "7778d172e",
+  "pre": "32c448f09",
+  "post": "91cc5ad6f",
   "commits": [
    {
-    "sha": "7778d172e",
+    "sha": "91cc5ad6f",
     "subject": "backend B3: the scalar builtins and intrinsics and the subscript reads and writes are static inline in runtime_inline.h, so a module inlines them instead of calling the runtime"
    }
   ],
@@ -751,15 +751,15 @@
   "id": "17-maybe-unbound-promotion",
   "campaignLabel": "P4",
   "source": "proposals.md §20-21",
-  "pre": "7778d172e",
-  "post": "f84eaf729",
+  "pre": "91cc5ad6f",
+  "post": "cc70257ce",
   "commits": [
    {
-    "sha": "00ca54f24",
+    "sha": "f9c4f5684",
     "subject": "promo P4: PromoteStaticallyKnownVariables promotes a loaded variable that is maybe bound at a deopt where it is bound, and stores it back on each edge out of that region"
    },
    {
-    "sha": "f84eaf729",
+    "sha": "cc70257ce",
     "subject": "PromoteStaticallyKnownVariables: a merge of paths that stored the same value (no phi) takes that value, not its dominator's (fixes 'Missing promoted value')"
    }
   ],
@@ -790,15 +790,15 @@
   "id": "18-subscript-default-method",
   "campaignLabel": "B4",
   "source": "proposals.md §22-23",
-  "pre": "f84eaf729",
-  "post": "4995a44ad",
+  "pre": "cc70257ce",
+  "post": "4c4f7119d",
   "commits": [
    {
-    "sha": "135daf28c",
+    "sha": "08b63276a",
     "subject": "OriginAnalysis orders a variable's origins by a Read's register name instead of printing it, which halves the lazy eval build's optimization time (queens eval 72 s to 31 s)"
    },
    {
-    "sha": "4995a44ad",
+    "sha": "4c4f7119d",
     "subject": "backend B4: a call of the special `[`, `[[`, `[<-` or `[[<-` on a target that is not an object forces its arguments once and calls the default method, without the special's second argument list or the setter's promise"
    }
   ],
@@ -834,15 +834,15 @@
   "id": "19-store-only-store-back",
   "campaignLabel": "P4b",
   "source": "proposals.md §24-25",
-  "pre": "4995a44ad",
-  "post": "0a745c5cf",
+  "pre": "4c4f7119d",
+  "post": "0286e1d1a",
   "commits": [
    {
-    "sha": "22d155c7a",
+    "sha": "7109263f9",
     "subject": "PromoteStaticallyKnownVariables: in store-back mode, store the variable back where the origin analysis loses it inside a block (a call that may force a leaked promise), not only at block entries (fixes a binding lost at a later deopt)"
    },
    {
-    "sha": "0a745c5cf",
+    "sha": "0286e1d1a",
     "subject": "promo P4b: PromoteStaticallyKnownVariables promotes a store-only variable that is maybe bound at a deopt when a store is in a loop that contains no end of its region (mandelbrot zr: one store per pixel, not per iteration)"
    }
   ],
@@ -863,15 +863,15 @@
   "id": "20-shared-stub-promise",
   "campaignLabel": "D4",
   "source": "proposals.md §19,27,28",
-  "pre": "0a745c5cf",
-  "post": "8a724c8fb",
+  "pre": "0286e1d1a",
+  "post": "2ed617a66",
   "commits": [
    {
-    "sha": "9e2c0a570",
+    "sha": "ab714c171",
     "subject": "fir2c: a pushed frame and each saved elided parent live in protect slots of the activation, which the env operations REPROTECT (a block's UNPROTECT released the frame instead of its own protects)"
    },
    {
-    "sha": "8a724c8fb",
+    "sha": "2ed617a66",
     "subject": "promise P4: a deopt stub compiles to one promise for its site (Fir_mk_stub_promise), unless its expression is a symbol that missing can read in a regular environment"
    }
   ],
@@ -922,11 +922,11 @@
   "id": "21-shared-promise-code",
   "campaignLabel": "D5",
   "source": "proposals.md §30",
-  "pre": "8a724c8fb",
-  "post": "94268de49",
+  "pre": "2ed617a66",
+  "post": "2019b41a5",
   "commits": [
    {
-    "sha": "94268de49",
+    "sha": "2019b41a5",
     "subject": "promise P5: a promise without captures shares one code object for its site and allocates only its PROMSXP (Fir_mk_promise_shared); a local one is escaped when Fir_pop_env set FIR_FRAME_RETURNED on its frame"
    }
   ],
@@ -972,15 +972,15 @@
   "id": "22-scalar-subscript-paths",
   "campaignLabel": "B5",
   "source": "proposals.md §26,31,32",
-  "pre": "94268de49",
-  "post": "fe01348ca",
+  "pre": "2019b41a5",
+  "post": "b6e8f7115",
   "commits": [
    {
-    "sha": "1b3c8e0a6",
+    "sha": "f74b65d8c",
     "subject": "backend B5: `[`, `[[`, `[<-` and `[[<-` with 1 or 2 scalar indices on a vector or matrix that is not an object read and store the element without an argument list, as GNU-R bytecode's fast paths"
    },
    {
-    "sha": "fe01348ca",
+    "sha": "b6e8f7115",
     "subject": "SchedulePure: a deferred statement goes after a checkpoint's leading assumptions, never in front of them or to a use in them (fixes an unchecked `ldf` assumption whose register the GC marked uninitialized)"
    }
   ],
@@ -1021,11 +1021,11 @@
   "id": "23-hoist-loop-assume",
   "campaignLabel": "P6",
   "source": "proposals.md §33",
-  "pre": "fe01348ca",
-  "post": "063764a6b",
+  "pre": "b6e8f7115",
+  "post": "bd3d0605e",
   "commits": [
    {
-    "sha": "063764a6b",
+    "sha": "bd3d0605e",
     "subject": "HoistLoopAssume: move the loop-invariant assumptions of a loop header's checkpoint to a new checkpoint on the loop's entry edge"
    }
   ],
@@ -1056,11 +1056,11 @@
   "id": "24-inline-elided-push-pop",
   "campaignLabel": "B6",
   "source": "proposals.md §34",
-  "pre": "063764a6b",
-  "post": "69a454990",
+  "pre": "bd3d0605e",
+  "post": "83af0f8d8",
   "commits": [
    {
-    "sha": "69a454990",
+    "sha": "83af0f8d8",
     "subject": "backend B6: the push of an elided frame and the pop of any frame are inline in the module (runtime_inline.h), and the elided push REPROTECTs only a parent it replaces"
    }
   ],
@@ -1096,20 +1096,20 @@
   "id": "25-elide-range-read",
   "campaignLabel": "P8",
   "source": "proposals.md §35-37",
-  "pre": "69a454990",
-  "post": "3694cf8e0",
+  "pre": "83af0f8d8",
+  "post": "cca4b7b12",
   "commits": [
    {
-    "sha": "c5a3c5cd6",
+    "sha": "ce097ab46",
     "subject": "bc2fir: a `for` loop ends when its index is `NA` (naToTrue), so after INT_MAX trips it stops as GNU-R's instead of entering the body with an `NA` index"
    },
    {
-    "sha": "9ae9fd2bb",
+    "sha": "14714cdcc",
     "subject": "OptimizeCallee: an intrinsic call stays static when a better version could run (fir2c rejects a dispatched intrinsic; a `for` over a range that is integer or real made `toForSeq` dispatch)"
    },
    {
-    "sha": "3694cf8e0",
-    "subject": "promo P8: ElideRangeRead replaces the element read of a for loop over a scalar `:` range with from + idx or from - idx (direction tested once on the entry edge)"
+    "sha": "cca4b7b12",
+    "subject": "promo P8: ElideRangeRead replaces the element read of a for loop over a scalar `:` range with rangeElement(from, k, step) (step 1 or -1, tested once on the entry edge)"
    }
   ],
   "files": [
@@ -1184,11 +1184,11 @@
   "id": "26-inline-logical-and-or",
   "campaignLabel": "B7",
   "source": "proposals.md §38",
-  "pre": "3694cf8e0",
-  "post": "4c837a71c",
+  "pre": "cca4b7b12",
+  "post": "f34f38bcd",
   "commits": [
    {
-    "sha": "4c837a71c",
+    "sha": "f34f38bcd",
     "subject": "backend B7: `&&` and `||` on two logical scalars and `as.logical` of one have typed versions that the module inlines (R's NA rules), so mandelbrot's loop calls no builtin"
    }
   ],
@@ -1224,11 +1224,11 @@
   "id": "27-hot-path-bookkeeping",
   "campaignLabel": "B8",
   "source": "proposals.md §39",
-  "pre": "4c837a71c",
-  "post": "839d43cd1",
+  "pre": "f34f38bcd",
+  "post": "c0efd7db2",
   "commits": [
    {
-    "sha": "839d43cd1",
+    "sha": "c0efd7db2",
     "subject": "backend B8: the pop of the outermost elided frame sets the singleton's parent to R_EmptyEnv (Rsh_ElidedDepth), a return tests the promise tracking list for empty inline, and Fir_assume_function is inline"
    }
   ],
@@ -1274,31 +1274,31 @@
   "id": "28-own-phi-web",
   "campaignLabel": "P9",
   "source": "proposals.md §40-43",
-  "pre": "839d43cd1",
-  "post": "f0e3487ff",
+  "pre": "c0efd7db2",
+  "post": "6f92533ec",
   "commits": [
    {
-    "sha": "b10b0e747",
+    "sha": "eb33adc37",
     "subject": "DeferIntoPromise: a pure statement that reads an owned vector is not deferred (a later in-place write of the vector would change what the promise reads)"
    },
    {
-    "sha": "8bec0d261",
+    "sha": "774efce10",
     "subject": "Phis are assigned in parallel in the interpreter and fir2c: an argument that is another phi of the target read its new value (`old <- v` in a loop saw the next write)"
    },
    {
-    "sha": "49c1f4b2c",
+    "sha": "0fd76cc82",
     "subject": "promo P9: OwnPhiWeb gives the owned type to a web of loop phis that only moves owned vectors, so the copy before an in-place write disappears (sieve)"
    },
    {
-    "sha": "9e9b1fdc9",
+    "sha": "7e282ba5c",
     "subject": "OwnPhiWeb: a use in a block that deopts is exempt only as a hand-off (a st or a deopt argument), also when it follows an escaping use"
    },
    {
-    "sha": "c939c5349",
+    "sha": "5f378b6e2",
     "subject": "TypeAndEffectChecker: a st of an owned register in a block that deopts is a hand-off to the interpreter, so it accepts it (the optimized sieve failed the check)"
    },
    {
-    "sha": "f0e3487ff",
+    "sha": "6f92533ec",
     "subject": "DeferIntoPromise: a load is not deferred (a later st of its variable rebinds what the promise would read)"
    }
   ],

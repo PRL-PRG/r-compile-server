@@ -3,7 +3,7 @@
  "motivation": "`builtins.fir` had no version of `&&` or `||` for two unboxed logical scalars. So mandelbrot's loop condition boxed a logical, built an argument array, called the generic `&&` through `Fir_call_builtin`, and unboxed the result, on every trip of the inner loop.",
  "solution": "`builtins.fir` adds `&&` and `||` as `(lhs:L, rhs:L) --> L`, and `as.logical` as `(x:L, ddd:miss) --> L`. `runtime_inline.h` adds the three C helpers, with R's NA rules written out, because `NA_LOGICAL` is not 0 and C's `&&` would be wrong. The FIŘ interpreter (`Builtins.java`) registers the same signatures. `Unbox` then picks the typed versions without any Fir2C change, and mandelbrot's module calls no `Fir_call_builtin` any more.",
  "commitKinds": {
-  "4c837a71c": "optimization"
+  "f34f38bcd": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime_inline.h": "Adds inline `&&` and `||` on two logical scalars with R's NA rules, and an `as.logical` of a logical scalar that returns it.",

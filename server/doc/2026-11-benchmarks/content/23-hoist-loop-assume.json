@@ -3,7 +3,7 @@
  "motivation": "A `while` loop's header ends in a checkpoint, so a type assumption such as `n ?: v1(R)` and the `unbox` that follows it ran on every trip, although `n` is defined outside the loop and never changes. In C each trip paid the checkpoint branch with the inline type test, the `PROTECT`/`UNPROTECT` of the assumption result, and the `unbox` load. empty_while, scalar-while, bytecodes, sieve and vector_while showed this cost.",
  "solution": "The new pass `HoistLoopAssume` handles a loop whose header has no statement, ends in a checkpoint, and has one entry edge from outside the loop. It moves the leading `?:`, `?-` and `?=` assumptions on registers that are defined outside the loop and are not owned or fresh to a new checkpoint on that entry edge. The new deopt block is a copy of the header's deopt block, with each header phi replaced by its argument on the entry edge, so a failure leaves the frame of the first trip. `ElideUnusedCheckpoints` then removes the header checkpoint if no assumption stays, and `Optimizations` runs the pass just before `MergeConsecutiveCheckpoints`.",
  "commitKinds": {
-  "063764a6b": "optimization"
+  "bd3d0605e": "optimization"
  },
  "files": {
   "repo-map.md": "Adds the line for `HoistLoopAssume.java`.",

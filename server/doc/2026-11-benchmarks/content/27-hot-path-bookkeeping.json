@@ -3,7 +3,7 @@
  "motivation": "Each return of a version that creates promises called `Fir_mark_promises_escaped` on a tracking list that was often empty. `Fir_assume_function`, which guards each call of a known closure, was an out-of-line call.",
  "solution": "`Fir2CCompiler` emits an inline test `if (local_promises != R_NilValue)` before `Fir_mark_promises_escaped`, and `Fir_assume_function` and `Fir_is_compiled_closure` move to `runtime_inline.h` as `static ALWAYS_INLINE`. The vendored R counts the elided pushes that are not nested in an elided frame (`Rsh_ElidedDepth`), and its contexts save and restore the count and the singleton's parent at a caught error. The pop of the outermost elided frame sets the singleton's parent to `R_EmptyEnv`, so the singleton, a GC root, does not keep the last callee's closure environment alive. A nested push and its pop do not write the parent, and a recursive push with the same parent skips the write, so the inline push and pop keep their gain there.",
  "commitKinds": {
-  "839d43cd1": "optimization"
+  "c0efd7db2": "optimization"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Increments `Rsh_ElidedDepth` in the elided push, sets `R_EmptyEnv` in the pop of the outermost elided frame, saves and restores the depth at the from-R entry, and removes the out-of-line closure tests.",

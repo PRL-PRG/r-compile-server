@@ -3,7 +3,7 @@
  "motivation": "In `bench_shootout_binarytrees_naive` `tree`, the argument promise for `depth - 1` forced and type-checked `depth` again, although the version had already forced it. The second force brought a checkpoint into the promise body. That checkpoint stopped `StrictifyPromise` from inlining the promise, so each recursive call allocated it. `permute` and `queens` had the same pattern.",
  "solution": "`DefiniteForce` now forwards a `force` to the result of a dominating `force` of the same SEXP. It looks through `AssumeType` and `Cast` chains, and it crosses only local promises (`prom-`). The earlier result type must be a subtype of the later one. `ElideTrivialAssume` also removes an unused maybe-promise type assumption if a dominating force of the same SEXP has a result of its kind, because then the assumption always succeeds. An unused assumption without such a force stays: another statement can depend on its type, for example a removed `checkMissing`. Then `StrictifyPromise` can inline the promise, and `tree` passes an unboxed `R` instead of a promise.",
  "commitKinds": {
-  "a5dbe03b5": "optimization"
+  "fc4d4d3cf": "optimization"
  },
  "files": {
   "repo-map.md": "Names the new rules in the lines of `DefiniteForce.java` and `ElideTrivialAssume.java`, and adds entries for the examples `unforced_promise_overflow.R` and `missing_arg_forced_in_branch.R`.",

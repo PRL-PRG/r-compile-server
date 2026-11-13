@@ -1,10 +1,10 @@
 {
  "title": "Make matrix sub-assignment a static builtin call",
  "motivation": "`builtins.fir` declared `[[<-` with one subscript, so bc2fir could not match `x[[i, j]] <- v` against it. In matrix_for, `x[[i, j]] <- 5` was an `ldf-base` and a `dyn` call, which went through GNU-R's generic dispatch and argument list on every iteration. The backend's typed fast paths could not apply to a dynamic call.",
- "solution": "`[[<-` is now `(x, i, value, ...)` like `[<-`, in `builtins.fir`, the interpreter mocks and the `[[<-` runtime versions in `runtime.c` and `runtime.h`. bc2fir matches `x[i, j] <- v` and `x[[i, j]] <- v` statically when `value` is last. `Fir2CCompiler.valueLast` moves `value` and its tag back to the last position for the primitive, and the other subscripts keep the tags of the source call, so an S3 method gets them untagged. The interpreter's `registerUnmatchedExternal` hook is removed. This change is mainly an enabler for later backend fast paths for matrix writes. Also in this range: `OriginAnalysis` no longer folds a subscript with a matrix column or `[` of a named vector (`58e204719`), which gave `m[[1, 2]]` the value of `m[[1]]`.",
+ "solution": "`[[<-` is now `(x, i, value, ...)` like `[<-`, in `builtins.fir`, the interpreter mocks and the `[[<-` runtime versions in `runtime.c` and `runtime.h`. bc2fir matches `x[i, j] <- v` and `x[[i, j]] <- v` statically when `value` is last. `Fir2CCompiler.valueLast` moves `value` and its tag back to the last position for the primitive, and the other subscripts keep the tags of the source call, so an S3 method gets them untagged. The interpreter's `registerUnmatchedExternal` hook is removed. This change is mainly an enabler for later backend fast paths for matrix writes. Also in this range: `OriginAnalysis` no longer folds a subscript with a matrix column or `[` of a named vector (`437894636`), which gave `m[[1, 2]]` the value of `m[[1]]`.",
  "commitKinds": {
-  "58e204719": "fix",
-  "bed13f3a8": "enabler"
+  "437894636": "fix",
+  "eead3fab7": "enabler"
  },
  "files": {
   "client/rsh/src/fir2c/runtime.c": "Renames the `[[<-` scalar versions and adds their trailing `...` parameter, to match the new signature.",
