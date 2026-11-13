@@ -177,6 +177,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `EnvironmentLiveness.java` — Tracks the environments that exist at each instruction.
 - `NamedVariablesOf.java` — Simple analysis that gets all named variables that are loaded or stored in a scope.
 - `OriginAnalysis.java` — Computes the register or constant each variable comes from.
+- `SharedChunkMap.java` — A map whose copies share its entries in chunks (`OriginAnalysis`'s per-state register origins).
 - `TopEnvironmentLiveness.java` — Analysis that returns the top environment range at a position, or `null`.
 
 ### `fir/analyze/type/` — FIŘ analyses to infer type, effect, and provenance.

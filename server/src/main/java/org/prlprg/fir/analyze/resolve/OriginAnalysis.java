@@ -1106,7 +1106,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       } else {
         registerOrigins.put(register, origin);
       }
-      state().putRegisterOrigin(register, Optional.ofNullable(origin));
+      state().registerOrigins.put(register, Optional.ofNullable(origin));
     }
   }
 
@@ -1115,9 +1115,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// register origins aren't equal, so that we re-run blocks whose register origin
     /// dependencies changed.
     ///
-    /// A copy shares the map until one of them writes it.
-    private Map<Register, Optional<Argument>> registerOrigins = new LinkedHashMap<>();
-    private boolean registerOriginsShared = false;
+    /// Copies share it, so that a copy, and a merge or comparison of related states, doesn't walk
+    /// every register.
+    private SharedChunkMap<Register, Optional<Argument>> registerOrigins = new SharedChunkMap<>();
     /// The stack of local environments; the last entry is the topmost (innermost).
     private final List<EnvFrame> envs = new ArrayList<>();
     /// Registers known to hold a specific promise (assigned a [Promise], or copied/loaded from
@@ -1127,17 +1127,6 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// a call, super-/reflectively-stored, captured, ...). They're maybe-forced within any call and
     /// any force of an unknown promise, since we can no longer tell when they're forced.
     private final Set<PromiseOrigin> leakedPromises = new LinkedHashSet<>();
-
-    private void putRegisterOrigin(Register register, Optional<Argument> origin) {
-      if (origin.equals(registerOrigins.get(register))) {
-        return;
-      }
-      if (registerOriginsShared) {
-        registerOrigins = new LinkedHashMap<>(registerOrigins);
-        registerOriginsShared = false;
-      }
-      registerOrigins.put(register, origin);
-    }
 
     private void mkEnv(Statement mkEnv, boolean reflectivelyAccessible) {
       envs.add(new EnvFrame(mkEnv, reflectivelyAccessible));
@@ -1521,8 +1510,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     @Override
     public State copy() {
       var copy = new State();
-      copy.registerOrigins = registerOrigins;
-      copy.registerOriginsShared = registerOriginsShared = true;
+      copy.registerOrigins = registerOrigins.copy();
       var poMap = new IdentityHashMap<PromiseOrigin, PromiseOrigin>();
       registerPromises.forEach((r, po) -> copy.registerPromises.put(r, po.copyVia(poMap)));
       for (var po : leakedPromises) {
@@ -1538,7 +1526,6 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     private void replaceWith(State other) {
       var copy = other.copy();
       registerOrigins = copy.registerOrigins;
-      registerOriginsShared = true;
       envs.clear();
       envs.addAll(copy.envs);
       registerPromises.clear();
@@ -1553,15 +1540,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // - `null` = 0 possibilities
       // - `Optional.empty()` = infinite possibilities
       // - `Optional.of(arg)` = 1 possibility, `arg`
-      if (registerOrigins != other.registerOrigins) {
-        other.registerOrigins.forEach(
-            (register, otherOrigin) -> {
-              var origin = registerOrigins.get(register);
-              putRegisterOrigin(
-                  register,
-                  origin == null || origin.equals(otherOrigin) ? otherOrigin : Optional.empty());
-            });
-      }
+      registerOrigins.join(other.registerOrigins, Optional.empty());
 
       var canonical = canonicalPromises();
 
