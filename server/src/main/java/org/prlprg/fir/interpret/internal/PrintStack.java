@@ -18,12 +18,24 @@ import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions.PrintEnvironmentDetails;
 
 final class PrintStack {
-  /// Full detail, except that a large vector is cut off: a stack with the data of a benchmark
-  /// otherwise prints gigabytes.
+  /// Full detail, except that a vector or list (also a nested one, or an attribute) is cut off
+  /// after its first elements: a stack with the data of a benchmark otherwise prints gigabytes.
   private static final SEXPPrintOptions STACK_PRINT_OPTIONS =
-      SEXPPrintOptions.FULL.withMaxElements(1000);
+      SEXPPrintOptions.FULL.withMaxElements(20);
+
+  /// The most characters of a printed stack (deep recursion, many registers).
+  private static final int MAX_LENGTH = 200_000;
 
   public static void printStack(Printer p, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
+    var printed = Printer.use(p1 -> printWholeStack(p1, stack, globalEnv));
+    p.writer()
+        .write(
+            printed.length() <= MAX_LENGTH
+                ? printed
+                : printed.substring(0, MAX_LENGTH) + "\n... (stack truncated)");
+  }
+
+  private static void printWholeStack(Printer p, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
     var w = p.writer();
     var f = w.formatter();
 
