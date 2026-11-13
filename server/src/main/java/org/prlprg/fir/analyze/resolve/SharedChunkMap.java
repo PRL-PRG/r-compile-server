@@ -106,6 +106,8 @@ final class SharedChunkMap<K, V> {
     return (hash ^ (hash >>> 16)) & (CHUNKS - 1);
   }
 
+  /// Also makes the maps share each chunk that they have with the same entries.
+  @SuppressWarnings("unchecked")
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -117,10 +119,16 @@ final class SharedChunkMap<K, V> {
     for (var i = 0; i < CHUNKS; i++) {
       var chunk = chunks[i];
       var otherChunk = other.chunks[i];
-      if (chunk != otherChunk
-          && !(chunk == null
-              ? otherChunk.isEmpty()
-              : otherChunk == null ? chunk.isEmpty() : chunk.equals(otherChunk))) {
+      if (chunk == otherChunk) {
+        continue;
+      }
+      if (chunk == null || otherChunk == null) {
+        if (!(chunk == null ? otherChunk : chunk).isEmpty()) {
+          return false;
+        }
+      } else if (chunk.equals(otherChunk)) {
+        share((SharedChunkMap<K, V>) other, i);
+      } else {
         return false;
       }
     }
