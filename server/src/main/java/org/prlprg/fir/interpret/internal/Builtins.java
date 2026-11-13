@@ -1511,11 +1511,6 @@ public final class Builtins {
                 (_, _, args, _) -> {
                   var vector = (ListOrVectorSXP<?>) args.getFirst().box();
                   var indices = toIntegerIndices(args.get(1).box(), interpreter, name);
-                  // For vector indexing, build result by loading each index
-                  if (indices.size() == 1) {
-                    return subscriptLoad(interpreter, vector, indices.get(0) - 1, outOfRangeIsNa);
-                  }
-                  // For multiple indices, build a result
                   var results = new SEXP[indices.size()];
                   for (int i = 0; i < indices.size(); i++) {
                     var loaded =

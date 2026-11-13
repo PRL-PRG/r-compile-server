@@ -54,8 +54,9 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   @Override
   public void verifyEqual(
       InterpretOutput expected, InterpretOutput actual, Example example, SnapshotStore store) {
-    if (actual.result() instanceof SexpResult.Error(_, var isSimplyUnsupported)
-        && isSimplyUnsupported) {
+    // A run that stops at something unsupported has no result to compare: the other run can get
+    // past it (e.g. optimized code runs fewer calls in GNU-R, within the budget).
+    if (expected.result().isSimplyUnsupported() || actual.result().isSimplyUnsupported()) {
       return;
     }
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
