@@ -12,13 +12,13 @@ run = function(data) {
     C <- A + B
 }
 
-# The data of upstream `setup()`, smaller. The warmup uses a prefix of it.
+# The data of upstream `setup()`, smaller.
 set.seed(42)
 n <- 4000000L
 A <- as.integer(rnorm(n) * 1000)
 B <- as.integer(rnorm(n) * 1000)
 data <- list(A, B, n)
-small <- list(A[1:10], B[1:10], 10L)
+small <- list(as.integer(rnorm(10) * 1000), as.integer(rnorm(10) * 1000), 10L)
 
 # The benchmark sums the result, because the vector is large.
 #? benchmark: sum(run(data))

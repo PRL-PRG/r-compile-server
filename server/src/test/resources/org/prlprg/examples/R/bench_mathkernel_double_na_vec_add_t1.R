@@ -16,7 +16,7 @@ run <- function(data) {
     C
 }
 
-# The data of upstream `setup()`, smaller. The warmup uses a prefix of it.
+# The data of upstream `setup()`, smaller.
 set.seed(42)
 n <- 1000000L
 A <- rnorm(n)
@@ -26,7 +26,7 @@ A[idx] <- NA
 idx <- runif(n*0.1, 1, n) #10% are NA
 B[idx] <- NA
 data <- list(A, B, n)
-small <- list(A[1:20], B[1:20], 20L)
+small <- list(c(rnorm(19), NA), c(NA, rnorm(19)), 20L)
 
 # The benchmark sums the result, because the vector is large.
 #? benchmark: sum(run(data), na.rm = TRUE)

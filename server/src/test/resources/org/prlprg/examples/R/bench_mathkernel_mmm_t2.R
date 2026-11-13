@@ -18,13 +18,13 @@ run = function(data) {
     C
 }
 
-# The data of upstream `setup()`, smaller. The warmup uses a prefix of it.
+# The data of upstream `setup()`, smaller.
 set.seed(42)
 n <- 160L
 A <- matrix(rnorm(n*n), ncol=n, nrow=n)
 B <- matrix(rnorm(n*n), ncol=n, nrow=n)
 data <- list(A,B, n)
-small <- list(A[1:3, 1:3], B[1:3, 1:3], 3L)
+small <- list(matrix(rnorm(3*3), ncol=3, nrow=3), matrix(rnorm(3*3), ncol=3, nrow=3), 3L)
 
 # The benchmark sums the result, because the matrix is large.
 #? benchmark: sum(run(data))
