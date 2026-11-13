@@ -12,8 +12,7 @@ fun toForSeq(r) {
   (r:v(R)) --> v(R) { ... }
   (r:v(S)) --> v(S) { ... }
 }
-# Set GNU-R's `R_Visible`, which only a closure's `return` reads. `bc2fir` writes it where GNU-R's
-# bytecode sets it last before a `return`, and `Cleanup` keeps each block's last write.
+# Set GNU-R's `R_Visible` (see "Visibility" in `server/doc/FIR.md`).
 fun setInvisible() {
   () --> V { ... }
 }

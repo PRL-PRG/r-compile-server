@@ -657,6 +657,35 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
     }
 
     @Test
+    void visibilityWriteInPromise_keptOnlyAfterAWriter() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (x:I) -~> I {
+                mkenv;
+                p: p(I -) = prom<I ->{
+                  setVisible< --> V >();
+                  return x;
+                };
+                q: p(I -) = prom<I ->{
+                  setInvisible< --> V >();
+                  return x;
+                };
+                st p = p;
+                st q = q;
+                popenv;
+                return x;
+              }
+              """);
+
+      run(abstraction);
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(printed.contains("setVisible"), "no writer before; got:\n" + printed);
+      assertTrue(printed.contains("setInvisible"), "a writer; got:\n" + printed);
+    }
+
+    @Test
     void pureExpressionWithoutAssignee_removed() {
       var abstraction =
           ParseUtil.parseAbstraction(

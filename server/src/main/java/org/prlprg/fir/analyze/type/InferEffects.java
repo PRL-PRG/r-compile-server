@@ -1,5 +1,6 @@
 package org.prlprg.fir.analyze.type;
 
+import java.util.Set;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
@@ -39,6 +40,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.session.GNURSession;
 
 /// Infer the effects of [CFG]s, [Instruction]s, and [Statement]s.
 ///
@@ -158,6 +160,52 @@ public final class InferEffects implements Analysis {
             bb ->
                 of(bb.jump()) != Effects.NONE
                     || bb.statements().stream().anyMatch(this::maySignal));
+  }
+
+  /// Whether `statement` is a call of `setVisible` or `setInvisible`.
+  public static boolean writesVisibility(Statement statement) {
+    return statement.expression() instanceof Call(StaticFnCallee callee)
+        && callee.function().owner() == GlobalModules.INTRINSICS
+        && VISIBILITY_INTRINSICS.contains(callee.function().name().name());
+  }
+
+  private static final Set<String> VISIBILITY_INTRINSICS = Set.of("setVisible", "setInvisible");
+
+  /// Whether `statement` sets GNU-R's `R_Visible` on every path, also after later passes: a
+  /// visibility write, or a call of a module function, whose every `return` writes it (and inlining
+  /// copies the writes). A call of a builtin can become inline code that doesn't write it.
+  public static boolean overwritesVisibility(Statement statement) {
+    return writesVisibility(statement)
+        || switch (statement.expression()) {
+          case Call(StaticFnCallee callee) -> {
+            var owner = callee.function().owner();
+            yield owner != GlobalModules.BUILTINS
+                && owner != GlobalModules.BASE
+                && owner != GlobalModules.INTRINSICS;
+          }
+          case Call(FallbackCallee _) -> true;
+          default -> false;
+        };
+  }
+
+  /// Whether `statement` may set GNU-R's `R_Visible` off: `setInvisible`, a `force`, or a call
+  /// other than an intrinsic or a builtin that sets it on (`PRIMPRINT` 0).
+  public static boolean maySetInvisible(Statement statement) {
+    return switch (statement.expression()) {
+      case Force _ -> true;
+      case Call(StaticFnCallee callee) -> {
+        var function = callee.function();
+        var name = function.name().name();
+        var entry = GNURSession.readFunTab().get(name);
+        yield function.owner() == GlobalModules.INTRINSICS
+            ? name.equals("setInvisible")
+            : function.owner() != GlobalModules.BUILTINS
+                || entry == null
+                || entry.visibility() != 0;
+      }
+      case Call _ -> true;
+      default -> false;
+    };
   }
 
   public Effects of(Jump jump) {

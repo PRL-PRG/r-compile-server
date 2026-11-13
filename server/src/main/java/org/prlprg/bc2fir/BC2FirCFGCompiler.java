@@ -116,6 +116,7 @@ import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool.Idx;
 import org.prlprg.bc.LabelName;
+import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -432,10 +433,10 @@ public final class BC2FirCFGCompiler {
         var retVal = pop();
         assertStackForReturn();
 
+        if (returnSetsVisible(retVal)) {
+          insert(intrinsic("setVisible"));
+        }
         if (!cfg.isPromise()) {
-          if (returnSetsVisible(retVal)) {
-            insert(intrinsic("setVisible"));
-          }
           insert(new PopEnv());
         }
         insert(_ -> new Jump(new Return(), List.of(retVal)));
@@ -683,7 +684,7 @@ public final class BC2FirCFGCompiler {
         // GNU-R's `getvar` rejects a binding that *is* the missing argument, then forces a promise
         // binding and never checks the forced value (a promise may evaluate to the empty symbol).
         insert(intrinsic("checkMissing", top()));
-        insertVisibleBeforeTailForce();
+        insertVisibleBeforeTail();
         pushInsert(getStr(name), new Force(true), pop());
         // The JIT records the type of the value `GETVAR` leaves on the stack, i.e. the forced one.
         recordFeedbackRegister(top());
@@ -697,7 +698,7 @@ public final class BC2FirCFGCompiler {
         tryAddCheckpoint(false, preStack);
 
         insert(intrinsic("checkMissing", top()));
-        insertVisibleBeforeTailForce();
+        insertVisibleBeforeTail();
         pushInsert(getStr(name), new Force(true), pop());
         tryAddCheckpoint(true, stack);
       }
@@ -756,6 +757,8 @@ public final class BC2FirCFGCompiler {
       case PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
       case PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));
       case BcInstr.Call(var _) -> {
+        // The callee sets `R_Visible`, unless it's a builtin that becomes inline code.
+        insertVisibleBeforeTail();
         compileCall();
         // The JIT records the type of the value `CALL` leaves on the stack, i.e. the call's result
         // (`CALLBUILTIN` isn't recorded).
@@ -902,7 +905,7 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false, preStack);
 
-        insertVisibleBeforeTailForce();
+        insertVisibleBeforeTail();
         pushInsertThenCp(getStr(name), new Force(true), pop());
       }
       case DdValMissOk(var name) -> {
@@ -911,7 +914,7 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, NamedVariable.ddNum(ddIndex)));
         tryAddCheckpoint(false, preStack);
 
-        insertVisibleBeforeTailForce();
+        insertVisibleBeforeTail();
         pushInsertThenCp(getStr(name), new Force(true), pop());
       }
       case Visible() -> insert(intrinsic("setVisible"));
@@ -1686,12 +1689,15 @@ public final class BC2FirCFGCompiler {
     cursor.replace(jump);
   }
 
-  /// Whether a closure's `return` of `value` sets `R_Visible` on. In GNU-R's bytecode, the
-  /// instruction that makes the value sets it, except `INVISIBLE` and `VISIBLE`, a call (whose
-  /// callee sets it), and a variable read (which sets it before its force,
-  /// [#insertVisibleBeforeTailForce]). A builtin that sets it on gets the write here too, because
-  /// a specialized call doesn't set it.
+  /// Whether a `return` of `value` sets `R_Visible` on. In GNU-R's bytecode, the instruction that
+  /// makes the value sets it, except `INVISIBLE` and `VISIBLE`, a call (whose callee sets it), and
+  /// a variable read (which sets it before its force, [#insertVisibleBeforeTail]). A builtin that
+  /// sets it on gets the write here too, because a specialized call doesn't set it.
   private boolean returnSetsVisible(Argument value) {
+    var def = value instanceof Read(AssigneeOf a) ? a.statement() : null;
+    if (!visibilityWriteNeeded(def)) {
+      return false;
+    }
     if (bbByLabel.containsKey(bcPos)) {
       return true;
     }
@@ -1701,8 +1707,8 @@ public final class BC2FirCFGCompiler {
       }
       default -> {}
     }
-    if (!(value instanceof Read(AssigneeOf a)
-        && a.statement().expression() instanceof org.prlprg.fir.ir.expression.Call(var callee))) {
+    if (def == null
+        || !(def.expression() instanceof org.prlprg.fir.ir.expression.Call(var callee))) {
       return true;
     }
     if (!(callee instanceof StaticFnCallee s)) {
@@ -1714,15 +1720,26 @@ public final class BC2FirCFGCompiler {
         || (function.owner() == BUILTINS && entry != null && entry.visibility() == 0);
   }
 
-  /// Sets `R_Visible` on before a variable read's force, if the read is the closure's result.
-  private void insertVisibleBeforeTailForce() {
+  /// Sets `R_Visible` on before the force or the call that makes the result, if the next
+  /// instruction returns it.
+  private void insertVisibleBeforeTail() {
     var next = bcPos + 1;
-    if (!cfg.isPromise()
-        && next < bc.code().size()
+    if (next < bc.code().size()
         && bc.code().get(next) instanceof BcInstr.Return
-        && !bbByLabel.containsKey(next)) {
+        && !bbByLabel.containsKey(next)
+        && visibilityWriteNeeded(null)) {
       insert(intrinsic("setVisible"));
     }
+  }
+
+  /// Whether the result needs its own write of `R_Visible`. A promise's forcer (a variable read)
+  /// sets it on before the force, so a promise body needs a write only if a statement before the
+  /// one that makes its result (`except`) can set it off.
+  private boolean visibilityWriteNeeded(@Nullable Statement except) {
+    return !cfg.isPromise()
+        || cfg.bbs().stream()
+            .flatMap(bb -> bb.statements().stream())
+            .anyMatch(s -> s != except && InferEffects.maySetInvisible(s));
   }
 
   // endregion insertions

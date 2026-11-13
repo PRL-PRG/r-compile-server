@@ -184,7 +184,10 @@ public final class StrictifyPromise extends AbstractionOptimization {
           var isStrict = parameterStrictnesses.get(j);
           var signals = new InferEffects(scope).maySignal(code);
           var calleeIsQuiet = quietIn(callee.exactVersion(), signals);
+          // A body that can set `R_Visible` off must still run after the callee's writes before
+          // the force.
           if (!((isTimeInvariant(code)
+                      && !maySetInvisible(code)
                       && (!signals || forcesFirst(callee.exactVersion(), j, calleeIsQuiet)))
                   || (isStrict
                       && forcesFirst(
@@ -435,6 +438,12 @@ public final class StrictifyPromise extends AbstractionOptimization {
   ///
   /// This is only the body's own statements. A nested `prom` doesn't run until it's forced, and
   /// inlining doesn't move that force.
+  private static boolean maySetInvisible(CFG code) {
+    return code.bbs().stream()
+        .flatMap(bb -> bb.statements().stream())
+        .anyMatch(InferEffects::maySetInvisible);
+  }
+
   private static boolean isTimeInvariant(CFG code) {
     var inferEffects = new InferEffects(code.scope());
     return code.bbs().stream()
