@@ -711,6 +711,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/body_of_compiled_closure.R` — `body`, `formals`, `deparse`, `identical` and `print` of a closure of compiled FIŘ code see its source, as with a bytecode body.
 - `.../examples/R/reflection_after_failed_warmup.R` — A warm-up that fails in an unmocked builtin before a closure reflects: the optimizer must not speculate from the partial feedback that it never reflects.
 - `.../examples/R/real_to_string.R` — A real coerced to a string by `c`, `[<-`, and `as.character` (15 significant digits, scientific notation if shorter), to check the interpreter mocks against GNU-R.
+- `.../examples/R/rng_set_seed.R` — `set.seed`, `runif`, `rnorm`, `sample`, and `sample.int` at top level and in a warm function; the interpreter runs the RNG functions in GNU-R (`TestInterpreter`).
 - `.../examples/R/sum_abs_edges.R` — An integer `sum` that does not fit (real in GNU-R) and `abs` of a logical, to check the interpreter mocks against GNU-R.
 - `.../examples/R/matrix_empty_data.R` — `matrix` of empty data with missing dimensions, to check the interpreter mock against GNU-R.
 - `.../examples/R/subscript_exact_drop.R` — `[[` with `exact = FALSE` (a partial name match) and `[` with `drop`, to check the interpreter mocks against GNU-R.

@@ -127,6 +127,8 @@ public final class InternalInterpreter implements Interpreter {
   // Input
   private final Module module;
   private final Map<Abstraction, ExternalVersion> externalVersions = new HashMap<>();
+  /// Functions of attached packages other than base (see [#registerAttached]).
+  private final Module attached = new Module();
   /// Unevaluated versions whose fallback ran during the current top-level call. They're
   /// evaluated once it returns (see [#call(String, Value...)]), like the compiler compiles a
   /// version while the client runs its stub's fallback.
@@ -302,6 +304,14 @@ public final class InternalInterpreter implements Interpreter {
               + ":\n"
               + function);
     }
+  }
+
+  /// Bind `name` in the base environment to a closure `function(...)` whose calls run
+  /// `javaClosure`, like a function of an attached package (e.g. `stats::runif`).
+  public void registerAttached(String name, ExternalVersion javaClosure) {
+    var function = attached.addFunction(Variable.named(name), List.of(NamedVariable.DOTS), true);
+    registerExternal(function, function.baseline(), javaClosure);
+    addFunctionToEnv(function, baseEnv());
   }
 
   private void registerExternal(
@@ -988,11 +998,12 @@ public final class InternalInterpreter implements Interpreter {
         var result = callClosure(cloSXP, namedArguments);
 
         // Only record after the call, in case the function is an unregistered stub. Feedback names
-        // a callee, and a base closure's name resolves to `BUILTINS`' `.Internal` instead.
+        // a callee, and a base closure's name resolves to `BUILTINS`' `.Internal` instead, and an
+        // attached function's to nothing.
         if (calleeArg instanceof Read(var calleeReg)) {
           var calleeFunction = Objects.requireNonNull(extractClosure(cloSXP));
           var scopeFeedback = topFrame().scopeFeedback();
-          if (GlobalModules.isBaseClosure(calleeFunction)) {
+          if (GlobalModules.isBaseClosure(calleeFunction) || calleeFunction.owner() == attached) {
             scopeFeedback.recordUnknownCallee(calleeReg);
           } else {
             scopeFeedback.recordCallee(calleeReg, calleeFunction);
@@ -1928,7 +1939,8 @@ public final class InternalInterpreter implements Interpreter {
     // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
     if (module.localFunction(function.name()) != function
         && GlobalModules.BASE.localFunction(function.name()) != function
-        && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
+        && GlobalModules.BUILTINS.localFunction(function.name()) != function
+        && attached.localFunction(function.name()) != function) {
       // Closure was removed or is from another interpreter.
       return null;
     }
