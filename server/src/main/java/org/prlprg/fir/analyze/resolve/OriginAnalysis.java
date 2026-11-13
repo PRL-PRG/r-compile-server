@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -722,7 +723,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         var present = state().present();
         if (replace) {
           state().replaceWith(returnState);
-        } else {
+        } else if (!state().subsumes(returnState)) {
           state().merge(returnState);
         }
         state().assumePresent(present);
@@ -1575,6 +1576,34 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       }
     }
 
+    /// Checks that [#merge] of `other` adds nothing to each part of this state.
+    @Override
+    public boolean subsumes(State other) {
+      // A copy drops each leaked promise that became equal to another one (when its `forced`
+      // changed), so it isn't equal to this state.
+      if (envs.size() != other.envs.size()
+          || new HashSet<>(leakedPromises).size() != leakedPromises.size()
+          || !registerOrigins.subsumes(other.registerOrigins, Optional.empty())
+          || !subsumesVariablePromises(registerPromises, other.registerPromises)) {
+        return false;
+      }
+      if (!other.leakedPromises.isEmpty()) {
+        var canonical = canonicalPromises();
+        for (var po : other.leakedPromises) {
+          var existing = canonical.get(po.promise);
+          if (existing == null || !existing.subsumes(po) || !leakedPromises.contains(existing)) {
+            return false;
+          }
+        }
+      }
+      for (var i = 0; i < envs.size(); i++) {
+        if (!envs.get(i).subsumes(other.envs.get(i))) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     /// Builds a `promise -> origin` map of this state's promises, used to canonicalize promises
     /// incorporated from another state during [#merge] (keeping one [PromiseOrigin] per promise).
     private Map<Promise, PromiseOrigin> canonicalPromises() {
@@ -1639,6 +1668,24 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
   }
 
+  /// Whether [#mergeVariablePromises] of `otherVariablePromises` leaves `variablePromises` and
+  /// the leaked promises as they are.
+  private static <Var> boolean subsumesVariablePromises(
+      Map<Var, PromiseOrigin> variablePromises, Map<Var, PromiseOrigin> otherVariablePromises) {
+    if (variablePromises.size() != otherVariablePromises.size()) {
+      return false;
+    }
+    for (var entry : variablePromises.entrySet()) {
+      var other = otherVariablePromises.get(entry.getKey());
+      if (other == null
+          || other.promise != entry.getValue().promise
+          || !entry.getValue().subsumes(other)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /// Returns the canonical [PromiseOrigin] for `other`'s promise in `canonical` (merging the
   /// how-forced status), creating one if absent. Used to fold a promise from another state into
   /// the one being merged into, keeping a single [PromiseOrigin] per promise.
@@ -1694,6 +1741,31 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         copy.variablePromises.put(e.getKey(), e.getValue().copyVia(poMap));
       }
       return copy;
+    }
+
+    /// Whether [#merge] of `other` leaves this frame and the leaked promises as they are.
+    boolean subsumes(EnvFrame other) {
+      if ((reflectivelyAccessible && !other.reflectivelyAccessible)
+          || (!captured && other.captured)
+          || (!closureEscaped && other.closureEscaped)) {
+        return false;
+      }
+      if (tainted || other.tainted) {
+        return tainted
+            && variables.isEmpty()
+            && variablePromises.isEmpty()
+            && other.variablePromises.isEmpty();
+      }
+      for (var entry : variables.entrySet()) {
+        var otherInfo = other.variables.get(entry.getKey());
+        if (otherInfo == null
+            ? !entry.getValue().mayBeAbsent
+            : !entry.getValue().subsumes(otherInfo)) {
+          return false;
+        }
+      }
+      return variables.keySet().containsAll(other.variables.keySet())
+          && subsumesVariablePromises(variablePromises, other.variablePromises);
     }
 
     void merge(
@@ -1772,6 +1844,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       copy.mayBeAbsent = mayBeAbsent;
       copy.unknown = unknown;
       return copy;
+    }
+
+    /// Whether [#merge] of `other` leaves this as it is.
+    boolean subsumes(VariableInfo other) {
+      return (mayBeAbsent || !other.mayBeAbsent)
+          && (unknown || !other.unknown)
+          && origins.containsAll(other.origins);
     }
 
     void merge(VariableInfo other) {
@@ -1864,6 +1943,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     PromiseOrigin copy() {
       return new PromiseOrigin(promise, forced, value, present);
+    }
+
+    /// Whether [#merge] of `other` leaves this as it is.
+    boolean subsumes(PromiseOrigin other) {
+      return forced.union(other.forced) == forced && present.equals(other.present);
     }
 
     /// Makes this origin stand for `other` too.

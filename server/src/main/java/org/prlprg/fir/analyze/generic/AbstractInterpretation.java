@@ -158,6 +158,8 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
         // Merge with previous state.
         if (stored == null) {
           states.put(bb, state.copy());
+        } else if (stored.subsumes(state)) {
+          continue;
         } else {
           var merged = stored.copy();
           merged.merge(state);
@@ -338,5 +340,11 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
     Self copy();
 
     void merge(Self other);
+
+    /// Whether a [#copy()] of this state that [#merge]s `other` is equal to it, by a quick check:
+    /// `false` if it doesn't know.
+    default boolean subsumes(Self other) {
+      return false;
+    }
   }
 }

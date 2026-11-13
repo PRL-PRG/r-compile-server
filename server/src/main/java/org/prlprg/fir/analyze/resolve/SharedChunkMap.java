@@ -84,6 +84,31 @@ final class SharedChunkMap<K, V> {
     }
   }
 
+  /// Whether [#join] of `other` leaves this map as it is.
+  boolean subsumes(SharedChunkMap<K, V> other, V conflict) {
+    for (var i = 0; i < CHUNKS; i++) {
+      var chunk = chunks[i];
+      var otherChunk = other.chunks[i];
+      if (chunk == otherChunk || otherChunk == null) {
+        continue;
+      }
+      if (chunk == null) {
+        if (!otherChunk.isEmpty()) {
+          return false;
+        }
+        continue;
+      }
+      for (var entry : otherChunk.entrySet()) {
+        var value = chunk.get(entry.getKey());
+        if (value != entry.getValue()
+            && (value == null || !(value.equals(entry.getValue()) || value.equals(conflict)))) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   /// Makes `chunks[i]` the chunk of `other`.
   private void share(SharedChunkMap<K, V> other, int i) {
     chunks[i] = other.chunks[i];

@@ -12,7 +12,8 @@ class SharedChunkMapTest {
   private static final int KEYS = 300;
   private static final int CONFLICT = -1;
 
-  /// Random copies, puts and joins of a few maps give the same results as on [HashMap]s.
+  /// Random copies, puts and joins of a few maps give the same results as on [HashMap]s, and
+  /// [SharedChunkMap#subsumes] tells whether a join changes a map.
   @Test
   void testSameAsHashMap() {
     var random = new Random(0);
@@ -57,6 +58,9 @@ class SharedChunkMapTest {
         }
         var a = random.nextInt(maps.size());
         var b = random.nextInt(maps.size());
+        var joined = new HashMap<>(models.get(a));
+        join(joined, Map.copyOf(models.get(b)));
+        assertEquals(joined.equals(models.get(a)), maps.get(a).subsumes(maps.get(b), CONFLICT));
         assertEquals(models.get(a).equals(models.get(b)), maps.get(a).equals(maps.get(b)));
       }
     }
