@@ -18,7 +18,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -661,9 +660,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         po.forced = Maybe.YES;
         if (replace) {
           state()
-              .promises()
-              .filter(o -> o.promise == po.promise && o.forced == Maybe.NO)
-              .forEach(o -> o.forced = Maybe.MAYBE);
+              .forEachPromise(
+                  o -> {
+                    if (o.promise == po.promise && o.forced == Maybe.NO) {
+                      o.forced = Maybe.MAYBE;
+                    }
+                  });
         }
       }
     }
@@ -1579,17 +1581,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // Keyed by promise *identity* (structural equality of a promise recurses through its entire
       // body CFG, which is expensive and can overflow the stack; see `PromiseOrigin#equals`).
       var canonical = new IdentityHashMap<Promise, PromiseOrigin>();
-      promises().forEach(po -> canonical.putIfAbsent(po.promise, po));
+      forEachPromise(po -> canonical.putIfAbsent(po.promise, po));
       return canonical;
     }
 
-    /// The promises of the registers, the leaked promises, then the promises of the variables.
-    private Stream<PromiseOrigin> promises() {
-      return Stream.of(
-              registerPromises.values().stream(),
-              leakedPromises.stream(),
-              envs.stream().flatMap(env -> env.variablePromises.values().stream()))
-          .flatMap(s -> s);
+    /// Runs `action` on the promises of the registers, the leaked promises, then the promises of
+    /// the variables.
+    private void forEachPromise(Consumer<PromiseOrigin> action) {
+      registerPromises.values().forEach(action);
+      leakedPromises.forEach(action);
+      envs.forEach(env -> env.variablePromises.values().forEach(action));
     }
 
     @Override
