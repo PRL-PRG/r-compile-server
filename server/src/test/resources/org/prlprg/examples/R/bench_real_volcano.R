@@ -79,12 +79,12 @@ execute <- function(n, volcano, points) {
 }
 
 points <- rep(181L, 10) # 181 takes the longest to compute
-map <- volcano[1:6, 1:6]
+map <- datasets::volcano[1:6, 1:6]
 
 #? benchmark: execute(1L, map, points)
 
 # warmup
-warmup_map <- volcano[1:2, 1:2]
+warmup_map <- datasets::volcano[1:2, 1:2]
 warmup_points <- rep(181L, 2)
 for (i in 1:12) {
   execute(2L, warmup_map, warmup_points)
