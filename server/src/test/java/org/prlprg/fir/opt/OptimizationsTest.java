@@ -4,11 +4,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.prlprg.fir.opt.Optimizations.canonicalRemoval;
+import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
+import static org.prlprg.fir.opt.Optimizations.defaultOptimizationsWithVersionLimit;
 import static org.prlprg.fir.opt.Optimizations.defaultOptimizationsWithout;
 import static org.prlprg.fir.opt.Optimizations.removalClosure;
 
 import java.util.List;
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.feedback.MockModuleFeedback;
+import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.snapshot.bench.SynergyBenchmarkQuery;
 
 class OptimizationsTest {
@@ -58,6 +64,41 @@ class OptimizationsTest {
         }
       }
     }
+  }
+
+  @Test
+  void versionLimit() {
+    assertEquals("default", defaultOptimizations().name());
+    assertEquals("defaultVersionLimit2", defaultOptimizationsWithVersionLimit(2).name());
+    assertThrows(IllegalArgumentException.class, () -> defaultOptimizationsWithVersionLimit(1));
+
+    // `f` gets a version for the argument's type, unless the limit stops it
+    assertTrue(versionsOfF(defaultOptimizations()) > 2);
+    assertEquals(2, versionsOfF(defaultOptimizationsWithVersionLimit(2)));
+  }
+
+  private static int versionsOfF(Optimization optimization) {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                r: V = f< * -+> V >(<int 41>);
+                return r;
+              }
+            }
+
+            fun f(x) {
+              (x:*) -+> V {
+                v: V = force? x;
+                return v;
+              }
+            }
+            """);
+    var feedback = new MockModuleFeedback(module);
+    optimization.run(feedback, module);
+    optimization.evaluateAll(feedback, module);
+    return Objects.requireNonNull(module.localFunction(Variable.named("f"))).versions().size();
   }
 
   private static void check(List<String> removed) {

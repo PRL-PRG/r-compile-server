@@ -45,6 +45,17 @@ import org.prlprg.util.ImmutableBoolArray;
 /// - Compatible scalar-return versions can be created from non-stub versions, by copying,
 ///   changing the return type to unboxed, and unboxing the returned value before every return.
 public class Unbox extends AbstractionOptimization {
+  private final int versionLimit;
+
+  public Unbox() {
+    this(Integer.MAX_VALUE);
+  }
+
+  /// Doesn't create a version of a function that has `versionLimit` versions.
+  public Unbox(int versionLimit) {
+    this.versionLimit = versionLimit;
+  }
+
   @Override
   public boolean runWithoutRecording(
       Optimization topLevel,
@@ -149,7 +160,9 @@ public class Unbox extends AbstractionOptimization {
     // Otherwise, see if we can specialize the current version
     // (If so, we can always fully specialize)
     var currentVersion = callee.minVersion();
-    if (currentVersion != null && !currentVersion.isStub()) {
+    if (currentVersion != null
+        && !currentVersion.isStub()
+        && function.versions().size() < versionLimit) {
       createUnboxedVersion(
           topLevel, feedback, function, currentVersion, callee.signature(), bestSpecialization);
       return bestSpecialization;

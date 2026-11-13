@@ -59,6 +59,14 @@ public class Optimizations {
 
   private static final int DEFAULT_THRESHOLD = 10;
 
+  /// The `versionLimit` of the default pipeline, which limits nothing: only [#PASS_VERSION_LIMIT]
+  /// applies.
+  private static final int NO_VERSION_LIMIT = Integer.MAX_VALUE;
+
+  /// The own version limit of [SpeculateDispatch], [CreateBestVersion],
+  /// [CreateOwnedParameterVersion] and [CreateBorrowedParameterVersion].
+  private static final int PASS_VERSION_LIMIT = 9;
+
   /// For each individual optimization, groups of other ones: when every optimization of one group
   /// is removed from [#defaultOptimizations()], it changes nothing. So removing it too produces
   /// the same code (see [#canonicalRemoval(Collection)]).
@@ -154,7 +162,24 @@ public class Optimizations {
   }
 
   public static Optimization defaultOptimizations(int threshold, boolean modifyCheckpoints) {
-    return defaultOptimizations(threshold, modifyCheckpoints, List.of());
+    return defaultOptimizations(threshold, modifyCheckpoints, NO_VERSION_LIMIT, List.of());
+  }
+
+  /// [#defaultOptimizations()], but no optimization creates a version of a function that has
+  /// `versionLimit` versions (the baseline included).
+  ///
+  /// With `versionLimit` 2, each function has one version besides the baseline: the copy of the
+  /// baseline that [CopyBaseline] creates first. It has the baseline's parameters, so every call
+  /// can use it, and nothing dispatches on the arguments' types. Optimizations still refine its
+  /// body, return type, effects and parameter strictness.
+  ///
+  /// @throws IllegalArgumentException if `versionLimit` is less than 2, which [CopyBaseline]
+  ///     doesn't obey.
+  public static Optimization defaultOptimizationsWithVersionLimit(int versionLimit) {
+    if (versionLimit < 2) {
+      throw new IllegalArgumentException("A version limit must be at least 2: " + versionLimit);
+    }
+    return defaultOptimizations(DEFAULT_THRESHOLD, true, versionLimit, List.of());
   }
 
   /// [#defaultOptimizations()] with the individual optimization named `without` removed, e.g. to
@@ -175,7 +200,8 @@ public class Optimizations {
   /// @throws IllegalArgumentException if a name in `without` isn't in
   ///     [#individualOptimizationNames()].
   public static Optimization defaultOptimizationsWithout(Collection<String> without) {
-    return defaultOptimizations(DEFAULT_THRESHOLD, true, inPipelineOrder(without));
+    return defaultOptimizations(
+        DEFAULT_THRESHOLD, true, NO_VERSION_LIMIT, inPipelineOrder(without));
   }
 
   /// `names` in pipeline order, without duplicates.
@@ -202,24 +228,25 @@ public class Optimizations {
   /// sequence would remove everything inside it, so sequences aren't included.
   public static List<String> individualOptimizationNames() {
     var filter = new Filter(List.of());
-    var _ = defaultOptimizations(DEFAULT_THRESHOLD, true, filter);
+    var _ = defaultOptimizations(DEFAULT_THRESHOLD, true, NO_VERSION_LIMIT, filter);
     return List.copyOf(filter.encountered);
   }
 
   /// @param without Individual optimization names, in pipeline order.
   private static Optimization defaultOptimizations(
-      int threshold, boolean modifyCheckpoints, List<String> without) {
-    return defaultOptimizations(threshold, modifyCheckpoints, new Filter(without));
+      int threshold, boolean modifyCheckpoints, int versionLimit, List<String> without) {
+    return defaultOptimizations(threshold, modifyCheckpoints, versionLimit, new Filter(without));
   }
 
   private static Optimization defaultOptimizations(
-      int threshold, boolean modifyCheckpoints, Filter filter) {
+      int threshold, boolean modifyCheckpoints, int versionLimit, Filter filter) {
+    var passVersionLimit = Math.min(PASS_VERSION_LIMIT, versionLimit);
     return new Sequence(
-        defaultName(threshold, modifyCheckpoints, filter.without),
+        defaultName(threshold, modifyCheckpoints, versionLimit, filter.without),
         filter.keep(
             new CopyBaseline(),
             new ElideUnforcedPromise(threshold),
-            new SpeculateDispatch(threshold, 3, 9),
+            new SpeculateDispatch(threshold, 3, passVersionLimit),
             new SpeculateAssume(threshold),
             new ModuleFixpointSequence(
                 "mainThenElideCheckpoints",
@@ -259,7 +286,7 @@ public class Optimizations {
                                             // must be in a pass after `ElideDeadStore`
                                             new ElideEnv())),
                                     new PromoteStaticallyKnownVariables(),
-                                    new Unbox(),
+                                    new Unbox(versionLimit),
                                     new StrictifyPhi(),
                                     new UnboxPhi(),
                                     new ElideRedundantBoxUnbox(),
@@ -267,15 +294,15 @@ public class Optimizations {
                                     new SchedulePure(),
                                     new Inline(1000),
                                     new DeferIntoPromise(),
-                                    new StrictifyPromise(),
+                                    new StrictifyPromise(versionLimit),
                                     new CallOwnedVersion(),
                                     new OwnPhiWeb(),
                                     new ConsumeDeadDup(),
                                     new ElideConsumedDup(),
                                     new Cleanup(false))),
-                            new CreateBestVersion(9),
-                            new CreateOwnedParameterVersion(9),
-                            new CreateBorrowedParameterVersion(9))),
+                            new CreateBestVersion(passVersionLimit),
+                            new CreateOwnedParameterVersion(passVersionLimit),
+                            new CreateBorrowedParameterVersion(passVersionLimit))),
                     modifyCheckpoints ? new HoistLoopAssume() : NOOP,
                     modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
                     modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP))));
@@ -288,15 +315,18 @@ public class Optimizations {
   /// the snapshot it produces (see `org.prlprg.snapshot.fir.opt.OptimizedFirQuery`), and these
   /// arguments select pipelines whose output differs a lot: without `modifyCheckpoints`, the
   /// checkpoints that stay put block promise strictification, so far fewer versions get
-  /// specialized; `without` removes optimizations outright.
+  /// specialized; `versionLimit` removes versions; `without` removes optimizations outright.
   private static String defaultName(
-      int threshold, boolean modifyCheckpoints, List<String> without) {
+      int threshold, boolean modifyCheckpoints, int versionLimit, List<String> without) {
     var name = new StringBuilder("default");
     if (threshold != DEFAULT_THRESHOLD) {
       name.append("Threshold").append(threshold);
     }
     if (!modifyCheckpoints) {
       name.append("KeepCheckpoints");
+    }
+    if (versionLimit != NO_VERSION_LIMIT) {
+      name.append("VersionLimit").append(versionLimit);
     }
     if (!without.isEmpty()) {
       name.append("Without").append(Strings.join("And", Strings::camelCaseToPascalCase, without));

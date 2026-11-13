@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -84,6 +85,17 @@ import org.prlprg.util.Streams;
 /// Before that, passes the caller's own promise parameter in place of a promise that would only
 /// force it ([#forwardedParameter]).
 public final class StrictifyPromise extends AbstractionOptimization {
+  private final int versionLimit;
+
+  public StrictifyPromise() {
+    this(Integer.MAX_VALUE);
+  }
+
+  /// Doesn't create a version of a function that has `versionLimit` versions.
+  public StrictifyPromise(int versionLimit) {
+    this.versionLimit = versionLimit;
+  }
+
   private record Inlineable(
       int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
 
@@ -204,17 +216,18 @@ public final class StrictifyPromise extends AbstractionOptimization {
           continue;
         }
 
-        // The inlined return values take the promises' value types.
-        for (var il : inlineables) {
-          il.argReg().setType(il.valueType());
-        }
-
-        // Compute new callee
+        // Compute new callee: the inlined return values take the promises' value types.
+        var valueTypes =
+            inlineables.stream()
+                .collect(Collectors.toMap(Inlineable::argIndex, Inlineable::valueType));
         var newArgTypes =
-            callArguments.stream()
-                .map(
-                    arg -> {
-                      var t = scope.typeOf(arg);
+            IntStream.range(0, callArguments.size())
+                .mapToObj(
+                    j -> {
+                      var t =
+                          valueTypes.containsKey(j)
+                              ? valueTypes.get(j)
+                              : scope.typeOf(callArguments.get(j));
                       return t != null ? t : Type.ANY_VALUE_SEXP;
                     })
                 .collect(ImmutableList.toImmutableList());
@@ -232,7 +245,9 @@ public final class StrictifyPromise extends AbstractionOptimization {
         if (!calleeIsDispatch && calleeFun.guess(newSig) == null) {
           // Check if we can create one
           var oldVersion = callee.exactVersion();
-          if (oldVersion == null || oldVersion.isStub()) {
+          if (oldVersion == null
+              || oldVersion.isStub()
+              || calleeFun.versions().size() >= versionLimit) {
             // Nope, so we can't inline
             continue;
           }
@@ -249,9 +264,6 @@ public final class StrictifyPromise extends AbstractionOptimization {
                 new FunctionParameter(oldParam.name(), inlineable.valueType, false));
           }
 
-          var valueTypes =
-              inlineables.stream()
-                  .collect(Collectors.toMap(Inlineable::argIndex, Inlineable::valueType));
           LazyCopy.create(
               topLevel,
               this,
@@ -283,6 +295,10 @@ public final class StrictifyPromise extends AbstractionOptimization {
                   return promStmt;
                 }
               });
+        }
+
+        for (var il : inlineables) {
+          il.argReg().setType(il.valueType());
         }
 
         // Replace the call's operation (keeping its arguments) with the better-signature call.
