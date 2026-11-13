@@ -49,6 +49,10 @@ public final class GlobalModules {
   private static final @Unmodifiable Set<Function> DEFINED_BUILTINS =
       ImmutableSet.copyOf(BUILTINS.localFunctions());
 
+  /// Builtins that take more arguments than FUNTAB says (`crossprod(x, y)`).
+  private static final @Unmodifiable Set<String> ARITY_IN_C =
+      ImmutableSet.of("crossprod", "tcrossprod");
+
   static {
     // Add GNU-R builtins that we don't have explicit versions for to BUILTINS and BASE
     var funTab = GNURSession.readFunTab();
@@ -61,7 +65,7 @@ public final class GlobalModules {
       }
 
       // Builtin that we haven't manually defined.
-      var parameterNames = funTabEntryParamNames(funTabEntry);
+      var parameterNames = funTabEntryParamNames(entry.getKey(), funTabEntry);
       BUILTINS.addFunction(name, parameterNames, true);
     }
 
@@ -86,7 +90,7 @@ public final class GlobalModules {
             case BuiltinSXP _, SpecialSXP _ -> {
               var funTabEntry = funTab.get(entry.getKey());
               assert funTabEntry != null : "builtin or special not in FUNTAB: " + entry.getKey();
-              yield funTabEntryParamNames(funTabEntry);
+              yield funTabEntryParamNames(entry.getKey(), funTabEntry);
             }
             default ->
                 throw new UnreachableError(
@@ -178,11 +182,12 @@ public final class GlobalModules {
           .map(f -> f.name().name())
           .collect(ImmutableSet.toImmutableSet());
 
-  private static @Unmodifiable List<NamedVariable> funTabEntryParamNames(FunTabEntry entry) {
+  private static @Unmodifiable List<NamedVariable> funTabEntryParamNames(
+      String name, FunTabEntry entry) {
     // The formal names aren't always specified,
     // but the amount (and whether they're variadic) are in `FUNTAB`
     var numArgs = entry.arity();
-    return numArgs == -1
+    return numArgs == -1 || ARITY_IN_C.contains(name)
         ? List.of(NamedVariable.DOTS)
         : IntStream.range(0, numArgs)
             .mapToObj(i -> Variable.named(ArgumentMatcher.positionalOnlyName(i)))

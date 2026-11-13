@@ -3100,6 +3100,8 @@ public final class Builtins {
           i.stream().map(e -> e == Constants.NA_INT ? "NA" : String.valueOf(e)).toList();
       case RealSXP r -> r.stream().map(e -> formatReal(e, 7)).toList();
       case ListOrVectorSXP<?> v when v.isEmpty() -> List.of();
+      case RawSXP _, ComplexSXP _ ->
+          throw interpreter.failUnsupported("Mock cat not implemented for " + object.type());
       default ->
           throw interpreter.fail(
               "argument "

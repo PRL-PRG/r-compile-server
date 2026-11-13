@@ -215,6 +215,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `CheckpointTrace.java` — Records the interpreter's state at each checkpoint, for deoptimization tests.
 - `DeoptSnapshot.java` — The bytecode state (pc, stack, environment) that a deopt produces.
 - `ExternalVersion.java` — Function version that executes Java code which can be called from the interpreter.
+- `Fallback.java` — Hook that runs what the interpreter doesn't support (the tests run it in GNU-R).
 - `InternalInterpretException.java` — Exception thrown during FIŘ interpretation.
 - `InternalInterpretUnsupportedException.java` — Thrown when an unsupported operation is encountered during FIŘ interpretation.
 - `InternalInterpreter.java` — FIŘ interpreter.
@@ -723,6 +724,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/reflection_after_failed_warmup.R` — A warm-up that fails in an unmocked builtin before a closure reflects: the optimizer must not speculate from the partial feedback that it never reflects.
 - `.../examples/R/real_to_string.R` — A real coerced to a string by `c`, `[<-`, and `as.character` (15 significant digits, scientific notation if shorter), to check the interpreter mocks against GNU-R.
 - `.../examples/R/rng_set_seed.R` — `set.seed`, `runif`, `rnorm`, `sample`, and `sample.int` at top level and in a warm function; the interpreter runs the RNG functions in GNU-R (`TestInterpreter`).
+- `.../examples/R/fallback_{data,closures}.R` — Operations that the test interpreter runs in GNU-R (`GnuRFallback`): vector subscripts and arithmetic, base closures, an `.Internal`, the RNG; and functions that call the example's closures back (`sapply`, `Reduce`, `apply`, `do.call`, `outer`, `Map`, `Filter`).
 - `.../examples/R/sum_abs_edges.R` — An integer `sum` that does not fit (real in GNU-R) and `abs` of a logical, to check the interpreter mocks against GNU-R.
 - `.../examples/R/matrix_empty_data.R` — `matrix` of empty data with missing dimensions, to check the interpreter mock against GNU-R.
 - `.../examples/R/subscript_exact_drop.R` — `[[` with `exact = FALSE` (a partial name match) and `[` with `drop`, to check the interpreter mocks against GNU-R.
