@@ -106,7 +106,7 @@ final class GnuRFallback implements Fallback {
         }, error = conditionMessage)
       })()""";
 
-  /// About 3 s of round trips for each run of the interpreter.
+  /// About 1 s to 3 s of round trips for each run of the interpreter.
   private static final long BUDGET = 10_000;
 
   private final Map<String, Boolean> attachedFunctions = new HashMap<>();

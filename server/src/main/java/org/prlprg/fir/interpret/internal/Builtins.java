@@ -2176,6 +2176,11 @@ public final class Builtins {
               if (dots.size() != 1) {
                 throw interpreter.failUnsupported("Mock `sum` dots must have exactly 1 value");
               }
+              var naRm = args.get(1).box();
+              if (!(naRm == SEXPs.MISSING_ARG
+                  || naRm.asScalarLogical().equals(Optional.of(Logical.FALSE)))) {
+                throw interpreter.failUnsupported("Mock `sum` doesn't remove NAs");
+              }
               var arg = dots.get(0).value();
               return new Value.Sexp(sumSexp(arg, interpreter));
             }));

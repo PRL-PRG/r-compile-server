@@ -38,6 +38,8 @@ class GnuRFallbackTest {
           f: cls = ldf matrix; m: V = dyn f(x, <int 3>); e: dots = dots[<missing>]; r: V = `[`%< *@!,*,dots,*@! -+> V >(m, <int 2>, e, <missing>); | 2.5
           # What a base closure calls with `.Internal`.
           r: V = nchar%< *,*,*,* -+> V >(<str "abc">, <str "chars">, <lgl FALSE>, <lgl NA_LGL>); | 3L
+          # A mock that doesn't support an argument: `sum(y, na.rm = TRUE)`.
+          y: v(R)o = v(R)[1.5, NA_REAL]; e: dots = dots[y]; r: V = sum%< dots,*@! -+> V >(e, <lgl TRUE>); | 1.5
           # A base closure and a function of an attached package, with data.
           f: cls = ldf strsplit; r: V = dyn f(<str "a b">, <str " ">);          | strsplit("a b", " ")
           f: cls = ldf paste; r: V = dyn f[, , sep](x, <str "u">, <str "">);    | paste(c(1.5, 2.5, 3.5), "u", sep = "")
