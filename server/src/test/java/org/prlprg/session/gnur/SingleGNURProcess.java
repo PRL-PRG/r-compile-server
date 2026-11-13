@@ -3,27 +3,41 @@ package org.prlprg.session.gnur;
 import static java.lang.String.format;
 import static org.prlprg.AppConfig.R_BIN;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.concurrent.NotThreadSafe;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.RSession;
 import org.prlprg.session.TestRSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Pair;
 
 @NotThreadSafe
@@ -134,18 +148,146 @@ class SingleGNURProcess implements GNUR {
   }
 
   private String run(String code) {
+    return waitForCommand(start(code));
+  }
+
+  /// Sends `code` to R, and returns the request ID that R prints after it ran it.
+  private String start(String code) {
     var requestId = UUID.randomUUID().toString();
 
     if (!process.isAlive()) {
       throw new RuntimeException("R is not running");
+    }
+    if (evalDepth > 0) {
+      throw new IllegalStateException("R is in an evaluation with callbacks");
     }
 
     in.println(code);
     in.printf("cat('%s\n')", requestId);
     in.println();
     in.flush();
-    return waitForCommand(requestId);
+    return requestId;
   }
+
+  // region evaluation with callbacks
+
+  /// The R side of [#eval(String, SEXP, UnaryOperator)]: a socket to this process, over which
+  /// both sides send serialized lists (R sends the length first, because the reader reads to the
+  /// end of its input). `.rcs$serve()` evaluates one `list("eval", source, input)`
+  /// and sends `list("value", x)`. In between, `.rcs_callback(x)` sends `list("callback", x)`, and
+  /// evaluates the `"eval"`s it gets until it gets its `list("value", x)`, or a `list("abort")`,
+  /// at which the evaluation it's in sends `list("aborted")` in place of its value.
+  private static final String CONNECT =
+      """
+      .rcs <- new.env()
+      .rcs$con <- socketConnection("127.0.0.1", %d, blocking = TRUE, open = "r+b", timeout = 86400)
+      .rcs$parsed <- new.env()
+      .rcs$send <- function(x) {
+        bytes <- serialize(x, NULL, version = 2)
+        writeBin(length(bytes), .rcs$con, endian = "big")
+        writeBin(bytes, .rcs$con)
+        flush(.rcs$con)
+      }
+      .rcs$eval <- function(msg) {
+        code <- .rcs$parsed[[msg[[2]]]]
+        if (is.null(code)) .rcs$parsed[[msg[[2]]]] <- code <- parse(text = msg[[2]])
+        withRestarts(
+          list("value", eval(code, list(input = msg[[3]]), globalenv())),
+          rcs_abort = function() list("aborted"))
+      }
+      .rcs$serve <- function() .rcs$send(.rcs$eval(unserialize(.rcs$con)))
+      .rcs_callback <- function(x) {
+        .rcs$send(list("callback", x))
+        repeat {
+          msg <- unserialize(.rcs$con)
+          switch(msg[[1]],
+            value = return(msg[[2]]),
+            abort = invokeRestart("rcs_abort"),
+            eval = .rcs$send(.rcs$eval(msg)))
+        }
+      }
+      """;
+
+  private @Nullable InputStream fromR;
+  private @Nullable OutputStream toR;
+  /// How many [#eval(String, SEXP, UnaryOperator)] are running (nested in callbacks).
+  private int evalDepth = 0;
+
+  @Override
+  public SEXP eval(String source, SEXP input, UnaryOperator<SEXP> callback) {
+    try {
+      if (fromR == null) {
+        connect();
+      }
+      var requestId = evalDepth == 0 ? start(".rcs$serve()") : null;
+      evalDepth++;
+      try {
+        send(SEXPs.vec(SEXPs.string("eval"), SEXPs.string(source), input));
+        Throwable thrown = null;
+        while (true) {
+          var message = receive();
+          switch (((StrSXP) message.get(0)).get(0)) {
+            case "value" -> {
+              return message.get(1);
+            }
+            case "callback" -> {
+              try {
+                send(SEXPs.vec(SEXPs.string("value"), callback.apply(message.get(1))));
+              } catch (RuntimeException | Error e) {
+                thrown = e;
+                send(SEXPs.vec(SEXPs.string("abort")));
+              }
+            }
+            case "aborted" -> {
+              switch (Objects.requireNonNull(thrown)) {
+                case RuntimeException e -> throw e;
+                case Error e -> throw e;
+                default -> throw new AssertionError(thrown);
+              }
+            }
+            default -> throw new IOException("Unexpected message from R: " + message);
+          }
+        }
+      } finally {
+        evalDepth--;
+        if (requestId != null && process.isAlive()) {
+          waitForCommand(requestId);
+        }
+      }
+    } catch (IOException e) {
+      // R died (then say why), or it's killed because it didn't answer in time.
+      process.destroyForcibly();
+      throw new RuntimeException("I/O exception during R evaluation with callbacks", e);
+    }
+  }
+
+  private void connect() throws IOException {
+    try (var server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+      // R connects before `accept`, into the backlog.
+      run(CONNECT.formatted(server.getLocalPort()));
+      var socket = server.accept();
+      socket.setSoTimeout(Math.toIntExact(timeout.toMillis()));
+      socket.setTcpNoDelay(true);
+      fromR = new BufferedInputStream(socket.getInputStream());
+      toR = socket.getOutputStream();
+    }
+  }
+
+  private void send(SEXP message) throws IOException {
+    var bytes = new ByteArrayOutputStream();
+    RDSWriter.writeStream(bytes, message);
+    var out = Objects.requireNonNull(toR);
+    bytes.writeTo(out);
+    out.flush();
+  }
+
+  private VecSXP receive() throws IOException {
+    var in = new DataInputStream(Objects.requireNonNull(fromR));
+    var bytes = in.readNBytes(in.readInt());
+    return (VecSXP) RDSReader.readStream(session, new ByteArrayInputStream(bytes));
+  }
+
+  // endregion
 
   @Override
   public Pair<SEXP, String> capturingEval(String source) {

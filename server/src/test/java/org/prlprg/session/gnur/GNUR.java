@@ -1,5 +1,6 @@
 package org.prlprg.session.gnur;
 
+import java.util.function.UnaryOperator;
 import org.prlprg.session.RSession;
 import org.prlprg.session.TestRSession;
 import org.prlprg.sexp.EnvSXP;
@@ -36,6 +37,14 @@ public interface GNUR extends AutoCloseable {
 
   /// Evaluate R source with input SEXP. The SEXP is passed from Java to the R world using RDS.
   SEXP eval(String source, SEXP input);
+
+  /// Like [#eval(String, SEXP)], but the R code can call `.rcs_callback(x)`, which returns
+  /// `callback.apply(x)`, and `callback` can call this method again: R evaluates that source
+  /// while its call of `.rcs_callback` waits. If `callback` throws, R abandons the evaluation
+  /// (and those that wait for it), and this throws the same.
+  ///
+  /// Unlike the other methods, this doesn't write files, and an error in the R code is fatal.
+  SEXP eval(String source, SEXP input, UnaryOperator<SEXP> callback);
 
   Pair<SEXP, String> capturingEval(String source);
 

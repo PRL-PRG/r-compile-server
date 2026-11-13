@@ -1,6 +1,7 @@
 package org.prlprg.session.gnur;
 
 import java.time.Duration;
+import java.util.function.UnaryOperator;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.TestConfig;
 import org.prlprg.session.RSession;
@@ -50,6 +51,13 @@ class RestartingGNURProcess implements GNUR {
     check();
     assert R != null;
     return R.eval(source, input);
+  }
+
+  @Override
+  public SEXP eval(String source, SEXP input, UnaryOperator<SEXP> callback) {
+    check();
+    assert R != null;
+    return R.eval(source, input, callback);
   }
 
   @Override
