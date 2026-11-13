@@ -246,7 +246,7 @@ Assumptions are no-ops when evaluated, but are checked when a checkpoint (`check
 
 - `a ?: t` - assume `a` has type `t` (an SEXP kind). Yields `a` at type `t`.
 - `a ?= c` - assume `a` equals the constant `c`
-- `a ?- f` - assume `a` is a closure of the function `f` (with a global environment). Yields `a` as a `cls`.
+- `a ?- f` - assume `a` is a closure of the function `f`. Yields `a` as a `cls`.
 - `ld x ?= c` - assume that loading `x` yields `c`
 - `ldf x ?- f` - assume that looking up `x` as a function yields `f` without forcing promises. Yields the closure.
 

@@ -2967,12 +2967,16 @@ public final class Fir2CCompiler {
           }
 
           /// The formals and GNU-R bytecode body that `function` was compiled from, which a
-          /// closure guard also accepts (`Fir_is_bytecode_closure_of`), or `NULL`.
+          /// closure guard also accepts (`Fir_is_bytecode_closure_of`, which caches its last match
+          // in the
+          /// two other slots), or `NULL`.
           private String bytecodeOriginRef(Function function) {
             var origin = bytecodes == null ? null : bytecodes.get(function.name().name());
             return origin == null
                 ? "NULL"
-                : constantRef(pool, SEXPs.vec(origin.formals(), SEXPs.bcode(origin.bc())));
+                : constantRef(
+                    pool,
+                    SEXPs.vec(origin.formals(), SEXPs.bcode(origin.bc()), SEXPs.NULL, SEXPs.NULL));
           }
 
           private String emitAssumptionCondition(

@@ -2206,12 +2206,77 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   return NULL;
 }
 
+/// Whether `x` and `y` are equal: atomic vectors by content, lists, language, bytecode and
+/// attributes (in order) recursively, everything else by identity. Never allocates, so a guard can
+/// call it while values are unprotected.
+static bool Fir_same_sexp(SEXP x, SEXP y) {
+  if (x == y) {
+    return true;
+  }
+  if (TYPEOF(x) != TYPEOF(y) || OBJECT(x) != OBJECT(y)) {
+    return false;
+  }
+  size_t size;
+  switch (TYPEOF(x)) {
+  case LGLSXP:
+  case INTSXP:
+    size = sizeof(int);
+    break;
+  case REALSXP:
+    size = sizeof(double);
+    break;
+  case CPLXSXP:
+    size = sizeof(Rcomplex);
+    break;
+  case RAWSXP:
+    size = 1;
+    break;
+  case STRSXP:
+  case VECSXP:
+  case EXPRSXP:
+    if (ALTREP(x) || ALTREP(y) || XLENGTH(x) != XLENGTH(y) ||
+        !Fir_same_sexp(ATTRIB(x), ATTRIB(y))) {
+      return false;
+    }
+    for (R_xlen_t i = 0; i < XLENGTH(x); i++) {
+      // A `CHARSXP` is compared by identity.
+      SEXP xi = TYPEOF(x) == STRSXP ? STRING_ELT(x, i) : VECTOR_ELT(x, i);
+      SEXP yi = TYPEOF(x) == STRSXP ? STRING_ELT(y, i) : VECTOR_ELT(y, i);
+      if (TYPEOF(x) == STRSXP ? xi != yi : !Fir_same_sexp(xi, yi)) {
+        return false;
+      }
+    }
+    return true;
+  case LISTSXP:
+  case LANGSXP:
+  case BCODESXP:
+    // A bytecode is (code . constants), and the constants start with the expression.
+    return TAG(x) == TAG(y) && Fir_same_sexp(ATTRIB(x), ATTRIB(y)) &&
+           Fir_same_sexp(CAR(x), CAR(y)) && Fir_same_sexp(CDR(x), CDR(y));
+  default:
+    return false;
+  }
+  return !ALTREP(x) && !ALTREP(y) && XLENGTH(x) == XLENGTH(y) &&
+         Fir_same_sexp(ATTRIB(x), ATTRIB(y)) &&
+         memcmp(STDVEC_DATAPTR(x), STDVEC_DATAPTR(y), XLENGTH(x) * size) == 0;
+}
+
 bool Fir_is_bytecode_closure_of(SEXP value, SEXP origin) {
-  // Numbers are compared bitwise (`num.eq = FALSE, single.NA = FALSE`), and environments too.
-  const int flags = 1 | 2 | 16;
-  return TYPEOF(value) == CLOSXP && TYPEOF(BODY(value)) == BCODESXP &&
-         R_compute_identical(BODY(value), VECTOR_ELT(origin, 1), flags) &&
-         R_compute_identical(FORMALS(value), VECTOR_ELT(origin, 0), flags);
+  if (TYPEOF(value) != CLOSXP || TYPEOF(BODY(value)) != BCODESXP) {
+    return false;
+  }
+  // `origin` caches the last formals and body that matched, so a closure that shares them (every
+  // closure of one `MAKECLOSURE`) passes at once.
+  if (FORMALS(value) == VECTOR_ELT(origin, 2) && BODY(value) == VECTOR_ELT(origin, 3)) {
+    return true;
+  }
+  if (!Fir_same_sexp(BODY(value), VECTOR_ELT(origin, 1)) ||
+      !Fir_same_sexp(FORMALS(value), VECTOR_ELT(origin, 0))) {
+    return false;
+  }
+  SET_VECTOR_ELT(origin, 2, FORMALS(value));
+  SET_VECTOR_ELT(origin, 3, BODY(value));
+  return true;
 }
 
 bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP origin,
