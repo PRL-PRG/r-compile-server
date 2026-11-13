@@ -2,11 +2,13 @@ package org.prlprg.fir.opt;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Streams;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
@@ -18,10 +20,12 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
@@ -52,7 +56,8 @@ import org.prlprg.fir.ir.variable.Register;
 ///     substitute occurrences of `a` with `b`).
 ///   - Remove unused assignees (convert `r = e` to `e` if `r` is unused) and phis.
 /// - Instructions
-///   - Remove trivial no-ops (pure expressions not assigned to anything).
+///   - Remove trivial no-ops (pure expressions not assigned to anything), except a block's last
+///     `setVisible` or `setInvisible`.
 ///
 /// This is a special optimization that's implicitly run after other optimizations, and never
 /// reports changes.
@@ -513,10 +518,15 @@ public final class Cleanup extends AbstractionOptimization {
 
     void removeEffectiveNoOps(CFG cfg) {
       for (var bb : cfg.bbs()) {
+        // Only a `return` reads `R_Visible`, so only a later write in the block makes one dead.
+        var lastVisibilityWrite =
+            Streams.findLast(bb.statements().stream().filter(Cleanup::writesVisibility))
+                .orElse(null);
         for (int i = 0; i < bb.statements().size(); ) {
           var stmt = bb.statements().get(i);
           if ((stmt.assignee() != null && stmt.assignee().isUsed())
               || stmt.expression() instanceof Assume
+              || stmt == lastVisibilityWrite
               || (inferEffects.maySignal(stmt) && !resolvedLoads.contains(stmt))) {
             i++;
             continue;
@@ -529,6 +539,15 @@ public final class Cleanup extends AbstractionOptimization {
       }
     }
   }
+
+  /// Whether `statement` is a call of `setVisible` or `setInvisible`.
+  private static boolean writesVisibility(Statement statement) {
+    return statement.expression() instanceof Call(StaticFnCallee callee)
+        && callee.function().owner() == GlobalModules.INTRINSICS
+        && VISIBILITY_INTRINSICS.contains(callee.function().name().name());
+  }
+
+  private static final Set<String> VISIBILITY_INTRINSICS = Set.of("setVisible", "setInvisible");
 
   /// Removes (in place) the phi argument at `index` in `jump`'s target(s) pointing to `targetBb`.
   public static void removingJumpArgument(Jump jump, BB targetBb, int index) {

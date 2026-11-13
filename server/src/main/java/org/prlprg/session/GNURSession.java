@@ -343,7 +343,7 @@ public class GNURSession implements RSession {
         var arity = Integer.parseInt(parts[2]);
         var isSpecial = (eval & 1) == 0;
         var isInternal = (eval / 10) % 10 == 1;
-        builder.put(name, new FunTabEntry(i++, arity, isSpecial, isInternal));
+        builder.put(name, new FunTabEntry(i++, arity, isSpecial, isInternal, (eval / 100) % 10));
       }
       FUN_TAB = builder.buildKeepingLast();
     }

@@ -168,6 +168,7 @@ import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.session.GNURSession;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.ArgumentMatcher;
 import org.prlprg.sexp.Attributes;
@@ -432,6 +433,9 @@ public final class BC2FirCFGCompiler {
         assertStackForReturn();
 
         if (!cfg.isPromise()) {
+          if (returnSetsVisible(retVal)) {
+            insert(intrinsic("setVisible"));
+          }
           insert(new PopEnv());
         }
         insert(_ -> new Jump(new Return(), List.of(retVal)));
@@ -679,6 +683,7 @@ public final class BC2FirCFGCompiler {
         // GNU-R's `getvar` rejects a binding that *is* the missing argument, then forces a promise
         // binding and never checks the forced value (a promise may evaluate to the empty symbol).
         insert(intrinsic("checkMissing", top()));
+        insertVisibleBeforeTailForce();
         pushInsert(getStr(name), new Force(true), pop());
         // The JIT records the type of the value `GETVAR` leaves on the stack, i.e. the forced one.
         recordFeedbackRegister(top());
@@ -692,6 +697,7 @@ public final class BC2FirCFGCompiler {
         tryAddCheckpoint(false, preStack);
 
         insert(intrinsic("checkMissing", top()));
+        insertVisibleBeforeTailForce();
         pushInsert(getStr(name), new Force(true), pop());
         tryAddCheckpoint(true, stack);
       }
@@ -896,6 +902,7 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false, preStack);
 
+        insertVisibleBeforeTailForce();
         pushInsertThenCp(getStr(name), new Force(true), pop());
       }
       case DdValMissOk(var name) -> {
@@ -904,6 +911,7 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, NamedVariable.ddNum(ddIndex)));
         tryAddCheckpoint(false, preStack);
 
+        insertVisibleBeforeTailForce();
         pushInsertThenCp(getStr(name), new Force(true), pop());
       }
       case Visible() -> insert(intrinsic("setVisible"));
@@ -1678,6 +1686,45 @@ public final class BC2FirCFGCompiler {
     cursor.replace(jump);
   }
 
+  /// Whether a closure's `return` of `value` sets `R_Visible` on. In GNU-R's bytecode, the
+  /// instruction that makes the value sets it, except `INVISIBLE` and `VISIBLE`, a call (whose
+  /// callee sets it), and a variable read (which sets it before its force,
+  /// [#insertVisibleBeforeTailForce]). A builtin that sets it on gets the write here too, because
+  /// a specialized call doesn't set it.
+  private boolean returnSetsVisible(Argument value) {
+    if (bbByLabel.containsKey(bcPos)) {
+      return true;
+    }
+    switch (bc.code().get(bcPos - 1)) {
+      case Invisible _, Visible _, GetVar _, DdVal _, GetVarMissOk _, DdValMissOk _ -> {
+        return false;
+      }
+      default -> {}
+    }
+    if (!(value instanceof Read(AssigneeOf a)
+        && a.statement().expression() instanceof org.prlprg.fir.ir.expression.Call(var callee))) {
+      return true;
+    }
+    if (!(callee instanceof StaticFnCallee s)) {
+      return false;
+    }
+    var function = s.function();
+    var entry = GNURSession.readFunTab().get(function.name().name());
+    return function.owner() == INTRINSICS
+        || (function.owner() == BUILTINS && entry != null && entry.visibility() == 0);
+  }
+
+  /// Sets `R_Visible` on before a variable read's force, if the read is the closure's result.
+  private void insertVisibleBeforeTailForce() {
+    var next = bcPos + 1;
+    if (!cfg.isPromise()
+        && next < bc.code().size()
+        && bc.code().get(next) instanceof BcInstr.Return
+        && !bbByLabel.containsKey(next)) {
+      insert(intrinsic("setVisible"));
+    }
+  }
+
   // endregion insertions
 
   // region stacks
@@ -1686,6 +1733,7 @@ public final class BC2FirCFGCompiler {
   //   stacks to keep track of data from previous instructions that affects future instructions
   //   (specifically, that data is what's "pushed", when the future instructions use the data it's
   //   read, and when the data no longer affects further future instructions it's popped).
+
   /// Assert that all stacks are empty, unless in a loop.
   ///
   /// If we return in a loop, the loop stack won't be empty. Additionally, if we return in a for

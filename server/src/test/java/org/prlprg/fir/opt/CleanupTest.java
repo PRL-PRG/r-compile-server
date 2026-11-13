@@ -638,6 +638,25 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
   @Nested
   class RemoveEffectiveNoOps {
     @Test
+    void visibilityWrite_lastKept_overwrittenRemoved() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (x:I) --> I {
+                setInvisible< --> V >();
+                setVisible< --> V >();
+                return x;
+              }
+              """);
+
+      assertTrue(run(abstraction), "should remove the overwritten write");
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(printed.contains("setInvisible"), "overwritten write; got:\n" + printed);
+      assertTrue(printed.contains("setVisible"), "last write; got:\n" + printed);
+    }
+
+    @Test
     void pureExpressionWithoutAssignee_removed() {
       var abstraction =
           ParseUtil.parseAbstraction(
