@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Write report.html: the fir2c.opt optimization log (list, code changes, optional speedup table).
+"""Write report.html: the fir2c.opt optimization log (list, code changes, benchmark tables).
 
-Usage: python3 gen.py [--bench DIR] [--out FILE] [--allow-empty]
-       python3 gen.py --save-before RUNDIR
+Usage: python3 gen.py [--bench DIR] [--opt DIR] [--key DIR] [--out FILE] [--allow-empty]
 """
 import argparse, base64, csv, glob, html, json, math, os, re, statistics, subprocess, sys, zlib
 
@@ -12,6 +11,10 @@ KINDS = ('optimization', 'fix', 'test', 'docs', 'enabler')
 GNUR = ('ast', 'bc.default', 'bc.opt')
 NOISE = 0.12
 NOTE_KINDS = (('value:', 'invalid'), ('no time', 'missing'), ('rerun:', 'rerun'))  # notes.json prefixes
+CATS = ('awf', 'shootout', 'real', 'ati', 'scalar', 'mathkernel', 'riposte', 'misc')  # bench_<category>_<name>
+CAT_RE = re.compile(rf'({"|".join(CATS)})_')
+BASE, RERUN = '<none>', '<none> (rerun)'  # the rows of VariantBenchmark with all optimizations
+DROPPED = set()  # the examples of the run directories outside the categories
 
 
 def git(*a):
@@ -139,20 +142,41 @@ def num(s):
         return None
 
 
+def cat_of(b):
+    """The category of an example name (without `bench_`), or None if it is outside the eight."""
+    return m[1] if (m := CAT_RE.match(b)) else None
+
+
+def read_csv(f):
+    """removed -> (time or None, same.as or None): the rows of one VariantBenchmark CSV."""
+    return {r['removed']: (num(r['time']), r.get('same.as') if r.get('same.as') not in (None, '', 'NA') else None)
+            for r in csv.DictReader(open(f, encoding='utf-8'))}
+
+
+def example_of(f):
+    """The example name of a CSV file (without `bench_`), or None (and noted in DROPPED) outside the eight categories."""
+    b = os.path.basename(f)[:-len('.csv')].removeprefix('bench_')
+    if cat_of(b): return b
+    DROPPED.add(b)
+
+
+def groups_of(benches):
+    """(category, examples) for each category with an example, in the order of CATS."""
+    return [(c, xs) for c in CATS if (xs := [b for b in benches if cat_of(b) == c])]
+
+
 def load_bench(bdir, ids):
     """Return the table model, or exit if no state is measured."""
     states = []
-    for sid in ['00-pre'] + ids:
+    for sid in ['00-pre'] + ids + ['tip']:
         d = os.path.join(bdir, sid)
         files = sorted(glob.glob(os.path.join(d, 'csv', 'bench_*.csv')))
         if not files: continue
-        data = {}
-        for f in files:
-            rows = {r['removed']: num(r['time']) for r in csv.DictReader(open(f, encoding='utf-8'))}
-            data[os.path.basename(f)[len('bench_'):-len('.csv')]] = rows
+        data = {b: {k: t for k, (t, _) in read_csv(f).items()} for f in files if (b := example_of(f))}
         notes = {}
         if os.path.exists(os.path.join(d, 'notes.json')):
-            notes = {k.removeprefix('bench_'): v for k, v in json.load(open(os.path.join(d, 'notes.json'))).items()}
+            notes = {b: v for k, v in json.load(open(os.path.join(d, 'notes.json'))).items()
+                     if cat_of(b := k.removeprefix('bench_')) or DROPPED.add(b)}
         kinds = {}
         for b, v in notes.items():
             kinds[b] = next((k for p, k in NOTE_KINDS if v.startswith(p)), None)
@@ -161,14 +185,16 @@ def load_bench(bdir, ids):
                          f'{", ".join(repr(p) for p, _ in NOTE_KINDS)}: {v!r}')
         states.append({'id': sid, 'data': data, 'notes': notes, 'kinds': kinds})
     if not states: sys.exit(f'gen.py: no state directory with csv/bench_*.csv under {bdir}')
-    benches = sorted({b for s in states for b in s['data']})
+    benches = sorted({b for s in states for b in [*s['data'], *s['notes']]})
+    # The median of a GNU-R row over the states; only a row measured in two states or more is a reference.
     med = {}
     for b in benches:
         for r in GNUR:
             xs = [s['data'][b][r] for s in states if s['data'].get(b, {}).get(r)]
-            if xs: med[b, r] = statistics.median(xs)
+            if len(xs) > 1: med[b, r] = statistics.median(xs)
     for s in states:
-        s['load'] = gmean(s['data'][b][r] / med[b, r] for b in s['data'] for r in GNUR if s['data'][b].get(r)) or 1.0
+        s['load'] = gmean(s['data'][b][r] / med[b, r] for b in s['data'] for r in GNUR
+                          if (b, r) in med and s['data'][b].get(r)) or 1.0
     bcopt = {b: statistics.median(xs) if (xs := [s['data'][b]['bc.opt'] for s in states
                                                   if s['data'].get(b, {}).get('bc.opt')]) else None for b in benches}
     cells = []  # cells[col][bench] = dict or None
@@ -183,11 +209,10 @@ def load_bench(bdir, ids):
                     'pct': bcopt[b] / disp * 100 if bcopt[b] else None, 'note': s['notes'].get(b),
                     'bad': s['kinds'].get(b) == 'invalid', 'sp': None, 'skip': None}
             prev = cells[c - 1].get(b) if c else None
-            # A speedup that divides an invalid cell is not computed; `skip` keeps it for the remark in section 1.
+            # A speedup that divides an invalid cell is not computed; `skip` keeps it for the remark in the list.
             if prev and (prev['bad'] or cell['bad']):
                 cell['skip'] = (prev['disp'], disp, 'the earlier state' if prev['bad'] else 'this state')
             elif prev: cell['sp'] = prev['disp'] / disp
-            if cell['pct'] is not None: assert abs(cell['pct'] - bcopt[b] / cell['disp'] * 100) < 1e-9
             col[b] = cell
         cells.append(col)
     stats = {}
@@ -204,22 +229,66 @@ def load_bench(bdir, ids):
     return {'states': states, 'benches': benches, 'bcopt': bcopt, 'cells': cells, 'stats': stats}
 
 
+def valid(x):
+    return bool(x) and not x['bad'] and x['pct'] is not None
+
+
+def cat_stats(cells, c, members):
+    """The geometric means of one column over `members`: percent (n examples) and speedup vs. the previous column (nsp)."""
+    xs = [x for b in members if valid(x := cells[c].get(b))]
+    sps = [x['sp'] for x in xs if x['sp']]
+    return {'pct': gmean(x['pct'] for x in xs), 'n': len(xs), 'sp': gmean(sps), 'nsp': len(sps)}
+
+
+def load_variants(d, mode):
+    """A run of variants.sh (mode opt or key): None if `d` has no CSV, else
+    {commit, labels, benches, ent: {(bench, label): {base, rerun, t, same}}, status: {bench: status JSON}}."""
+    if not d or not os.path.isdir(d): return None
+    ent, labels = {}, []
+    for f in sorted(glob.glob(os.path.join(d, 'bench_*.csv') if mode == 'opt' else os.path.join(d, '*', 'bench_*.csv'))):
+        if not (b := example_of(f)): continue
+        rows = read_csv(f)
+        base, rerun = (rows.get(k, (None,))[0] for k in (BASE, RERUN))
+        for l in ([k for k in rows if k not in (BASE, RERUN, 'fir2c.default', *GNUR)] if mode == 'opt'
+                  else [os.path.basename(os.path.dirname(f))]):
+            t, same = rows.get(l, (None, None))
+            ent[b, l] = {'base': base, 'rerun': rerun, 't': t, 'same': same}
+            if l not in labels: labels.append(l)
+    if not ent: return None
+    status = {}
+    for f in glob.glob(os.path.join(d, 'status', 'bench_*.json')):
+        if b := example_of(f[:-len('.json')] + '.csv'): status[b] = json.load(open(f, encoding='utf-8'))
+    commit = open(os.path.join(d, 'commit')).read().strip() if os.path.exists(os.path.join(d, 'commit')) else ''
+    return {'dir': d, 'commit': commit, 'labels': labels, 'ent': ent, 'status': status,
+            'benches': sorted({b for b, _ in ent} | set(status))}
+
+
+def slow_stats(v, label, members):
+    """The geometric mean slowdown (time without `label` / time with all) over the examples of `members` with both
+    times, and its noise floor: the geometric mean of the ratio of the two runs of <none>, either way up."""
+    xs = [e for b in members if (e := v['ent'].get((b, label))) and e['base'] and e['t']]
+    noise = [abs(math.log(e['rerun'] / e['base'])) for e in xs if e['rerun']]
+    gm = gmean(e['t'] / e['base'] for e in xs)
+    floor = math.exp(sum(noise) / len(noise)) if noise else None
+    return {'gm': gm, 'n': len(xs), 'floor': floor, 'sig': bool(gm and floor and abs(math.log(gm)) > math.log(floor))}
+
+
 def fmt_t(t):
     """A time in seconds, with 3 significant digits in µs (below 0.1 ms), ms, or s (from 1000 ms)."""
     t = float(f'{t:.3g}')  # round first, so 0.09996 ms becomes 0.100 ms, not 100 µs
-    v, unit = (t * 1e6, '\u00b5s') if t < 1e-4 else (t * 1e3, 'ms') if t < 1 else (t, 's')
+    v, unit = (t * 1e6, 'µs') if t < 1e-4 else (t * 1e3, 'ms') if t < 1 else (t, 's')
     d = max(0, 2 - math.floor(math.log10(v)))
     if d and round(v, d) >= 10 ** (3 - d): d -= 1
-    return f'{v:.{d}f}\u202f{unit}'
+    return f'{v:.{d}f} {unit}'
 
 
 def short(b):
-    return re.sub(r'^(ai_awf|awf|shootout|simple)_', '', b)
+    return CAT_RE.sub('', b, count=1)
 
 
 def sp_pct(sp):
     p = round((sp - 1) * 100)
-    return ('+' if p > 0 else '−' if p < 0 else '±') + f'{abs(p)} %'
+    return ('+' if p > 0 else '−' if p < 0 else '±') + f'{abs(p)} %'
 
 
 def sp_class(sp):
@@ -294,7 +363,7 @@ def speed_html(o, bench):
     parts = ' · '.join(part(lbl, k) for lbl, k in (('geomean', 'gm'), ('min', 'min'), ('max', 'max')))
     vs = st['vs']
     gap = '' if vs == o['prev'] else f'; spans the changes since state {esc(vs)}'
-    skips = ''.join(f'<span class="def excl"><span class="fl bad">!</span>{esc(short(b))} {fmt_t(a)} \u2192 {fmt_t(z)} not counted: '
+    skips = ''.join(f'<span class="def excl"><span class="fl bad">!</span>{esc(short(b))} {fmt_t(a)} → {fmt_t(z)} not counted: '
                     f'{who} returned a wrong value</span>' for b, (a, z, who) in st['skips'].items())
     return (f'<a class="speed" href="#col-{esc(o["id"])}">{parts}</a>'
             f'<span class="def">fir2c.opt speedup over the previous measured state ({esc(vs)}), '
@@ -306,159 +375,237 @@ def notes_html(bench):
     groups, bad = {}, set()
     for s in bench['states']:
         for b, note in s['notes'].items():
-            groups.setdefault(note, {}).setdefault(b, []).append(s['id'][:2])
+            groups.setdefault(note, {}).setdefault(b, []).append(s['id'][:3].rstrip('-'))
             if s['kinds'][b] == 'invalid': bad.add(note)
     if not groups: return ''
     items = ''.join(f'<li><span class="fl{" bad" if note in bad else ""}">!</span><span>{"; ".join(f"<b>{esc(b)}</b> in {", ".join(ss)}" for b, ss in bs.items())}: '
                     f'{esc(note)}{" (excluded from all statistics)" if note in bad else ""}</span></li>' for note, bs in groups.items())
-    return f'<p><b>Flagged cells</b> (benchmark in states):</p><ul class="notes">{items}</ul>'
+    n = sum(len(ss) for bs in groups.values() for ss in bs.values())
+    return f'<details><summary><b>Flagged cells</b> ({n}; benchmark in states)</summary><ul class="notes">{items}</ul></details>'
 
 
-def result_html(bench):
+def dropped_html():
+    return (f'<p>The report shows only the examples of the eight categories. It does not show {len(DROPPED)} examples of the '
+            f'run directories: {", ".join(f"<code>{esc(b)}</code>" for b in sorted(DROPPED))}.</p>' if DROPPED else '')
+
+
+def grouped_table(head, groups, foot=None, cls=''):
+    """A table with one <tbody> per category. The category row is always visible; its button shows the example rows.
+
+    head: the <th> cells; groups: (label, sub, cells, rows), rows: (name HTML, title, cells); foot: (label, sub, cells)."""
+    body = ''.join(
+        f'<tbody><tr class="gr"><th scope="row"><button type="button" class="tg" aria-expanded="false">{esc(lbl)}</button>'
+        f'<span class="sub">{sub}</span></th>{cells}</tr>'
+        + ''.join(f'<tr class="exr" hidden><th scope="row" title="{esc(t)}">{n}</th>{cs}</tr>' for n, t, cs in rows)
+        + '</tbody>' for lbl, sub, cells, rows in groups)
+    ft = f'<tfoot><tr><th scope="row">{foot[0]}<span class="sub">{foot[1]}</span></th>{foot[2]}</tr></tfoot>' if foot else ''
+    return (f'<button type="button" class="tgall" aria-expanded="false">Show all examples</button>'
+            f'<div class="tw" tabindex="0"><table class="bt {cls}"><thead><tr>{head}</tr></thead>{body}{ft}</table></div>')
+
+
+def summary_html(bench):
+    """For the last state (the tip): per category and over all, bc.opt time / fir2c.opt time, and the examples without a time."""
     st, cells = bench['states'], bench['cells']
-    ok = lambda x: x and not x['bad'] and x['pct'] is not None
-    both = [b for b in bench['benches'] if ok(cells[0].get(b)) and ok(cells[-1].get(b))]
-    if not both: return ''
-    excl = [f'{short(b)} ({st[0]["id"][:2] if not ok(cells[0].get(b)) else st[-1]["id"][:2]}: '
-            f'{"wrong value" if (cells[0].get(b) or cells[-1].get(b) or {}).get("bad") else "no time"})'
-            for b in bench['benches'] if b not in both]
-    when = lambda s: 'before the first optimization' if s['id'] == '00-pre' else f'after {s["id"]}'
-    def one(c):
-        ps = [cells[c][b]['pct'] for b in both]
-        return f'<b>{gmean(ps):.0f}\u202f%</b> {when(st[c])} ({sum(p > 100 for p in ps)} faster than bc.opt)'
-    ex = f' (not counted: {", ".join(excl)})' if excl else ''
-    return (f'<a class="result" href="#table">Geometric mean of bc.opt time / fir2c.opt time over the {len(both)} benchmarks '
-            f'with a valid time in both states{ex}: {one(0)}, {one(-1)}. '
-            f'100\u202f% means as fast as GNU-R optimized bytecode (bc.opt); higher is faster.</a>')
+    c, s = len(st) - 1, st[-1]
+    name = 'the tip' if s['id'] == 'tip' else f'state {s["id"]}'
+    rows = []
+    for cat, members in [*((cat, [b for b in bench['benches'] if cat_of(b) == cat]) for cat in CATS), ('all', bench['benches'])]:
+        ps = [x['pct'] for b in members if valid(x := cells[c].get(b))]
+        miss = [(b, s['notes'].get(b) or 'no result') for b in members if not valid(cells[c].get(b))]
+        g = gmean(ps)
+        lst = (f'<details><summary>{len(miss)}</summary><ul>' + ''.join(f'<li><b>{esc(short(b))}</b>: {esc(r)}</li>' for b, r in miss)
+               + '</ul></details>') if miss and cat != 'all' else str(len(miss))
+        rows.append(f'<tr{" class=all" if cat == "all" else ""}><th scope="row">{esc(cat)}</th><td>{len(ps)} / {len(members)}</td>'
+                    f'<td><b>{f"{g:.0f} %" if g else "–"}</b></td><td>{sum(p > 100 for p in ps)}</td><td>{sum(p < 100 for p in ps)}</td>'
+                    f'<td class="ms">{lst}</td></tr>')
+    return (f'<div class="summary"><p class="prose">The geometric mean of the bc.opt time divided by the fir2c.opt time at {name}, '
+            'per category of examples. 100 % means as fast as GNU-R optimized bytecode (bc.opt); higher is faster. '
+            'An example without a valid time (no time, or a wrong value) is not counted; open its count to read the reason. '
+            '<a href="#table">Speedup table</a>.</p>'
+            '<div class="tw"><table class="bt sm"><thead><tr><th scope="col">Category</th><th scope="col">timed</th><th scope="col">geomean</th>'
+            '<th scope="col">faster</th><th scope="col">slower</th><th scope="col">no valid time</th></tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></div></div>')
 
 
-def table_html(bench, opts):
+def table_html(bench, byid):
     st, cells, benches = bench['states'], bench['cells'], bench['benches']
-    byid = {o['id']: o for o in opts}
     head = ['<th class="corner" scope="col">Benchmark<span class="sub">bc.opt time</span></th>']
     for c, s in enumerate(st):
         o = byid.get(s['id'])
         num_, key = (s['id'].split('-', 1) + [''])[:2]
         label = f'<a href="#opt-{esc(s["id"])}">{num_}</a>' if o else num_
-        tip = f'{plain(o["title"])}\n' if o else 'Before the first optimization\n'
+        tip = f'{plain(o["title"])}\n' if o else 'The start of the chain\n'
         head.append(f'<th scope="col" id="col-{esc(s["id"])}" data-c="{c}" title="{esc(tip)}load factor {s["load"]:.3f}">'
                     f'{label}<span class="sub">{esc(key)}</span></th>')
+    def cell(c, b):
+        s, x = st[c], cells[c].get(b)
+        if not x:
+            note = s['notes'].get(b)
+            return (f'<td data-c="{c}" class="na flag" title="{esc("flag: " + note)}"><span class="fl">!</span>–</td>'
+                    if note else f'<td data-c="{c}" class="na">–</td>')
+        tip = [f'raw {fmt_t(x["raw"])} (faster of {x["runs"]} run{"s" if x["runs"] > 1 else ""})',
+               f'in-run bc.opt {fmt_t(x["inrun"]) if x["inrun"] else "–"}', f'load factor {s["load"]:.3f}']
+        cls, mark = [], ''
+        if x['sp']:
+            tip.append(f'speedup vs. {st[c - 1]["id"]}: {sp_pct(x["sp"])}')
+            k = sp_class(x['sp'])
+            if k != 'noise': cls.append(k); mark = '<span class="mk">%s</span>' % ('▲' if k == 'up' else '▼')
+        if x['skip']:
+            tip.append(f'speedup vs. {st[c - 1]["id"]} not computed: {x["skip"][2]} returned a wrong value')
+        if x['note']:
+            cls.append('flag'); tip.append('flag: ' + x['note'] + ('\nexcluded from all statistics' if x['bad'] else ''))
+            mark += f'<span class="fl{" bad" if x["bad"] else ""}">!</span>'
+        pct = f'{x["pct"]:.0f}%' if x['pct'] is not None else ''
+        return (f'<td data-c="{c}" class="{" ".join(cls)}" title="{esc(chr(10).join(tip))}">'
+                f'{mark}{pct}<span class="tm">{fmt_t(x["disp"])}</span></td>')
+    def mean_cells(members):
+        out = []
+        for c in range(len(st)):
+            m = cat_stats(cells, c, members)
+            if not m['n']: out.append(f'<td data-c="{c}" class="na">–</td>'); continue
+            cls, mark, tip = '', '', [f'geomean of {m["n"]} examples']
+            if m['sp']:
+                tip.append(f'speedup vs. {st[c - 1]["id"]}: {sp_pct(m["sp"])} (geomean of {m["nsp"]} examples)')
+                if (k := sp_class(m['sp'])) != 'noise': cls, mark = k, '<span class="mk">%s</span>' % ('▲' if k == 'up' else '▼')
+            out.append(f'<td data-c="{c}" class="{cls}" title="{esc(chr(10).join(tip))}">{mark}{m["pct"]:.0f}%<span class="tm">n {m["n"]}</span></td>')
+        return ''.join(out)
+    def bc(b): return fmt_t(bench['bcopt'][b]) if bench['bcopt'][b] else '–'
+    groups = [(cat, f'{len(xs)} example{"s" if len(xs) > 1 else ""}', mean_cells(xs),
+               [(f'{esc(short(b))}<span class="sub">{bc(b)}</span>', b, ''.join(cell(c, b) for c in range(len(st)))) for b in xs])
+              for cat, xs in groups_of(benches)]
+    return grouped_table(''.join(head), groups, ('all', 'geomean of the percents', mean_cells(benches)), 'ch')
+
+
+def slow_cell(m, cls_extra=''):
+    """A cell for slow_stats: the geomean slowdown, the count, and the significance against the noise floor."""
+    if not m['n']: return '<td class="na">–</td>'
+    cls = ('up' if m['gm'] > 1 else 'down') if m['sig'] else 'noise'
+    tip = (f'geomean slowdown of {m["n"]} examples: {m["gm"]:.3f}\nnoise floor ×{m["floor"]:.3f}' if m['floor'] else
+           f'geomean slowdown of {m["n"]} examples: {m["gm"]:.3f}\nno rerun, so no noise floor') + ('' if m['sig'] else '\nnot significant')
+    return f'<td class="{cls} {cls_extra}" title="{esc(tip)}">{m["gm"]:.2f}×<span class="tm">n {m["n"]}</span></td>'
+
+
+def ex_cell(e, why=''):
+    """A cell for one example of a variant: its slowdown, against the noise of its two runs of <none>."""
+    if not (e and e['base'] and e['t']):
+        return f'<td class="na" title="{esc(why or "no time")}">–</td>'
+    s = e['t'] / e['base']
+    r = e['rerun'] / e['base'] if e['rerun'] else None
+    same = e['same'] == BASE
+    sig = not same and r and abs(math.log(s)) > abs(math.log(r))
+    tip = [f'{fmt_t(e["t"])} / {fmt_t(e["base"])}', f'rerun of <none>: ×{r:.3f}' if r else 'no rerun',
+           'the same C as <none>' if same else f'the same C as {e["same"]}' if e['same'] else 'other C', '' if sig else 'not significant']
+    return f'<td class="{("up" if s > 1 else "down") if sig else "noise"}" title="{esc(chr(10).join(t for t in tip if t))}">{s:.2f}×</td>'
+
+
+SLOW_CAPTION = ('A cell is the geometric mean of the time without the optimizations divided by the time with all of them '
+                '(the row <code>&lt;none&gt;</code> of the same run), over the examples with both times; <i>n</i> is their count. '
+                'The noise floor of a cell is the geometric mean, over the same examples, of the ratio of the two runs of '
+                '<code>&lt;none&gt;</code> (the larger divided by the smaller). A value inside its noise floor is grey and not significant. '
+                'A green value is slower without the optimizations (so they make the code faster); a red value is faster without them. '
+                'An example whose C does not change gets exactly 1.00, and it is in the mean. Hover a cell for the details.')
+
+
+def variants_head(v, tip_commit, what):
+    if v['commit'] and tip_commit and v['commit'][:9] != tip_commit[:9]:
+        print(f'warning: {what} ran at {v["commit"][:9]}, the tip state at {tip_commit[:9]}', file=sys.stderr)
+    fails = {b: s['reason'] for b, s in v['status'].items() if s.get('status') == 'failed'}
+    loads = [s['load_start'] for s in v['status'].values() if 'load_start' in s]
+    out = f'<p>Commit <code>{esc(v["commit"][:9])}</code>, {len(v["benches"])} examples'
+    if loads: out += f', 1-minute load average at the start of an example {min(loads):.1f} to {max(loads):.1f}'
+    out += '.'
+    if fails:
+        out += f' {len(fails)} examples have no result: ' + '; '.join(f'<code>{esc(short(b))}</code> ({esc(r)})' for b, r in sorted(fails.items())) + '.'
+    return out + '</p>'
+
+
+def opt_html(v, tip_commit):
+    if v is None:
+        return '<p class="pend">Pending: the run of <code>variants.sh opt</code> at the tip.</p>'
+    groups = groups_of(v['benches'])
+    head = ('<th class="corner" scope="col">Removed<span class="sub">optimization</span></th><th scope="col">all</th>'
+            + ''.join(f'<th scope="col">{esc(c)}</th>' for c, _ in groups)
+            + '<th scope="col">C changed</th><th scope="col">no time</th><th scope="col">largest slowdowns</th>')
     rows = []
-    for b in benches:
-        bc = bench['bcopt'][b]
-        tr = [f'<th scope="row">{esc(b)}<span class="sub">{fmt_t(bc) if bc else "–"}</span></th>']
-        for c, s in enumerate(st):
-            x = cells[c].get(b)
-            if not x:
-                note = s['notes'].get(b)
-                tr.append(f'<td data-c="{c}" class="na flag" title="{esc("flag: " + note)}"><span class="fl">!</span>–</td>'
-                          if note else f'<td data-c="{c}" class="na">–</td>'); continue
-            tip = [f'raw {fmt_t(x["raw"])} (faster of {x["runs"]} run{"s" if x["runs"] > 1 else ""})',
-                   f'in-run bc.opt {fmt_t(x["inrun"]) if x["inrun"] else "–"}',
-                   f'load factor {s["load"]:.3f}']
-            cls, mark = [], ''
-            if x['sp']:
-                tip.append(f'speedup vs. {st[c - 1]["id"]}: {sp_pct(x["sp"])}')
-                k = sp_class(x['sp'])
-                if k != 'noise': cls.append(k); mark = '<span class="mk">%s</span>' % ('▲' if k == 'up' else '▼')
-            if x['skip']:
-                tip.append(f'speedup vs. {st[c - 1]["id"]} not computed: {x["skip"][2]} returned a wrong value')
-            if x['note']:
-                cls.append('flag'); tip.append('flag: ' + x['note'] + ('\nexcluded from all statistics' if x['bad'] else ''))
-                mark += f'<span class="fl{" bad" if x["bad"] else ""}">!</span>'
-            pct = f'{x["pct"]:.0f}%' if x['pct'] is not None else ''
-            tr.append(f'<td data-c="{c}" class="{" ".join(cls)}" title="{esc(chr(10).join(tip))}">'
-                      f'{mark}{pct}<span class="tm">{fmt_t(x["disp"])}</span></td>')
-        rows.append('<tr>' + ''.join(tr) + '</tr>')
-    gm = ['<th scope="row">geomean<span class="sub">of the percents</span></th>']
-    for c in range(len(st)):
-        g = gmean(x['pct'] for x in cells[c].values() if x and x['pct'] is not None and not x['bad'])
-        bad = [b for b, x in cells[c].items() if x and x['bad']]
-        mk = f'<span class="ex" title="{esc("excludes " + ", ".join(bad) + " (wrong value)")}">*</span>' if bad else ''
-        gm.append(f'<td data-c="{c}">{mk}{f"{g:.0f}%" if g else "–"}</td>')
-    return (f'<div class="tw" tabindex="0"><table class="bt"><thead><tr>{"".join(head)}</tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody><tfoot><tr>{"".join(gm)}</tr></tfoot></table></div>')
+    for l in v['labels']:
+        m = slow_stats(v, l, v['benches'])
+        es = {b: e for b in v['benches'] if (e := v['ent'].get((b, l))) and e['base']}
+        changed = sum(e['same'] != BASE for e in es.values())
+        failed = sorted(b for b, e in es.items() if not e['t'])
+        top = sorted(((e['t'] / e['base'], b) for b, e in es.items() if e['t'] and e['same'] != BASE and e['rerun']
+                      and e['t'] / e['base'] > max(e['rerun'] / e['base'], e['base'] / e['rerun'])), reverse=True)[:3]
+        cells = (slow_cell(m, 'all') + ''.join(slow_cell(slow_stats(v, l, xs)) for _, xs in groups)
+                 + f'<td>{changed} / {len(es)}</td>'
+                 + f'<td title="{esc(", ".join(failed))}">{len(failed) or ""}</td>'
+                 + f'<td class="lg">{", ".join(f"{esc(short(b))} {s:.2f}×" for s, b in top)}</td>')
+        rows.append((m['gm'] or 0, f'<tr><th scope="row"><code>{esc(l)}</code></th>{cells}</tr>'))
+    rows.sort(key=lambda r: -r[0])
+    noise = []
+    for xs in [v['benches']] + [xs for _, xs in groups]:
+        ns = [abs(math.log(e['rerun'] / e['base'])) for b in xs
+              if (e := next((v['ent'][b, l] for l in v['labels'] if (b, l) in v['ent']), None)) and e['base'] and e['rerun']]
+        noise.append(f'<td title="{len(ns)} examples">×{math.exp(sum(ns) / len(ns)):.3f}</td>' if ns else '<td class="na">–</td>')
+    foot = f'<tfoot><tr><th scope="row">noise floor<span class="sub">two runs of &lt;none&gt;</span></th>{"".join(noise)}<td></td><td></td><td></td></tr></tfoot>'
+    bopt = ''
+    if os.path.exists(p := os.path.join(v['dir'], 'optimizations')):
+        bopt = open(p).read().strip()
+    return (variants_head(v, tip_commit, 'the opt run')
+            + (f'<p>Removed optimizations: <code>BENCHMARK_OPTIMIZATIONS={esc(bopt)}</code>.</p>' if bopt and bopt != '.*' else '')
+            + f'<div class="caption"><p>One row per removed optimization, sorted by the mean over all examples. {SLOW_CAPTION} '
+            '<i>C changed</i> counts the examples whose generated C differs from the C with all optimizations. '
+            '<i>No time</i> counts the examples where the variant failed (hover for the names). '
+            '<i>Largest slowdowns</i> lists up to three examples with a significant slowdown.</p></div>'
+            f'<div class="tw" tabindex="0"><table class="bt vt"><thead><tr>{head}</tr></thead><tbody>{"".join(r for _, r in rows)}</tbody>{foot}</table></div>')
 
 
-# ---------------------------------------------------------------- fixes (fixes.json, block.tsv, before-fixes.tsv)
-
-def best(rows):
-    """The faster of the two fir2c.opt runs of one benchmark (rows: removed -> time), or None."""
-    return min((x for x in (rows.get('<none>'), rows.get('<none> (rerun)')) if x), default=None)
-
-
-def save_before(rundir):
-    """Write before-fixes.tsv from the run of the final state before the fixes."""
-    notes = {}
-    if os.path.exists(os.path.join(rundir, 'notes.json')):
-        notes = json.load(open(os.path.join(rundir, 'notes.json')))
-    out = ['benchmark\ttime\tbc_opt\tnote']
-    for f in sorted(glob.glob(os.path.join(rundir, 'csv', 'bench_*.csv'))):
-        rows = {r['removed']: num(r['time']) for r in csv.DictReader(open(f, encoding='utf-8'))}
-        b = os.path.basename(f)[:-len('.csv')]
-        out.append('\t'.join([b.removeprefix('bench_'), str(best(rows) or ''), str(rows.get('bc.opt') or ''), notes.get(b, '')]))
-    with open(os.path.join(HERE, 'before-fixes.tsv'), 'w', encoding='utf-8') as f: f.write('\n'.join(out) + '\n')
-    print(f'wrote before-fixes.tsv ({len(out) - 1} benchmarks from {rundir})')
+def key_lists(commit):
+    """label -> the optimizations that the key category removes, read from KeyBenchmarkQuery.java at `commit`
+    (a string for a category that is not a removal set)."""
+    src = lambda c: git('show', f'{commit}:server/src/test/java/org/prlprg/snapshot/bench/{c}.java')
+    own = re.search(r'OWNERSHIP\s*=\s*List\.of\((.*?)\);', src('OwnershipBenchmarkQuery'), re.S)
+    out = {}
+    for label, body in re.findall(r'new KeyBenchmarkQuery\(\s*"(\w+)",(.*?)\);', src('KeyBenchmarkQuery'), re.S):
+        body = re.sub(r'//.*', '', body)
+        if m := re.search(r'defaultOptimizationsWithVersionLimit\((\d+)\)', body):
+            out[label] = f'a limit of {int(m[1]) - 1} version besides the baseline for each function'
+            continue
+        names = re.findall(r'"(\w+)"', (own[1] if own and 'OWNERSHIP' in body else '') + body)
+        if not names: sys.exit(f'gen.py: KeyBenchmarkQuery.java at {commit}: no optimizations for the key category {label}')
+        out[label] = names
+    return out
 
 
-def load_fixes(opts):
-    fx = json.load(open(os.path.join(HERE, 'fixes.json'), encoding='utf-8'))
-    group = dict(l.rstrip('\n').split('\t', 1)[::-1] for l in open(os.path.join(HERE, 'block.tsv'), encoding='utf-8'))
-    subs = git('log', '--reverse', '--format=%s', f'{fx["blockRoot"]}..{opts[0]["pre"]}').splitlines()
-    errs = [f'block.tsv: no group for the commit "{x}"' for x in subs if x not in group]
-    errs += [f'block.tsv: the group "{g}" is not in fixes.json' for g in set(group.values()) if g not in fx['blockGroups']]
-    errs += [f'fixes.json: "findings" has {k}, which is not an optimization' for k in fx['findings'] if k not in {o['id'] for o in opts}]
-    if errs: sys.exit('gen.py: the fixes are not valid:\n  ' + '\n  '.join(errs))
-    fx['block'] = {}
-    for x in subs: fx['block'].setdefault(group[x], []).append(x)
-    fx['before'] = {r['benchmark']: r for r in csv.DictReader(open(os.path.join(HERE, 'before-fixes.tsv'), encoding='utf-8'), delimiter='\t')}
-    return fx
-
-
-def block_html(fx, pre):
-    n = sum(map(len, fx['block'].values()))
-    items = ''.join(f'<li><details><summary><b>{len(fx["block"][g])}</b> {mdi(t)}</summary><ul>'
-                    + ''.join(f'<li>{mdi(x)}</li>' for x in fx['block'][g]) + '</ul></details></li>'
-                    for g, t in fx['blockGroups'].items() if g in fx['block'])
-    return (f'<section class="part" id="pre"><div class="wrap"><h2>Before the chain</h2>'
-            f'<p class="lede">{n} commits <code>{fx["blockRoot"]}..{pre}</code>, in state <code>00</code>.</p>'
-            f'<div class="prose">{md(fx["blockIntro"])}</div><ul class="blockg">{items}</ul></div></section>')
-
-
-def fixes_html(fx, bench, opts):
-    last = opts[-1]['id']
-    st = next((s for s in bench['states'] if s['id'] == last), None) if bench else None
-    rows, sps, rel = [], [], []
-    for b in sorted(set(fx['before']) | set(st['data'] if st else ())):
-        o, n = fx['before'].get(b, {}), (st['data'].get(b, {}) if st else {})
-        to, bo, tn, bn = num(o.get('time')), num(o.get('bc_opt')), best(n), n.get('bc.opt')
-        bad = [x for x in (o.get('note'), st and st['notes'].get(b)) if x and x.startswith('value:')]
-        cell = lambda v: f'<b class="{sp_class(v)}">{sp_pct(v)}</b>' if v else '–'
-        sp = to / tn if to and tn and not bad else None
-        r = sp * bn / bo if sp and bo and bn else None
-        if sp: sps.append(sp)
-        if r: rel.append(r)
-        rows.append(f'<tr><th scope="row">{esc(b)}</th><td>{fmt_t(to) if to else "–"}</td><td>{fmt_t(tn) if tn else "–"}</td>'
-                    f'<td>{cell(sp)}</td><td>{cell(r)}{"<span class=\"fl bad\" title=\"" + esc("; ".join(bad)) + "\">!</span>" if bad else ""}</td></tr>')
-    g = lambda xs: f'<b class="{sp_class(gmean(xs))}">{sp_pct(gmean(xs))}</b>' if xs else '–'
-    table = ('<div class="tw"><table class="sf"><thead><tr><th scope="col">Benchmark</th><th scope="col">before</th><th scope="col">after</th>'
-             '<th scope="col">speedup</th><th scope="col">speedup vs. bc.opt</th></tr></thead>'
-             f'<tbody>{"".join(rows)}</tbody><tfoot><tr><th scope="row">geomean</th><td></td><td></td><td>{g(sps)}</td><td>{g(rel)}</td></tr></tfoot></table></div>')
-    byid = {o['id']: o for o in opts}
-    finds = ''.join(f'<li><a href="#opt-{k}"><span class="no">{k[:2]}</span>{mdi(byid[k]["title"])}</a>: {mdi(v)}</li>'
-                    for k, v in sorted(fx['findings'].items()))
-    when = f'state <code>{last[:2]}</code> of this run' if st else 'state <code>%s</code> (not measured)' % last[:2]
-    return ('<section class="part" id="fixes"><div class="wrap"><h2>Soundness fixes</h2>'
-            f'<p class="lede">The final state before the fixes (<code>before-fixes.tsv</code>) and after them ({when}).</p>'
-            '<div class="caption"><p>Both columns come from the same session on the same machine. The column before is the final commit of the old '
-            'history, built with the old vendored R; the column after uses the new vendored R. A time is the faster of the two fir2c.opt runs, '
-            'without load correction. The speedup is the time before divided by the time after. The speedup vs. bc.opt divides each time by the '
-            'bc.opt time of the same run first, so it also removes the change of the GNU-R bytecode time between the two vendored Rs. '
-            'A value within ±12 % is noise. A red <b>!</b> marks a wrong benchmark value; its speedups are not computed.</p></div>'
-            + table + f'<div class="prose">{md(fx["costs"])}</div>'
-            '<h3>Fixes of each optimization</h3><p class="lede">The faults that the fixes of each optimization remove. '
-            'A fix “before the chain” is in state <code>00</code>; the others are part of the commits of the optimization.</p>'
-            f'<ul class="finds">{finds}</ul></div></section>')
+def key_html(v, tip_commit):
+    if v is None:
+        return '<p class="pend">Pending: the run of <code>variants.sh key</code> at the tip.</p>'
+    lists = key_lists(v['commit'] or 'HEAD')
+    if miss := [l for l in v['labels'] if l not in lists]:
+        sys.exit(f'gen.py: the key run has the categories {", ".join(miss)}, which KeyBenchmarkQuery.java does not define')
+    labels = [l for l in lists if l in v['labels']]
+    groups = groups_of(v['benches'])
+    head = ('<th class="corner" scope="col">Key category<span class="sub">removed optimizations</span></th><th scope="col">all</th>'
+            + ''.join(f'<th scope="col">{esc(c)}</th>' for c, _ in groups))
+    rows = ''.join(f'<tr><th scope="row" class="kc">{esc(l)}<span class="sub">'
+                   + (esc(lists[l]) if isinstance(lists[l], str) else ', '.join(f'<code>{esc(x)}</code>' for x in lists[l])) + '</span></th>'
+                   + slow_cell(slow_stats(v, l, v['benches']), 'all') + ''.join(slow_cell(slow_stats(v, l, xs)) for _, xs in groups) + '</tr>'
+                   for l in labels)
+    def why(b, l):
+        s = v['status'].get(b, {})
+        meth = 'benchmark' + l[0].upper() + l[1:]
+        return next((f'{k}: {m}' for k, m in s.get('failures', {}).items() if meth in k), s.get('reason') or 'no time')
+    ex = grouped_table('<th class="corner" scope="col">Benchmark</th>' + ''.join(f'<th scope="col">{esc(l)}</th>' for l in labels),
+                       [(cat, f'{len(xs)} example{"s" if len(xs) > 1 else ""}', ''.join(slow_cell(slow_stats(v, l, xs)) for l in labels),
+                         [(esc(short(b)), b, ''.join(ex_cell(v['ent'].get((b, l)), why(b, l)) for l in labels)) for b in xs])
+                        for cat, xs in groups],
+                       ('all', 'geomean', ''.join(slow_cell(slow_stats(v, l, v['benches'])) for l in labels)))
+    return (variants_head(v, tip_commit, 'the key run')
+            + f'<div class="caption"><p>One row per key category of optimizations: <code>KeyBenchmark</code> compiles each example '
+            f'without the optimizations of the category. {SLOW_CAPTION}</p>'
+            '<p>The row <code>contextualDispatch</code> removes no optimization: it limits each function to one version besides the baseline. '
+            'So it overlaps the rows <code>scalarUnboxing</code> and <code>promiseInlining</code>: the limit also removes the versions '
+            'with unboxed parameters and with strict parameters.</p></div>'
+            f'<div class="tw" tabindex="0"><table class="bt vt"><thead><tr>{head}</tr></thead><tbody>{rows}</tbody></table></div>'
+            '<h3>Each example</h3><p class="lede">The same slowdowns for each example, by category.</p>' + ex)
 
 
 # ---------------------------------------------------------------- page
@@ -574,16 +721,21 @@ table.diff tr.fold td { padding: 0; }
 table.diff tr.fold button { all: unset; box-sizing: border-box; cursor: pointer; display: block; width: 100%; padding: 3px 10px; background: var(--accentbg); color: var(--accent); font: 0.76rem var(--sans); }
 table.diff tr.fold button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* table */
-ul.blockg, ul.finds { margin: 12px 0 0; padding-left: 1.2rem; display: grid; gap: 6px; max-width: 80ch; } ul.blockg summary { cursor: pointer; } ul.blockg ul { font-size: 0.86rem; color: var(--muted); }
-ul.finds .no { font: 600 0.8rem var(--mono); margin-right: 6px; } table.sf { border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; margin: 12px 0 18px; }
-table.sf th, table.sf td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; } table.sf td { font-family: var(--mono); font-size: 0.76rem; } table.sf tbody th, table.sf tfoot th { text-align: left; font-family: var(--mono); font-weight: 500; } table.sf thead th { background: var(--sunk); }
+button.tg, button.tgall { all: unset; cursor: pointer; } button.tg:focus-visible, button.tgall:focus-visible { outline: 2px solid var(--accent); }
+button.tg::before { content: "▸"; display: inline-block; width: 1.1em; color: var(--accent); } button.tg[aria-expanded="true"]::before { content: "▾"; }
+button.tgall { margin: 0 0 8px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 0.8rem; background: var(--panel); }
+table.bt tr.gr th, table.bt tr.gr td { background: var(--sunk); font-weight: 600; } table.bt tr.gr td.up { background: var(--addbg); } table.bt tr.gr td.down { background: var(--delbg); }
+table.bt tr.exr th { font-weight: 400; padding-left: 26px; }
+table.bt td.noise { color: var(--muted); } table.bt th.kc .sub { white-space: normal; max-width: 36ch; } table.bt td.lg { text-align: left; font-family: var(--sans); }
+table.bt.sm th, table.bt.sm td { text-align: left; } table.bt.sm tr.all th, table.bt.sm tr.all td { background: var(--sunk); font-weight: 600; }
+table.bt td.ms details ul { margin: 4px 0 0; padding-left: 1rem; white-space: normal; max-width: 60ch; font-family: var(--sans); } table.bt td.ms summary { cursor: pointer; }
+.summary { display: grid; gap: 8px; } .summary .tw { max-height: none; justify-self: start; max-width: 100%; }
+section.part h3 { margin: 22px 0 6px; } .caption details summary { cursor: pointer; }
 .caption { max-width: 90ch; color: var(--muted); font-size: 0.86rem; margin: 0 0 14px; }
 .caption p { margin: 0 0 6px; }
 .notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; } .notes li { display: flex; gap: 8px; align-items: baseline; }
 .notes .fl { flex-shrink: 0; } .fl.bad { background: var(--del); }
 .excl { flex-basis: 100%; } .excl .fl { margin-right: 6px; } table.bt .ex { color: var(--del); margin-right: 4px; cursor: help; } .bn { font: 0.82rem var(--mono); color: var(--muted); }
-a.result { max-width: 72ch; color: var(--fg); text-decoration: none; border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; }
-a.result b { font: 600 1.05rem var(--mono); color: var(--accent); } a.result:hover { background: var(--accentbg); }
 .tw { overflow: auto; max-height: 82vh; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 table.bt { border-collapse: separate; border-spacing: 0; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 table.bt th, table.bt td { padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: right; background: var(--panel); }
@@ -745,14 +897,26 @@ function setMode(m) {
 document.addEventListener('click', e => {
   const f = e.target.closest('button.f'); if (f) return openFile(f);
   const m = e.target.closest('.modes button'); if (m) return setMode(m.dataset.m);
+  const t = e.target.closest('button.tg');
+  if (t) return expand(t.closest('tbody'), t.getAttribute('aria-expanded') !== 'true');
+  const a = e.target.closest('button.tgall');
+  if (a) {
+    const x = a.getAttribute('aria-expanded') !== 'true';
+    a.setAttribute('aria-expanded', x); a.textContent = x ? 'Hide all examples' : 'Show all examples';
+    a.nextElementSibling.querySelectorAll('tbody').forEach(b => expand(b, x));
+  }
 });
+function expand(tbody, x) {
+  tbody.querySelector('button.tg')?.setAttribute('aria-expanded', x);
+  tbody.querySelectorAll('tr.exr').forEach(r => r.hidden = !x);
+}
 setMode(mode);
 function route() {
-  document.querySelectorAll('table.bt .hl').forEach(x => x.classList.remove('hl'));
+  document.querySelectorAll('table.ch .hl').forEach(x => x.classList.remove('hl'));
   const h = decodeURIComponent(location.hash.slice(1));
   if (!h.startsWith('col-')) return;
   const th = document.getElementById(h); if (!th) return;
-  document.querySelectorAll(`table.bt [data-c="${th.dataset.c}"]`).forEach(x => x.classList.add('hl'));
+  document.querySelectorAll(`table.ch [data-c="${th.dataset.c}"]`).forEach(x => x.classList.add('hl'));
   document.getElementById('table').scrollIntoView();
   const w = th.closest('.tw');
   w.scrollLeft = th.offsetLeft - w.querySelector('th.corner').offsetWidth - 40;
@@ -767,18 +931,20 @@ PAGE = '''<title>fir2c.opt Optimization Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Space+Grotesk:wght@500;600&display=swap">
 <style><!--@CSS@--></style>
-<nav class="top" aria-label="Sections"><div class="wrap"><b>fir2c.opt log</b><a href="#pre">Before the chain</a><a href="#list">List</a><a href="#code">Code changes</a><!--@NAVTABLE@--><a href="#fixes">Soundness fixes</a></div></nav>
+<nav class="top" aria-label="Sections"><div class="wrap"><b>fir2c.opt log</b><a href="#list">List</a><a href="#code">Code changes</a><a href="#table">Speedup table</a><a href="#opt">Each optimization removed</a><a href="#key">Key categories removed</a></div></nav>
 <main>
 <header class="intro wrap"><!--@HEADER@--></header>
-<!--@PRE@-->
 <section class="part" id="list"><div class="wrap"><h2>Optimizations</h2>
-<p class="lede">In the order they were committed. Line counts are without tests (with tests) and link to the code changes; the speedups link to the column in the speedup table.</p>
+<p class="lede">In the order they were committed, then the tip. Line counts are without tests (with tests) and link to the code changes; the speedups link to the column in the speedup table.</p>
 <ol class="opts"><!--@LIST@--></ol></div></section>
 <section class="part" id="code"><div class="wrap"><h2>Code changes</h2>
 <p class="lede">Commits and changed files of each optimization. Select a file to compare it before and after the range. Line counts are without tests (with tests); a directory with only test files or no test files shows one pair.</p>
 <!--@CODE@--></div></section>
 <!--@TABLE@-->
-<!--@FIXES@-->
+<section class="part" id="opt"><div class="wrap"><h2>Each optimization removed</h2>
+<p class="lede">The tip, compiled without one individual optimization at a time (<code>OptimizationBenchmark</code>).</p><!--@OPT@--></div></section>
+<section class="part" id="key"><div class="wrap"><h2>Key categories removed</h2>
+<p class="lede">The tip, compiled without one key category of optimizations at a time (<code>KeyBenchmark</code>).</p><!--@KEY@--></div></section>
 </main>
 <script async id="hljs-js" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script><!--@JS@--></script>
@@ -788,18 +954,21 @@ PAGE = '''<title>fir2c.opt Optimization Log</title>
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--bench', default=os.path.join(HERE, 'runs'), help='benchmark directory: <dir>/<state>/csv/bench_*.csv (default: runs)')
+    ap.add_argument('--opt', default=os.path.join(HERE, 'runs-opt'), help='run of variants.sh opt (default: runs-opt)')
+    ap.add_argument('--key', default=os.path.join(HERE, 'runs-key'), help='run of variants.sh key (default: runs-key)')
     ap.add_argument('--out', default=os.path.join(HERE, 'report.html'), help='output file (default: report.html)')
     ap.add_argument('--allow-empty', action='store_true', help='accept empty strings in content files')
-    ap.add_argument('--save-before', metavar='RUNDIR', help='write before-fixes.tsv from the run of the final state before the fixes, then exit')
     args = ap.parse_args()
-    if args.save_before: return save_before(args.save_before)
     opts = json.load(open(os.path.join(HERE, 'skeleton.json'), encoding='utf-8'))
     RANGE = (opts[0]['pre'], opts[-1]['post'])  # the pins (see ranges.tsv)
     content = load_content(opts, args.allow_empty)
-    fx = load_fixes(opts)
+    tip = json.load(open(os.path.join(HERE, 'tip.json'), encoding='utf-8'))
     ids = [o['id'] for o in opts]
     if args.bench and not os.path.isdir(args.bench): sys.exit(f'gen.py: {args.bench} is not a directory')
     bench = load_bench(args.bench, ids) if args.bench else None
+    tip_state = next((s for s in bench['states'] if s['id'] == 'tip'), None) if bench else None
+    if tip_state and os.path.exists(p := os.path.join(args.bench, 'tip', 'commit')): tip['commit'] = open(p).read().strip()
+    variants = {m: load_variants(getattr(args, m), m) for m in ('opt', 'key')}
 
     for i, o in enumerate(opts):
         c = content[o['id']]
@@ -849,7 +1018,7 @@ def main():
               'The line total is the end-to-end change of the whole range.</p>'
               f'<ul class="totals"><li><b>{len(opts)}</b><span class="lbl">optimizations</span></li><li><b>{n_commits}</b><span class="lbl">commits</span></li>'
               f'<li><a class="tot" href="#code-all"><b>{lines(allf)}</b><span class="lbl">lines added and deleted, without tests (with tests)</span></a></li></ul>'
-              + (result_html(bench) if bench else ''))
+              + (summary_html(bench) if bench else ''))
 
     lst = []
     code = [block('all', 'All changes',
@@ -871,30 +1040,37 @@ def main():
             f'<span class="s">{esc(cm["subject"])}</span></summary><pre>{esc(cm["msg"])}</pre></details></li>' for cm in o['commits'])
         code.append(block(o['id'], f'<a href="#opt-{o["id"]}"><span class="no">{num_}</span>{ttl}</a>', f'<ul class="commits">{commits}</ul>',
                           o['files'], c['files'], o['pre'], o['post'], o['blob']))
+    # The tip: the state after the chain that the timed runs use.
+    tip_o = {'id': 'tip', 'prev': opts[-1]['id'], 'title': 'The tip'}
+    lst.append(f'<li class="opt" id="opt-tip"><span class="no">tip</span><div class="body"><h3>The tip</h3>'
+               f'<div class="meta">{f"<code>{esc(tip["commit"][:9])}</code>" if tip["commit"] else "<span>commit pending</span>"}</div>'
+               f'<div class="prose">{md(tip["description"])}</div><div class="facts">{speed_html(tip_o, bench)}</div></div></li>')
 
-    table = nav_table = ''
+    table = '<section class="part" id="table"><div class="wrap"><h2>Speedup table</h2><p class="pend">Pending: the run of <code>chain.sh</code>.</p></div></section>'
     if bench:
-        nav_table = '<a href="#table">Speedup table</a>'
         table = ('<section class="part" id="table"><div class="wrap"><h2>Speedup table</h2><div class="caption">'
-                 '<p>Each cell shows the GNU-R optimized bytecode (<code>bc.opt</code>) time in the row header divided by the '
+                 '<p>Each cell shows the GNU-R optimized bytecode (<code>bc.opt</code>) time divided by the '
                  '<code>fir2c.opt</code> time for one call in one state, and below it that time. Above 100% is faster than bc.opt. '
-                 'The row header shows the '
-                 'median bc.opt time over all measured states. The column <code>00</code> is the state before the first optimization; '
-                 'every other column is the state after that optimization. An absent column was not measured; a dash is a missing value. '
+                 'An example row shows the median bc.opt time over all measured states below its name. The examples are in groups by category: '
+                 'a category row shows the geometric mean over the examples with a valid time in that state, and below it their count. '
+                 'Select a category to show its examples. The column <code>00</code> is the start of the chain; '
+                 'every other column is the state after that optimization, and the column <code>tip</code> is the tip. '
+                 'An absent column was not measured; a dash is a missing value. '
                  'Times are in \u00b5s below 0.1 ms and in s from 1000 ms.</p>'
-                 '<p>All states ran on one machine (Mac mini, Apple M4 Pro). Ten states (11, 12, 14, 15, 16, 18, 19, 22, 26 and 27) were measured again, '
-                 'because the machine slept during the first run. Three states (08, 17 and 22) were measured again, because one benchmark was '
-                 'slower in that state only; the second run did not show it. The check of each state is that the bc.opt time of each benchmark is within 10% '
-                 'of its time at the last state.</p>'
+                 f'<p>{mdi(tip["runNotes"])}</p>'
                  '<p>Load correction: for each state, the load factor is the geometric mean, over all benchmarks and the three GNU-R rows '
                  '(AST, bc.default, bc.opt), of the time in that state divided by the median time of that row over all states. '
+                 'Only a row with a time in two states or more counts. '
                  'A cell shows the faster of the two fir2c.opt runs divided by the load factor. A tinted cell with ▲ or ▼ is more than 12% '
-                 'faster or slower than the previous column; <b>!</b> marks a flagged result, and a red <b>!</b> a wrong benchmark value, which no statistic uses (a <b>*</b> on a geomean marks such an exclusion). Hover a cell for the raw time, '
+                 'faster or slower than the previous column (for a category row: the geometric mean of the speedups of its examples with a valid time in both states); '
+                 '<b>!</b> marks a flagged result, and a red <b>!</b> a wrong benchmark value, which no statistic uses. Hover a cell for the raw time, '
                  'the bc.opt time of the same run, the load factor, and any flag.</p>'
-                 + notes_html(bench) + '</div>' + table_html(bench, opts) + '</div></section>')
+                 + dropped_html() + notes_html(bench) + '</div>' + table_html(bench, {**{o['id']: o for o in opts}, 'tip': tip_o}) + '</div></section>')
 
     parts = {'CSS': CSS.replace('@@LIGHT@@', tokens(LIGHT)).replace('@@DARK@@', tokens(DARK)), 'JS': JS,
-             'HEADER': header, 'PRE': block_html(fx, RANGE[0]), 'FIXES': fixes_html(fx, bench, opts), 'LIST': ''.join(lst), 'CODE': ''.join(code), 'TABLE': table, 'NAVTABLE': nav_table}
+             'HEADER': header, 'LIST': ''.join(lst), 'CODE': ''.join(code), 'TABLE': table,
+             'OPT': opt_html(variants['opt'], tip['commit']), 'KEY': key_html(variants['key'], tip['commit'])}
+    if DROPPED: print(f'gen.py: not shown (outside the eight categories): {", ".join(sorted(DROPPED))}', file=sys.stderr)
     page = re.sub(r'<!--@(\w+)@-->', lambda m: parts.pop(m.group(1)), PAGE)
     assert not parts, parts
     assert '@@' not in page[:page.index('</style>')], 'unresolved CSS marker'

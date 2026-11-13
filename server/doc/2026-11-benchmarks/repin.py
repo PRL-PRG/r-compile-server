@@ -7,14 +7,14 @@ MAP.tsv has one line per commit, and maybe a header line (a line whose first fie
 OLD and NEW are the numbers of the columns of the old and the new sha (default: 1 2).
 The script replaces each commit sha (9 or 40 hex digits that name a commit) in the files of this
 directory: ranges.tsv (the pins), the keys and the text of content/*.json, and every other file.
-It does not change runs/ (each run records the commit it measured), skeleton.json (skeleton.py
-writes it again), and the root of the fix block (`blockRoot` in fixes.json, which a rebase keeps).
+It does not change the run directories (each run records the commit it measured) and skeleton.json
+(skeleton.py writes it again). It keeps the tip commit of tip.json if the map does not name it.
 It changes no file if a sha in the files is not in the map.
 """
 import json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SKIP = ('runs/', 'skeleton.json', 'repin.py')
+SKIP = ('runs/', 'runs-opt/', 'runs-key/', 'skeleton.json', 'repin.py')
 SHA = re.compile(r'(?<![0-9a-f])[0-9a-f]{9}(?:[0-9a-f]{31})?(?![0-9a-f])')
 
 
@@ -39,7 +39,7 @@ def main():
         fo, fn = full(old), full(new)
         if not (fo and fn): sys.exit(f'repin.py: {old if not fo else new} names no commit')
         sub[fo[:9]], sub[fo] = fn[:9], fn
-    keep = {json.load(open(os.path.join(HERE, 'fixes.json'), encoding='utf-8'))['blockRoot']}
+    keep = {k for k in [json.load(open(os.path.join(HERE, 'tip.json'), encoding='utf-8'))['commit']] if k}
     keep |= {full(k) for k in keep}
     files = [f for f in git('ls-files', '--cached', '--others', '--exclude-standard', '.').splitlines()
              if not f.startswith(SKIP)]
@@ -51,8 +51,8 @@ def main():
             continue
         def one(m):
             s = m.group(0)
-            if s in keep: return s
             if s in sub: return sub[s]
+            if s in keep: return s
             if full(s): missing.setdefault(s, []).append(f)
             return s
         new = SHA.sub(one, text)
