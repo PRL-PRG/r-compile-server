@@ -69,6 +69,10 @@ final class PrintStack {
         () -> {
           var first = true;
           for (var entry : globalEnv.bindings()) {
+            // The RNG state: 626 integers that say nothing about the crash.
+            if (entry.getKey().equals(".Random.seed")) {
+              continue;
+            }
             if (first) {
               first = false;
             } else {
