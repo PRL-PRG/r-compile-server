@@ -715,14 +715,14 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       subAnalysis.run(state());
 
       var returnState = subAnalysis.returnState();
-      if (returnState != null) {
+      if (returnState != null && (replace || !state().subsumes(returnState))) {
         // The return state also has the body's runs at other forces and at `popenv`, where a
         // variable may be absent. The body can't remove a binding, so a variable that is present
         // here stays.
         var present = state().present();
         if (replace) {
           state().replaceWith(returnState);
-        } else if (!state().subsumes(returnState)) {
+        } else {
           state().merge(returnState);
         }
         state().assumePresent(present);
