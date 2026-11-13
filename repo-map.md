@@ -87,6 +87,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `server/doc/speculation-and-deoptimization.md` — Speculation and deoptimization.
 - `server/doc/variadic-and-default-arguments.md` — `...` and default arguments.
 - `server/doc/benchmark-licenses.md` — Upstream repository, commit and license of each `bench_*` example (they are not MIT).
+- `server/doc/benchmark-ports.md` — Port rules of the `bench_*` examples, and the upstream programs that are not ported.
 - `server/doc/2026-11-benchmarks/` — Sources of the 2026-11-09..11 `fir2c.opt` optimization report: report generator (`gen.py`, `skeleton.py`, `ranges.tsv`, `repin.py` for a rewritten history), text per optimization (`content/`), the fix block and the soundness fixes (`fixes.json`, `block.tsv`, `before-fixes.tsv`), benchmark harness (`chain.sh`), and the benchmark CSVs of each state (`runs/`).
 - `server/src/main/protobuf/` — Copies of `proto/*.proto` (Maven generates Java from them).
 - `server/src/main/resources/logging.properties` — Logging configuration.
