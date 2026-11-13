@@ -655,6 +655,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../snapshot/bench/` (timed) — `Benchmark` (every representation, with the FIŘ rows' code size), `OptimizationBenchmark` (without each optimization), `SynergyBenchmark` (without sets of optimizations, against the product of single removals), `OwnershipBenchmark` (without each ownership optimization, with the copy counts of each variant); `VariantBenchmark` compiles, times and deduplicates their variants by generated C.
 - `server/src/test/resources/org/prlprg/examples/` — R and FIŘ example programs (data).
 - `.../examples/R/bench_simple_promise_reflect.R` — A benchmark whose argument promises reflect (`environment()`) and exit by an error (`stop`), to check the promise benchmark's reflection detection.
+- `.../examples/R/bench_scalar_{crt,fib,fib_rec,for_loop_add,gcd,gcd_rec,prime}.R` — Ports of the `scalar` benchmarks of rbenchmark (https://github.com/rbenchmark/benchmarks); the first line of each names its upstream file.
 - `.../examples/R/complex_assign_aliasing.R` — Setter calls on vectors that something else holds (a variable, a parameter, a closure, the index or value), which the assignment protocol must copy.
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
 - `.../examples/R/for_colon_ranges.R` — `for` loops over `a:b` that count up, down, once, or from a real bound, and nested ranges (`ElideRangeRead`).
