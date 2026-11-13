@@ -28,7 +28,8 @@ import org.prlprg.util.Paths;
 /// in the same run.
 @ExtendWith(SnapshotStoreParameterResolver.class)
 class DeterminismTest {
-  private static final List<String> EXAMPLES = List.of("nested_closures", "bench_ai_awf_queens");
+  private static final List<String> EXAMPLES =
+      List.of("nested_closures", "bench_awf_bounce_nonames");
 
   static Stream<Arguments> queries() {
     return Stream.<Query<?>>of(

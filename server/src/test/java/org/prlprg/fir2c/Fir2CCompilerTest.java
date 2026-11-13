@@ -622,8 +622,8 @@ class Fir2CCompilerTest {
     assertFalse(code.contains("Fir_track_promise("), code);
   }
 
-  /// A statement that isn't a promise may come before the `MkEnv` (queens' `solve_queens` boxes
-  /// a parameter first).
+  /// A statement that isn't a promise may come before the `MkEnv` (`solve_queens` of
+  /// `queens_regression` boxes a parameter first).
   @Test
   void localPromiseSharesItsCodeAfterAStatementBeforeTheFrame() {
     var code =

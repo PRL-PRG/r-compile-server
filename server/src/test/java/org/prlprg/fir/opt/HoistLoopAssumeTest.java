@@ -19,7 +19,8 @@ class HoistLoopAssumeTest implements AbstractionOptimizationUnitTest {
     return new HoistLoopAssume();
   }
 
-  /// The shape of empty_while: the loop head checks `n ?: v1(R)` in each trip.
+  /// The shape of the former example `bench_simple_empty_while`: the loop head checks `n ?: v1(R)`
+  /// in each trip.
   @Test
   void invariantAssumeAtTheLoopHead_movesToTheEntryEdge() {
     var abstraction = ParseUtil.parseAbstraction(loop("n", "", "goto L1(1.0, m);"));

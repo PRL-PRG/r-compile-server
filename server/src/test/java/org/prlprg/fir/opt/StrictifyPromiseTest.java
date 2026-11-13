@@ -492,7 +492,8 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
 
   @Test
   void stubOfOwnPromiseParameter_forwarded() {
-    // `bench_ai_awf_towers`: forcing the stub would load `x`, which is the parameter.
+    // The former example `bench_ai_awf_towers`: forcing the stub would load `x`, which is the
+    // parameter.
     var module =
         forwardModule("p(V +)", "mkenv-", "", "[<sym x>]{\n  deopt 0 [];\n}", "", "p(V +)");
     assertTrue(run(module), "optimization should report a change");

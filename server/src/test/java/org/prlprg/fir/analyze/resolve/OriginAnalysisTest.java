@@ -930,17 +930,17 @@ class OriginAnalysisTest {
         analysis.getPossible(entry, 4, Variable.named("a")));
   }
 
-  /// The shape `bench_ai_awf_permute`'s `permute` compiles to: `list` is seeded before the loop
-  /// with the promise `_p` (its default argument), and each iteration reassigns it twice, so the
-  /// last store (`list22`) is the only one that reaches the back edge. Inside the body, before the
-  /// first `swap` call, `list` is therefore the phi of `_p` and `list22` — `list16` never survives
-  /// an iteration.
+  /// The shape that `permute` of the former example `bench_ai_awf_permute` compiles to: `list` is
+  /// seeded before the loop with the promise `_p` (its default argument), and each iteration
+  /// reassigns it twice, so the last store (`list22`) is the only one that reaches the back edge.
+  /// Inside the body, before the first `swap` call, `list` is therefore the phi of `_p` and
+  /// `list22` — `list16` never survives an iteration.
   ///
   /// `_p` escapes (the loop merge sees a promise on one edge and a plain value on the other), and
   /// so do the wrapper promises the body builds, so the reflective calls in the loop may force one
   /// of them and pick up whatever bindings it leaves behind. The loop header can't: an increment
-  /// and a comparison have no effects to run a reflective promise body with, so the phi reaches
-  /// the query point intact.
+  /// and a comparison have no effects to run a reflective promise body with, so the phi reaches the
+  /// query point intact.
   @Test
   void testLoopVariableResolvesToPhiOfSeedAndBackEdge() {
     var firText =

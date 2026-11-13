@@ -528,9 +528,10 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
   }
   */
 
-  /// `bench_ai_awf_queens`'s `solve_queens`: a promise made in a loop reads `board`, which the loop
-  /// then rebinds, and a block boundary lies between the promise and the call it's passed to. The
-  /// load reads the parameter only on the first iteration, so it must not become the parameter.
+  /// `solve_queens` of `queens_regression` (and the former example `bench_ai_awf_queens`): a
+  /// promise made in a loop reads `board`, which the loop then rebinds, and a block boundary lies
+  /// between the promise and the call it's passed to. The load reads the parameter only on the
+  /// first iteration, so it must not become the parameter.
   @Test
   void loadInLoopPromise_afterRebinding_notSubstitutedWithFirstIterationValue() {
     var module =

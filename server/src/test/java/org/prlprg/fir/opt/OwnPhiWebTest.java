@@ -20,8 +20,7 @@ class OwnPhiWebTest implements AbstractionOptimizationUnitTest {
   }
 
   /// `y = dup x; for (k in 0..n-1) { w = dup vec; w[k] = k + 100 }; return <result>`, where `vec`
-  // is
-  /// the loop phi. `extra` is inserted in the body before the `dup`.
+  /// is the loop phi. `extra` is inserted in the body before the `dup`.
   private static String loop(
       String entryArgs, String phis, String extra, String backArgs, String result) {
     return """
@@ -56,7 +55,8 @@ class OwnPhiWebTest implements AbstractionOptimizationUnitTest {
     assertTrue(printed.contains("H(vec: v(I)o"), printed);
   }
 
-  /// The sieve shape: an outer loop reads the vector, and an inner loop writes it.
+  /// The shape of the former example `bench_ai_awf_sieve`: an outer loop reads the vector, and an
+  /// inner loop writes it.
   @Test
   void innerLoopThatWritesItsVector_dupIsRemoved() {
     var printed =

@@ -6,7 +6,7 @@ alias_local <- function() {
   c(x, y)
 }
 
-# Like `bench_simple_vector_for`, whose `x` the optimizer keeps in registers.
+# Like the former example `bench_simple_vector_for`, whose `x` the optimizer keeps in registers.
 alias_registers <- function(n) {
   x <- vector(length=n)
   y <- x
@@ -24,7 +24,7 @@ alias_registers_in_loop <- function(n) {
   }
   y
 }
-# Like `bench_ai_awf_sieve`, whose store the optimizer turns into a `dup` and a vector write.
+# Like the former example `bench_ai_awf_sieve`, whose store the optimizer turns into a `dup` and a vector write.
 alias_dup <- function(n) {
   x <- rep(TRUE, n)
   y <- x
@@ -47,7 +47,7 @@ alias_dup_in_loop <- function(n) {
   c(x, y)
 }
 
-# Like `bench_ai_awf_permute`'s `swap`.
+# Like `swap` of the former example `bench_ai_awf_permute`.
 swap <- function(v, i, j) {
   t <- v[i]
   v[i] <- v[j]

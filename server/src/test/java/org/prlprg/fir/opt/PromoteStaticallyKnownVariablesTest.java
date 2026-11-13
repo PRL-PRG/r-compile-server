@@ -529,7 +529,8 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
       }
       """;
 
-  /// The shape of sieve's `j`: stored in an `if` of an outer loop, read in an inner loop.
+  /// The shape of `j` in the former example `bench_ai_awf_sieve`: stored in an `if` of an outer
+  /// loop, read in an inner loop.
   @Test
   void variableBoundInAnInnerLoop_isPromotedThereAndWrittenBackAtItsExit() {
     var module = ParseUtil.parseModule(innerLoop(3, 0, 99, 99));

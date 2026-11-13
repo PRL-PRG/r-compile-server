@@ -9,7 +9,7 @@ f <- function(y) {
 id <- function(e) e
 
 # `environment()` in a promise reflects on the frame that created it, like in
-# `bench_simple_promise_reflect`.
+# `promise_reflect_benchmark`.
 k <- function() {
   w <- 1
   id(environment())
