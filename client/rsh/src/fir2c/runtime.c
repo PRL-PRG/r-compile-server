@@ -1200,7 +1200,7 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
     }
   }
 
-  int visibility = (blt_idx / 100) % 10;
+  int visibility = (fun.eval / 100) % 10;
   R_Visible = (Rboolean)(visibility != 1);
 
   int protect_count = 0;
