@@ -18,6 +18,11 @@ import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions.PrintEnvironmentDetails;
 
 final class PrintStack {
+  /// Full detail, except that a large vector is cut off: a stack with the data of a benchmark
+  /// otherwise prints gigabytes.
+  private static final SEXPPrintOptions STACK_PRINT_OPTIONS =
+      SEXPPrintOptions.FULL.withMaxElements(1000);
+
   public static void printStack(Printer p, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
     var w = p.writer();
     var f = w.formatter();
@@ -28,7 +33,7 @@ final class PrintStack {
     @Nullable FrameContext[] currentCtx = {null};
     var forSexp =
         new SEXPPrintContext(
-            SEXPPrintOptions.FULL
+            STACK_PRINT_OPTIONS
                 .withEnvironmentDetails(PrintEnvironmentDetails.BELOW_GLOBAL)
                 .withEnvironmentDetailPrinter(
                     (env, p3) ->
@@ -104,8 +109,7 @@ final class PrintStack {
             Map.of(),
             null,
             new SEXPPrintContext(
-                SEXPPrintOptions.FULL.withEnvironmentDetails(
-                    PrintEnvironmentDetails.BELOW_GLOBAL)));
+                STACK_PRINT_OPTIONS.withEnvironmentDetails(PrintEnvironmentDetails.BELOW_GLOBAL)));
   }
 
   static void printFrame(StackFrame frame, Printer p) {
