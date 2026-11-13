@@ -2679,7 +2679,7 @@ public final class Builtins {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
                 throw interpreter.fail("`as.integer` generic takes (sexp, dots)");
               }
-              return new Value.Sexp(SEXPs.integer(sexpToInt(sexp, interpreter, "as.integer")));
+              return new Value.Sexp(sexpToInts(sexp, interpreter));
             }));
     // v1: (V, miss) --> I
     interpreter.registerExternal(
@@ -2728,6 +2728,28 @@ public final class Builtins {
         "realToIndex",
         sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.SHARED_REAL_VECTOR),
         vector);
+  }
+
+  /// GNU-R's `as.integer` of a logical, integer, or real vector that isn't an object: each
+  /// element, without attributes.
+  private static IntSXP sexpToInts(SEXP sexp, InternalInterpreter interpreter) {
+    if (!(sexp instanceof LglSXP || sexp instanceof IntSXP || sexp instanceof RealSXP)
+        || sexp.isObject()) {
+      throw interpreter.failUnsupported(
+          "Mock as.integer only implemented for a logical, integer, or real vector");
+    }
+    return SEXPs.integer(
+        ((PrimVectorSXP<?>) sexp)
+            .stream()
+                .mapToInt(
+                    e ->
+                        switch (e) {
+                          case Logical l -> l.toInt();
+                          case Integer i -> i;
+                          case Double d -> realToInt(d);
+                          default -> throw new AssertionError(e);
+                        })
+                .toArray());
   }
 
   /// R's real-to-integer coercion: truncate toward zero, and anything that doesn't fit is `NA`.
