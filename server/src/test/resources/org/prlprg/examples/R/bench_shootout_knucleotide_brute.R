@@ -126,7 +126,7 @@ fasta_input <- function(n) {
 }
 
 input <- fasta_input(250L)
-warmup_input <- fasta_input(30L)
+warmup_input <- fasta_input(110L)
 
 #? benchmark: capture.output(execute(input))
 

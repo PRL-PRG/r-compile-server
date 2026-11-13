@@ -273,5 +273,5 @@ run <-function(n) {
 
 # warmup
 for (i in 1:12) {
-  capture.output(run(150L))
+  capture.output(run(160L))
 }
