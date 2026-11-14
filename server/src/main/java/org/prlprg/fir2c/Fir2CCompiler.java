@@ -2844,12 +2844,15 @@ public final class Fir2CCompiler {
           /// the name of its `Fir_Setter`.
           ///
           /// The linked registers are `#linkedRegisters` and the call's other arguments. Except a
-          /// register of `l'` that only deopt branches use after the call: the bytecode they
-          /// continue in has the value the call modified.
+          /// register of `l'` that isn't a parameter and that only deopt branches read after the
+          /// call: in C a deopt is an R error, so nothing continues with the old value.
           private String emitSetterBegin(Statement statement, SetterPattern setter) {
             var linked = linkedRegisters(statement);
             linked.removeIf(
-                register -> setter.chain().contains(register) && !usedAfter(statement, register));
+                register ->
+                    setter.chain().contains(register)
+                        && !version.isParameter(register)
+                        && !usedAfter(statement, register));
             statement.args().stream()
                 .skip(2)
                 .map(Argument::variable)
