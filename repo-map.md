@@ -653,7 +653,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../server/JitTieringTest.java` — End-to-end test of the JIT tiers with an R process.
 - `.../server/RshConstants.java` — Constants shared with `rsh`.
 - `.../service/RshCompilerTest.java` — Modules compile without floating-point contraction (`-ffp-contract=off`).
-- `.../session/`, `.../session/gnur/` — R session tests, and `GNUR`, the R processes that tests evaluate in.
+- `.../session/`, `.../session/gnur/` — R session tests, and `GNUR`, the R processes that tests evaluate in (`GNURAttachTest`: an eval does not see packages that an earlier eval attached).
 - `.../snapshot/` — Snapshot framework (`Query`, `SnapshotStore`, `DeterminismTest`).
 - `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand; `fir/interpret/GnuRFallback` runs in GNU-R what the test interpreter doesn't support; `bench/VersionBenchmark` counts the versions per function after the benchmark call runs on the lazy module).
 - `.../snapshot/bench/PromiseBenchmark.java`, `PromiseBenchmarkQuery.java` — Counts the promises (created, forced, reflected) and copies of each benchmark call, in `-DFIR_STATS` builds without and with the FIŘ optimizations.

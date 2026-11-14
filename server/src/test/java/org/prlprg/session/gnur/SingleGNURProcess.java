@@ -128,6 +128,8 @@ class SingleGNURProcess implements GNUR {
 
     in = new PrintStream(process.getOutputStream());
     out = new BufferedReader(new InputStreamReader(process.getInputStream()));
+    // See [#capturingEval(String)].
+    in.println(".rcs_search <- search()");
   }
 
   /// [ProcessBuilder] for `R_BIN`, without `R_HOME` in the environment.
@@ -303,9 +305,11 @@ class SingleGNURProcess implements GNUR {
       // An error must kill R, which is how [EvalException] detects it, so clear any
       // `options(error = ...)` an earlier eval in this process left behind (e.g. an example of
       // `traceback`). With one set, R survives the error and `targetFile` stays empty.
+      // Also detach the packages that earlier evals attached, so that the output doesn't depend on
+      // them: `require` prints "Loading required package: ..." only if the package isn't attached.
       var code =
           format(
-              "options(error=NULL); saveRDS(eval(parse(file='%s'), envir=new.env(parent=globalenv())), '%s', version=2, compress=FALSE)",
+              "options(error=NULL); local(for (p in setdiff(search(), .rcs_search)) detach(p, character.only=TRUE, force=TRUE)); saveRDS(eval(parse(file='%s'), envir=new.env(parent=globalenv())), '%s', version=2, compress=FALSE)",
               sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
 
       output = run(code);
