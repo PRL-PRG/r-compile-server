@@ -728,6 +728,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/real_to_string.R` — A real coerced to a string by `c`, `[<-`, and `as.character` (15 significant digits, scientific notation if shorter), to check the interpreter mocks against GNU-R.
 - `.../examples/R/rng_set_seed.R` — `set.seed`, `runif`, `rnorm`, `sample`, and `sample.int` at top level and in a warm function; the interpreter runs the RNG functions in GNU-R (`TestInterpreter`).
 - `.../examples/R/fallback_{data,closures}.R` — Operations that the test interpreter runs in GNU-R (`GnuRFallback`): vector subscripts and arithmetic, base closures, an `.Internal`, the RNG; and functions that call the example's closures back (`sapply`, `Reduce`, `apply`, `do.call`, `outer`, `Map`, `Filter`).
+- `.../examples/R/lazy_load_binding_load.R` — `lapply(l, which.min)` loads `which.min`, whose base binding stays a lazy-load promise after R forces it: the compiled load gives its value.
 - `.../examples/R/sum_abs_edges.R` — An integer `sum` that does not fit (real in GNU-R) and `abs` of a logical, to check the interpreter mocks against GNU-R.
 - `.../examples/R/matrix_empty_data.R` — `matrix` of empty data with missing dimensions, to check the interpreter mock against GNU-R.
 - `.../examples/R/subscript_exact_drop.R` — `[[` with `exact = FALSE` (a partial name match) and `[` with `drop`, to check the interpreter mocks against GNU-R.

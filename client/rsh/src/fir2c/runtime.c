@@ -581,6 +581,16 @@ SEXP Fir_dup(SEXP value) {
   return Rf_duplicate(value);
 }
 
+/// Whether `code` is R's lazy-load thunk, `lazyLoadDBfetch(key, datafile, compressed, envhook)`.
+static bool Fir_is_lazy_load_call(SEXP code) {
+  // Symbols live in R's permanent symbol table, so this needs no `PROTECT`.
+  static SEXP lazy_load_db_fetch = NULL;
+  if (lazy_load_db_fetch == NULL) {
+    lazy_load_db_fetch = Rf_install("lazyLoadDBfetch");
+  }
+  return TYPEOF(code) == LANGSXP && CAR(code) == lazy_load_db_fetch;
+}
+
 SEXP Fir_load(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "load");
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load");
@@ -599,6 +609,11 @@ SEXP Fir_load(SEXP symbol, SEXP env) {
     }
   }
 
+  // A binding of a lazily-loaded package (`base` included) stays a promise of the lazy-load thunk
+  // after R forces it. The interpreter binds the value, so the speculations on a load expect it.
+  if (TYPEOF(value) == PROMSXP && Fir_is_lazy_load_call(PRCODE(value))) {
+    return Fir_force(value);
+  }
   return value;
 }
 
@@ -909,14 +924,8 @@ static bool Fir_code_is_pure_to_eval(SEXP code) {
   }
 
   switch (TYPEOF(code)) {
-    case LANGSXP: {
-      // Symbols live in R's permanent symbol table, so this needs no `PROTECT`.
-      static SEXP lazy_load_db_fetch = NULL;
-      if (lazy_load_db_fetch == NULL) {
-        lazy_load_db_fetch = Rf_install("lazyLoadDBfetch");
-      }
-      return CAR(code) == lazy_load_db_fetch;
-    }
+    case LANGSXP:
+      return Fir_is_lazy_load_call(code);
     case SYMSXP:
     case PROMSXP:
     case EXTPTRSXP:
