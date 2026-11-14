@@ -121,5 +121,5 @@ execute <- function(n=80000) {
 
 # warmup
 for (i in 1:12) {
-  capture.output(execute(150L))
+  capture.output(execute(if (i < 12L) 150L else 1300L))
 }
