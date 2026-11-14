@@ -19,6 +19,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -28,7 +29,6 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
-import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
@@ -98,10 +98,10 @@ public record SpecializeSubscript() implements SpecializeOptimization {
       // Malformed call, don't touch it.
       return Result.UNCHANGED;
     }
-    if (isPending(statement.arg(2))) {
-      // The index is defined by another sub-optimization's staged insertion, which isn't in the CFG
-      // yet, so `zeroBased` would stage its decrement to be committed *before* that definition.
-      // The next pass sees the committed statement and rewrites then.
+    var indexType = scope.typeOf(statement.arg(2));
+    if (indexType == null || !indexType.isSubtypeOf(signature.parameterTypes().get(1))) {
+      // The index doesn't fit the signature yet: [SpecializeRealIndex] switched the signature, but
+      // its coercion of the index is only staged. The next pass sees it committed.
       return Result.UNCHANGED;
     }
 
@@ -141,36 +141,41 @@ public record SpecializeSubscript() implements SpecializeOptimization {
     return Result.UNCHANGED;
   }
 
-  /// Whether `argument` reads a register whose defining statement isn't in a CFG yet.
-  private static boolean isPending(Argument argument) {
-    return argument.variable() instanceof AssigneeOf assignee
-        && assignee.statement().isStandalone();
-  }
-
-  /// The 1-based R index `oneBased` as the 0-based one [SubscriptRead] and [SubscriptWrite] take,
-  /// staging a `-` before the statement at `(bb, index)` unless it can be folded.
+  /// The index argument of the [SubscriptRead] or [SubscriptWrite] that replaces the statement at
+  /// `(bb, index)`, for the 1-based R index `oneBased`: the 0-based constant if it can be folded,
+  /// otherwise `oneBased` itself, which a staged `-` replaces at the end of the pass.
+  ///
+  /// The decrement's result goes into the statement only when the decrement is inserted. Until then
+  /// it isn't in a CFG, and every analysis that the rest of the pass builds rejects a read of it.
   private static Argument zeroBased(
       Argument oneBased, BB bb, int index, Abstraction scope, DeferredInsertions defer) {
     if (oneBased instanceof Constant(Value.Int(var i)) && i != Constants.NA_INT) {
       return new Constant(new Value.Int(i - 1));
     }
 
-    // The real index is only put in place by the staged insertion: until then this statement isn't
-    // in a CFG, and a use pointing at an instruction that isn't confuses everything that walks a
-    // register's uses.
     var decrement =
         new Statement(
             new Call(new StaticFnCallee(MINUS, false, MINUS_INTEGERS)),
             List.of(Constant.ELIDED_CLOSURE, ONE, ONE));
     var zeroBased = decrement.setAssignee(scope.freshName("idx"), Type.INTEGER);
-    // Prepend before the (rewritten) statement, but only after the other specializations, because
-    // inserting invalidates the analyses they share.
     defer.stage(
         () -> {
-          decrement.setArg(1, oneBased);
-          decrement.insertBefore(bb.statements().get(index));
+          var subscript = bb.statements().get(index);
+          switch (subscript.expression()) {
+            // `ElideUseSubscriptWrite` removed it.
+            case Noop _ -> {}
+            case SubscriptRead _, SubscriptWrite _ -> {
+              // The index as it is now: a forward during the pass may have substituted it.
+              decrement.setArg(1, subscript.arg(1));
+              decrement.insertBefore(subscript);
+              subscript.setArg(1, new Read(zeroBased));
+            }
+            default ->
+                throw new IllegalStateException(
+                    "Expected the subscript instruction to make 0-based, got: " + subscript);
+          }
         });
-    return new Read(zeroBased);
+    return oneBased;
   }
 
   /// Whether `signature` is `v(X)b,I,miss,miss --> X` for some scalar `X`.
