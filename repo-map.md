@@ -641,7 +641,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../bc2fir/GnurBytecodeTest.java` — `bc2fir` compiles the inlined subscripts of GNU-R compiler bytecode (what the rsh JIT sends) into static calls.
 - `.../examples/` — Example providers and stores for snapshot tests (R and FIŘ examples), and their per-test timeout (`ExampleTimeout`).
 - `.../fir/analyze/`, `.../fir/check/`, `.../fir/feedback/`, `.../fir/ir/` — Unit tests of FIŘ analyses, checkers, feedback, and IR.
-- `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises, deopt into a baseline with a base-function guard, mocks of builtins against GNU-R).
+- `.../fir/interpret/` — Interpreter tests (lazy versions, speculation, promises, deopt into a baseline with a base-function guard, mocks of builtins against GNU-R, the `Fallback` hook).
 - `.../fir/opt/`, `.../fir/opt/specialize/` — One unit test class per optimization (`AbstractionOptimizationUnitTest`, `OptimizationUnitTest`), and `OptimizationsTest` (pipeline variants, `REQUIRES`).
 - `.../fir2c/BytecodeBaselineFeedbackTest.java` — Recording translation and baseline pool layout.
 - `.../fir2c/Fir2CCompilerTest.java` — FIŘ→C unit tests.
@@ -655,7 +655,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../service/RshCompilerTest.java` — Modules compile without floating-point contraction (`-ffp-contract=off`).
 - `.../session/`, `.../session/gnur/` — R session tests, and `GNUR`, the R processes that tests evaluate in.
 - `.../snapshot/` — Snapshot framework (`Query`, `SnapshotStore`, `DeterminismTest`).
-- `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand; `bench/VersionBenchmark` counts the versions per function after the benchmark call runs on the lazy module).
+- `.../snapshot/bc/`, `bc2c/`, `bc2fir/`, `fir/ir/`, `fir/opt/`, `fir/interpret/`, `fir2c/`, `gen2c/`, `bench/` — Snapshot queries and tests of each pipeline stage (`EvalQuery` runs compiled code in R; `StubThresholdTest` runs it with a higher stub threshold; `ManualFirServer` serves one example by hand; `fir/interpret/GnuRFallback` runs in GNU-R what the test interpreter doesn't support; `bench/VersionBenchmark` counts the versions per function after the benchmark call runs on the lazy module).
 - `.../snapshot/bench/PromiseBenchmark.java`, `PromiseBenchmarkQuery.java` — Counts the promises (created, forced, reflected) and copies of each benchmark call, in `-DFIR_STATS` builds without and with the FIŘ optimizations.
 - `.../snapshot/bench/` (timed) — `Benchmark` (every representation, with the FIŘ rows' code size), `OptimizationBenchmark` (without each optimization), `SynergyBenchmark` (without sets of optimizations, against the product of single removals), `OwnershipBenchmark` (without each ownership optimization, with the copy counts of each variant), `KeyBenchmark`/`KeyBenchmarkQuery` (without each key category of optimizations, one method and query per category); `VariantBenchmark` compiles, times and deduplicates their variants by generated C.
 - `server/src/test/resources/org/prlprg/examples/` — R and FIŘ example programs (data).
