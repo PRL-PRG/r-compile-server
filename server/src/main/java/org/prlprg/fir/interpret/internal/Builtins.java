@@ -1472,7 +1472,7 @@ public final class Builtins {
               (_, _, args, _) -> {
                 var vector = (ListOrVectorSXP<?>) args.getFirst().box();
                 int idx = ((Value.Int) args.get(1)).value();
-                return subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa);
+                return scalarSubscriptLoad(interpreter, vector, idx, outOfRangeIsNa);
               }));
     }
     // The real-index versions coerce and forward, which is what GNU-R does with a real subscript.
@@ -1490,7 +1490,7 @@ public final class Builtins {
               (_, _, args, _) -> {
                 var vector = (ListOrVectorSXP<?>) args.getFirst().box();
                 int idx = realToInt(((Value.Real) args.get(1)).value());
-                return subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa);
+                return scalarSubscriptLoad(interpreter, vector, idx, outOfRangeIsNa);
               }));
     }
 
@@ -1510,7 +1510,13 @@ public final class Builtins {
             ExternalVersion.strict(
                 (_, _, args, _) -> {
                   var vector = (ListOrVectorSXP<?>) args.getFirst().box();
-                  var indices = toIntegerIndices(args.get(1).box(), interpreter, name);
+                  var allIndices = toIntegerIndices(args.get(1).box(), interpreter, name);
+                  if (allIndices.stream().anyMatch(i -> i < 0 && i != Constants.NA_INT)) {
+                    throw interpreter.failUnsupported(
+                        "Mock `" + name + "` doesn't implement a negative subscript");
+                  }
+                  // GNU-R drops a zero subscript.
+                  var indices = allIndices.stream().filter(i -> i != 0).toList();
                   var results = new SEXP[indices.size()];
                   for (int i = 0; i < indices.size(); i++) {
                     var loaded =
@@ -1693,6 +1699,15 @@ public final class Builtins {
       }
       default -> throw interpreter.fail("`" + name + "` index must be an integer or real vector");
     };
+  }
+
+  /// The scalar-index versions: `x[i]` below 1 isn't one element, where the C runtime deopts.
+  private static Value scalarSubscriptLoad(
+      InternalInterpreter interpreter, ListOrVectorSXP<?> vector, int idx, boolean outOfRangeIsNa) {
+    if (idx < 1 && idx != Constants.NA_INT) {
+      throw interpreter.failUnsupported("Subscript read below 1");
+    }
+    return subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa);
   }
 
   /// [InternalInterpreter#subscriptLoad], except that when `outOfRangeIsNa`, an index outside the
