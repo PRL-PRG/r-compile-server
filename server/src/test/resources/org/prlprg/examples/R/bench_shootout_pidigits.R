@@ -1,5 +1,8 @@
+#? [opt.fir2c.opt.eval]noEval
 # https://github.com/reactorlabs/RBenchmarking/blob/a92447b37a03e96f8da1e18eb3cd8ab3b46fbf89/Benchmarks/shootout/pidigits/pidigits.r
 # License: none stated, see server/doc/benchmark-licenses.md
+# Known failure (server/doc/benchmark-ports.md): the optimized C evaluation exceeds the 120 s R
+# timeout. The run requests 88 lazy versions, and each request optimizes the whole module again.
 # Constructors and string conversion functions
 
 zero_mag = integer(0)

@@ -1,5 +1,9 @@
+#? [opt.fir2c.opt.eval]crashes("deoptimization triggered")
 # https://github.com/rbenchmark/benchmarks/blob/9850828078e0858cb55146900afe63e550ed36db/shootout/pidigits/pidigits.R
 # License: BSD-3-Clause, see server/doc/benchmark-licenses.md
+# Known failure (server/doc/benchmark-ports.md): the test interpreter stops the warmup early. There
+# `x_len - y_len` is at most 1, so `sub_mag` speculates on `(y_len+1):x_len`. The benchmark call
+# reaches 51 and deopts.
 # ------------------------------------------------------------------
 # The Computer Language Shootout
 # http://shootout.alioth.debian.org/

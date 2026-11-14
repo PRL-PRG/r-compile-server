@@ -25,3 +25,14 @@ The `bench_<category>_<name>.R` examples are ports of the programs of rbenchmark
 | `rbenchmark:riposte/tpc.R`                            | Broken upstream: its header says "missing code so far", its data file is not in the repository, and its `read.table` call is not valid.                                                                                                                                |
 | `rbenchmark:algorithm/ICA/ica.R`                      | It needs the package `fastICA`, which the vendored R does not have. `bench_misc_ica_lapply` is the same algorithm in base R.                                                                                                                                           |
 | `rbenchmark:shootout/meteor-contest/meteor-contest.R` | Each call has a fixed cost of about 1.5 s or more (`run(100L)` takes 2.1 s in GNU-R), so a call cannot obey the size rule.                                                                                                                                             |
+
+## Known failures
+
+An option on the first lines of the example marks each failure. Remove the mark when its condition is true.
+
+- `bench_shootout_pidigits` has `#? [opt.fir2c.opt.eval]noEval`.
+  - Cause: the optimized C evaluation stops at the R timeout of 120 s. The compiled code is not slow. The run requests 88 lazy versions, and each request optimizes the whole module again (about 1.65 s each).
+  - Remove the mark when a version request optimizes only what the new version affects. The mark skips the test, so it does not show the fix: remove the mark and run `FirAfterOpt2CTest#testEval` to check.
+- `bench_shootout_pidigits_orbit` has `#? [opt.fir2c.opt.eval]crashes("deoptimization triggered")`.
+  - Cause: the test interpreter stops at its cost budget in the first warmup call, so the feedback is partial. In the warmup, `x_len - y_len` is at most 1. `sub_mag` speculates on the result of `(y_len+1):x_len`. The benchmark call reaches 51, and the speculation deopts. A larger warmup does not help.
+  - Remove the mark when the speculation does not fail, or when compiled C can deoptimize at that point. The test then fails with "Expected crash, got success".
