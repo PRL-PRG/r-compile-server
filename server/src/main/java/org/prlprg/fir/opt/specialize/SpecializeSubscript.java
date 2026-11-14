@@ -29,6 +29,7 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
@@ -98,6 +99,11 @@ public record SpecializeSubscript() implements SpecializeOptimization {
       // Malformed call, don't touch it.
       return Result.UNCHANGED;
     }
+    if (statement.args().stream().anyMatch(SpecializeSubscript::isPending)) {
+      // Another sub-optimization staged the argument's definition before this statement, which
+      // moves the statement when it commits. The next pass sees it committed.
+      return Result.UNCHANGED;
+    }
     var indexType = scope.typeOf(statement.arg(2));
     if (indexType == null || !indexType.isSubtypeOf(signature.parameterTypes().get(1))) {
       // The index doesn't fit the signature yet: [SpecializeRealIndex] switched the signature, but
@@ -139,6 +145,12 @@ public record SpecializeSubscript() implements SpecializeOptimization {
     }
 
     return Result.UNCHANGED;
+  }
+
+  /// Whether `argument` reads a register whose defining statement isn't in a CFG yet.
+  private static boolean isPending(Argument argument) {
+    return argument.variable() instanceof AssigneeOf assignee
+        && assignee.statement().isStandalone();
   }
 
   /// The index argument of the [SubscriptRead] or [SubscriptWrite] that replaces the statement at
