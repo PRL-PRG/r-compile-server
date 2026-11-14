@@ -3,6 +3,7 @@ package org.prlprg.fir.opt.specialize;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.AbstractionOptimization;
@@ -52,6 +53,37 @@ class ElideTrivialAssumeTest implements AbstractionOptimizationUnitTest {
   @Test
   void constantAssume_kept() {
     assertKept("x ?= <int 1>;\nreturn x;", "?=");
+  }
+
+  /// The `?=` builds the origin analysis, then the pass replaces the statement of `r` (with a new
+  /// register). The analysis keeps the state at the entry of `L1`, where the origin of `h` is the
+  /// old `r`, which is no longer in the version.
+  @Test
+  void loadAssumeAfterOriginReplaced_kept() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (rv:v(I)b, x:I) -~> I {
+              x ?= <int 1>;
+              r: I = `[[`< v(I)b,I,miss,miss -~> I >(rv, 3, <missing>, <missing>);
+              mkenv;
+              st h = r;
+              goto L1();
+            L1():
+              ld h ?= <int 1>;
+              popenv;
+              return r;
+            }
+            """);
+
+    assertTrue(
+        new Specialize("specialize", new ElideTrivialAssume(), new SpecializeSubscript())
+            .run(null, AbstractionFeedback.standaloneForTesting(abstraction), abstraction),
+        "optimization should report a change");
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("r: I = rv[[2]]"), "should be a subscript read:\n" + printed);
+    assertTrue(printed.contains("ld h ?= <int 1>"), "the assumption should stay:\n" + printed);
   }
 
   private void assertRemoved(String body, String operator) {

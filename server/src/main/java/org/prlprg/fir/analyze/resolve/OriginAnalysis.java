@@ -221,10 +221,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// Gets the origin of a named variable after a specific location.
   ///
   /// `null` iff the variable's origin can't be uniquely determined: either there are multiple
-  /// possible origins, or it's completely unknown.
+  /// possible origins, or it's completely unknown. It's also unknown if it's a register that's no
+  /// longer in the scope: the analysis keeps the state at each block's entry, and an optimization
+  /// may have replaced or removed the register's statement since.
   public @Nullable Argument get(BB bb, int instructionIndex, NamedVariable variable) {
     var state = atOrNull(bb, instructionIndex);
-    return state == null ? null : uniqueOrNull(state.load(variable));
+    var origin = state == null ? null : uniqueOrNull(state.load(variable));
+    return origin != null && origin.variable() instanceof Register r && !scope.contains(r)
+        ? null
+        : origin;
   }
 
   /// Gets the possible origins of a named variable after a specific location.
