@@ -79,12 +79,11 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
 
     @Override
     protected void runEntry(BB bb) {
-      for (var phi : bb.phiParameters()) {
-        if (state().consume.contains(phi)) {
-          report("Write after consume: ", phi);
-        }
-      }
+      // A register is defined once, so a (re)definition is reached from an earlier `consume` only
+      // through a loop, and holds a new value. A phi keeps `capture`: its argument can be a move of
+      // the captured vector.
       state().write.addAll(bb.phiParameters());
+      state().consume.removeAll(bb.phiParameters());
       // Each phi argument was moved into it unshared (see `run(Instruction, int)`) or the phi isn't
       // owned.
       state().share.removeAll(bb.phiParameters());
@@ -103,11 +102,10 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       }
 
       if (assignee != null) {
-        // Check and update flow state
-        if (state().consume.contains(assignee)) {
-          report("Write after consume: ", assignee);
-        }
+        // A statement gives a new vector (an owned register takes only a fresh value).
         state().write.add(assignee);
+        state().consume.remove(assignee);
+        state().capture.remove(assignee);
         state().share.remove(assignee);
       }
     }

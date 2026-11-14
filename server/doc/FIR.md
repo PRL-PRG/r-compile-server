@@ -173,7 +173,7 @@ Boxed constants are written in the SEXP syntax, delimited by `<` and `>`: `<int 
 
 - Constants
 - Reads: `r`
-- Register consumes: `consume r`. `r` must be an owned vector; the argument has fresh ownership. `r` can't be read or used in any instruction reachable from the `consume`.
+- Register consumes: `consume r`. `r` must be an owned vector; the argument has fresh ownership. `r` can't be read or used in any instruction reachable from the `consume`, until `r` is assigned again (in a loop).
 
 Arguments are the only sub-expressions. e.g. `v(I)[v(I)[1]]` isn't allowed, but `r: v(I)o = v(I)[1]; r1: I = r[0]` is.
 
@@ -369,7 +369,7 @@ BB(r1: t, r2: t, ...):
 - **Calls**: A static call's signature must select a version (see [Function Calls](#function-calls)). Dispatch calls, `clos`, `?- f`, and `ldf x ?- f` require dispatchable functions; a dispatch call's signature must return an SEXP kind. A `dyn` callee must be a `cls`.
 - **Promises**: A promise's inner type must be a shared value type of SEXP kind; its body's return type and effects must match the declared ones.
 - **Expression-specific rules**: `force` requires a definite promise; `r$x` requires a definite promise; `dup`, subscript reads and writes, and `consume` require definite vectors, and `consume` an owned one; subscript writes require an owned or fresh target, an `I` index, and an unboxed scalar value of the vector's kind; `v(t)[...]` elements must be unboxed `t` and unnamed (`v1(t)[...]` is rejected: use `box`); `if` conditions must be `B`; `raise` arguments must be `S`; casts and type assumptions must target SEXP kinds; `st` can't store a `consume`.
-- **"Use" invariant** (provenance): A register must be written before it's read; `r` cannot be read or consumed in any instruction reachable from a `consume r` (including in the same expression), nor consumed after being captured by a promise.
+- **"Use" invariant** (provenance): A register must be written before it's read; `r` cannot be read or consumed in any instruction reachable from a `consume r` (including in the same expression), nor consumed after being captured by a promise, until `r` is assigned again (in a loop). A block parameter stays captured, because its argument can move the captured vector into it.
 - **Sharing** (provenance): A read of an owned register `r` *shares* it unless it borrows (the target of a subscript read or write, the argument of `dup`, or a static call argument for a borrowed parameter) or moves it into an owned phi. A sharing use (e.g. a `dots` element, a `dyn` argument, a cast, or an argument of a shared phi) keeps a reference to the vector, so no instruction reachable from it (until `r` is assigned again) can write `r` in place, `consume` it, or move it into an owned phi. A borrowed register can't be shared at all, except as a `deopt` argument: the caller can write the vector in place after the call.
 - **Phi arguments**: An owned phi must be given an owned register (which moves into it) or a fresh value.
 - **Effects**: A non-effectful version or promise cannot contain an effectful expression:

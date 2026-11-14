@@ -22,6 +22,53 @@ class ProvenanceCheckerTest {
       }
       """;
 
+  /// A loop that runs `%s` (where `a` is owned) and then `consume`s `a`.
+  @Language("FIR")
+  private static final String LOOP_TEMPLATE =
+      """
+      (x:v(I), n:I) -+> v1(I) {
+        a0: v(I)o = dup x;
+        goto LOOP(0);
+      LOOP(i: I):
+        c: L = `<`< I,I --> L >(i, n);
+        b: B = naToFalse< L --> B >(c);
+        if b then BODY() else EXIT();
+      BODY():
+        %s
+        w: v(I)o = dup consume a;
+        w[0] = 1;
+        i2: I = `+`< I,I --> I >(i, 1);
+        goto LOOP(i2);
+      EXIT():
+        r: v1(I) = box< I --> v1(I) >(i);
+        return r;
+      }
+      """;
+
+  /// Each iteration defines a new `a`, which the `consume` of the previous iteration doesn't touch.
+  @Test
+  void consumeInTheLoopThatDefines_isOk() {
+    assertFalse(hasErrors(LOOP_TEMPLATE.formatted("a: v(I)o = dup x;")));
+  }
+
+  @Test
+  void consumeInALoopOfAnEarlierDefinition_isAnError() {
+    assertTrue(hasErrors(LOOP_TEMPLATE.replace("a0:", "a:").formatted("")));
+  }
+
+  @Test
+  void consumeAfterCaptureInTheLoopThatDefines_isAnError() {
+    assertTrue(
+        hasErrors(
+            LOOP_TEMPLATE.formatted(
+                """
+                a: v(I)o = dup x;
+                  p: p(v(I) -) = prom<v(I) ->{
+                    return a;
+                  };
+                """)));
+  }
+
   /// The caller can write `x` in place after the call, which would change the returned list.
   @Test
   void shareOfBorrowed_isAnError() {
