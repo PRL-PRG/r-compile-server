@@ -69,6 +69,53 @@ class ProvenanceCheckerTest {
                 """)));
   }
 
+  /// Each iteration consumes the owned phi `a` and passes a new vector on the back edge.
+  @Test
+  void consumeOfAPhiThatTheBackEdgeAssignsAgain_isOk() {
+    assertFalse(
+        hasErrors(
+            """
+            (x:v(I), n:I) -+> v1(I) {
+              a0: v(I)o = dup x;
+              goto LOOP(a0, 0);
+            LOOP(a: v(I)o, i: I):
+              c: L = `<`< I,I --> L >(i, n);
+              b: B = naToFalse< L --> B >(c);
+              if b then BODY() else EXIT();
+            BODY():
+              w: v(I)o = dup consume a;
+              w[0] = 1;
+              a2: v(I)o = dup x;
+              i2: I = `+`< I,I --> I >(i, 1);
+              goto LOOP(a2, i2);
+            EXIT():
+              r: v1(I) = box< I --> v1(I) >(i);
+              return r;
+            }
+            """));
+  }
+
+  @Test
+  void readAfterAJoinOfAConsumingBranch_isAnError() {
+    assertTrue(
+        hasErrors(
+            """
+            (x:v(I), c:B) -+> v1(I) {
+              a: v(I)o = dup x;
+              if c then L1() else L2();
+            L1():
+              w: v(I)o = dup consume a;
+              goto J();
+            L2():
+              goto J();
+            J():
+              e: I = a[0];
+              r: v1(I) = box< I --> v1(I) >(e);
+              return r;
+            }
+            """));
+  }
+
   /// The loop moves the captured vector back into the phi `a`, so its next definition doesn't end
   /// the capture.
   @Test

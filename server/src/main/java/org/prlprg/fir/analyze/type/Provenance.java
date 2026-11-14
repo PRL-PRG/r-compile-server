@@ -80,8 +80,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     @Override
     protected void runEntry(BB bb) {
       // A register is defined once, so a (re)definition is reached from an earlier `consume` only
-      // through a loop, and holds a new value. A phi keeps `capture`: its argument can be a move of
-      // the captured vector.
+      // through a loop, and holds a new value. A phi keeps `capture`.
       state().write.addAll(bb.phiParameters());
       state().consume.removeAll(bb.phiParameters());
       // Each phi argument was moved into it unshared (see `run(Instruction, int)`) or the phi isn't
