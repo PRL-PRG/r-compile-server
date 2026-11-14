@@ -40,5 +40,5 @@ execute <- function(n) {
 
 # warmup
 for (i in 1:12) {
-  capture.output(execute(8L))
+  capture.output(execute(16L))
 }
