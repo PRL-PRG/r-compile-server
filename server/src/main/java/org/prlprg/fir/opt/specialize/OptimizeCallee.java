@@ -8,6 +8,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
@@ -23,6 +24,7 @@ import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
@@ -33,6 +35,7 @@ import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.IntSXP;
@@ -194,7 +197,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
         && indexType.kind() instanceof Kind.PrimitiveVector(var isScalar, var indexKind)
         && isScalar
         && oneElementKind(version) instanceof PrimitiveKind elementKind
-        && !isOneElement(callArgs.get(1), elementKind, feedback, statement.assignee())) {
+        && !isOneElement(callArgs.get(1), elementKind, feedback, statement)) {
       widened = Type.primitiveVector(indexKind, Ownership.SHARED);
     } else if ((name.equals(Variable.named("[<-")) || name.equals(Variable.named("[[<-")))
         && feedback.growingSubAssigns.contains(statement)
@@ -219,35 +222,46 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
     };
   }
 
-  /// Whether `x[index]` is one element: `index` isn't a constant below 1, and `result` wasn't
-  /// recorded as a vector of another length (a vector of the element kind that isn't `v1`).
+  /// Whether `x[index]` is one element: `index` isn't a constant below 1, and the result of `call`
+  /// wasn't recorded as a vector of another length (a vector of the element kind that isn't `v1`).
   private static boolean isOneElement(
-      Argument index,
-      PrimitiveKind elementKind,
-      AbstractionFeedback feedback,
-      @Nullable Register result) {
+      Argument index, PrimitiveKind elementKind, AbstractionFeedback feedback, Statement call) {
     return switch (index) {
       case Constant(Value.Sexp(IntSXP i)) -> i.get(0) >= 1;
       case Constant(Value.Sexp(RealSXP r)) -> r.get(0) >= 1;
-      default -> {
-        if (result == null) {
-          yield true;
-        }
-        var recorded = feedback.type(recordedByName(feedback, result)).union();
-        yield !recorded.isSubtypeOf(Type.primitiveVector(elementKind, Ownership.SHARED))
-            || recorded.isSubtypeOf(Type.primitiveVector1(elementKind, Ownership.SHARED));
-      }
+      default ->
+          recordedResults(feedback, call)
+              .map(r -> feedback.type(r).union())
+              .allMatch(
+                  t ->
+                      !t.isSubtypeOf(Type.primitiveVector(elementKind, Ownership.SHARED))
+                          || t.isSubtypeOf(Type.primitiveVector1(elementKind, Ownership.SHARED)));
     };
   }
 
-  /// The register with `register`'s name that `feedback` has a record of, else `register`. A
-  /// specialization that replaces a statement gives it a new assignee with the same name, and the
-  /// feedback stays with the old one.
-  private static Register recordedByName(AbstractionFeedback feedback, Register register) {
+  /// The registers that `feedback` recorded for the result of the `[` call `call`. A specialization
+  /// that replaces a statement gives it a new assignee with the same name, and a copy of the
+  /// abstraction renames it, so these are found by name and by the call's source too.
+  private static Stream<Register> recordedResults(AbstractionFeedback feedback, Statement call) {
+    var assignee = call.assignee();
+    var source = call.source();
     return feedback.recordedRegisters().stream()
-        .filter(r -> r.name().equals(register.name()))
-        .findFirst()
-        .orElse(register);
+        .filter(
+            r ->
+                r == assignee
+                    || (assignee != null && r.name().equals(assignee.name()))
+                    || (source != null
+                        && r instanceof AssigneeOf a
+                        && a.statement().source() == source
+                        && isExtract(a.statement())));
+  }
+
+  private static boolean isExtract(Statement statement) {
+    return switch (statement.expression()) {
+      case Call(StaticFnCallee c) -> c.function().name().equals(Variable.named("["));
+      case SubscriptRead _ -> true;
+      default -> false;
+    };
   }
 
   /// Returns the callee's signature with the types replaced by `argumentTypes`, i.e. the best
