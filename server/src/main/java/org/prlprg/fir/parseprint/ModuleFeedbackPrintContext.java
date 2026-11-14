@@ -126,6 +126,17 @@ public final class ModuleFeedbackPrintContext {
               w.write("prom ");
               printPosition(p, prom);
             }
+
+            for (var subAssign : feedback.growingSubAssigns) {
+              if (wroteAny) {
+                w.write('\n');
+              } else {
+                wroteAny = true;
+              }
+
+              w.write("grow ");
+              printPosition(p, subAssign);
+            }
           });
       w.write("\n]");
     }

@@ -1964,6 +1964,16 @@ public final class InternalInterpreter implements Interpreter {
         .add(position);
   }
 
+  /// Records that the current statement, a `[<-` or `[[<-` call, grew its vector
+  /// ([AbstractionFeedback#growingSubAssigns]).
+  public void recordGrowingSubAssign() {
+    var call = topFrame().currentStatement();
+    feedback()
+        .get(Objects.requireNonNull(call.parentBB()).owner().scope())
+        .growingSubAssigns
+        .add(call);
+  }
+
   /// The [type][MkEnvType] of the [MkEnv] `mkenv` statement.
   static MkEnvType mkEnvTypeOf(Statement mkenv) {
     return ((MkEnv) mkenv.expression()).type();

@@ -108,13 +108,35 @@ public record SpecializeLiteSpecial() implements SpecializeOptimization {
     if (!anySymbol) {
       return Result.UNCHANGED;
     }
-    var newParameterTypes = parameterTypes.build();
+    var parameterTypes0 = parameterTypes.build();
 
     // Keep the call's postcondition, so the dispatched version is one this call site can already
     // handle, then adopt that version's own (better) postcondition.
+    var version0 =
+        function.guess(new Signature(parameterTypes0, signature.returnType(), signature.effects()));
+    if (version0 == null || version0 == function.baseline()) {
+      return Result.UNCHANGED;
+    }
+    var newArgs = new ArrayList<>(statement.args());
+    for (var i = 1; i < statement.argCount(); i++) {
+      if (evaluations[i] instanceof Evaluation evaluation && !evaluation.forced()) {
+        newArgs.set(i, evaluation.origin());
+      }
+    }
+    var widenedTypes =
+        OptimizeCallee.widenedIndexTypes(
+            function,
+            version0,
+            parameterTypes0,
+            newArgs.subList(1, newArgs.size()),
+            feedback,
+            statement);
+    var newParameterTypes = widenedTypes == null ? parameterTypes0 : widenedTypes;
     var version =
-        function.guess(
-            new Signature(newParameterTypes, signature.returnType(), signature.effects()));
+        widenedTypes == null
+            ? version0
+            : function.guess(
+                new Signature(newParameterTypes, signature.returnType(), signature.effects()));
     if (version == null || version == function.baseline()) {
       return Result.UNCHANGED;
     }
@@ -122,7 +144,7 @@ public record SpecializeLiteSpecial() implements SpecializeOptimization {
         new Signature(
             newParameterTypes, version.signature().returnType(), version.signature().effects());
 
-    var newArgs = new ArrayList<>(statement.args());
+    newArgs = new ArrayList<>(statement.args());
     var forces = new ArrayList<PendingForce>(statement.argCount());
     for (var i = 1; i < statement.argCount(); i++) {
       var evaluation = evaluations[i];

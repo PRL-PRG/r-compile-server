@@ -743,6 +743,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/mod_list.R` — `list` with unnamed, named, `NULL`, and no elements, to check the interpreter mock against GNU-R.
 - `.../examples/R/mod_names_assign.R` — `names<-` on a real vector and a list (equal length, shorter, `NULL`, replacing existing names), to check the interpreter mock against GNU-R.
 - `.../examples/R/mod_subassign_grow.R` — `[[<-` and `[<-` past the end of a list and of integer, real, and named string vectors, to check the interpreter mock's growth against GNU-R.
+- `.../examples/R/subassign_grow.R` — Scalar `x[i] <- v` and `x[[i]] <- v` past the end grow the vector, so the optimizer must not select the typed versions, which only write within it.
 - `.../examples/R/mod_subscript_names.R` — `[`, `[[`, `[<-`, and `[[<-` with a name subscript (present, absent, appended) on a named real vector and list, to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_arith_names.R` — arithmetic, comparison, unary minus, and `abs` of named vectors (which operand's names the result keeps), to check the interpreter mocks against GNU-R.
 - `.../examples/R/mod_matrix.R` — `matrix` (missing `data`, `nrow` or `ncol`, recycled `data`) and `[[`, `[`, `[[<-`, `[<-` with a row and column subscript, to check the interpreter mocks against GNU-R.

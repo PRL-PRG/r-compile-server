@@ -282,7 +282,7 @@ public class Specialize extends AbstractionOptimization {
 
     /// Replaces `statement` with one of `newExpression` and `newArgs`, which gets its assignee's
     /// uses (each keeping its `consume`), and returns it.
-    private static Statement replace(
+    private Statement replace(
         Statement statement, Expression newExpression, List<Argument> newArgs) {
       var oldAssignee = statement.assignee();
       var newStmt = new Statement(statement.comments(), newExpression, newArgs);
@@ -291,6 +291,7 @@ public class Specialize extends AbstractionOptimization {
         oldAssignee.substUsesWith(newStmt.setAssignee(oldAssignee.name(), oldAssignee.type()));
       }
       statement.replaceWith(newStmt);
+      feedback.replaceStatement(statement, newStmt);
       return newStmt;
     }
 

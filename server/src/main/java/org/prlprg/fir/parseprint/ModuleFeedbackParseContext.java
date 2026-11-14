@@ -103,8 +103,10 @@ public final class ModuleFeedbackParseContext {
           feedback.reflectiveEnvs.add(parsePosition(p));
         } else if (s.trySkip("prom ")) {
           feedback.escapingPromises.add(parsePosition(p));
+        } else if (s.trySkip("grow ")) {
+          feedback.growingSubAssigns.add(parsePosition(p));
         } else {
-          throw s.fail("\"reg\", \"env\", or \"prom\"", s.readIdentifierOrKeyword());
+          throw s.fail("\"reg\", \"env\", \"prom\", or \"grow\"", s.readIdentifierOrKeyword());
         }
       }
 

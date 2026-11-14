@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -72,6 +73,8 @@ public class AbstractionFeedback {
   /// `prom` statements whose promises were recorded to escape (outlive the stack frame they were
   /// created in, then get forced afterwards).
   public final Set<Statement> escapingPromises = new LinkedHashSet<>();
+  /// `[<-` and `[[<-` calls that were recorded to grow their vector (assign past its end).
+  public final Set<Statement> growingSubAssigns = new LinkedHashSet<>();
 
   AbstractionFeedback(ModuleFeedback module) {
     this.module = module;
@@ -181,6 +184,16 @@ public class AbstractionFeedback {
     numCalls = 0;
   }
 
+  /// Make the feedback recorded for the statement `old` apply to `replacement`, which takes its
+  /// place.
+  public void replaceStatement(Statement old, Statement replacement) {
+    for (var statements : List.of(reflectiveEnvs, escapingPromises, growingSubAssigns)) {
+      if (statements.remove(old)) {
+        statements.add(replacement);
+      }
+    }
+  }
+
   /// Create a deep copy.
   private AbstractionFeedback copy() {
     var copy = new AbstractionFeedback(module);
@@ -192,6 +205,7 @@ public class AbstractionFeedback {
     copy.allRecorded.putAll(this.allRecorded);
     copy.reflectiveEnvs.addAll(this.reflectiveEnvs);
     copy.escapingPromises.addAll(this.escapingPromises);
+    copy.growingSubAssigns.addAll(this.growingSubAssigns);
     return copy;
   }
 
@@ -213,6 +227,7 @@ public class AbstractionFeedback {
 
     remap(copy.reflectiveEnvs, statements);
     remap(copy.escapingPromises, statements);
+    remap(copy.growingSubAssigns, statements);
 
     var registers = new HashMap<Register, Register>();
     Streams.zip(src.streamRegisters(srcBody), dst.streamRegisters(dstBody), Map::entry)

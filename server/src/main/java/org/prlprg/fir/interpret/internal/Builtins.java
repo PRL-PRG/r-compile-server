@@ -1747,6 +1747,7 @@ public final class Builtins {
     int idx = subscript(interpreter, name, vector, index, column);
     var result = subAssignTarget(interpreter, name, vector, value);
     if (idx > result.size()) {
+      interpreter.recordGrowingSubAssign();
       result = enlarged(interpreter, name, result, idx);
     }
     checkInRange(interpreter, name, result, idx);
