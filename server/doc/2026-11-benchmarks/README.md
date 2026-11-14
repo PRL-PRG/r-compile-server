@@ -109,6 +109,9 @@ optimization for each example. The mode `key` runs the five methods of `KeyBench
 about 2 minutes for each example. `KeyBenchmark` first evaluates each variant with `rsh`, so the
 mode `key` installs the `rsh` of the tip into the private library `rlib-key/`.
 
+Both scripts run Maven with `DEBUG=false` (`BENCH_DEBUG=true` turns the checks on; the optimized
+code is the same) and with an R evaluation limit of 600 s (`R_EVAL_TIMEOUT`).
+
 Both scripts refuse to start a run while another run or another Maven process uses their
 worktree. They stop when the free disk space falls below `MIN_FREE_GB` (default 5). The logs and
 the private R libraries are not tracked (see `.gitignore`).

@@ -94,9 +94,12 @@ free_gb() { df -Pk "$REPO" | awk 'NR==2{print int($4 / 1048576)}'; }
 
 # Maven in the worktree with the measurement environment pinned (the properties file is a copy).
 # FILTER: the example filter; BOPT: the optimizations that OptimizationBenchmark removes; RLIB: R_LIBS.
+# DEBUG is off (BENCH_DEBUG=true turns it on): the optimized code is the same, and the compiler is faster.
+# R_EVAL_TIMEOUT is 600 s, so an example with many lazy version requests (pidigits) gets a time.
 mvn_w() {
   maven_busy && { echo "another Maven process uses $W" >&2; return 2; }
-  (cd "$W/server" && env -u R_HOME R_LIBS="$RLIB" R_BIN="$W/R/bin/R" IGNORE_SNAPSHOTS=true DEBUG=true \
+  (cd "$W/server" && env -u R_HOME R_LIBS="$RLIB" R_BIN="$W/R/bin/R" IGNORE_SNAPSHOTS=true DEBUG="${BENCH_DEBUG:-false}" \
+    R_EVAL_TIMEOUT="${R_EVAL_TIMEOUT:-600}" \
     EXAMPLE_FILTER="$FILTER" BENCHMARK_OPTIMIZATIONS="$BOPT" ./mvnw $( [ "${OFFLINE:-1}" = 0 ] || echo -o ) "$@")
 }
 # The example filter of a list of examples.
