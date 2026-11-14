@@ -1,5 +1,5 @@
 {
- "commit": "",
- "description": "PLACEHOLDER: one paragraph from the coordinator. It says what the tip adds to state 28 (the corrections of 2026-11-13 and the new examples), and that the timed runs of all sections use this commit.",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "description": "The tip is the state after the chain and the work of 2026-11-13 and 2026-11-14. It has the corrections of the optimizer, of the checkers and of the runtime, the new benchmark examples (134 ports of rbenchmark and RBenchmarking in eight categories), `KeyBenchmark`, and the GNU-R fallback of the test interpreter, which gives the optimizer feedback for more of each example. The timed runs of all sections use this commit.",
  "runNotes": "PLACEHOLDER: one paragraph from the coordinator about the timed runs: the machine, the states that were measured again and why, and the check of each state."
 }
