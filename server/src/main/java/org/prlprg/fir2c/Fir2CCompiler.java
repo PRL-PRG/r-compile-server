@@ -2849,10 +2849,7 @@ public final class Fir2CCompiler {
           private String emitSetterBegin(Statement statement, SetterPattern setter) {
             var linked = linkedRegisters(statement);
             linked.removeIf(
-                register ->
-                    setter.chain().contains(register)
-                        && register.uses().stream()
-                            .allMatch(use -> isChainOrDeoptUse(use, statement, setter)));
+                register -> setter.chain().contains(register) && !usedAfter(statement, register));
             statement.args().stream()
                 .skip(2)
                 .map(Argument::variable)
@@ -2881,17 +2878,47 @@ public final class Fir2CCompiler {
             return state;
           }
 
-          /// Whether `use` is the setter call `statement`, the definition of a register of its
-          /// first argument's chain, or in a deopt branch.
-          private static boolean isChainOrDeoptUse(
-              Use use, Statement statement, SetterPattern setter) {
-            var instruction = use.instruction();
-            var useBb = instruction.parentBB();
-            return instruction == statement
-                || (instruction instanceof Statement s
-                    && s.assignee() != null
-                    && setter.chain().contains(s.assignee()))
-                || (useBb != null && useBb.jump().expression() instanceof Deopt);
+          /// Whether an instruction outside deopt branches can read `register` after `statement`,
+          /// before `register` is defined again. A use in another CFG (a promise) counts.
+          private static boolean usedAfter(Statement statement, Register register) {
+            var uses =
+                register.uses().stream()
+                    .map(Use::instruction)
+                    .filter(
+                        instruction ->
+                            instruction.parentBB() == null
+                                || !(instruction.parentBB().jump().expression() instanceof Deopt))
+                    .collect(Collectors.toSet());
+            var bb = Objects.requireNonNull(statement.parentBB());
+            if (uses.stream()
+                .anyMatch(
+                    instruction ->
+                        instruction.parentBB() == null
+                            || instruction.parentBB().owner() != bb.owner())) {
+              return true;
+            }
+            var instructions = bb.instructions();
+            if (instructions
+                .subList(instructions.indexOf(statement) + 1, instructions.size())
+                .stream()
+                .anyMatch(uses::contains)) {
+              return true;
+            }
+            var seen = new HashSet<BB>();
+            var worklist = new ArrayDeque<>(bb.successors());
+            while (!worklist.isEmpty()) {
+              var next = worklist.pop();
+              if (!seen.add(next)
+                  || next.phiParameters().contains(register)
+                  || next.statements().stream().anyMatch(s -> s.assignee() == register)) {
+                continue;
+              }
+              if (next.instructions().stream().anyMatch(uses::contains)) {
+                return true;
+              }
+              worklist.addAll(next.successors());
+            }
+            return false;
           }
 
           /// The source of a setter call, in a pool slot of its own: the protocol marks it as an
