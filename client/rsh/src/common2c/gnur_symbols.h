@@ -18,6 +18,8 @@ double R_pow(double x, double y);
 SEXP R_bcDecode(SEXP);
 SEXP R_bcEncode(SEXP);
 SEXP R_Primitive(const char *primname);
+Rboolean R_has_methods(SEXP op);
+SEXP R_possible_dispatch(SEXP call, SEXP op, SEXP args, SEXP rho, Rboolean promisedArgs);
 NORET void UNBOUND_VARIABLE_ERROR(SEXP symbol, SEXP rho);
 void checkForMissings(SEXP args, SEXP call);
 SEXP markSpecialArgs(SEXP args);

@@ -683,6 +683,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/attributes_fail_type_guard.R` — A value with attributes (a name) fails the type guard of a version typed from plain values (`Fir_value_kind_matches`), and deopts.
 - `.../examples/R/length_object_deopts.R` — The unboxed `length` deopts for an object, which can dispatch a `length` method.
 - `.../examples/R/length_s4_object.R` — The unboxed `length` of an S4 object calls its `length` method.
+- `.../examples/R/length_s4_s3_method.R` — The unboxed `length` of an S4 object without an S4 method deopts, since an S3 method can be in the caller's environment.
 - `.../examples/R/unused_length_runs_method.R` — An unused `length(o)` stays (`@signals`), since GNU-R dispatches it to a `length` method that prints.
 - `.../examples/R/missing_argument_error_names_it.R` — The error for a missing argument names it (`checkMissing`), also in a compiled version.
 - `.../examples/R/missing_arg_forced_in_branch.R` — `if (b) a` forces a missing `a` or its default after a warmup that passed `a` only with a TRUE `b`: the type assumption that elided `checkMissing` and the force must stay.

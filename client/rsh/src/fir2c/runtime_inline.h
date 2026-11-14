@@ -575,15 +575,26 @@ DEFINE_MATH1_BUILTINS(V)
 #undef V
 
 DEFINE_INLINE_BUILTIN(int, length, value_fx_none_ret_scalar_int, SEXP value) {
-  // `length` of an object dispatches. An S4 method is in the global methods table, so call it. An
-  // S3 method can be in the caller's environment, which this version doesn't have, so deopt.
-  // GNU-R's `do_length` also turns a whole real result into an integer.
+  // `length` of an object dispatches. Call an S4 method, as `do_length` does. An S3 method can be
+  // in the caller's environment, which this version doesn't have, so deopt without an S4 method.
   if (IS_S4_OBJECT(value)) {
-    SEXP name = R_MissingArg;
-    SEXP result = Fir_call_base(Rf_install("length"), NULL, R_GlobalEnv, 1, &value, &name);
-    if (TYPEOF(result) != INTSXP || XLENGTH(result) != 1)
-      Rf_error("FIŘ deoptimization triggered: length(x) of an S4 object isn't one integer (unsupported)");
-    return INTEGER(result)[0];
+    static SEXP op = NULL;
+    if (op == NULL) op = R_Primitive("length");
+    if (R_has_methods(op)) {
+      SEXP call = PROTECT(Rf_lang2(Rf_install("length"), value));
+      SEXP args = PROTECT(Rf_list1(value));
+      SEXP result = R_possible_dispatch(call, op, args, R_GlobalEnv, FALSE);
+      UNPROTECT(2);
+      if (result != NULL) {
+        // `do_length` turns a whole real result into an integer.
+        if (TYPEOF(result) == INTSXP && XLENGTH(result) == 1) return INTEGER(result)[0];
+        if (TYPEOF(result) == REALSXP && XLENGTH(result) == 1) {
+          double d = REAL(result)[0];
+          if (R_FINITE(d) && d >= 0 && d <= INT_MAX && floor(d) == d) return (int)d;
+        }
+        Rf_error("FIŘ deoptimization triggered: length(x) of an S4 object isn't one integer (unsupported)");
+      }
+    }
   }
   if (OBJECT(value)) Rf_error("FIŘ deoptimization triggered: length(x) of an object (unsupported)");
   // `Rf_length`, unlike `LENGTH`, handles environments, pairlists, and closures.
