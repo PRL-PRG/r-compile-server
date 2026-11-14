@@ -58,4 +58,29 @@ class ElideDeadStoreTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(abstraction);
     assertTrue(printed.contains("st x = <real 99.0>;"), printed);
   }
+
+  /// The checkpoint checks the assumption by loading `x`.
+  @Test
+  void storeReadByALoadAssumption_isKept() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:I) --> I {
+              mkenv~;
+              st x = x;
+              check L0() else D0();
+            L0():
+              ld x ?= <int 1>;
+              popenv;
+              return x;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("  st x = x;\n  check"), printed);
+  }
 }

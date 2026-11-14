@@ -8,8 +8,11 @@ import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
@@ -26,7 +29,8 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.StrSXP;
 
 /// Computes a map of [NamedVariable] to the local [Load] statements that load said variable (a load
-/// of `..N` also loads `...`), or to statements with symbol or language constant arguments that may
+/// of `..N` also loads `...`), to the load assumptions of it, or to statements with symbol or
+// language constant arguments that may
 /// load said variable when evaluated (e.g. a GNU-R special evaluates its unevaluated symbol
 /// arguments in the caller's environment, and a deopt stub promise its expression).
 public final class Loads implements Analysis {
@@ -56,6 +60,9 @@ public final class Loads implements Analysis {
               loads.put(NamedVariable.DOTS, statement);
             }
           }
+          // The checkpoint loads the variable to check the assumption.
+          case Assume(AssumeLoadFun(var variable, _)) -> loads.put(variable, statement);
+          case Assume(AssumeLoadVar(var variable, _)) -> loads.put(variable, statement);
           case Promise(_, _, var code, _, var expr) -> {
             run(code);
             // A body that only deopts evaluates `expr` in the environment when it's forced.
