@@ -69,6 +69,36 @@ class ProvenanceCheckerTest {
                 """)));
   }
 
+  /// The loop moves the captured vector back into the phi `a`, so its next definition doesn't end
+  /// the capture.
+  @Test
+  void consumeOfAPhiCapturedInAnEarlierIteration_isAnError() {
+    assertTrue(
+        hasErrors(
+            """
+            (x:v(I), n:I) -+> v1(I) {
+              a0: v(I)o = dup x;
+              goto LOOP(a0, 0);
+            LOOP(a: v(I)o, i: I):
+              c: L = `<`< I,I --> L >(i, n);
+              b: B = naToFalse< L --> B >(c);
+              if b then BODY() else EXIT();
+            BODY():
+              p: p(v1(I) -) = prom<v1(I) ->{
+                e: I = a[0];
+                eb: v1(I) = box< I --> v1(I) >(e);
+                return eb;
+              };
+              i2: I = `+`< I,I --> I >(i, 1);
+              goto LOOP(a, i2);
+            EXIT():
+              w: v(I)o = dup consume a;
+              r: v1(I) = box< I --> v1(I) >(i);
+              return r;
+            }
+            """));
+  }
+
   /// The caller can write `x` in place after the call, which would change the returned list.
   @Test
   void shareOfBorrowed_isAnError() {
