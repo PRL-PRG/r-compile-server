@@ -16,6 +16,7 @@ import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.primitive.Logical;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.ArgumentMatcher;
 import org.prlprg.sexp.BaseEnvSXP;
@@ -25,6 +26,7 @@ import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.ExprSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.PrimVectorSXP;
 import org.prlprg.sexp.PromSXP;
@@ -87,7 +89,16 @@ final class GnuRFallback implements Fallback {
         seed <- function() get0(".Random.seed", g, inherits = FALSE)
         if (is.null(.rcs$closure)) {
           .rcs$closure <- function(id, ...) {
-            res <- .rcs_callback(list(id, list(...), seed()))
+            # Whether GNU-R forced each argument before the call (see `callback`).
+            caller <- parent.frame(2L)
+            forced <- tryCatch({
+              if (identical(sys.function(-2L), outer)) stop()
+              unlist(lapply(as.list(sys.call(-1L))[-1L], function(a) {
+                if (identical(a, quote(...))) rep(FALSE, eval(quote(...length()), caller))
+                else !(is.symbol(a) && grepl("^[.][.][0-9]+$", as.character(a)))
+              }))
+            }, error = function(e) logical())
+            res <- .rcs_callback(list(id, list(...), seed(), forced))
             if (!is.null(res[[2]])) assign(".Random.seed", res[[2]], g)
             res[[1]]
           }
@@ -235,13 +246,20 @@ final class GnuRFallback implements Fallback {
     }
   }
 
-  /// Runs the closure that GNU-R calls: `message` has its number (see [#proxy]), the arguments
-  /// and the RNG state. Returns the value and the new RNG state.
+  /// Runs the closure that GNU-R calls: `message` has its number (see [#proxy]), the arguments,
+  /// the RNG state, and whether GNU-R forced each argument. Returns the value and the new RNG
+  // state.
+  ///
+  /// The callers that force (`lapply`, `vapply` and `mapply` with `R_forceAndCall`, `apply` and
+  /// `Reduce` with `forceAndCall`) force only the arguments that aren't from their `...`, and
+  /// `outer` forces none. The proxy can't see whether a promise was forced, so it approximates
+  /// this from its call: an argument is forced unless it is from `...` or the caller is `outer`.
   private SEXP callback(InternalInterpreter interpreter, SEXP message) {
     var parts = (VecSXP) message;
     var closure = proxied.get(((IntSXP) parts.get(0)).get(0));
     var values = (VecSXP) parts.get(1);
     var names = values.names();
+    var forced = parts.get(3) instanceof LglSXP l && l.size() == values.size() ? l : null;
     spend(interpreter, values);
     setSeed(interpreter, parts.get(2));
 
@@ -254,7 +272,9 @@ final class GnuRFallback implements Fallback {
                       names.isEmpty() ? "" : names.get(i),
                       value instanceof RegSymSXP || value instanceof LangSXP
                           ? value
-                          : interpreter.foreignArgument(value));
+                          : forced != null && forced.get(i) == Logical.TRUE
+                              ? SEXPs.promise(value, value, interpreter.globalEnv())
+                              : interpreter.foreignArgument(value));
                 })
             .collect(SEXPs.toList());
     var result = encode(interpreter, interpreter.callClosure(closure, arguments).box());

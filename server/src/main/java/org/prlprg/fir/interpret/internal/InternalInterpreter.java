@@ -1444,8 +1444,9 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   /// A forced promise of `value`, for an argument of a closure that code outside the interpreter
-  /// calls. Its type is that of an unforced promise, because the caller in GNU-R may not force it
-  /// (`outer` and `Reduce` don't, `lapply` does).
+  /// calls and that the caller may not have forced. Its type is that of an unforced promise. In
+  /// GNU-R, `outer` passes unforced promises, and the callers that force (`lapply`, `vapply`,
+  /// `mapply`, `apply`, `Reduce`) don't force the arguments from their `...`.
   public PromSXP foreignArgument(SEXP value) {
     var promise = SEXPs.promise(value, value, globalEnv);
     foreignArguments.add(promise);
