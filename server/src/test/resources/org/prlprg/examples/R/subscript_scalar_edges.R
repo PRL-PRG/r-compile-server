@@ -33,6 +33,9 @@ write <- function(x, m, a, l, i, d) {
   list(x, y, n, g, m, a, l, k)
 }
 
+# The interpreter has no `.Machine$`, so the feedback stops here. Feedback would make the optimizer
+# replace the subscript calls with typed versions, which don't take those paths.
+invisible(.Machine$integer.max)
 for (k in 1:20) {
   m <- matrix(1:6, 2, dimnames = list(c("r1", "r2"), c("a", "b", "c")))
   r <- list(
