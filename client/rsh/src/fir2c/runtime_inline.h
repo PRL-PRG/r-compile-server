@@ -575,7 +575,16 @@ DEFINE_MATH1_BUILTINS(V)
 #undef V
 
 DEFINE_INLINE_BUILTIN(int, length, value_fx_none_ret_scalar_int, SEXP value) {
-  // `length` of an object dispatches (e.g. `length.foo`), which this version has no effects for.
+  // `length` of an object dispatches. An S4 method is in the global methods table, so call it. An
+  // S3 method can be in the caller's environment, which this version doesn't have, so deopt.
+  // GNU-R's `do_length` also turns a whole real result into an integer.
+  if (IS_S4_OBJECT(value)) {
+    SEXP name = R_MissingArg;
+    SEXP result = Fir_call_base(Rf_install("length"), NULL, R_GlobalEnv, 1, &value, &name);
+    if (TYPEOF(result) != INTSXP || XLENGTH(result) != 1)
+      Rf_error("FIŘ deoptimization triggered: length(x) of an S4 object isn't one integer (unsupported)");
+    return INTEGER(result)[0];
+  }
   if (OBJECT(value)) Rf_error("FIŘ deoptimization triggered: length(x) of an object (unsupported)");
   // `Rf_length`, unlike `LENGTH`, handles environments, pairlists, and closures.
   return Rf_length(value);
