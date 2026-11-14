@@ -245,7 +245,6 @@ final class GnuRFallback implements Fallback {
     spend(interpreter, values);
     setSeed(interpreter, parts.get(2));
 
-    // Like a closure that GNU-R's `lapply` calls, it gets forced promises.
     var arguments =
         IntStream.range(0, values.size())
             .mapToObj(
@@ -255,7 +254,7 @@ final class GnuRFallback implements Fallback {
                       names.isEmpty() ? "" : names.get(i),
                       value instanceof RegSymSXP || value instanceof LangSXP
                           ? value
-                          : SEXPs.promise(value, value, interpreter.globalEnv()));
+                          : interpreter.foreignArgument(value));
                 })
             .collect(SEXPs.toList());
     var result = encode(interpreter, interpreter.callClosure(closure, arguments).box());

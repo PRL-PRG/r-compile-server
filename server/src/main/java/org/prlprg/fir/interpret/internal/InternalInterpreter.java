@@ -7,6 +7,7 @@ import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -72,6 +73,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
@@ -147,6 +149,8 @@ public final class InternalInterpreter implements Interpreter {
   /// [PromSXP] equality is structural, and two promises with the same expression and environment
   /// are different promises.
   private final Map<SEXP, PromiseCode> promises = new IdentityHashMap<>();
+  /// Promises from [#foreignArgument].
+  private final Set<PromSXP> foreignArguments = Collections.newSetFromMap(new IdentityHashMap<>());
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
   /// Maps each user-created environment (from [MkEnv]) to the `mkenv` [Statement] that created it.
@@ -1439,6 +1443,15 @@ public final class InternalInterpreter implements Interpreter {
     return valueSexp;
   }
 
+  /// A forced promise of `value`, for an argument of a closure that code outside the interpreter
+  /// calls. Its type is that of an unforced promise, because the caller in GNU-R may not force it
+  /// (`outer` and `Reduce` don't, `lapply` does).
+  public PromSXP foreignArgument(SEXP value) {
+    var promise = SEXPs.promise(value, value, globalEnv);
+    foreignArguments.add(promise);
+    return promise;
+  }
+
   /// Force if promise, and evaluate children. A symbol is a value (e.g. from `substitute` or
   /// `quote`), so it isn't looked up.
   ///
@@ -1871,6 +1884,9 @@ public final class InternalInterpreter implements Interpreter {
     // We can do better than `Type.of` for promises,
     // since we create promises with stub code.
     if (value instanceof Value.Sexp(var sexp) && sexp instanceof PromSXP promSxp) {
+      if (foreignArguments.contains(promSxp)) {
+        return Type.promise(Type.ANY_VALUE_SEXP, Effects.REFLECT);
+      }
       var promise = promises.get(promSxp);
       if (promise != null) {
         return Type.promise(promise.expression.valueType(), promise.expression.effects());
