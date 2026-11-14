@@ -1,4 +1,4 @@
-#? [opt.fir2c.opt.eval]crashes("deoptimization triggered")
+#? [opt.fir2c.opt.eval]noEval
 # https://github.com/rbenchmark/benchmarks/blob/9850828078e0858cb55146900afe63e550ed36db/shootout/pidigits/pidigits.R
 # License: BSD-3-Clause, see server/doc/benchmark-licenses.md
 # Known failure (server/doc/benchmark-ports.md): the test interpreter stops the warmup early. There

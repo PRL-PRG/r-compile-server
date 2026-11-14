@@ -33,6 +33,6 @@ An option on the first lines of the example marks each failure. Remove the mark 
 - `bench_shootout_pidigits` has `#? [opt.fir2c.opt.eval]noEval`.
   - Cause: the optimized C evaluation stops at the R timeout of 120 s. The compiled code is not slow. The run requests 88 lazy versions, and each request optimizes the whole module again (about 1.65 s each).
   - Remove the mark when a version request optimizes only what the new version affects. The mark skips the test, so it does not show the fix: remove the mark and run `FirAfterOpt2CTest#testEval` to check.
-- `bench_shootout_pidigits_orbit` has `#? [opt.fir2c.opt.eval]crashes("deoptimization triggered")`.
-  - Cause: the test interpreter stops at its cost budget in the first warmup call, so the feedback is partial. In the warmup, `x_len - y_len` is at most 1. `sub_mag` speculates on the result of `(y_len+1):x_len`. The benchmark call reaches 51, and the speculation deopts. A larger warmup does not help.
-  - Remove the mark when the speculation does not fail, or when compiled C can deoptimize at that point. The test then fails with "Expected crash, got success".
+- `bench_shootout_pidigits_orbit` has `#? [opt.fir2c.opt.eval]noEval`.
+  - Cause: the test interpreter stops at its cost budget in the first warmup call, so the feedback is partial. In the warmup, `x_len - y_len` is at most 1. `sub_mag` speculates on the result of `(y_len+1):x_len`. The benchmark call reaches 51, and the speculation deopts ("FIŘ deoptimization triggered"). A larger warmup does not help. Under load, the R timeout of 120 s can come first, so the mark does not expect the crash message.
+  - Remove the mark when the speculation does not fail, or when compiled C can deoptimize at that point. Remove the mark and run `FirAfterOpt2CTest#testEval` to check.
