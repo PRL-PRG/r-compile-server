@@ -69,6 +69,77 @@ class ProvenanceCheckerTest {
                 """)));
   }
 
+  /// A promise that reads `x` doesn't capture `a`, which the previous iteration consumed.
+  @Test
+  void promiseInTheLoopThatDoesntReadTheConsumedRegister_isOk() {
+    assertFalse(
+        hasErrors(
+            LOOP_TEMPLATE.formatted(
+                """
+                p: p(v1(I) -) = prom<v1(I) ->{
+                    e: I = x[0];
+                    eb: v1(I) = box< I --> v1(I) >(e);
+                    return eb;
+                  };
+                  a: v(I)o = dup x;
+                """)));
+  }
+
+  @Test
+  void consumeAfterANestedPromiseReads_isAnError() {
+    assertTrue(
+        hasErrors(
+            LOOP_TEMPLATE.formatted(
+                """
+                a: v(I)o = dup x;
+                  p: p(v1(I) -) = prom<v1(I) ->{
+                    q: p(v1(I) -) = prom<v1(I) ->{
+                      e: I = a[0];
+                      eb: v1(I) = box< I --> v1(I) >(e);
+                      return eb;
+                    };
+                    qv: v1(I) = force q;
+                    return qv;
+                  };
+                """)));
+  }
+
+  /// A capture doesn't end when `a` is assigned again: the promise of one iteration can be forced
+  /// after the next iteration consumes the new `a`.
+  @Test
+  void consumeAfterACaptureInAnEarlierIteration_isAnError() {
+    assertTrue(
+        hasErrors(
+            """
+            (x:v(I), n:I, d:B) -+> v1(I) {
+              goto LOOP(0);
+            LOOP(i: I):
+              c: L = `<`< I,I --> L >(i, n);
+              b: B = naToFalse< L --> B >(c);
+              if b then BODY() else EXIT();
+            BODY():
+              a: v(I)o = dup x;
+              if d then CAPTURE() else CONSUME();
+            CAPTURE():
+              p: p(v1(I) -) = prom<v1(I) ->{
+                e: I = a[0];
+                eb: v1(I) = box< I --> v1(I) >(e);
+                return eb;
+              };
+              goto LATCH();
+            CONSUME():
+              w: v(I)o = dup consume a;
+              goto LATCH();
+            LATCH():
+              i2: I = `+`< I,I --> I >(i, 1);
+              goto LOOP(i2);
+            EXIT():
+              r: v1(I) = box< I --> v1(I) >(i);
+              return r;
+            }
+            """));
+  }
+
   /// Each iteration consumes the owned phi `a` and passes a new vector on the back edge.
   @Test
   void consumeOfAPhiThatTheBackEdgeAssignsAgain_isOk() {

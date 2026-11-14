@@ -262,9 +262,14 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
     /// Runs the analysis for [CFG], then merges the output using the given function.
     protected final void runSubAnalysis(CFG cfg, Consumer<S> merge) {
+      runSubAnalysis(cfg, state(), merge);
+    }
+
+    /// Runs the analysis for [CFG] from `entry`, then merges the output using the given function.
+    protected final void runSubAnalysis(CFG cfg, S entry, Consumer<S> merge) {
       var subAnalysis = onCfg(cfg);
 
-      subAnalysis.run(state());
+      subAnalysis.run(entry);
 
       S returnState = subAnalysis.returnState();
       if (returnState != null) {

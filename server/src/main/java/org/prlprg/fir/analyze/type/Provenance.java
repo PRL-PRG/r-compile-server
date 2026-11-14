@@ -80,7 +80,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     @Override
     protected void runEntry(BB bb) {
       // A register is defined once, so a (re)definition is reached from an earlier `consume` only
-      // through a loop, and holds a new value. A phi keeps `capture`.
+      // through a loop, and holds a new value.
       state().write.addAll(bb.phiParameters());
       state().consume.removeAll(bb.phiParameters());
       // Each phi argument was moved into it unshared (see `run(Instruction, int)`) or the phi isn't
@@ -93,7 +93,10 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       var assignee = statement.assignee();
 
       if (statement.expression() instanceof Promise(_, _, var code, _, _)) {
-        runSubAnalysis(code, state()::mergePromise);
+        // The promise starts with no reads, so its return state's `read` is what its body uses.
+        var entry = state().copy();
+        entry.read.clear();
+        runSubAnalysis(code, entry, state()::mergePromise);
       } else {
         for (var i = 0; i < statement.argCount(); i++) {
           run(statement, i);
@@ -101,10 +104,8 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       }
 
       if (assignee != null) {
-        // A statement gives a new vector (an owned register takes only a fresh value).
         state().write.add(assignee);
         state().consume.remove(assignee);
-        state().capture.remove(assignee);
         state().share.remove(assignee);
       }
     }
@@ -262,17 +263,16 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       share.addAll(other.share);
     }
 
-    /// Unifies requirements, and adds *all* registers touched by the promise to `capture`.
+    /// Unifies requirements, and adds the registers that the promise's body reads or `consume`s
+    /// (also in a nested promise) to `capture`.
     ///
     /// This is the stateful analogue to the formalism's compose operator.
     ///
-    /// `read`, `consume`, and `defer` are requirements, `write` is a guarantee.
+    /// `promise` is the state at the promise's return, which ran from this state without `read`.
     public void mergePromise(ActionSet promise) {
       read.addAll(promise.read);
       consume.addAll(promise.consume);
       capture.addAll(promise.read);
-      capture.addAll(promise.write);
-      capture.addAll(promise.consume);
       capture.addAll(promise.capture);
     }
 
