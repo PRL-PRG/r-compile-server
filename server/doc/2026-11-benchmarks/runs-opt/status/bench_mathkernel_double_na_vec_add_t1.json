@@ -9,5 +9,11 @@
  "load_end": 1.54,
  "csv_files": 1,
  "optimizations": ".*",
- "failures": {}
+ "failures": {},
+ "no_time": {
+  "elideTrivialAssume": "R REPL timed out after 600 s",
+  "specializeSubscript": "R REPL timed out after 600 s",
+  "unbox": "R REPL timed out after 600 s",
+  "elideUnusedCheckpoints": "R REPL timed out after 600 s"
+ }
 }

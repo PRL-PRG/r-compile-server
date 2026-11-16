@@ -11,5 +11,6 @@
  "optimizations": "$^",
  "failures": {
   "benchmarkPromiseInlining(Example, SnapshotStore)[1] bench_riposte_cleaning": "Expected success, got crash. R REPL died (status: 1). Output: Error in f() : FI\u0158 deoptimization triggered at pc=1 (unsupported)"
- }
+ },
+ "no_time": {}
 }

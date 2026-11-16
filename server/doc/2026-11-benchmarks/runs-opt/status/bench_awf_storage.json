@@ -9,5 +9,9 @@
  "load_end": 3.48,
  "csv_files": 1,
  "optimizations": ".*",
- "failures": {}
+ "failures": {},
+ "no_time": {
+  "elideBuiltinClosure": "nothing to benchmark (no compiled module)",
+  "optimizeCallee": "R REPL died (status: 139): caught segfault"
+ }
 }

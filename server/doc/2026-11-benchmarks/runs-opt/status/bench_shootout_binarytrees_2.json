@@ -9,5 +9,8 @@
  "load_end": 1.23,
  "csv_files": 1,
  "optimizations": ".*",
- "failures": {}
+ "failures": {},
+ "no_time": {
+  "optimizeCallee": "R REPL died (status: 139): caught segfault"
+ }
 }

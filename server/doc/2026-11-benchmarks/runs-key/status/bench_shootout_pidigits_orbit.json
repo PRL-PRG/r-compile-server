@@ -15,5 +15,6 @@
   "benchmarkScalarUnboxing(Example, SnapshotStore)[1] bench_shootout_pidigits_orbit": "Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)",
   "benchmarkCopyElision(Example, SnapshotStore)[1] bench_shootout_pidigits_orbit": "Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)",
   "benchmarkVariableElision(Example, SnapshotStore)[1] bench_shootout_pidigits_orbit": "Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)"
- }
+ },
+ "no_time": {}
 }

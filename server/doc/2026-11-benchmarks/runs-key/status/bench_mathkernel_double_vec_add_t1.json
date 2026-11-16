@@ -9,5 +9,8 @@
  "load_end": 8.05,
  "csv_files": 5,
  "optimizations": "$^",
- "failures": {}
+ "failures": {},
+ "no_time": {
+  "scalarUnboxing": "R REPL timed out after 600 s"
+ }
 }

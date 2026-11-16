@@ -9,5 +9,6 @@
  "load_end": 6.23,
  "csv_files": 5,
  "optimizations": "$^",
- "failures": {}
+ "failures": {},
+ "no_time": {}
 }

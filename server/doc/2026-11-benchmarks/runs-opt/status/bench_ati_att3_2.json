@@ -9,5 +9,8 @@
  "load_end": 5.02,
  "csv_files": 1,
  "optimizations": ".*",
- "failures": {}
+ "failures": {},
+ "no_time": {
+  "elideBuiltinClosure": "nothing to benchmark (no compiled module)"
+ }
 }
