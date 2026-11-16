@@ -2303,7 +2303,7 @@ bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP or
 
 bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found_ref) {
   SEXP found = Fir_load_fun_for_assume(symbol, env);
-  if (found == NULL || PRIMOFFSET(found) != blt_idx) {
+  if (found == NULL || !Fir_assume_builtin_function(found, blt_idx)) {
     return false;
   }
 
