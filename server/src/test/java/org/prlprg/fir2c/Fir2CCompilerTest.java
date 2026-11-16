@@ -410,6 +410,30 @@ class Fir2CCompilerTest {
     return Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
   }
 
+  /// A `[<-` call that consumes its vector calls the owned C version, which writes in place. One
+  /// that reads it calls the borrowed version, which copies.
+  @Test
+  void consumedSubAssignCallsOwnedVersion() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(v) {
+              (v:v(R)) -~> v(R)f {
+                d: v(R)o = dup v;
+                r: v(R)o = `[<-`< v(R)f,v1(I),v1(R),miss -~> v(R)f >(consume d, <int 1>, <real 2.0>, <missing>);
+                s: v(R)o = `[<-`< v(R)b,v1(I),v1(R),miss -~> v(R)f >(r, <int 2>, <real 3.0>, <missing>);
+                return consume s;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    var code = Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+    var name =
+        "Fir_ver_call__u5b_u3c_u2d_vec_real_%s_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh(R_EmptyEnv, %s,";
+    assertTrue(code.contains(name.formatted("owned", "r_d")), code);
+    assertTrue(code.contains(name.formatted("borrowed", "r_r")), code);
+  }
+
   /// A builtin or dynamic call passes its source call to the runtime as `call`, or `NULL` if it has
   /// none. The trailing `<missing>` padding is dropped at compile time.
   @Test

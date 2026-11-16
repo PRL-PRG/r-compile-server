@@ -2409,13 +2409,16 @@ public final class Fir2CCompiler {
                   }
 
                   var arguments = emitArgumentSplice(callArgs);
+                  var ownedVersion =
+                      calleeModule != BUILTINS ? null : ownedTwin(calleeFun, calleeVersion);
+                  // `guessWorst` picks the borrowed version, which copies; a consumed argument is
+                  // fresh, so the owned version can modify it.
+                  if (ownedVersion != null && callArgs.getFirst() instanceof Consume) {
+                    yield emitVersionCall(calleeFun, ownedVersion, closureEnv, arguments);
+                  }
                   var versionCall =
                       emitVersionCall(calleeFun, calleeVersion, closureEnv, arguments);
-                  var ownedVersion =
-                      setter == null || calleeModule != BUILTINS
-                          ? null
-                          : ownedTwin(calleeFun, calleeVersion);
-                  if (ownedVersion == null) {
+                  if (setter == null || ownedVersion == null) {
                     yield versionCall;
                   }
                   // Nothing else references the protocol's value, so the owned version can
