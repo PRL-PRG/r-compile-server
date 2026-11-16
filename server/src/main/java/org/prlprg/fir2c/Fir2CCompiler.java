@@ -2323,8 +2323,12 @@ public final class Fir2CCompiler {
               case StaticFnCallee(var calleeFunRef, var isDispatch, var signature) -> {
                 var calleeFun = calleeFunRef.get();
                 var calleeModule = calleeFun.owner();
+                // Builtins and intrinsics have no closure environment, so their C code ignores
+                // the closure (which `elideBuiltinClosure` normally elides).
                 var closureEnv =
                     closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)
+                            || calleeModule == BUILTINS
+                            || calleeModule == INTRINSICS
                         ? "R_EmptyEnv"
                         : "CLOENV(%s)".formatted(emitArgument(closureOrCalleeArg));
 
@@ -2335,10 +2339,6 @@ public final class Fir2CCompiler {
                 } else if (calleeModule == INTRINSICS && isDispatch) {
                   throw new IllegalArgumentException(
                       "Intrinsic should never be dispatched: " + call);
-                } else if ((calleeModule == BUILTINS || calleeModule == INTRINSICS)
-                    && !closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)) {
-                  throw new IllegalArgumentException(
-                      "Builtin with closure environment is unimplemented");
                 } else if (calleeModule == BUILTINS
                     && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
                   yield emitBuiltinCall(source, callArgs, calleeFun, statement, setter);

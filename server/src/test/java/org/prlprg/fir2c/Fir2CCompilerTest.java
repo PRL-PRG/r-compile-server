@@ -682,6 +682,27 @@ class Fir2CCompilerTest {
     assertFalse(code.contains("Fir_mk_promise_shared("), code);
   }
 
+  /// Without `elideBuiltinClosure`, a static call of a builtin keeps its closure, which a builtin
+  /// has no environment of.
+  @Test
+  void builtinCallIgnoresClosure() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> v1(I) {
+                plus: cls = ldf-base `+`;
+                sum: I = `+`@plus< I,I --> I >(40, 2);
+                sumu: v1(I) = box< I --> v1(I) >(sum);
+                return sumu;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named(MAIN_FUNCTION)));
+    var code = Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
+    assertFalse(code.contains("CLOENV("), code);
+  }
+
   private static String compilePromise(String mkEnv, String prom, String body) {
     var module =
         ParseUtil.parseModule(
