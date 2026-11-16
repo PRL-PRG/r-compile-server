@@ -10,5 +10,7 @@
  "csv_files": 1,
  "optimizations": ".*",
  "failures": {},
- "no_time": {}
+ "no_time": {
+  "strictifyPromise": "the benchmark call failed: FI\u0158 deoptimization triggered at pc=1 (unsupported) [message from a later run of the same variant; the log of this run has none]"
+ }
 }

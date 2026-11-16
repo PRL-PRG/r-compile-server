@@ -11,6 +11,7 @@
  "optimizations": ".*",
  "failures": {},
  "no_time": {
-  "elideBuiltinClosure": "nothing to benchmark (no compiled module)"
+  "elideBuiltinClosure": "nothing to benchmark (no compiled module)",
+  "elideTrivialAssume": "the benchmark call failed: FI\u0158 deoptimization triggered at pc=5 (unsupported) [message from a later run of the same variant; the log of this run has none]"
  }
 }
