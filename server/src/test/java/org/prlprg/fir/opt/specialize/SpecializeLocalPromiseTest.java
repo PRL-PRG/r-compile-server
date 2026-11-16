@@ -78,6 +78,24 @@ class SpecializeLocalPromiseTest {
         "a promise without recorded runs should not be marked");
   }
 
+  @Test
+  void unassigned_notMarked() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            () -+> v1(I) {
+              prom<v1(I) ->{ return <int 1>; };
+              return <int 1>;
+            }
+            """);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
+    feedback.recordCall();
+
+    assertFalse(
+        optimization.run(null, feedback, abstraction),
+        "a promise without an assignee should not be marked");
+  }
+
   private static AbstractionFeedback recordedFeedback(Abstraction abstraction) {
     var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
     feedback.recordCall();

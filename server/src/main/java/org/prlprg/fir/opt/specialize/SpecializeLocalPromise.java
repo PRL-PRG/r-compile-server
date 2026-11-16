@@ -1,6 +1,5 @@
 package org.prlprg.fir.opt.specialize;
 
-import java.util.Objects;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -32,9 +31,12 @@ public record SpecializeLocalPromise(int threshold) implements SpecializeOptimiz
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
+    // A substitution can leave a dead promise without an assignee, until `Cleanup` removes it.
+    var assignee = statement.assignee();
     if (!(statement.expression()
             instanceof Promise(var valueType, var effects, var code, var local, var promExpr))
-        || local) {
+        || local
+        || assignee == null) {
       return Result.UNCHANGED;
     }
 
@@ -44,7 +46,7 @@ public record SpecializeLocalPromise(int threshold) implements SpecializeOptimiz
     // recorded, such as one an optimization created.
     if (feedback.numCalls() < threshold
         || feedback.module().isPartial()
-        || feedback.times(Objects.requireNonNull(statement.assignee())) == 0
+        || feedback.times(assignee) == 0
         || feedback.escapingPromises.contains(statement)) {
       return Result.UNCHANGED;
     }
