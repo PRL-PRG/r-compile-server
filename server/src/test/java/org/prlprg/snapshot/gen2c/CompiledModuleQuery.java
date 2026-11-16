@@ -21,6 +21,7 @@ import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SnapshotStore;
+import org.prlprg.util.Paths;
 import org.prlprg.util.cc.CCompilationException;
 
 public interface CompiledModuleQuery extends Query<CompiledModule> {
@@ -43,7 +44,8 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     return this;
   }
 
-  /// Whether the compiled module is loaded on its own, with its runtime compiled in, as opposed to
+  /// Whether the compiled module is loaded on its own, with its runtime compiled in (and
+  /// `standalone.c`, which installs the vendored R's hooks while it is loaded), as opposed to
   /// into an R that has the `rsh` package (which provides the runtime, and the connection to the
   /// compile server).
   default boolean isStandalone() {
@@ -119,7 +121,11 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
               : List.of("-DRSH_TESTS", "-DRSH_PC");
       var runtimeObjects = new ArrayList<Path>();
       if (isStandalone()) {
-        for (var source : RshCompiler.standaloneRuntimeSources(runtime())) {
+        var sources = new ArrayList<>(RshCompiler.standaloneRuntimeSources(runtime()));
+        if (runtime() == RuntimeVariant.FIR2C) {
+          sources.add(Paths.getResource(CompiledModuleQuery.class, "standalone.c"));
+        }
+        for (var source : sources) {
           runtimeObjects.add(
               CompileCache.compile(
                   compiler,
