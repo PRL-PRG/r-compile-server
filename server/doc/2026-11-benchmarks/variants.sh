@@ -94,13 +94,14 @@ for ex in $EXS; do
   [ -z "$reason" ] && (( $(echo "$info" | grep -c '^#') )) && reason="$(echo "$info" | grep -c '^#') tests failed"
   [ -e "$RLIB/rsh-probe-loaded" ] && reason="the run loaded rsh"
   [ "$(rsh_sha)" = "$MAIN_RSH_SHA" ] || { log "stopping: the main rsh.so changed"; exit 1; }
-  python3 - "$S" "$ex" "$full" "$st" "$secs" "$load" "$(load1)" "$found" "$reason" "$BOPT" "$info" <<'EOF'
+  PYTHONPATH="$B" python3 - "$S" "$ex" "$full" "$st" "$secs" "$load" "$(load1)" "$found" "$reason" "$BOPT" "$info" "$OUT/log/$ex.log" <<'EOF'
 import json, sys
-p, ex, commit, st, secs, l0, l1, found, reason, bopt, info = sys.argv[1:]
+from no_time import no_time
+p, ex, commit, st, secs, l0, l1, found, reason, bopt, info, logf = sys.argv[1:]
 fails = dict(l.split('\t')[1:3] for l in info.splitlines() if l.startswith('#\t'))
 json.dump({'example': ex, 'commit': commit, 'status': 'failed' if reason else 'ok', 'reason': reason,
            'exit': int(st), 'seconds': int(secs), 'load_start': float(l0), 'load_end': float(l1),
-           'csv_files': int(found), 'optimizations': bopt, 'failures': fails}, open(p, 'w'), indent=1)
+           'csv_files': int(found), 'optimizations': bopt, 'failures': fails, 'no_time': no_time(logf)}, open(p, 'w'), indent=1)
 EOF
   rm -rf "$W/server/src/test/snapshots"
   ran=$((ran + 1)) t_all=$((t_all + secs))

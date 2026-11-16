@@ -32,6 +32,8 @@ shows the effect of each optimization and of each key category of optimizations.
 - `repin.py`: applies a map of old to new commits after a rewrite of the history (see below).
 - `chain.sh`, `variants.sh`, `harness.sh` (the functions of both), `check.R`, `validate.py`,
   `rsh-probe/`: the benchmark harness.
+- `no_time.py`: reads the Maven log of one example, and gives the reason for each variant without
+  a time (see below).
 
 ## Examples and categories
 
@@ -103,7 +105,12 @@ directory, and it writes `status/<example>.json`: the status (`ok` or `failed`),
 failure, the failed tests, the time of the run, and the load average at its start and end. It
 skips an example that has a status file, so a stopped run continues where it stopped. Use
 `RETRY_FAILED=1` to run the failed examples again. Each line of its output shows the progress and
-an estimate of the time that remains. The mode `opt` removes each optimization of
+an estimate of the time that remains. The field `no_time` of the status file maps each variant
+without a time to the reason in the Maven log (`no_time.py`): `nothing to benchmark` (no compiled
+module), the error of a crash (for example `R REPL died (status: 139): caught segfault`), or the
+value that is not a time. The map is empty if each variant has a time. To fill the field from
+existing logs, run `python3 no_time.py LOG_DIR STATUS_DIR`; the logs are in `runs-opt/log/` and
+`runs-key/log/` (not tracked). The mode `opt` removes each optimization of
 `BENCHMARK_OPTIMIZATIONS` (default: all of them, about 45), and it takes about 10 seconds per
 optimization for each example. The mode `key` runs the five methods of `KeyBenchmark` and takes
 about 2 minutes for each example. `KeyBenchmark` first evaluates each variant with `rsh`, so the
@@ -156,7 +163,12 @@ A note maps an example to a string. The prefix sets how `gen.py` uses the cell:
   significant. The same rule applies to one example, with its own r.
 - "Each optimization removed" sorts the optimizations by the mean over all examples. For each
   optimization, it counts the examples with changed C and the examples where the variant failed,
-  and it lists up to three examples with the largest significant slowdowns.
+  and it lists up to three examples with the largest significant slowdowns. The tooltip of the
+  count of failed examples puts the examples in groups by reason.
+- The reason of a variant without a time is the failure of the Maven run, else the field
+  `no_time`. A variant with the same C as another variant has the reason of that variant. If the
+  log has no reason, the benchmark call stopped with an R error: `bench.R` then returns `NA`, and
+  `VariantBenchmark` writes no line.
 - "Key categories removed" has one row per key category, with the optimizations that it removes.
   The category `contextualDispatch` removes no optimization: it limits each function to one
   version besides the baseline. So it overlaps `scalarUnboxing` and `promiseInlining`.

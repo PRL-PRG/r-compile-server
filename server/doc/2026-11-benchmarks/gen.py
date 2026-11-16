@@ -519,6 +519,20 @@ def variants_head(v, tip_commit, what):
     return out + '</p>'
 
 
+def no_time_of(v, b, l):
+    """Why the variant `l` of the example `b` has no time: the field `no_time` of the status file, else that of its duplicate."""
+    nt, same = v['status'].get(b, {}).get('no_time', {}), (v['ent'].get((b, l)) or {}).get('same')
+    if l in nt: return nt[l]
+    return f'the same C as {same}' + (f': {nt[same]}' if same in nt else '') if same else 'an R error in the benchmark call (the log has no message)'
+
+
+def reasons(v, l, bs):
+    """reason -> the examples of `bs` without a time for the variant `l`."""
+    out = {}
+    for b in bs: out.setdefault(no_time_of(v, b, l), []).append(b)
+    return out
+
+
 def opt_html(v, tip_commit):
     if v is None:
         return '<p class="pend">Pending: the run of <code>variants.sh opt</code> at the tip.</p>'
@@ -536,7 +550,7 @@ def opt_html(v, tip_commit):
                       and e['t'] / e['base'] > max(e['rerun'] / e['base'], e['base'] / e['rerun'])), reverse=True)[:3]
         cells = (slow_cell(m, 'all') + ''.join(slow_cell(slow_stats(v, l, xs)) for _, xs in groups)
                  + f'<td>{changed} / {len(es)}</td>'
-                 + f'<td title="{esc(", ".join(failed))}">{len(failed) or ""}</td>'
+                 + f'<td title="{esc(chr(10).join(f"{r}: {", ".join(bs)}" for r, bs in reasons(v, l, failed).items()))}">{len(failed) or ""}</td>'
                  + f'<td class="lg">{", ".join(f"{esc(short(b))} {s:.2f}×" for s, b in top)}</td>')
         rows.append((m['gm'] or 0, f'<tr><th scope="row"><code>{esc(l)}</code></th>{cells}</tr>'))
     rows.sort(key=lambda r: -r[0])
@@ -553,7 +567,7 @@ def opt_html(v, tip_commit):
             + (f'<p>Removed optimizations: <code>BENCHMARK_OPTIMIZATIONS={esc(bopt)}</code>.</p>' if bopt and bopt != '.*' else '')
             + f'<div class="caption"><p>One row per removed optimization, sorted by the mean over all examples. {SLOW_CAPTION} '
             '<i>C changed</i> counts the examples whose generated C differs from the C with all optimizations. '
-            '<i>No time</i> counts the examples where the variant failed (hover for the names). '
+            '<i>No time</i> counts the examples where the variant failed (hover for the reasons and the names). '
             '<i>Largest slowdowns</i> lists up to three examples with a significant slowdown.</p></div>'
             f'<div class="tw" tabindex="0"><table class="bt vt"><thead><tr>{head}</tr></thead><tbody>{"".join(r for _, r in rows)}</tbody>{foot}</table></div>')
 
@@ -592,7 +606,7 @@ def key_html(v, tip_commit):
     def why(b, l):
         s = v['status'].get(b, {})
         meth = 'benchmark' + l[0].upper() + l[1:]
-        return next((f'{k}: {m}' for k, m in s.get('failures', {}).items() if meth in k), s.get('reason') or 'no time')
+        return next((f'{k}: {m}' for k, m in s.get('failures', {}).items() if meth in k), s.get('reason') or no_time_of(v, b, l))
     ex = grouped_table('<th class="corner" scope="col">Benchmark</th>' + ''.join(f'<th scope="col">{esc(l)}</th>' for l in labels),
                        [(cat, f'{len(xs)} example{"s" if len(xs) > 1 else ""}', ''.join(slow_cell(slow_stats(v, l, xs)) for l in labels),
                          [(esc(short(b)), b, ''.join(ex_cell(v['ent'].get((b, l)), why(b, l)) for l in labels)) for b in xs])
