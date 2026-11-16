@@ -135,6 +135,8 @@ A note maps an example to a string. The prefix sets how `gen.py` uses the cell:
   bytecode time divided by that time as a percent.
 - The speedup of an optimization is the time in the previous state divided by the time in its
   state. The report shows its geometric mean, minimum, and maximum. A value within ±12 % is noise.
+  Two measurements of one state agreed within 2 % on the geometric mean, but 14 to 27 % of their
+  cells differed by more than 12 %. Thus use the geometric mean, not one cell, as evidence.
 - The row of a category shows, for each state, the geometric mean of the percents of its examples
   with a valid time in that state, and their count. Its tint shows the geometric mean of the
   speedups of its examples with a valid time in that state and in the previous state.

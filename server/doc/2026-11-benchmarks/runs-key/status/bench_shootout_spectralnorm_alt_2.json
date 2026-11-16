@@ -1,0 +1,13 @@
+{
+ "example": "bench_shootout_spectralnorm_alt_2",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 116,
+ "load_start": 2.94,
+ "load_end": 5.85,
+ "csv_files": 5,
+ "optimizations": "$^",
+ "failures": {}
+}

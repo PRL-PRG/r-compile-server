@@ -1,0 +1,13 @@
+{
+ "example": "bench_ati_att3_2",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 66,
+ "load_start": 4.91,
+ "load_end": 5.02,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {}
+}

@@ -1,0 +1,13 @@
+{
+ "example": "bench_mathkernel_mmm_t3",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 92,
+ "load_start": 1.57,
+ "load_end": 1.35,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {}
+}

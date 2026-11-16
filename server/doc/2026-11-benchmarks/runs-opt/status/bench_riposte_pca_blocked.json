@@ -1,0 +1,13 @@
+{
+ "example": "bench_riposte_pca_blocked",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 157,
+ "load_start": 1.27,
+ "load_end": 1.09,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {}
+}

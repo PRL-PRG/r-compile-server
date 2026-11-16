@@ -1,0 +1,13 @@
+{
+ "example": "bench_shootout_nbody_naive",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 326,
+ "load_start": 1.28,
+ "load_end": 1.22,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {}
+}

@@ -1,0 +1,8 @@
+"","removed","loc","loc.diff","time","slowdown","pct.none","pct.bc.opt","same.as"
+"1","<none>",505,0,0.02006,1,100,83.6,NA
+"2","copyElision",504,-1,0.01975,0.984,98.4,82.3,NA
+"3","<none> (rerun)",505,0,0.01969,0.981,98.1,82,NA
+"4","ast",NA,NA,0.04013,2,200,167.2,NA
+"5","bc.default",NA,NA,0.0255,1.271,127.1,106.3,NA
+"6","bc.opt",NA,NA,0.024,1.196,119.6,100,NA
+"7","fir2c.default",505,0,0.02,0.997,99.7,83.3,NA

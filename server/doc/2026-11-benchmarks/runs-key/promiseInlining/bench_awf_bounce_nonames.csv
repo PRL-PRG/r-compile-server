@@ -1,0 +1,8 @@
+"","removed","loc","loc.diff","time","slowdown","pct.none","pct.bc.opt","same.as"
+"1","<none>",555,0,0.001172,1,100,62,NA
+"2","promiseInlining",555,0,0.001172,1,100,62,"<none>"
+"3","<none> (rerun)",555,0,0.001191,1.017,101.7,63,NA
+"4","ast",NA,NA,0.001945,1.66,166,102.9,NA
+"5","bc.default",NA,NA,0.001953,1.667,166.7,103.3,NA
+"6","bc.opt",NA,NA,0.001891,1.613,161.3,100,NA
+"7","fir2c.default",555,0,0.00118,1.007,100.7,62.4,NA
