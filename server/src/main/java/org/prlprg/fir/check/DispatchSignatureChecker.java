@@ -1,5 +1,6 @@
 package org.prlprg.fir.check;
 
+import java.util.stream.Stream;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -7,14 +8,15 @@ import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Repr;
+import org.prlprg.fir.ir.type.Signature;
 
-/// Checks that every dispatch call's signature returns SEXP.
+/// Checks that every dispatch call's signature takes and returns SEXPs.
 ///
-/// This is necessary because dispatch calls can only be compiled to C when the return type is SEXP.
-public class DispatchReturnTypeChecker extends Checker {
+/// This is necessary because the C dispatch function of a function takes and returns SEXPs.
+public class DispatchSignatureChecker extends Checker {
   @Override
   public String name() {
-    return "dispatchReturn";
+    return "dispatchSignature";
   }
 
   @Override
@@ -40,14 +42,19 @@ public class DispatchReturnTypeChecker extends Checker {
     if (!(call.callee() instanceof StaticFnCallee callee)) {
       return;
     }
-    if (callee.isDispatch() && callee.signature().returnType().kind().repr() != Repr.SEXP) {
+    if (callee.isDispatch() && !isSexpSignature(callee.signature())) {
       report(
           cursor.bb(),
           cursor.instructionIndex(),
-          "Dispatch call must have a signature that returns SEXP, but got: "
-              + callee.signature().returnType()
+          "Dispatch call must have a signature that takes and returns SEXPs, but got: "
+              + callee.signature()
               + "\nIn: "
               + statement);
     }
+  }
+
+  public static boolean isSexpSignature(Signature signature) {
+    return Stream.concat(signature.parameterTypes().stream(), Stream.of(signature.returnType()))
+        .allMatch(type -> type.kind().repr() == Repr.SEXP);
   }
 }

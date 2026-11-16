@@ -342,4 +342,29 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
 
     assertFalse(run(module), "optimization should report no change for non-v1 return");
   }
+
+  @Test
+  void dispatchCall_v1Param_notUnboxed() {
+    // A dispatch call passes its arguments as SEXPs, so its parameters stay boxed.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (x:v1(I)) --> V { ... }
+              (x:v1(I)) --> V {
+                r: V = f%< v1(I) --> V >(x);
+                return r;
+              }
+            }
+
+            fun f(a) {
+              (a:v1(I)) --> V {
+                return a;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(module), "optimization should report no change; got:\n" + Printer.toString(module));
+  }
 }

@@ -139,7 +139,7 @@ public class Unbox extends AbstractionOptimization {
 
     // Generate a "specialization finder" that represents all possible signatures with
     // unboxings, and the specializations necessary to get those signatures
-    var specializationFinder = new SpecializationFinder(callee.signature());
+    var specializationFinder = new SpecializationFinder(callee.signature(), callee.isDispatch());
 
     // Abort if we can't specialize further
     var bestSpecialization = specializationFinder.bestSpecialization();
@@ -182,14 +182,18 @@ public class Unbox extends AbstractionOptimization {
     private final Signature original;
     private final ImmutableBoolArray unboxableParameters;
     private final boolean unboxableReturn;
+    private final boolean isDispatch;
 
-    SpecializationFinder(Signature original) {
+    /// A dispatch call passes every argument as a `SEXP`, so it only gets a specialization that
+    /// unboxes the return, which makes it a static call.
+    SpecializationFinder(Signature original, boolean isDispatch) {
       this.original = original;
+      unboxableReturn = canUnbox(original.returnType());
       unboxableParameters =
           original.parameterTypes().stream()
-              .map(Unbox::canUnbox)
+              .map(type -> (!isDispatch || unboxableReturn) && canUnbox(type))
               .collect(ImmutableBoolArray.toImmutableBoolArray());
-      unboxableReturn = canUnbox(original.returnType());
+      this.isDispatch = isDispatch;
     }
 
     @Nullable Specialization bestSpecialization() {
@@ -231,6 +235,7 @@ public class Unbox extends AbstractionOptimization {
 
       // Empty specialization = no specialization
       if (!hasParameterUnboxing && !returnUnboxing) return null;
+      if (isDispatch && !returnUnboxing) return null;
 
       return new Specialization(ImmutableBoolArray.copyOf(parameterUnboxings), returnUnboxing);
     }

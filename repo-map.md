@@ -190,7 +190,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `CFGChecker.java` — Checks structural CFG invariants.
 - `CheckException.java` — Error that a checker reports, with the function and position.
 - `Checker.java` — Base class of the checkers; runs all of them.
-- `DispatchReturnTypeChecker.java` — Checks that every dispatch call's signature returns SEXP.
+- `DispatchSignatureChecker.java` — Checks that every dispatch call's signature takes and returns SEXPs.
 - `EnvironmentChecker.java` — Checks environment invariants (mkenv and popenv).
 - `ProvenanceChecker.java` — Checks flow-sensitive provenance (ownership) invariants.
 - `StrictnessChecker.java` — Checks that strict parameters are forced on all paths.

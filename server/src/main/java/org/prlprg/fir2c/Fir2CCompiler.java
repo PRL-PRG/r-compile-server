@@ -17,6 +17,7 @@ import org.prlprg.bc2fir.FunctionBcOrigin;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.analyze.cfg.Liveness;
 import org.prlprg.fir.analyze.type.InferEffects;
+import org.prlprg.fir.check.DispatchSignatureChecker;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -2351,9 +2352,9 @@ public final class Fir2CCompiler {
                         "Builtin dispatch calls can only be compiled if the signature is compatible with the baseline (so we can, and do, call the GNU-R builtin): "
                             + call);
                   }
-                  if (signature.returnType().kind().repr() != Repr.SEXP) {
+                  if (!DispatchSignatureChecker.isSexpSignature(signature)) {
                     throw new IllegalArgumentException(
-                        "Dispatch calls must always return `SEXP`, because the C definition does.\nEncountered: "
+                        "Dispatch calls must always take and return `SEXP`s, because the C definition does.\nEncountered: "
                             + call);
                   }
 

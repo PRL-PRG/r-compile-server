@@ -76,7 +76,7 @@ public abstract class Checker {
     return List.of(
         new CFGChecker(!exclusionsSet.contains(Exclude.STRICT_CFG)),
         new TypeAndEffectChecker(),
-        new DispatchReturnTypeChecker(),
+        new DispatchSignatureChecker(),
         exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new ProvenanceChecker(),
         exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new StrictnessChecker(),
         new EnvironmentChecker());

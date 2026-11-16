@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.check.DispatchSignatureChecker;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -168,9 +169,14 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                               .allMatch(b -> b);
                     });
 
-    // ...if so (`!isBestAtRuntime`), dispatch. An intrinsic has no dispatch (fir2c rejects it).
+    // ...if so (`!isBestAtRuntime`), dispatch. An intrinsic has no dispatch, and a dispatch takes
+    // only SEXPs (fir2c rejects both).
     return new StaticFnCallee(
-        calleeFun, !isBestAtRuntime && calleeFun.owner() != INTRINSICS, newBestSignature);
+        calleeFun,
+        !isBestAtRuntime
+            && calleeFun.owner() != INTRINSICS
+            && DispatchSignatureChecker.isSexpSignature(newBestSignature),
+        newBestSignature);
   }
 
   /// `argumentTypes` with the index widened, if `version` is a typed subscript version that the
