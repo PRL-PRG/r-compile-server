@@ -54,7 +54,7 @@ FILTER='$^'
 run_limited "$BUILD_LIMIT" "$OUT/build.log" mvn_w test-compile || { echo "build failed (see $OUT/build.log)" >&2; exit 1; }
 if [ "$MODE" = opt ]; then
   install_probe "$RLIB" || exit 1
-elif [ "$(cat "$RLIB/commit" 2>/dev/null)" != "$full" ]; then
+elif [ "$(cat "$RLIB/commit" 2>/dev/null)" != "$full" ] || [ -n "$(find "$W/client/rsh/src" -newer "$RLIB/rsh/libs/rsh.so" 2>&1 | head -1)" ]; then   # `make -C proto` writes sources again
   rm -rf "$RLIB"; mkdir -p "$RLIB"
   env -u R_HOME R_LIBS="$RLIB" make -C "$W/client/rsh" install R_HOME="$W/R" >"$OUT/rsh-install.log" 2>&1
   grep -q '\* DONE (rsh)' "$OUT/rsh-install.log" || { echo "the install of rsh failed (see $OUT/rsh-install.log)" >&2; exit 1; }
