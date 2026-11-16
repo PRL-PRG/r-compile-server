@@ -17,6 +17,7 @@ def no_time(log):
             res.setdefault(m['n'], 'nothing to benchmark (no compiled module)')
             continue
         r = re.sub(r'^[\w.$]+(?:Exception|Error): ', '', m['r']).removesuffix(' Output:').removesuffix('.')
+        r = re.sub(r'^.*The benchmark call failed: ', 'the benchmark call failed: ', r)   # after R's warnings
         # The first line of the R output, before the next reason or the table.
         for o in out[i + 1:i + 6]:
             if LINE.match(o) or re.match(r'\s+removed\s', o): break

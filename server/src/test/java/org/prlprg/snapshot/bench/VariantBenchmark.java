@@ -245,7 +245,10 @@ final class VariantBenchmark {
                       + "  path = '%s'\n".formatted(modulePath.toAbsolutePath())
                       + ")\n");
 
-      if (rawOutput.first() instanceof RealSXP time && time.isScalar()) {
+      // A benchmark call that fails gives `NA`, and R prints why.
+      if (rawOutput.first() instanceof RealSXP time
+          && time.isScalar()
+          && !Double.isNaN(time.get(0))) {
         return time.get(0);
       }
 
@@ -253,6 +256,8 @@ final class VariantBenchmark {
           .append(variant.label())
           .append(": ")
           .append(rawOutput.first())
+          .append(' ')
+          .append(rawOutput.second().strip().replace('\n', ' '))
           .append('\n');
       return Double.NaN;
     } catch (RuntimeException | Error e) {

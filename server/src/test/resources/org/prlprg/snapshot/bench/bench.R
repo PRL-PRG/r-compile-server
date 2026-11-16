@@ -3,7 +3,10 @@ options(warn=1)
 call <- quote(stop("unset"))
 
 time <- function(expr) {
-  tryCatch(system.time(expr)[1], error = function(e) { warning(e); NA })
+  tryCatch(system.time(expr)[1], error = function(e) {
+    cat("The benchmark call failed:", conditionMessage(e), "\n")
+    NA
+  })
 }
 
 # Time the benchmark call, once the example's code has been loaded into `env`.
