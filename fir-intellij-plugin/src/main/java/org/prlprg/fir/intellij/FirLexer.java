@@ -43,7 +43,12 @@ public final class FirLexer extends LexerBase {
           "force",
           "dup",
           "as",
-          "consume");
+          "consume",
+          "in");
+
+  /** Keywords without an operand. Any other keyword before `;`, `,`, `)` or `]` is a register. */
+  private static final Set<String> NULLARY_KEYWORDS =
+      Set.of("noop", "mkenv", "popenv", "unreachable");
 
   /**
    * Keywords that contain non-identifier characters, so they must be matched before identifiers
@@ -51,8 +56,6 @@ public final class FirLexer extends LexerBase {
    */
   private static final List<String> COMPOUND_KEYWORDS =
       List.of(
-          "@liteSpecial",
-          "@strict",
           "clos-static",
           "ldf-glob",
           "ldf-base",
@@ -63,18 +66,42 @@ public final class FirLexer extends LexerBase {
           "force?",
           "prom-");
 
+  /** Function and version properties. Only whitespace precedes them on their line. */
+  private static final List<String> PROPERTIES =
+      List.of(
+          "@strict",
+          "@liteSpecial",
+          "@readsContext",
+          "@needsContext",
+          "@readsPromise",
+          "@needsPromises",
+          "@signals");
+
+  /**
+   * The keywords and operators that a name follows (an R variable or function name). The printer
+   * doesn't backquote such a name when it's spelled like a keyword or type (`ld check`).
+   */
+  static final Set<String> NAME_PREFIXES =
+      Set.of(
+          "fun", "ld", "ld-super", "ldf", "ldf-glob", "ldf-base", "st", "st-super", "clos",
+          "clos-static", "?-", "$");
+
   /** Constant literals that are identifiers. */
   private static final Set<String> CONSTANTS =
       Set.of("TRUE", "FALSE", "TRUE_LGL", "FALSE_LGL", "NA_LGL", "NA_INT", "NA_REAL", "NA_STR");
 
   /** Type kinds that are always types. */
-  private static final Set<String> TYPE_NAMES = Set.of("I", "L", "R", "S", "V", "B", "cls", "miss");
+  private static final Set<String> TYPE_NAMES =
+      Set.of("I", "L", "R", "S", "V", "B", "cls", "miss", "dots");
 
   /**
    * Names that are types (or vector constructors) only when applied: {@code v(I)}, {@code v1(I)},
-   * {@code p(V +)}, {@code p?(V +)}, {@code dots[...]}. Otherwise they're ordinary register names.
+   * {@code p(V +)}, {@code p?(V +)}. Otherwise they're ordinary register names.
    */
-  private static final Set<String> APPLIED_TYPE_NAMES = Set.of("v", "v1", "p", "dots");
+  private static final Set<String> APPLIED_TYPE_NAMES = Set.of("v", "v1", "p");
+
+  /** The ownerships of a vector type, directly after its `)`: {@code v(I)o}. */
+  private static final Set<String> OWNERSHIPS = Set.of("s", "o", "b", "f");
 
   private @NotNull CharSequence buffer = "";
   private int endOffset;
@@ -160,6 +187,19 @@ public final class FirLexer extends LexerBase {
       tokenEnd = position;
       tokenType = FirTokenTypes.COMMENT;
       return;
+    }
+
+    if (startsWith("@!")) {
+      tokenEnd = position + 2;
+      tokenType = FirTokenTypes.PROPERTY;
+      return;
+    }
+    for (var property : PROPERTIES) {
+      if (startsWith(property) && isBoundaryAfter(property) && isFirstOnLine(buffer, position)) {
+        tokenEnd = position + property.length();
+        tokenType = FirTokenTypes.PROPERTY;
+        return;
+      }
     }
 
     for (var keyword : COMPOUND_KEYWORDS) {
@@ -314,13 +354,16 @@ public final class FirLexer extends LexerBase {
   /**
    * Reads a `<...>` SEXP literal as one token. The contents are R-ish syntax, so nested `<...>`,
    * quoted strings, and backtick names (which may be `>` themselves) are skipped over rather than
-   * interpreted; the token ends at the matching `>` or the end of the line.
+   * interpreted. The token ends at the matching `>`. So that an unclosed literal doesn't swallow
+   * the rest of the file, it also ends at a newline outside R brackets, unless an attribute line
+   * (`| names=...` or `, dim=...`) follows the newline.
    */
   private void readSexpLiteral() {
-    var depth = 0;
+    var angles = 0;
+    var brackets = 0;
     while (position < endOffset) {
       var c = buffer.charAt(position);
-      if (c == '\n') {
+      if (c == '\n' && brackets <= 0 && !sexpContinuesAt(position)) {
         break;
       }
       if (c == '"' || c == '`') {
@@ -328,16 +371,26 @@ public final class FirLexer extends LexerBase {
         continue;
       }
       position++;
-      if (c == '<') {
-        depth++;
-      } else if (c == '>') {
-        depth--;
-        if (depth == 0) {
-          break;
+      switch (c) {
+        case '<' -> angles++;
+        case '>' -> {
+          if (--angles == 0) {
+            tokenEnd = position;
+            return;
+          }
         }
+        case '(', '[', '{' -> brackets++;
+        case ')', ']', '}' -> brackets--;
+        default -> {}
       }
     }
     tokenEnd = position;
+  }
+
+  private boolean sexpContinuesAt(int newline) {
+    var next = newline;
+    while (next < endOffset && Character.isWhitespace(buffer.charAt(next))) next++;
+    return next < endOffset && (buffer.charAt(next) == '|' || buffer.charAt(next) == ',');
   }
 
   private boolean isNumberStart(char c) {
@@ -386,7 +439,7 @@ public final class FirLexer extends LexerBase {
     return Character.isLetter(c) || c == '_';
   }
 
-  private static boolean isIdentifierPart(char c) {
+  static boolean isIdentifierPart(char c) {
     return Character.isLetterOrDigit(c) || c == '_';
   }
 
@@ -398,16 +451,77 @@ public final class FirLexer extends LexerBase {
     tokenEnd = position;
 
     var text = buffer.subSequence(tokenStart, tokenEnd).toString();
-    if (KEYWORDS.contains(text)) {
+    var before = wordBefore(buffer, tokenStart);
+    if (NAME_PREFIXES.contains(before)
+        || before.equals("dyn")
+        || isDefinedAt(tokenEnd)
+        || (KEYWORDS.contains(text) && !NULLARY_KEYWORDS.contains(text) && isOperandAt(tokenEnd))) {
+      tokenType = FirTokenTypes.IDENTIFIER;
+    } else if (KEYWORDS.contains(text)) {
       tokenType = FirTokenTypes.KEYWORD;
     } else if (CONSTANTS.contains(text)) {
       tokenType = FirTokenTypes.CONSTANT;
     } else if (TYPE_NAMES.contains(text)
-        || (APPLIED_TYPE_NAMES.contains(text) && isApplied(tokenEnd))) {
+        || (APPLIED_TYPE_NAMES.contains(text) && isApplied(tokenEnd))
+        || (OWNERSHIPS.contains(text) && tokenStart > 0 && buffer.charAt(tokenStart - 1) == ')')) {
       tokenType = FirTokenTypes.TYPE;
     } else {
       tokenType = FirTokenTypes.IDENTIFIER;
     }
+  }
+
+  /** Whether a word that ends at {@code index} is defined there (a `:` follows: `dots: dots`). */
+  private boolean isDefinedAt(int index) {
+    return index < endOffset && buffer.charAt(index) == ':';
+  }
+
+  /** Whether a word that ends at {@code index} is an operand (`;`, `,`, `)` or `]` follows). */
+  private boolean isOperandAt(int index) {
+    while (index < endOffset && (buffer.charAt(index) == ' ' || buffer.charAt(index) == '\t')) {
+      index++;
+    }
+    return index < endOffset && ";,)]".indexOf(buffer.charAt(index)) >= 0;
+  }
+
+  /**
+   * The word or operator before {@code offset}, skipping spaces and tabs: a word with at most one
+   * `-` (`ld`, `ld-super`), `?-`, `$`, or "". Scans the buffer, so it works from any restart.
+   */
+  static String wordBefore(CharSequence buffer, int offset) {
+    var end = offset;
+    while (end > 0 && (buffer.charAt(end - 1) == ' ' || buffer.charAt(end - 1) == '\t')) {
+      end--;
+    }
+    if (end > 0 && buffer.charAt(end - 1) == '$') {
+      return "$";
+    }
+    if (end > 1 && buffer.charAt(end - 1) == '-' && buffer.charAt(end - 2) == '?') {
+      return "?-";
+    }
+    var start = wordStart(buffer, end);
+    if (start > 1
+        && buffer.charAt(start - 1) == '-'
+        && isIdentifierPart(buffer.charAt(start - 2))) {
+      start = wordStart(buffer, start - 1);
+    }
+    return buffer.subSequence(start, end).toString();
+  }
+
+  static int wordStart(CharSequence buffer, int end) {
+    while (end > 0 && isIdentifierPart(buffer.charAt(end - 1))) {
+      end--;
+    }
+    return end;
+  }
+
+  /** Whether only whitespace precedes {@code offset} on its line. */
+  static boolean isFirstOnLine(CharSequence buffer, int offset) {
+    for (var i = offset - 1; i >= 0 && buffer.charAt(i) != '\n'; i--) {
+      if (!Character.isWhitespace(buffer.charAt(i))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /** Whether the text at {@code index} is `(`, `?(`, or `[` (ignoring nothing: no spaces). */

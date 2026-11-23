@@ -8,6 +8,9 @@
   </description>
 
   <depends>com.intellij.modules.lang</depends>
+  <dependencies>
+    <module name="intellij.platform.structureView"/>
+  </dependencies>
 
   <extensions defaultExtensionNs="com.intellij">
     <fileType
@@ -24,6 +27,8 @@
     <lang.syntaxHighlighterFactory
         language="FIR"
         implementationClass="org.prlprg.fir.intellij.FirSyntaxHighlighterFactory"/>
+
+    <colorSettingsPage implementation="org.prlprg.fir.intellij.FirColorSettingsPage"/>
 
     <annotator
         language="FIR"
