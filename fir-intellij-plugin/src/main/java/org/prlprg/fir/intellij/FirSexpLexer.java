@@ -98,11 +98,14 @@ final class FirSexpLexer extends LexerBase {
     return Character.isLetterOrDigit(c) || c == '.' || c == '_';
   }
 
+  /** Reads a string or backtick name, which ends before a raw newline as in {@link FirLexer}. */
   private void readQuoted(char quote) {
-    while (tokenEnd < endOffset && buffer.charAt(tokenEnd) != quote) {
-      tokenEnd += buffer.charAt(tokenEnd) == '\\' ? 2 : 1;
+    while (tokenEnd < endOffset && buffer.charAt(tokenEnd) != '\n') {
+      var c = buffer.charAt(tokenEnd);
+      tokenEnd += c == '\\' && charAt(tokenEnd + 1) != '\n' ? 2 : 1;
+      if (c == quote) break;
     }
-    tokenEnd = Math.min(tokenEnd + 1, endOffset);
+    tokenEnd = Math.min(tokenEnd, endOffset);
   }
 
   /** Reads a number with its suffix (`1.5`, `-4`, `1e-5`, `1.0i`, `2L`). */

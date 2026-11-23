@@ -7,7 +7,7 @@ Simple IntelliJ plugin for IntelliJ IDEA 2026.3 and later (build 263+) that prov
   - Properties (`@strict`, `@!`) have the metadata color
   - S-expression literals (`<int 42>`, `<lang f(x)>`) have a background, and their R code is highlighted inside it
 - Basic linting annotations:
-  - Unbalanced delimiters
+  - Unbalanced delimiters, and unclosed S-expression literals
   - Likely missing semicolons on instruction lines
   - Invalid register names where registers are defined: version parameters (`name:type`), block parameters (`L(name: type):`), and statement assignees (`name: type = ...`)
   - Syntax from older versions of FIŘ: a `reg` prefix on parameters, or a `{ reg r:t, var x:t | ... }` declaration list
@@ -17,7 +17,6 @@ Simple IntelliJ plugin for IntelliJ IDEA 2026.3 and later (build 263+) that prov
 
 ## Known limits
 
-- The color of an identifier can depend on a keyword before it (`ld x`, `fun f`, the formals of `fun`). It doesn't change when you edit only that keyword, because the editor relexes only up to the first unchanged token. Edit the identifier, or reopen the file, to refresh it.
 - A register that has the spelling of a type (`st dots = dots;`) has the type color where it's used.
 - S-expression folds are collapsed by default only in a file whose fold state the IDE hasn't saved yet.
 

@@ -58,8 +58,9 @@ public final class FirColorSettingsPage implements ColorSettingsPage {
             v: V = ld x;
             p: cls = ldf print;
             d: dots = dots[v, <str "a">, 1.5];
-            r: V = `+`%< dots --> V >(d) in <lang `+`(x,
-                n)>;
+            r: V = `+`%< dots --> V >(d) in <lang local({
+                `+`(x, n)
+              })>;
             if TRUE then L1(r) else L2();
           L1(y: V):
             return y;

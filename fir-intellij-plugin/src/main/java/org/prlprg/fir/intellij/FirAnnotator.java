@@ -8,6 +8,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.regex.Pattern;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -18,15 +19,15 @@ import org.jetbrains.annotations.Nullable;
  * names, and syntax left over from older versions of the textual form).
  */
 public final class FirAnnotator implements Annotator {
-  private static final Pattern FUN_DECLARATION = Pattern.compile("(?m)^\\s*fun\\b");
+  private static final Pattern FUN_DECLARATION = Pattern.compile("(?m)^[ \\t]*fun\\b");
 
   /** A register definition at the start of a statement: {@code name: type = ...}. */
   private static final Pattern ASSIGNEE =
-      Pattern.compile("(?m)^\\s*(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:[^=;\\n]*=");
+      Pattern.compile("(?m)^[ \\t]*(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:[^=;\\n]*=");
 
   /** A block header: {@code Label(params):} at the start of a line. */
   private static final Pattern BLOCK_HEADER =
-      Pattern.compile("(?m)^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(([^)\\n]*)\\)\\s*:\\s*(?:#.*)?$");
+      Pattern.compile("(?m)^[ \\t]*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(([^)\\n]*)\\)\\s*:\\s*(?:#.*)?$");
 
   /** A typed name in a parameter list: {@code name: type} (the type is not validated). */
   private static final Pattern TYPED_NAME =
@@ -60,6 +61,7 @@ public final class FirAnnotator implements Annotator {
     }
 
     var stripped = mask(text);
+    lintSexps(text, issues);
     lintFunctionDeclarations(stripped, issues);
     lintDelimiters(stripped, issues);
     lintSemicolons(stripped, issues);
@@ -102,6 +104,21 @@ public final class FirAnnotator implements Annotator {
   }
 
   // region Lint checks
+
+  private static void lintSexps(String text, ArrayList<Issue> issues) {
+    var lexer = new FirLexer();
+    for (lexer.start(text); lexer.getTokenType() != null; lexer.advance()) {
+      var start = lexer.getTokenStart();
+      if (lexer.getTokenType() == FirTokenTypes.SEXP
+          && text.charAt(lexer.getTokenEnd() - 1) != '>') {
+        issues.add(
+            new Issue(
+                new TextRange(start, start + 1),
+                HighlightSeverity.ERROR,
+                "Unclosed S-expression literal"));
+      }
+    }
+  }
 
   private static void lintFunctionDeclarations(String stripped, ArrayList<Issue> issues) {
     if (FUN_DECLARATION.matcher(stripped).find()) {
@@ -192,10 +209,11 @@ public final class FirAnnotator implements Annotator {
    * a valid register name, and flag the legacy {@code reg} prefix.
    */
   private static void lintParameters(String text, String stripped, ArrayList<Issue> issues) {
+    var match = matchingParens(stripped);
     for (var i = 0; i < stripped.length(); i++) {
-      if (stripped.charAt(i) != '(' || !FirLexer.isFirstOnLine(stripped, i)) continue;
+      if (stripped.charAt(i) != '(' || !isFirstOnLine(stripped, i)) continue;
 
-      var close = findMatchingParenDelimiter(stripped, i);
+      var close = match[i];
       if (close < 0 || !isVersionArrowAfterParen(stripped, close + 1)) continue;
 
       for (var segment : splitTopLevelCommaSegments(stripped, i + 1, close)) {
@@ -313,18 +331,39 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  private static int findMatchingParenDelimiter(String stripped, int openOffset) {
-    var depth = 1;
-    for (var i = openOffset + 1; i < stripped.length(); i++) {
-      var c = stripped.charAt(i);
-      if (c == '(') depth++;
-      else if (c == ')') {
-        depth--;
-        if (depth == 0) return i;
+  /** Whether only whitespace precedes {@code offset} on its line. */
+  private static boolean isFirstOnLine(CharSequence buffer, int offset) {
+    for (var i = offset - 1; i >= 0 && buffer.charAt(i) != '\n'; i--) {
+      if (!Character.isWhitespace(buffer.charAt(i))) {
+        return false;
       }
     }
-    return -1;
+    return true;
   }
+
+  /** The `)` that closes the `(` at {@code openOffset} on its line (a parameter list), or -1. */
+  /**
+   * The offset of the `)` that closes each `(`, indexed by the `(` offset, or -1 if none. One pass,
+   * so a file of unclosed `(` stays linear. A parameter list has no `{` or `;`, so these end every
+   * open `(`.
+   */
+  private static int[] matchingParens(String stripped) {
+    var match = new int[stripped.length()];
+    Arrays.fill(match, -1);
+    var open = new ArrayDeque<Integer>();
+    for (var i = 0; i < stripped.length(); i++) {
+      switch (stripped.charAt(i)) {
+        case '(' -> open.push(i);
+        case ')' -> {
+          if (!open.isEmpty()) match[open.pop()] = i;
+        }
+        case '{', ';' -> open.clear();
+        default -> {}
+      }
+    }
+    return match;
+  }
+
 
   private static boolean isVersionArrowAfterParen(String stripped, int offset) {
     var i = offset;
