@@ -203,7 +203,11 @@ public final class InternalInterpreter implements Interpreter {
     globalEnv = new GlobalEnvSXP(baseEnv);
     // Add module functions, including those in parents to the environment.
     addModuleToEnv(module, globalEnv);
-    addModuleToEnv(GlobalModules.BASE, baseEnv);
+    // Not the `.Internal`s that `builtins.fir` declares (`bitwiseXor`): GNU-R's base doesn't bind
+    // them, so only a static call reaches them.
+    GlobalModules.BASE.localFunctions().stream()
+        .filter(f -> BASE_ENV.getLocal(f.name().name()).isPresent())
+        .forEach(f -> addFunctionToEnv(f, baseEnv));
     // `GlobalModules.INTRINSICS` are only directly called, so we don't add them
     // because environments only store stub SEXPs that may be looked up by dynamic calls.
 

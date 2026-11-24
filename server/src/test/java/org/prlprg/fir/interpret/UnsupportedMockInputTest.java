@@ -36,7 +36,9 @@ class UnsupportedMockInputTest {
         r: V = c%< dots --> V >(vargs);
         """,
         // A real outside the integers: `NA` with a warning.
-        "b: cls = ldf bitwAnd; r: V = dyn b(<real 2147483648.0>, <real 1.0>);"
+        "b: cls = ldf bitwAnd; r: V = dyn b(<real 2147483648.0>, <real 1.0>);",
+        // A `.Internal` that GNU-R's base doesn't bind: "could not find function".
+        "b: cls = ldf bitwiseXor; r: V = dyn b(<int 1>, <int 2>);"
       })
   void isUnsupported(String body) {
     assertThrows(InternalInterpretUnsupportedException.class, () -> run(body));
