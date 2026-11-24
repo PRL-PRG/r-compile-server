@@ -1598,6 +1598,34 @@ static SEXP Fir_promise_source_expr(SEXP promise) {
   return R_PromiseExpr(promise);
 }
 
+// Raises an error if `callee` is a primitive that reads the closure context of `env` (the
+// `@readsContext` primitives), and `env` is a live frame that compiled code pushed without one
+// (`Rsh_Frames`). There, `on.exit` would drop the handler and `nargs` return NA. bc2fir gives a
+// context to a function that may make such a call (`@needsContext`), except for a call it can't
+// see, like a global alias of the reader.
+static void Fir_check_context_reader(SEXP callee, SEXP env) {
+  static const char *const readers[] = {"on.exit", "nargs", "UseMethod", "standardGeneric",
+                                        "Exec", "Tailcall"};
+  const char *name = R_FunTab[PRIMOFFSET(callee)].name;
+  bool reader = false;
+  for (size_t i = 0; i < sizeof(readers) / sizeof(*readers); i++) {
+    reader = reader || strcmp(name, readers[i]) == 0;
+  }
+  if (!reader) {
+    return;
+  }
+  bool pushed = false;
+  for (int i = 0; i < Rsh_FrameCount; i++) {
+    pushed = pushed || Rsh_Frames[i] == env;
+  }
+  for (RCNTXT *c = R_GlobalContext; pushed && c != NULL; c = c->nextcontext) {
+    pushed = !((c->callflag & CTXT_FUNCTION) && c->cloenv == env);
+  }
+  if (pushed) {
+    Rf_error("'%s' called from compiled code that has no context", name);
+  }
+}
+
 SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
                              uint64_t values) {
   switch (TYPEOF(callee)) {
@@ -1617,6 +1645,7 @@ SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *a
       }
       // fallthrough
     case BUILTINSXP:
+      Fir_check_context_reader(callee, env);
       return Fir_call_primitive_values(PRIMOFFSET(callee), call, env, argc, args, names, values,
                                        false);
     case CLOSXP: {
