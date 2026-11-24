@@ -203,7 +203,7 @@ When a builtin forces a promise argument (a dynamic call of a builtin), the runt
 - a function load (`ldf`) that forces a promise;
 - a warning's calling handler, below an intrinsic or an operator on plain data;
 - an active binding, and a finalizer;
-- a subscript that dispatches to an R method, from a version in the builtins module;
+- a call of a version in the builtins or intrinsics module that calls an R method (`length` of an S4 object, a subscript);
 - the forcing of a `...` element that a builtin's argument list builds (`Fir_build_arglist`);
 - a setter call, when GNU-R's assignment protocol is inactive.
 
