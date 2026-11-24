@@ -28,6 +28,7 @@ import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
 import org.prlprg.fir.opt.specialize.ImproveSignatures;
+import org.prlprg.fir.opt.specialize.InlineInternalWrapper;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
@@ -277,6 +278,7 @@ public class Optimizations {
                                             new SpecializeSubscript(),
                                             new SpecializeRealIndex(),
                                             new SpecializeLiteSpecial(),
+                                            new InlineInternalWrapper(),
                                             new ImproveSignatures())),
                                     new Specialize(
                                         "specializeEnv",

@@ -421,6 +421,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `ElideTrivialCast.java` — Optimization that removes Casts that statically succeed.
 - `ElideUseSubscriptWrite.java` — Removes subscript writes on values that are consumed.
 - `ImproveSignatures.java` — Narrows the return types, effects, and strictness of promises and versions.
+- `InlineInternalWrapper.java` — Replaces a static call of a `bitw*` base closure with forces of its promise arguments and a call of its `.Internal`.
 - `OptimizeCallee.java` — Optimization pass that replaces every dispatch and static callee with a better one.
 - `ResolveDynamicCallee.java` — Replaces DynamicCallees that statically resolve to Closures and global-/base-function Loads.
 - `ResolveLoad.java` — Replaces Loads that statically resolve (via OriginAnalysis) to registers or constants.
@@ -672,6 +673,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/dots_{order,reuse,promise,env}.R` — Regressions for `...` in the fir2c runtime: element order, reuse after a closure call, forced elements for a builtin, and the `DOTSXP` binding.
 - `.../examples/R/for_colon_ranges.R` — `for` loops over `a:b` that count up, down, once, or from a real bound, and nested ranges (`ElideRangeRead`).
 - `.../examples/R/internal_op_{choose_stopifnot,primval}.R` — Regressions for a direct `.Internal` call in the fir2c runtime: its `op` must be its own entry, since a shared `do_*` selects the operation by `PRIMVAL(op)`.
+- `.../examples/R/bitw_internal_inline.R` — `bitw*` calls that `InlineInternalWrapper` makes `.Internal` calls, warm and cold: conversions, attributes, errors, a warning, argument order, visibility.
 - `.../examples/R/eval_compiled_body_in_live_frame.R` — `eval` of a compiled closure's body in a live frame: its pop must not mark that frame as returned (`FIR_FRAME_RETURNED`).
 - `.../examples/R/closure_called_from_inlined_frame_in_elided_frame.R` — A closure made in a real frame inside an elided frame, called with its own elided frame: no cycle in the parent chain.
 - `.../examples/R/closure_from_frame_nested_in_elided_frame.R` — A closure from a real frame that an elided frame contains: its lookups reach the elided frame's parent, not the elided environment's current parent.
