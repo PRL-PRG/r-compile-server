@@ -587,6 +587,42 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
         "the promise must not read the parameter `board`; got:\n" + printed);
   }
 
+  /// `outliers` of `bench_riposte_cleaning`: `ldf f` forces the promise bound to `f`, so its
+  /// result is the forced closure, not the promise parameter.
+  @Test
+  void loadFunOfPromise_notSubstitutedWithPromise() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun outer(f) {
+              (f:*) -+> V { ... }
+              (f:p(cls -)) -+> cls {
+                mkenv~;
+                st f = f;
+                f1: cls = ldf f;
+                check L0() else D0();
+              L0():
+                f2: cls = f1 ?- g;
+                popenv;
+                return f2;
+              D0():
+                deopt 0 [];
+              }
+            }
+
+            fun g() {
+              () -+> V { ... }
+            }
+            """);
+
+    run(module);
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("f2: cls = f1 ?- g;"),
+        "the assumption must check the loaded closure, not the promise `f`; got:\n" + printed);
+  }
+
   // endregion
 
   // region Remove unused locals

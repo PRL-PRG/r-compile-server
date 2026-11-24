@@ -49,6 +49,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
@@ -444,7 +445,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
               yield null;
             }
           }
-          yield uniqueOrNull(origins);
+          var origin = uniqueOrNull(origins);
+          // A function load forces a promise it finds, so a promise isn't the loaded closure.
+          if (loadType == LoadType.LOCAL_FUN && origin != null) {
+            var originType = inferType.of(origin);
+            if (originType == null || !originType.isSubtypeOf(Type.CLOSURE)) {
+              yield null;
+            }
+          }
+          yield origin;
         }
         case Cast(var type) -> {
           var valueOrigin = resolve(args.getFirst());
