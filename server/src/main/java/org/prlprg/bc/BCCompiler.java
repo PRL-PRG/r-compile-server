@@ -899,7 +899,7 @@ public class BCCompiler {
 
     var ct = constantFold(test).orElse(null);
 
-    if (ct instanceof LglSXP lgl && lgl.isScalar()) {
+    if (ct instanceof LglSXP lgl && lgl.isScalar() && !lgl.hasNaOrNaN()) {
       if (lgl == SEXPs.TRUE) {
         compile(thenBranch);
       } else if (elseBranch.isPresent()) {

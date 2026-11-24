@@ -35,4 +35,18 @@ public class BCCompilerTest {
 
     assertThat(actual.code()).isEqualTo(expected.code());
   }
+
+  /// A constant `NA` condition isn't folded, like GNU-R.
+  @Test
+  public void testIfNa() {
+    var R = GNUR.instance();
+
+    var def = "function() if (NA) 1 else 2";
+    var fun = (CloSXP) R.eval(def);
+    var expected = ((BCodeSXP) ((CloSXP) R.eval("compiler::cmpfun(" + def + ")")).body()).bc();
+
+    var actual = new BCCompiler(fun, R.getSession()).compile().orElseThrow();
+
+    assertThat(actual.code()).isEqualTo(expected.code());
+  }
 }
