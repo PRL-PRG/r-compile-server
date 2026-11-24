@@ -1,6 +1,7 @@
 package org.prlprg.sexp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import net.jqwik.api.Arbitrary;
@@ -118,6 +119,16 @@ public class SEXPParsePrintTest {
   }
 
   @Test
+  public void testBuiltinAndSpecial() {
+    // The parser checks the type against GNU-R's `R_FunTab`, not the index: `|` is index 81 and
+    // `quote` index 29.
+    assertRoundTrip("<builtin `|`>");
+    assertRoundTrip("<special quote>");
+    assertParseFails("<special `|`>");
+    assertParseFails("<builtin quote>");
+  }
+
+  @Test
   public void testSymbol() {
     assertRoundTrip("x");
     assertRoundTrip("if");
@@ -191,6 +202,10 @@ public class SEXPParsePrintTest {
 
   /// Parse the string into an [SEXP], print it, and assert that the original and printed
   /// strings are equal.
+  private void assertParseFails(String input) {
+    assertThrows(ParseException.class, () -> Parser.fromString(input, SEXP.class));
+  }
+
   private void assertRoundTrip(String input) {
     assertRoundTrip(input, false);
   }

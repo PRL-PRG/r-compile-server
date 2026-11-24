@@ -70,9 +70,9 @@ public record BuiltinId(int index) {
     return SEXPs.symbol(name());
   }
 
-  /** Whether the builtin is "special", i.e. evaluates its arguments before calling the C code. */
+  /** Whether the builtin is "special", i.e. gets its arguments unevaluated (a `SPECIALSXP`). */
   public boolean isSpecial() {
-    return index % 10 == 1;
+    return FUNTAB.get(name()).isSpecial();
   }
 
   // region serialization and deserialization
