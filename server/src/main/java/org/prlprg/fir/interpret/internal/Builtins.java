@@ -1148,10 +1148,7 @@ public final class Builtins {
   // region bitwise builtins
 
   private static void registerBitwiseNot(InternalInterpreter interpreter) {
-    // Generic: (*) -+> V
-    interpreter.registerExternal(
-        "bitwNot",
-        SIG_GENERIC_1,
+    var generic =
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1159,7 +1156,12 @@ public final class Builtins {
               }
               var a = bitwiseOperand(sexp, interpreter, "bitwNot");
               return new Value.Sexp(SEXPs.integer(bitwiseNot(a)));
-            }));
+            });
+    // Generic: (*) -+> V
+    interpreter.registerExternal("bitwNot", SIG_GENERIC_1, generic);
+    // The `.Internal`: (V) --> v(I)
+    interpreter.registerExternal(
+        "bitwiseNot", sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.ANY_VALUE_SEXP), generic);
     // (I) --> I
     interpreter.registerExternal(
         "bitwNot",
@@ -1170,10 +1172,7 @@ public final class Builtins {
 
   private static void registerBitwiseBinaryBuiltin(
       InternalInterpreter interpreter, String name, IntBinaryOperator op) {
-    // Generic: (*, *) -+> V
-    interpreter.registerExternal(
-        name,
-        SIG_GENERIC_2,
+    var generic =
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
@@ -1184,7 +1183,11 @@ public final class Builtins {
               var a = bitwiseOperand(s1, interpreter, name);
               var b = bitwiseOperand(s2, interpreter, name);
               return new Value.Sexp(SEXPs.integer(bitwiseBinary(a, b, op)));
-            }));
+            });
+    // Generic: (*, *) -+> V
+    interpreter.registerExternal(name, SIG_GENERIC_2, generic);
+    // The `.Internal` that the closure calls: (V, V) --> v(I)
+    interpreter.registerExternal(bitwiseInternal(name), SIG_BITWISE_INTERNAL_2, generic);
     // (I, I) --> I
     interpreter.registerExternal(
         name,
@@ -1199,10 +1202,7 @@ public final class Builtins {
 
   private static void registerBitwiseShiftBuiltin(
       InternalInterpreter interpreter, String name, IntBinaryOperator op) {
-    // Generic: (*, *) -+> V
-    interpreter.registerExternal(
-        name,
-        SIG_GENERIC_2,
+    var generic =
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
@@ -1213,7 +1213,11 @@ public final class Builtins {
               var a = bitwiseOperand(s1, interpreter, name);
               var n = sexpToInt(s2, interpreter, name);
               return new Value.Sexp(SEXPs.integer(bitwiseShift(a, n, op)));
-            }));
+            });
+    // Generic: (*, *) -+> V
+    interpreter.registerExternal(name, SIG_GENERIC_2, generic);
+    // The `.Internal` that the closure calls: (V, V) --> v(I)
+    interpreter.registerExternal(bitwiseInternal(name), SIG_BITWISE_INTERNAL_2, generic);
     // (I, I) --> I
     interpreter.registerExternal(
         name,
@@ -1224,6 +1228,14 @@ public final class Builtins {
               var n = ((Value.Int) args.get(1)).value();
               return new Value.Int(bitwiseShift(a, n, op));
             }));
+  }
+
+  private static final Signature SIG_BITWISE_INTERNAL_2 =
+      sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.ANY_VALUE_SEXP, Type.ANY_VALUE_SEXP);
+
+  /// The `.Internal` that the base closure `bitwX` calls: `bitwiseX`.
+  private static String bitwiseInternal(String name) {
+    return "bitwise" + name.substring("bitw".length());
   }
 
   /// `~a`, propagating `NA`.

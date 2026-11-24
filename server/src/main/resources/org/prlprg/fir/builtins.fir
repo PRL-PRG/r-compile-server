@@ -273,6 +273,31 @@ fun bitwShiftR(a, n) {
   (a:I, n:I) --> I { ... }
 }
 
+# The `.Internal`s that the `bitw*` closures call.
+fun bitwiseNot(a) {
+  @signals (a:V) --> v(I) { ... }
+}
+
+fun bitwiseAnd(a, b) {
+  @signals (a:V, b:V) --> v(I) { ... }
+}
+
+fun bitwiseOr(a, b) {
+  @signals (a:V, b:V) --> v(I) { ... }
+}
+
+fun bitwiseXor(a, b) {
+  @signals (a:V, b:V) --> v(I) { ... }
+}
+
+fun bitwiseShiftL(a, n) {
+  @signals (a:V, n:V) --> v(I) { ... }
+}
+
+fun bitwiseShiftR(a, n) {
+  @signals (a:V, n:V) --> v(I) { ... }
+}
+
 fun `!`(x) {
   (x:*@!) -+> V { ... }
   (x:v(L)) --> v(L) { ... }
