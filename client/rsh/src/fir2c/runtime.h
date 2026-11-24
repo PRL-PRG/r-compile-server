@@ -568,9 +568,8 @@ void Fir_store_parameter(SEXP symbol, SEXP value, SEXP env, SEXP parameter);
 /// the builtin can run R code (see `Fir_link`). `linked[nprotect..nlinked)` are its other registers
 /// that outlive the call (captures and parameters). A builtin that isn't a special gets its
 /// arguments in cells that don't count them, as GNU-R's `CALLBUILTIN` does (`CONS_NR`), so it can
-/// write into an argument that nothing else references (a dead temporary in `x * 2 + 1`). While it
-/// can run R code, its arguments count instead, and if it can't, an argument that is also in
-/// `linked` or in another cell counts. A special gets counting cells.
+/// write into an argument that nothing else references (a dead temporary in `x * 2 + 1`). An
+/// argument that is also in `linked` or in another cell counts. A special gets counting cells.
 SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
                       int nprotect, int nlinked, SEXP *linked);
 /// `Fir_call_builtin`, where bit `i` of `values` is set if `args[i]` is a value, not an expression

@@ -1270,36 +1270,33 @@ SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SE
     Fir_link(nprotect, linked, -1);
     return result;
   }
-  // The call forces promise arguments in `args`, so count and release a copy.
+  // An operand that is also a register or another operand counts, or the callee could write into
+  // it while it's read. Others don't, as in GNU-R: R code that the builtin runs can write in place
+  // an argument that nothing else references. `held` keeps the counted ones, as the call forces
+  // promise arguments in `args`.
   SEXP held[argc > 0 ? argc : 1];
-  memcpy(held, args, argc * sizeof(SEXP));
-  if (Fir_builtin_runs_r(blt_idx, argc, args, names)) {
-    Fir_link(nprotect, linked, 1);
-    Fir_link(argc, held, 1);
-    SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_ARGS);
-    Fir_link(argc, held, -1);
-    Fir_link(nprotect, linked, -1);
-    return result;
-  }
-  // No R code runs, so only an operand that is also a register or another operand must count, or
-  // the callee could write into it while it's read.
   for (int i = 0; i < argc; i++) {
+    SEXP arg = args[i];
     bool alias = false;
-    if (held[i] != R_MissingArg && held[i] != R_NilValue) {
+    if (arg != R_MissingArg && arg != R_NilValue) {
       for (int j = 0; !alias && j < nlinked; j++) {
-        alias = linked[j] == held[i];
+        alias = linked[j] == arg;
       }
       for (int j = 0; !alias && j < argc; j++) {
-        alias = j != i && held[j] == held[i];
+        alias = j != i && args[j] == arg;
       }
     }
-    if (alias) {
-      INCREMENT_REFCNT(held[i]);
-    } else {
-      held[i] = NULL;
-    }
+    held[i] = alias ? arg : NULL;
+  }
+  Fir_link(argc, held, 1);
+  bool runs_r = Fir_builtin_runs_r(blt_idx, argc, args, names);
+  if (runs_r) {
+    Fir_link(nprotect, linked, 1);
   }
   SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_ARGS);
+  if (runs_r) {
+    Fir_link(nprotect, linked, -1);
+  }
   Fir_link(argc, held, -1);
   return result;
 }
