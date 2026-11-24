@@ -45,6 +45,28 @@ class ElideUnforcedPromiseTest {
     assertFalse(printed.contains("mkenv"), "old promise body should be gone; got:\n" + printed);
   }
 
+  /// A promise that wraps a value has no effect to elide.
+  @Test
+  void wrappedValuePromise_unchanged() {
+    var source =
+        """
+        (x:R) -~> R {
+          p: p(R -) = prom<R ->{
+            return x;
+          };
+          st p = p;
+          return x;
+        }
+        """;
+    var abstraction = ParseUtil.parseAbstraction(source);
+    var before = Printer.toString(abstraction);
+
+    var feedback = recordPromiseCreates(abstraction, THRESHOLD, 0);
+
+    assertFalse(optimization.run(null, feedback, abstraction), "should not elide");
+    assertEquals(before, Printer.toString(abstraction));
+  }
+
   @Test
   void forcedPromise_unchanged() {
     var abstraction =

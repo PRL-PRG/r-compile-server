@@ -2039,7 +2039,7 @@ public final class Fir2CCompiler {
               }
               case Promise promise when promise.wrappedValue() != null ->
                   "Fir_mk_value_promise(%s)"
-                      .formatted(registerPlace(Objects.requireNonNull(promise.wrappedValue())));
+                      .formatted(emitArgument(Objects.requireNonNull(promise.wrappedValue())));
               case Promise promise -> {
                 // Compile the promise
                 var sharing = sharing(promise, cfg);
