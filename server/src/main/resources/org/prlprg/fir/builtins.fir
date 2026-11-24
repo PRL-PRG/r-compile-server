@@ -273,28 +273,29 @@ fun bitwShiftR(a, n) {
   (a:I, n:I) --> I { ... }
 }
 
-# The `.Internal`s that the `bitw*` closures call.
-fun bitwiseNot(a) {
+# The `.Internal`s that the `bitw*` closures call. Their parameter names are FUNTAB's (see
+# `ArgumentMatcher#positionalOnlyName`): GNU-R matches `.Internal` arguments by position.
+fun bitwiseNot(`.0`) {
   @signals (a:V) --> v(I) { ... }
 }
 
-fun bitwiseAnd(a, b) {
+fun bitwiseAnd(`.0`, `.1`) {
   @signals (a:V, b:V) --> v(I) { ... }
 }
 
-fun bitwiseOr(a, b) {
+fun bitwiseOr(`.0`, `.1`) {
   @signals (a:V, b:V) --> v(I) { ... }
 }
 
-fun bitwiseXor(a, b) {
+fun bitwiseXor(`.0`, `.1`) {
   @signals (a:V, b:V) --> v(I) { ... }
 }
 
-fun bitwiseShiftL(a, n) {
+fun bitwiseShiftL(`.0`, `.1`) {
   @signals (a:V, n:V) --> v(I) { ... }
 }
 
-fun bitwiseShiftR(a, n) {
+fun bitwiseShiftR(`.0`, `.1`) {
   @signals (a:V, n:V) --> v(I) { ... }
 }
 

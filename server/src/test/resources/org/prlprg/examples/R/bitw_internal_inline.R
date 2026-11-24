@@ -28,6 +28,8 @@ f <- function(x, y, cold) {
     print(msg(g(1L)))
     print(msg(bitwAnd(1L)))
     print(bitwShiftL(n = 2L, a = 1L))
+    # `.Internal` arguments are positional: 4L << 1L.
+    print(.Internal(bitwiseShiftL(n = 4L, a = 1L)))
     # Not a constant `NA`: `BCCompiler` folds `if (NA)` to its else branch (a bug).
     na <- NA
     zb <- 0L
