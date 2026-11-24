@@ -2871,10 +2871,12 @@ public final class Fir2CCompiler {
                     .toList());
           }
 
-          /// The C places of the SEXP registers that outlive `statement` and that this CFG's C
-          /// function has. A promise's captures count already, in its data (see `Fir_mk_promise`).
+          /// The C places of the SEXP registers that this CFG's C function reads after `statement`.
+          /// A caller counts a parameter that it reads later, and a promise's captures count in its
+          /// data (see `Fir_mk_promise`).
           private List<String> statementLinkPlaces(Statement statement) {
-            return linkedRegisters(statement).stream()
+            return liveness.liveAfter(statement).stream()
+                .filter(r -> !r.equals(statement.assignee()))
                 .filter(
                     r ->
                         registerRepr(r) == Repr.SEXP
