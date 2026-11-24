@@ -2179,8 +2179,56 @@ bool Fir_assume_builtin_function(SEXP value, int blt_idx) {
   return PRIMOFFSET(value) == blt_idx;
 }
 
+// Whether `value`, the base binding of `symbol`, is GNU-R's own closure for `symbol`. The server
+// rewrites a call of a `bitw*` closure into a call of its `.Internal`, so the guard of such a call
+// must fail after `trace` or `assignInNamespace`. Returns true for every other symbol.
+static bool Fir_is_original_base_function(SEXP value, SEXP symbol) {
+  // Symbols live in R's permanent symbol table, so this needs no `PROTECT`.
+  static const char *const names[][2] = {
+    {"bitwAnd", "bitwiseAnd"}, {"bitwOr", "bitwiseOr"}, {"bitwXor", "bitwiseXor"},
+    {"bitwShiftL", "bitwiseShiftL"}, {"bitwShiftR", "bitwiseShiftR"}, {"bitwNot", "bitwiseNot"},
+  };
+  enum { N = sizeof(names) / sizeof(names[0]) };
+  static SEXP wrappers[N], internals[N], dot_internal = NULL;
+  if (dot_internal == NULL) {
+    for (int i = 0; i < N; i++) {
+      wrappers[i] = Rf_install(names[i][0]);
+      internals[i] = Rf_install(names[i][1]);
+    }
+    dot_internal = Rf_install(".Internal");
+  }
+
+  int i = 0;
+  while (i < N && wrappers[i] != symbol) {
+    i++;
+  }
+  if (i == N) {
+    return true;
+  }
+  if (TYPEOF(value) != CLOSXP || R_ClosureEnv(value) != R_BaseNamespace) {
+    return false;
+  }
+  // `.Internal(<internal>(<formals in order>))`
+  SEXP expr = R_ClosureExpr(value);
+  if (TYPEOF(expr) != LANGSXP || CAR(expr) != dot_internal || TYPEOF(CDR(expr)) != LISTSXP
+      || CDDR(expr) != R_NilValue || TAG(CDR(expr)) != R_NilValue) {
+    return false;
+  }
+  SEXP call = CADR(expr);
+  if (TYPEOF(call) != LANGSXP || CAR(call) != internals[i]) {
+    return false;
+  }
+  SEXP formal = R_ClosureFormals(value), arg = CDR(call);
+  for (; formal != R_NilValue && arg != R_NilValue; formal = CDR(formal), arg = CDR(arg)) {
+    if (CAR(formal) != R_MissingArg || TAG(arg) != R_NilValue || CAR(arg) != TAG(formal)) {
+      return false;
+    }
+  }
+  return formal == R_NilValue && arg == R_NilValue;
+}
+
 bool Fir_assume_base_function(SEXP value, SEXP symbol) {
-  return value == Fir_base_function(symbol);
+  return value == Fir_base_function(symbol) && Fir_is_original_base_function(value, symbol);
 }
 
 static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
@@ -2315,7 +2363,8 @@ bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found
 
 bool Fir_assume_load_base_fun(SEXP symbol, SEXP env, SEXP base_symbol, SEXP* found_ref) {
   SEXP found = Fir_load_fun_for_assume(symbol, env);
-  if (found == NULL || found != Fir_base_function(base_symbol)) {
+  if (found == NULL || found != Fir_base_function(base_symbol)
+      || !Fir_is_original_base_function(found, base_symbol)) {
     return false;
   }
 
