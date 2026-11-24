@@ -1187,7 +1187,7 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
     fun.name, fun.arity, argc
   );
 
-  if (fun.eval) {
+  if (fun.eval % 10 == 1) {
     // BUILTINSXP, so force arguments
     for (int i = 0; i < argc; i++) {
       args[i] = Fir_maybe_force(args[i]);
