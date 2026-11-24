@@ -711,6 +711,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/promise_of_copied_vector_subscript.R` — A kept promise `w[1]` of a constant vector: the folded subscript of a `v1(R)` version is a boxed constant (`OriginAnalysis` constant folding).
 - `.../examples/R/promise_capture_{outlives_frame,param_closure,wrapper_rebound}.R` — A promise that reads a register of its frame is forced after the frame returns, so it must keep a copy of the register (`Fir_mk_promise`).
 - `.../examples/R/promise_capture_substitute.R` — `substitute` on a compiled promise that captures a SEXP register gives the source expression (`R_PromiseExpr`).
+- `.../examples/R/register_links.R` — R code that a call, a force, a builtin, or a promise runs writes a binding in place (`acc[1L] <<- 99`): the register that holds the old vector keeps it (`Fir_link`).
 - `.../examples/R/promise_site_code.R` — Promises without captures, which share one code object for their site (`Fir_promise_site_code`): forced in a loop, and kept by a closure past their creator (`gcTorture`).
 - `.../examples/R/subscript_default_method.R` — Subscripts that the fir2c runtime sends straight to the default method of `[`, `[[`, `[<-` and `[[<-`, and S3 targets that must still dispatch (`gcTorture`).
 - `.../examples/R/subscript_scalar_edges.R` — Scalar subscripts at the edges of the fir2c runtime's paths without an argument list: indices out of range or not scalar, targets with attributes, shared targets, coercing stores (`gcTorture`).

@@ -191,6 +191,22 @@ A call can end with its **source call**: `log%< *@!,*@! -+> V >(x, <missing>) in
 
 A **setter call** is the shape `bc2fir` gives `x[i] <- v`: `l = ld x`, then a call whose first argument is `l` (or an assumption, cast, or force of it) and whose source call's first argument is `` `*tmp*` ``, then `st x = r` of its result (after a checkpoint or goto at most). Fir2C runs it in GNU-R's assignment protocol (`Fir_Setter` in `client/rsh/src/fir2c/runtime.h`), as bytecode's `STARTASSIGN`/`SETTER_CALL`/`ENDASSIGN` do: it passes `x`'s binding without counting it, and counts the registers that outlive the call, so the callee modifies the vector in place when nothing else references it. A static call of a borrowing `[<-`/`[[<-` version calls its owning twin then. Outside a setter call, Fir2C also calls the owning twin when the first argument is `consume r`. If the optimizer keeps `x` in registers (no `ld x`/`st x`), the first argument is a register, and Fir2C copies its value first if anything counts a reference to it. Fir2C matches the shape only in a version's body CFG, not in a promise's. Likewise, `d = dup l'` followed by `st x = d` in the same block, with no R code or read of the old value between, copies only if GNU-R's `STARTASSIGN` would (`Fir_assign_dup`; `Fir_value_dup` if `x` is in registers). This covers a setter that the optimizer turned into a `dup` and a vector write.
 
+A register's value can also be bound in an environment without a count of its own, as on GNU-R's stack. R code can then write the binding in place (`x[1L] <<- 0`), and the register sees the change. So a statement that can run R code counts the registers that outlive it while it runs (`Fir_link`), as bytecode's `INCLNK_stack_commit`/`DECLNK_stack` do. The array holds the SEXP registers of the CFG's C function: a promise's captures already count, in its data. The statements are:
+
+- a dynamic call, an in-context call, and a call through `Fir_call_base`;
+- a static call of a version that is not in the builtins or intrinsics modules, a dispatch call, and a fallback call (this includes a call of the bytecode baseline);
+- a builtin call: the runtime counts unless the builtin is an operator (`PP_BINARY`, `PP_BINARY2` or `PP_UNARY`), not a special, with no object, promise, or `...` argument (`Fir_builtin_runs_r`);
+- a force: the C code tests whether the value is an unevaluated promise, and counts only then.
+
+When a builtin forces a promise argument (a dynamic call of a builtin), the runtime also counts the arguments. These cases are not covered, and a register can see the change there:
+
+- a function load (`ldf`) that forces a promise;
+- a warning's calling handler, below an intrinsic or an operator on plain data;
+- an active binding, and a finalizer;
+- a subscript that dispatches to an R method, from a version in the builtins module;
+- the forcing of a `...` element that a builtin's argument list builds (`Fir_build_arglist`);
+- a setter call, when GNU-R's assignment protocol is inactive.
+
 Every call to a known function carries a signature. For a static call, the function must have a version whose parameters are at least as permissive as the signature's and whose strictness, effects, and return type are at least as restrictive. A dispatch call additionally requires the function to be *dispatchable* (its baseline's parameter and return types are all SEXP kinds) and the signature's parameter and return types to be SEXP kinds (the C dispatch passes each argument as an SEXP).
 
 ### Promise Creation

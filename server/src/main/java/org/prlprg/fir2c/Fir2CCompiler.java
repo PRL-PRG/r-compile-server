@@ -1921,6 +1921,10 @@ public final class Fir2CCompiler {
           // Output
           private final CCode cCode;
 
+          /// The registers that the statement `#emitStatement` emits counts while it runs R code
+          /// (see `#linkStatement`), or `null`.
+          private @Nullable Array statementLinks;
+
           BBEmitter(BB bb, CCode cCode) {
             this.bb = bb;
             this.cCode = cCode;
@@ -1966,11 +1970,16 @@ public final class Fir2CCompiler {
               return;
             }
 
+            statementLinks = null;
             var expr = emitExpression(statement);
             if (expr == null) {
               return;
             }
 
+            var links = statementLinks;
+            if (links != null) {
+              cCode.stmt("Fir_link(%d, %s, 1);", links.size(), links.pointer());
+            }
             if (statement.assignee() == null) {
               cCode.stmt("(void)(%s);", expr);
             } else {
@@ -1985,6 +1994,19 @@ public final class Fir2CCompiler {
                   registerPlace(statement.assignee()),
                   registerRepr(statement.assignee()));
             }
+            if (links != null) {
+              cCode.stmt("Fir_link(%d, %s, -1);", links.size(), links.pointer());
+            }
+          }
+
+          /// Make `#emitStatement` count the registers that outlive `statement`, which runs R code:
+          /// R code can write in place a binding that holds a register's value (`x[1] <<- 0`).
+          private void linkStatement(Statement statement) {
+            var places = statementLinkPlaces(statement);
+            if (places.isEmpty()) {
+              debugCommentComptimeOnly(cCode, "# No links");
+            }
+            statementLinks = places.isEmpty() ? null : emitArray("linked", "SEXP", places);
           }
 
           private @Nullable String emitExpression(Statement statement) {
@@ -2155,9 +2177,30 @@ public final class Fir2CCompiler {
               case Dup _ when matchAssignDup(statement) instanceof SetterPattern dup ->
                   emitAssignDup(statement, dup);
               case Dup _ -> "Fir_dup(%s)".formatted(emitArgument(args.getFirst()));
-              case Force(var isMaybe) ->
-                  (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)")
-                      .formatted(emitArgument(args.getFirst()));
+              case Force(var isMaybe) -> {
+                var value = emitArgument(args.getFirst());
+                var force = (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)").formatted(value);
+                var linked = statementLinkPlaces(statement);
+                if (linked.isEmpty()) {
+                  debugCommentComptimeOnly(cCode, "# No links");
+                  yield force;
+                }
+                // Only a promise's code runs R code (see `#linkStatement`).
+                var disambiguator = tempArrayDisambiguators.getOrDefault("forced", 0);
+                tempArrayDisambiguators.put("forced", disambiguator + 1);
+                var forced = "t_forced_%d".formatted(disambiguator);
+                cCode.stmt("SEXP %s;", forced);
+                cCode.stmt(
+                    "if (TYPEOF(%s) == PROMSXP && !PROMISE_IS_EVALUATED(%s)) {", value, value);
+                var array = emitArray("linked", "SEXP", linked);
+                cCode.stmt("Fir_link(%d, %s, 1);", array.size(), array.pointer());
+                cCode.stmt("%s = %s;", forced, force);
+                cCode.stmt("Fir_link(%d, %s, -1);", array.size(), array.pointer());
+                cCode.stmt("} else {");
+                cCode.stmt("%s = %s;", forced, force);
+                cCode.stmt("}");
+                yield forced;
+              }
               // This is an R special case.
               // There's no equivalent for `Store`, `LoadFun`, etc.
               // their behavior is inconsistent.
@@ -2343,7 +2386,8 @@ public final class Fir2CCompiler {
                     && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
                   yield emitBuiltinCall(source, callArgs, calleeFun, statement, setter);
                 } else if (calleeFun.userProperties().needsContext()) {
-                  yield emitInContextCall(source, call, closureOrCalleeArg, callArgs, calleeFun);
+                  yield emitInContextCall(
+                      source, call, closureOrCalleeArg, callArgs, calleeFun, statement);
                 }
 
                 if (isDispatch) {
@@ -2376,6 +2420,7 @@ public final class Fir2CCompiler {
                   var cName = functionDispatchCName(calleeFun);
                   var cSignature = emitSignature(signature);
                   var arguments = emitArgumentSplice(callArgs);
+                  linkStatement(statement);
                   yield "%s(%s, %s%s)".formatted(cName, closureEnv, cSignature, arguments);
                 } else {
                   var calleeVersion =
@@ -2419,6 +2464,9 @@ public final class Fir2CCompiler {
                   }
                   var versionCall =
                       emitVersionCall(calleeFun, calleeVersion, closureEnv, arguments);
+                  if (calleeModule != BUILTINS && calleeModule != INTRINSICS) {
+                    linkStatement(statement);
+                  }
                   if (setter == null || ownedVersion == null) {
                     yield versionCall;
                   }
@@ -2450,6 +2498,7 @@ public final class Fir2CCompiler {
 
                 // A fallback has no `mkenv`, so `env` is still the closure's environment.
                 var arguments = emitArgumentSplice(callArgs);
+                linkStatement(statement);
                 yield emitVersionCall(function, calleeVersion, VAR_ENV, arguments);
               }
               case DynamicCallee(var argumentNames) -> {
@@ -2470,6 +2519,7 @@ public final class Fir2CCompiler {
                           names.pointer(),
                           values);
                 }
+                linkStatement(statement);
                 if (values != 0) {
                   yield "Fir_call_dynamic_values(%s, %s, %s, %d, %s, %s, 0x%xULL)"
                       .formatted(
@@ -2502,7 +2552,8 @@ public final class Fir2CCompiler {
               Call call,
               Argument closure,
               List<Argument> callArgs,
-              Function calleeFun) {
+              Function calleeFun,
+              Statement statement) {
             if (!(call.callee() instanceof StaticFnCallee(var _, var isDispatch, var signature))
                 || closure.equals(Constant.ELIDED_CLOSURE)
                 || (!isDispatch && !isFromRSignature(signature))) {
@@ -2517,6 +2568,7 @@ public final class Fir2CCompiler {
                     "arg_names",
                     "SEXP",
                     Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
+            linkStatement(statement);
             return "Fir_call_dynamic(%s, %s, %s, %d, %s, %s)"
                 .formatted(
                     emitArgument(closure),
@@ -2639,8 +2691,21 @@ public final class Fir2CCompiler {
                       names.pointer(),
                       values);
             }
-            if (builtinIndex != null && values != 0) {
-              return "Fir_call_builtin_values(%d, %s, %s, %d, %s, %s, 0x%xULL)"
+            if (viaBase && (builtinIndex == null || values == 0)) {
+              linkStatement(statement);
+              return "Fir_call_base(%s, %s, %s, %d, %s, %s)"
+                  .formatted(
+                      baseSymbolRef(pool, calleeFun),
+                      source,
+                      VAR_ENV,
+                      arguments.size(),
+                      arguments.pointer(),
+                      names.pointer());
+            }
+            // The runtime counts them if the builtin can run R code.
+            var linked = emitArray("linked", "SEXP", statementLinkPlaces(statement));
+            if (values != 0) {
+              return "Fir_call_builtin_values(%d, %s, %s, %d, %s, %s, 0x%xULL, %d, %s)"
                   .formatted(
                       builtinIndex,
                       source,
@@ -2648,25 +2713,20 @@ public final class Fir2CCompiler {
                       arguments.size(),
                       arguments.pointer(),
                       names.pointer(),
-                      values);
+                      values,
+                      linked.size(),
+                      linked.pointer());
             }
-            return viaBase
-                ? "Fir_call_base(%s, %s, %s, %d, %s, %s)"
-                    .formatted(
-                        baseSymbolRef(pool, calleeFun),
-                        source,
-                        VAR_ENV,
-                        arguments.size(),
-                        arguments.pointer(),
-                        names.pointer())
-                : "Fir_call_builtin(%d, %s, %s, %d, %s, %s)"
-                    .formatted(
-                        builtinIndex,
-                        source,
-                        VAR_ENV,
-                        arguments.size(),
-                        arguments.pointer(),
-                        names.pointer());
+            return "Fir_call_builtin(%d, %s, %s, %d, %s, %s, %d, %s)"
+                .formatted(
+                    builtinIndex,
+                    source,
+                    VAR_ENV,
+                    arguments.size(),
+                    arguments.pointer(),
+                    names.pointer(),
+                    linked.size(),
+                    linked.pointer());
           }
 
           /// Whether `statement` is `r = f(l', ...) in <f(*tmp*, ...)>`, a call that GNU-R's
@@ -2809,6 +2869,18 @@ public final class Fir2CCompiler {
                                 && (locals.contains(r) || version.isParameter(r)))
                     .map(CfgEmitter.this::registerPlace)
                     .toList());
+          }
+
+          /// The C places of the SEXP registers that outlive `statement` and that this CFG's C
+          /// function has. A promise's captures count already, in its data (see `Fir_mk_promise`).
+          private List<String> statementLinkPlaces(Statement statement) {
+            return linkedRegisters(statement).stream()
+                .filter(
+                    r ->
+                        registerRepr(r) == Repr.SEXP
+                            && (locals.contains(r) || (cfg == root && version.isParameter(r))))
+                .map(CfgEmitter.this::registerPlace)
+                .toList();
           }
 
           /// Whether `st variable = r`, where `r` is `result` or an assumption or cast of it,

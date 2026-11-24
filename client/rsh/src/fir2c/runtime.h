@@ -564,12 +564,19 @@ void Fir_store_parameter(SEXP symbol, SEXP value, SEXP env, SEXP parameter);
 /// the callee gets a call built from the arguments.
 /// `args` has no unsupplied trailing parameters (`Fir2CCompiler` drops them). An argument whose value
 /// is the missing argument is passed through, as in GNU-R.
-SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
+/// `linked` are the caller's registers that outlive the call: they count while the builtin can run R
+/// code (see `Fir_link`).
+SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                      int nlinked, SEXP *linked);
 /// `Fir_call_builtin`, where bit `i` of `values` is set if `args[i]` is a value, not an expression
 /// for the callee to evaluate. A special evaluates its arguments, so it gets such a symbol or call
-/// in an evaluated promise.
+/// in an evaluated promise. `linked` always count.
 SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
-                             uint64_t values);
+                             uint64_t values, int nlinked, SEXP *linked);
+/// GNU-R's `INCLNK_stack_commit` (`delta` 1) and `DECLNK_stack` (`delta` -1) for registers: while
+/// R code runs, a register that outlives it counts, so the code can't write its value in place
+/// through a binding (`x[1L] <<- 0`). `NULL` entries are skipped.
+void Fir_link(int nlinked, SEXP *linked, int delta);
 /// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
 SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
