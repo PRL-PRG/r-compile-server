@@ -1163,13 +1163,11 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
                                bool matched, bool nr_first) {
   FUNTAB fun = R_FunTab[blt_idx];
 
-  // An `.Internal`-only entry has no primitive of its own: what R code calls `fun.name` -- and so
-  // what the FIŘ signature in `builtins.fir` describes -- is a *base closure* wrapping
-  // `.Internal(fun.name(...))`. For most of them that wrapper passes its arguments straight
-  // through, so calling the internal below is equivalent. `stop` and `warning` are the exceptions:
-  // they build one message out of `...`, and it shows in their parameters not lining up with the
-  // internal's arity (`Fir2CCompiler` calls those via `Fir_call_base`). Send those through the
-  // closure instead.
+  // An `.Internal`-only entry has no primitive of its own. A static call of one is an
+  // `.Internal(fun.name(...))` of the bytecode, or a call of a base closure whose body is only that
+  // `.Internal` (`inherits`, `is.vector`), so calling the internal below is equivalent. If
+  // `Fir2CCompiler` dropped trailing missings, the count doesn't match the arity: call the base
+  // closure, which supplies the defaults.
   if (fun.arity != -1 && fun.arity != argc && Fir_primitive(blt_idx) == R_NilValue) {
     SEXP closure = Rf_findFun(Rf_install(fun.name), R_BaseEnv);
     return Fir_call_dynamic(closure, call, env, argc, args, names);
