@@ -1758,7 +1758,7 @@ static bool Fir_assign_binding(SEXP symbol, SEXP env, SEXP lhs, R_varloc_t *loc)
 }
 
 void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinked, SEXP *linked) {
-  s->active = false;
+  *s = (Fir_Setter) {.nlinked = nlinked, .linked = linked, .active = false};
   // Otherwise the call copies, as outside the protocol.
   R_varloc_t loc;
   if (!Fir_assign_binding(symbol, env, lhs, &loc)) {
@@ -1789,7 +1789,7 @@ void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinke
 }
 
 void Fir_setter_begin_value(Fir_Setter *s, SEXP lhs, int nlinked, SEXP *linked) {
-  s->active = false;
+  *s = (Fir_Setter) {.nlinked = nlinked, .linked = linked, .active = false};
   SEXP value = lhs;
   if (TYPEOF(value) == PROMSXP) {
     value = PRVALUE(value);
@@ -1876,7 +1876,13 @@ static SEXP Fir_call_setter_primitive(Fir_Setter *s, int blt_idx, SEXP call, SEX
 
 SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, SEXP *args,
                      SEXP *names, uint64_t values) {
-  if (!s->active || argc == 0 || (TYPEOF(callee) != SPECIALSXP && TYPEOF(callee) != BUILTINSXP) ||
+  if (!s->active) {
+    Fir_link(s->nlinked, s->linked, 1);
+    SEXP result = Fir_call_dynamic_values(callee, call, env, argc, args, names, values);
+    Fir_link(s->nlinked, s->linked, -1);
+    return result;
+  }
+  if (argc == 0 || (TYPEOF(callee) != SPECIALSXP && TYPEOF(callee) != BUILTINSXP) ||
       Fir_source_call(call, env) == NULL) {
     return Fir_call_dynamic_values(callee, call, env, argc, args, names, values);
   }
@@ -1886,7 +1892,11 @@ SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, 
 
 SEXP Fir_call_setter_builtin(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
                              SEXP *names, uint64_t values) {
-  if (!s->active || argc == 0 || Fir_source_call(call, env) == NULL) {
+  if (!s->active) {
+    return Fir_call_builtin_values(blt_idx, call, env, argc, args, names, values, s->nlinked,
+                                   s->linked);
+  }
+  if (argc == 0 || Fir_source_call(call, env) == NULL) {
     return Fir_call_builtin_values(blt_idx, call, env, argc, args, names, values, 0, NULL);
   }
   int kind = Fir_subscript_kind(blt_idx);

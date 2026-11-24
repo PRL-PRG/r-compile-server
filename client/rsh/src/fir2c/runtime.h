@@ -593,7 +593,8 @@ SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *a
 /// references in `linked` (every register that outlives the call), sets `x`'s binding as being
 /// assigned, and puts in `value` the binding's value, or a shallow copy if that's shared. The
 /// call then passes `value` without counting it, and `Fir_setter_end` undoes the rest and returns
-/// `result`. An error in between leaves the counts and the flag set, which only causes copies.
+/// `result`. An error in between leaves the counts and the flag set, which only causes copies. If
+/// the protocol doesn't apply, the call counts `linked` while it runs.
 typedef struct {
   SEXP cell;
   SEXP value;

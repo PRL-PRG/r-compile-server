@@ -204,8 +204,9 @@ When a builtin forces a promise argument (a dynamic call of a builtin), the runt
 - a warning's calling handler, below an intrinsic or an operator on plain data;
 - an active binding, and a finalizer;
 - a call of a version in the builtins or intrinsics module that calls an R method (`length` of an S4 object, a subscript);
-- the forcing of a `...` element that a builtin's argument list builds (`Fir_build_arglist`);
-- a setter call, when GNU-R's assignment protocol is inactive.
+- the forcing of a `...` element that a builtin's argument list builds (`Fir_build_arglist`).
+
+A setter call counts its own array (see above), also when GNU-R's assignment protocol doesn't apply.
 
 Every call to a known function carries a signature. For a static call, the function must have a version whose parameters are at least as permissive as the signature's and whose strictness, effects, and return type are at least as restrictive. A dispatch call additionally requires the function to be *dispatchable* (its baseline's parameter and return types are all SEXP kinds) and the signature's parameter and return types to be SEXP kinds (the C dispatch passes each argument as an SEXP).
 
