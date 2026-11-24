@@ -1156,18 +1156,6 @@ static SEXP Fir_primitive(int blt_idx) {
   return cache[blt_idx];
 }
 
-void Fir_link(int nlinked, SEXP *linked, int delta) {
-  for (int i = 0; i < nlinked; i++) {
-    if (linked[i] != NULL) {
-      if (delta > 0) {
-        INCREMENT_REFCNT(linked[i]);
-      } else {
-        DECREMENT_REFCNT(linked[i]);
-      }
-    }
-  }
-}
-
 // Whether the builtin can run R code with these arguments: it isn't an operator (by its grammar
 // kind) on plain data. An operator still runs a warning's calling handler.
 static bool Fir_builtin_runs_r(int blt_idx, int argc, SEXP *args, SEXP *names) {

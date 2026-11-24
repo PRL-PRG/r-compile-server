@@ -575,8 +575,19 @@ SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *a
                              uint64_t values, int nlinked, SEXP *linked);
 /// GNU-R's `INCLNK_stack_commit` (`delta` 1) and `DECLNK_stack` (`delta` -1) for registers: while
 /// R code runs, a register that outlives it counts, so the code can't write its value in place
-/// through a binding (`x[1L] <<- 0`). `NULL` entries are skipped.
-void Fir_link(int nlinked, SEXP *linked, int delta);
+/// through a binding (`x[1L] <<- 0`). `NULL` entries are skipped. Inline, so that the C compiler
+/// unrolls the loop at a call with a constant `nlinked`.
+static inline void Fir_link(int nlinked, SEXP *linked, int delta) {
+  for (int i = 0; i < nlinked; i++) {
+    if (linked[i] != NULL) {
+      if (delta > 0) {
+        INCREMENT_REFCNT(linked[i]);
+      } else {
+        DECREMENT_REFCNT(linked[i]);
+      }
+    }
+  }
+}
 /// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
 SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
