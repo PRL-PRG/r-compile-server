@@ -1211,7 +1211,7 @@ public final class Builtins {
                 throw interpreter.fail("`" + name + "` generic takes 2 sexps");
               }
               var a = bitwiseOperand(s1, interpreter, name);
-              var n = sexpToInt(s2, interpreter, name);
+              var n = bitwiseInt(s2, interpreter, name);
               return new Value.Sexp(SEXPs.integer(bitwiseShift(a, n, op)));
             });
     // Generic: (*, *) -+> V
@@ -1250,6 +1250,11 @@ public final class Builtins {
     if (sexp instanceof LglSXP) {
       throw interpreter.fail("'a' and 'b' must have the same type");
     }
+    return bitwiseInt(sexp, interpreter, name);
+  }
+
+  /// `sexp` as an integer, unsupported for a real outside the integers (GNU-R warns about one).
+  private static int bitwiseInt(SEXP sexp, InternalInterpreter interpreter, String name) {
     var real = sexp.asScalarReal();
     if (real.isPresent()
         && !Double.isNaN(real.get())
