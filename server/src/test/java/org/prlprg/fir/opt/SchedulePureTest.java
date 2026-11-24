@@ -21,6 +21,33 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     return new SchedulePure();
   }
 
+  /// The backends create a promise that wraps a value already evaluated, so its body must stay
+  /// `return <register>`: the box moves to the promise, not into it.
+  @Test
+  void boxIsntMovedIntoAWrappedValuePromise() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              st q = n;
+              p: p(v1(R) -) = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              return n;
+            }
+            """);
+
+    assertTrue(run(abstraction), "box should move to just before the promise");
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "st q = n;", "nb: v1(R) = box< R --> v1(R) >(n);");
+    assertOrder(printed, "nb: v1(R) = box< R --> v1(R) >(n);", "p: p(v1(R) -) = prom<v1(R) ->{");
+    assertOrder(printed, "p: p(v1(R) -) = prom<v1(R) ->{", "return nb;");
+    assertTrue(printed.contains("prom<v1(R) ->{\n    return nb;"), printed);
+  }
+
   @Test
   void unboxIsntHoistedIntoACheckpointsAssumptions() {
     // `y` is hoisted to right after `x1`, which would put it between the checkpoint's assumptions
@@ -134,7 +161,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
             """
             (x:I) -~> p(v1(I) -) {
               boxed: v1(I) = box< I --> v1(I) >(x);
-              p: p(v1(I) -) = prom<v1(I) ->{
+              p: p(v1(I) -) = prom<v1(I) ->[<sym x>]{
                 return boxed;
               };
               return p;
@@ -144,7 +171,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "box should be deferred into the promise");
 
     var printed = Printer.toString(abstraction);
-    assertOrder(printed, "prom<v1(I) ->{", "boxed: v1(I) = box< I --> v1(I) >(x);");
+    assertOrder(printed, "prom<v1(I) ->[<sym x>]{", "boxed: v1(I) = box< I --> v1(I) >(x);");
     assertOrder(printed, "boxed: v1(I) = box< I --> v1(I) >(x);", "return boxed;");
   }
 

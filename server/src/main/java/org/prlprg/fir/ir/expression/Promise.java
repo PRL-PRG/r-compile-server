@@ -37,6 +37,10 @@ public record Promise(Type valueType, Effects effects, CFG code, boolean local, 
   /// outside it, that register. The promise then wraps a known value, so the backends create it
   /// already evaluated, with the value as its expression (like the argument promises of
   /// `do.call`).
+  ///
+  /// An optimization must keep the body of such a promise (move no statement into it, keep the
+  /// returned register): else the backends create an unevaluated promise without a source
+  /// expression, and a reader of `PREXPR` (e.g. `R_isMissing`) raises an error.
   public @Nullable Register wrappedValue() {
     if (expr != null || code.bbs().size() != 1) {
       return null;

@@ -12,8 +12,10 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     return new DeferIntoPromise();
   }
 
+  /// The backends create a promise that wraps a value already evaluated, so its body must stay
+  /// `return <register>`.
   @Test
-  void pureInstructionUsedOnlyInPromise_deferred() {
+  void boxIsntMovedIntoAWrappedValuePromise() {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
@@ -27,12 +29,35 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             }
             """);
 
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("prom<v1(R) ->{\n    return nb;"), printed);
+    assertTrue(printed.indexOf("box<") < printed.indexOf("prom<"), printed);
+  }
+
+  @Test
+  void pureInstructionUsedOnlyInPromise_deferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
+                return nb;
+              };
+              st p = p;
+              return n;
+            }
+            """);
+
     assertTrue(run(abstraction), "optimization should report a change");
 
     var printed = Printer.toString(abstraction);
     // nb should be inside the promise now
     assertTrue(
-        printed.contains("prom<v1(R) ->{\n") || printed.indexOf("box") > printed.indexOf("prom"),
+        printed.contains("prom<v1(R) ->[<sym x>]{\n")
+            || printed.indexOf("box") > printed.indexOf("prom"),
         "box should be inside the promise; printed:\n" + printed);
     // The box should not appear before the promise
     var promIdx = printed.indexOf("prom<");
@@ -144,7 +169,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
               st x = a;
               l: * = ld x;
               st x = b;
-              p: p(v1(I) -) = prom<v1(I) ->{
+              p: p(v1(I) -) = prom<v1(I) ->[<sym x>]{
                 return l;
               };
               st p = p;
@@ -163,7 +188,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:p(R +)) -+> R {
               nb: R = force n;
-              p: p(R +) = prom<R +>{
+              p: p(R +) = prom<R +>[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -181,7 +206,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -200,11 +225,11 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p1: p(v1(R) -) = prom<v1(R) ->{
+              p1: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p1 = p1;
-              p2: p(v1(R) -) = prom<v1(R) ->{
+              p2: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p2 = p2;
@@ -223,7 +248,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
               nc: v1(R) = dup nb;
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nc;
               };
               st p = p;
@@ -248,7 +273,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               noop;
-              p: p(R -) = prom<R ->{
+              p: p(R -) = prom<R ->[<sym x>]{
                 return n;
               };
               return p;
@@ -268,7 +293,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             (n:R) -~> R {
               p: p(V -) = prom<V ->{
                 nb: v1(R) = box< R --> v1(R) >(n);
-                q: p(v1(R) -) = prom<v1(R) ->{
+                q: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                   return nb;
                 };
                 return q;
@@ -294,12 +319,12 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p1: p(v1(R) -) = prom<v1(R) ->{
+              p1: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p1 = p1;
               nc: v1(R) = dup n;
-              p2: p(v1(R) -) = prom<v1(R) ->{
+              p2: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nc;
               };
               st p2 = p2;
@@ -332,7 +357,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseAbstraction(
             """
             (n:R) -~> R {
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return n;
               };
               st p = p;
@@ -355,7 +380,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -+> R {
               mkenv;
-              p: p(R +) = prom<R +>{
+              p: p(R +) = prom<R +>[<sym x>]{
                 return n;
               };
               popenv;
@@ -374,7 +399,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -395,7 +420,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
               nb: v1(R) = box< R --> v1(R) >(n);
               goto L0();
             L0():
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -423,7 +448,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
               return n;
             D0():
               mkenv;
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -453,7 +478,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
               return x;
             D0():
               mkenv;
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -479,7 +504,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseAbstraction(
             """
             (n:R) -~> R {
-              p: p(R -) = prom<R ->{
+              p: p(R -) = prom<R ->[<sym x>]{
                 return n;
               };
               st p = p;
@@ -501,7 +526,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R, c:B) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
