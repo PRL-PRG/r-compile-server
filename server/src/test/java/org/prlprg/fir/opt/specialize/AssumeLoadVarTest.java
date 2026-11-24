@@ -61,7 +61,7 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
               () --> cls { ... }
               () --> cls {
                 mkenv;
-                c: * = clos target;
+                c: cls = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
               BBdeopt1():
@@ -96,6 +96,45 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
         "the original Load should be removed; printed:\n" + printed);
   }
 
+  /// The `ldf` forces the promise, the merged `AssumeLoadFun` doesn't.
+  @Test
+  void doesNotMergeLoadFunOfPromiseParameter() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              (fn:*) --> cls { ... }
+              (fn:p(cls +)) --> cls {
+                mkenv;
+                st fn = fn;
+                check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
+              BB1():
+                x: cls = ldf fn;
+                check BB2() else BBdeopt2();
+              BB2():
+                target: cls = x ?- target;
+                popenv;
+                return target;
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+
+            fun target() {
+              () --> v1(I) {
+                return <int 7>;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "a Load(LOCAL_FUN) of a promise should not be merged");
+
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("x: cls = ldf fn"), "Load should remain; printed:\n" + printed);
+  }
+
   @Test
   void doesNotMergeLoadFunAndAssumeConstant() {
     var module =
@@ -105,7 +144,7 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
               () --> I { ... }
               () --> I {
                 mkenv;
-                c: * = clos target;
+                c: cls = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
               BBdeopt1():

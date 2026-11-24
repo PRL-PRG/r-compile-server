@@ -16,6 +16,7 @@ import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
+import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -34,6 +35,10 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Note that it does *not* combine `Load(LOCAL_FUN)` with `AssumeConstant`, nor `Load(LOCAL_VAR)`
 /// with `AssumeFunction`.
+///
+/// It also doesn't merge a `Load(LOCAL_FUN)` of a variable that a [Store] in the scope may bind to
+/// a promise (e.g. a parameter). The `Load` forces the promise, but the `AssumeLoadFun` fails on an
+/// unforced promise instead, so it would fail on every call that passes a fresh one.
 public final class MergeAssumeLoadVar extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
@@ -82,6 +87,10 @@ public final class MergeAssumeLoadVar extends AbstractionOptimization {
               // ...followed by a checkpoint...
               if (loadAssignee == null
                   || !(bb1.jump().expression() instanceof Checkpoint checkpoint2)) {
+                return;
+              }
+              // ...unless the `Load` may force a promise, which the merged lookup won't.
+              if (loadType == LoadType.LOCAL_FUN && mayStorePromise(scope, loadVariable)) {
                 return;
               }
               var bb2 = checkpoint2.success().get();
@@ -148,5 +157,18 @@ public final class MergeAssumeLoadVar extends AbstractionOptimization {
             });
 
     return changed[0];
+  }
+
+  /// Whether a [Store] in `scope` may bind `variable` to a promise.
+  private static boolean mayStorePromise(Abstraction scope, NamedVariable variable) {
+    return scope
+        .streamCfgs()
+        .flatMap(cfg -> cfg.bbs().stream())
+        .flatMap(bb -> bb.statements().stream())
+        .anyMatch(
+            stmt ->
+                stmt.expression() instanceof Store(_, var stored)
+                    && stored.equals(variable)
+                    && !scope.typeOf(stmt.arg(0)).isValue());
   }
 }
