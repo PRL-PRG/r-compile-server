@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Set;
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
@@ -19,8 +20,8 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXPs;
 
 /// Tests that [BC2FirClosureCompiler] sets `@needsContext` on exactly the closures that call a
-/// `@readsContext` builtin in their own frame, and `@needsPromises` on exactly the closures that
-/// call a `@readsPromise` builtin.
+/// `@readsContext` builtin, or a function it can't know, in their own frame, and `@needsPromises`
+/// on exactly the closures that call a `@readsPromise` builtin.
 class NeedsContextTest {
   @Test
   void useMethod() {
@@ -46,6 +47,39 @@ class NeedsContextTest {
   @Test
   void noReader() {
     assertFalse(needsContext(compile(new Module(), "function(x) x + 1")));
+  }
+
+  @Test
+  void unknownCallees() {
+    // A formal, a local that isn't a closure literal on every path, a computed function, `do.call`.
+    for (var source :
+        List.of(
+            "function(fn, y) fn(y)",
+            "function(fs) { f <- fs[[1]]; f(1) }",
+            "function(a, g) { f <- if (a) g else function() 1; f() }",
+            "function(x) x$f(1)",
+            "function(x) do.call(g, list(x))")) {
+      assertTrue(needsContext(compile(new Module(), source)), source);
+    }
+  }
+
+  @Test
+  void knownCallees() {
+    // A global, and a local with a builtin's name, which holds data.
+    for (var source : List.of("function(x) g(x)", "function(x) { c <- x + 1; c(c, 1) }")) {
+      assertFalse(needsContext(compile(new Module(), source)), source);
+    }
+  }
+
+  @Test
+  void enclosingFormal() {
+    var module = new Module();
+    var outer = compile(module, "function(fn) { g <- function(y) fn(y); g(1) }");
+    outer.baseline().body();
+    assertFalse(needsContext(outer));
+
+    var inner = module.localFunctions().stream().filter(f -> f != outer).findFirst().orElseThrow();
+    assertTrue(needsContext(inner));
   }
 
   @Test
