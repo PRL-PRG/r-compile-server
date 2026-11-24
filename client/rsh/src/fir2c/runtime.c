@@ -1059,8 +1059,9 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
 /// Splices a `...` argument as a copy of its cells, in order: the callee may modify the cells
 /// (`applyClosure` with `unpromise` clears them), and the caller may pass the same `...` again.
 /// `force_dots` forces each element, as `evalList` does for a builtin. `nr` says which cells are
-/// built with `CONS_NR`, which doesn't count a reference to its value.
-typedef enum { FIR_NR_NONE, FIR_NR_FIRST, FIR_NR_REST, FIR_NR_ALL } Fir_NrCells;
+/// built with `CONS_NR`, which doesn't count a reference to its value (`FIR_NR_ARGS`: all but the
+/// cells of `...` elements).
+typedef enum { FIR_NR_NONE, FIR_NR_FIRST, FIR_NR_REST, FIR_NR_ALL, FIR_NR_ARGS } Fir_NrCells;
 static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, bool is_builtin,
                               bool force_dots, Fir_NrCells nr, int *protect_count) {
   SEXP list = R_NilValue;
@@ -1091,7 +1092,8 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
       SETCDR(last, list);
       list = head;
     } else {
-      SEXP node = PROTECT(nr == FIR_NR_ALL || nr == (i == 0 ? FIR_NR_FIRST : FIR_NR_REST)
+      SEXP node = PROTECT(nr == FIR_NR_ALL || nr == FIR_NR_ARGS ||
+                                  nr == (i == 0 ? FIR_NR_FIRST : FIR_NR_REST)
                             ? CONS_NR(arg, list)
                             : Rf_cons(arg, list));
       (*protect_count)++;
@@ -1176,7 +1178,7 @@ static bool Fir_builtin_runs_r(int blt_idx, int argc, SEXP *args, SEXP *names) {
 // (`Fir2CCompiler` drops the unsupplied trailing ones). A dynamic call passes the source's
 // arguments as they are.
 static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
-                               bool matched, bool nr_first) {
+                               bool matched, Fir_NrCells nr) {
   FUNTAB fun = R_FunTab[blt_idx];
 
   // An `.Internal`-only entry has no primitive of its own: what R code calls `fun.name` -- and so
@@ -1241,7 +1243,7 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
 
   int protect_count = 0;
   SEXP arglist = Fir_build_arglist(argc, args, names, true, fun.eval % 10 == 1,
-                                   nr_first ? FIR_NR_FIRST : FIR_NR_NONE, &protect_count);
+                                   nr, &protect_count);
 
   call = Fir_source_call(call, env);
   if (call == NULL) {
@@ -1261,13 +1263,44 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
 }
 
 SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
-                      int nlinked, SEXP *linked) {
-  if (!Fir_builtin_runs_r(blt_idx, argc, args, names)) {
-    return Fir_call_primitive(blt_idx, call, env, argc, args, names, true, false);
+                      int nprotect, int nlinked, SEXP *linked) {
+  if (R_FunTab[blt_idx].eval % 10 != 1) {
+    Fir_link(nprotect, linked, 1);
+    SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_NONE);
+    Fir_link(nprotect, linked, -1);
+    return result;
   }
-  Fir_link(nlinked, linked, 1);
-  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, false);
-  Fir_link(nlinked, linked, -1);
+  // The call forces promise arguments in `args`, so count and release a copy.
+  SEXP held[argc > 0 ? argc : 1];
+  memcpy(held, args, argc * sizeof(SEXP));
+  if (Fir_builtin_runs_r(blt_idx, argc, args, names)) {
+    Fir_link(nprotect, linked, 1);
+    Fir_link(argc, held, 1);
+    SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_ARGS);
+    Fir_link(argc, held, -1);
+    Fir_link(nprotect, linked, -1);
+    return result;
+  }
+  // No R code runs, so only an operand that is also a register or another operand must count, or
+  // the callee could write into it while it's read.
+  for (int i = 0; i < argc; i++) {
+    bool alias = false;
+    if (held[i] != R_MissingArg && held[i] != R_NilValue) {
+      for (int j = 0; !alias && j < nlinked; j++) {
+        alias = linked[j] == held[i];
+      }
+      for (int j = 0; !alias && j < argc; j++) {
+        alias = j != i && held[j] == held[i];
+      }
+    }
+    if (alias) {
+      INCREMENT_REFCNT(held[i]);
+    } else {
+      held[i] = NULL;
+    }
+  }
+  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_ARGS);
+  Fir_link(argc, held, -1);
   return result;
 }
 
@@ -1604,7 +1637,7 @@ static SEXP Fir_call_primitive_values(int blt_idx, SEXP call, SEXP env, int argc
     return result;
   }
   int protect_count = Fir_wrap_values(blt_idx, argc, args, names, values);
-  result = Fir_call_primitive(blt_idx, call, env, argc, args, names, matched, false);
+  result = Fir_call_primitive(blt_idx, call, env, argc, args, names, matched, FIR_NR_NONE);
   UNPROTECT(protect_count);
   return result;
 }
@@ -1857,7 +1890,8 @@ static SEXP Fir_call_setter_primitive(Fir_Setter *s, int blt_idx, SEXP call, SEX
   } else {
     setter_args[0] = s->value;
   }
-  result = Fir_call_primitive(blt_idx, call, env, argc, setter_args, names, matched, !special);
+  result = Fir_call_primitive(blt_idx, call, env, argc, setter_args, names, matched,
+                              special ? FIR_NR_NONE : FIR_NR_FIRST);
   UNPROTECT(protect_count);
   return result;
 }

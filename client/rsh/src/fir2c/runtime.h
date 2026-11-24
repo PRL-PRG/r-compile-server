@@ -564,10 +564,15 @@ void Fir_store_parameter(SEXP symbol, SEXP value, SEXP env, SEXP parameter);
 /// the callee gets a call built from the arguments.
 /// `args` has no unsupplied trailing parameters (`Fir2CCompiler` drops them). An argument whose value
 /// is the missing argument is passed through, as in GNU-R.
-/// `linked` are the caller's registers that outlive the call: they count while the builtin can run R
-/// code (see `Fir_link`).
+/// `linked[0..nprotect)` are the caller's registers that it reads after the call; they count while
+/// the builtin can run R code (see `Fir_link`). `linked[nprotect..nlinked)` are its other registers
+/// that outlive the call (captures and parameters). A builtin that isn't a special gets its
+/// arguments in cells that don't count them, as GNU-R's `CALLBUILTIN` does (`CONS_NR`), so it can
+/// write into an argument that nothing else references (a dead temporary in `x * 2 + 1`). While it
+/// can run R code, its arguments count instead, and if it can't, an argument that is also in
+/// `linked` or in another cell counts. A special gets counting cells.
 SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
-                      int nlinked, SEXP *linked);
+                      int nprotect, int nlinked, SEXP *linked);
 /// `Fir_call_builtin`, where bit `i` of `values` is set if `args[i]` is a value, not an expression
 /// for the callee to evaluate. A special evaluates its arguments, so it gets such a symbol or call
 /// in an evaluated promise. `linked` always count.

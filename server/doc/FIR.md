@@ -198,7 +198,11 @@ A register's value can also be bound in an environment without a count of its ow
 - a builtin call: the runtime counts unless the builtin is an operator (`PP_BINARY`, `PP_BINARY2` or `PP_UNARY`), not a special, with no object, promise, or `...` argument (`Fir_builtin_runs_r`);
 - a force: the C code tests whether the value is an unevaluated promise, and counts only then.
 
-When a builtin forces a promise argument (a dynamic call of a builtin), the runtime also counts the arguments. These cases are not covered, and a register can see the change there:
+When a builtin forces a promise argument (a dynamic call of a builtin), the runtime also counts the arguments.
+
+A static call of a builtin that isn't a special passes its arguments in cells that don't count them, as GNU-R's `CALLBUILTIN` does (`CONS_NR`; the cells of `...` elements still count). So the builtin reuses a dead operand: `x * 2 + 1` allocates one vector. While the builtin can run R code, the runtime counts each argument instead. Otherwise it counts an argument that is also another argument or a register that outlives the call (`linkedRegisters`, which also has the captures of live promises and the parameters), so the callee doesn't write into a value that is read later. A special gets counting cells.
+
+These cases are not covered, and a register can see the change there:
 
 - a function load (`ldf`) that forces a promise;
 - a warning's calling handler, below an intrinsic or an operator on plain data;

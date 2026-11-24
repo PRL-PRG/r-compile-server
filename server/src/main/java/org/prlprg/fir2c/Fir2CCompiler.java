@@ -2702,9 +2702,9 @@ public final class Fir2CCompiler {
                       arguments.pointer(),
                       names.pointer());
             }
-            // The runtime counts them if the builtin can run R code.
-            var linked = emitArray("linked", "SEXP", statementLinkPlaces(statement));
+            var protect = statementLinkPlaces(statement);
             if (values != 0) {
+              var linked = emitArray("linked", "SEXP", protect);
               return "Fir_call_builtin_values(%d, %s, %s, %d, %s, %s, 0x%xULL, %d, %s)"
                   .formatted(
                       builtinIndex,
@@ -2717,7 +2717,12 @@ public final class Fir2CCompiler {
                       linked.size(),
                       linked.pointer());
             }
-            return "Fir_call_builtin(%d, %s, %s, %d, %s, %s, %d, %s)"
+            // The protected registers, then the other ones that the runtime compares the arguments
+            // with (see `Fir_call_builtin`).
+            var guarded = new LinkedHashSet<>(protect);
+            guarded.addAll(linkPlaces(linkedRegisters(statement)));
+            var linked = emitArray("linked", "SEXP", List.copyOf(guarded));
+            return "Fir_call_builtin(%d, %s, %s, %d, %s, %s, %d, %d, %s)"
                 .formatted(
                     builtinIndex,
                     source,
@@ -2725,6 +2730,7 @@ public final class Fir2CCompiler {
                     arguments.size(),
                     arguments.pointer(),
                     names.pointer(),
+                    protect.size(),
                     linked.size(),
                     linked.pointer());
           }
@@ -2875,8 +2881,14 @@ public final class Fir2CCompiler {
           /// A caller counts a parameter that it reads later, and a promise's captures count in its
           /// data (see `Fir_mk_promise`).
           private List<String> statementLinkPlaces(Statement statement) {
-            return liveness.liveAfter(statement).stream()
-                .filter(r -> !r.equals(statement.assignee()))
+            var live = new LinkedHashSet<>(liveness.liveAfter(statement));
+            live.remove(statement.assignee());
+            return linkPlaces(live);
+          }
+
+          /// The C places of the SEXP registers in `registers` that this CFG's C function has.
+          private List<String> linkPlaces(Set<Register> registers) {
+            return registers.stream()
                 .filter(
                     r ->
                         registerRepr(r) == Repr.SEXP
