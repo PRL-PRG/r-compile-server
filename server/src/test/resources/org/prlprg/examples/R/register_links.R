@@ -69,11 +69,28 @@ compiled_writer <- function(len) {
   c(acc, bump())
 }
 
+# A builtin that isn't a special calls the writer back, which writes the builtin's own argument. As
+# in GNU-R, its argument cells don't count it, so `rapply` sees the write.
+rapply_own <- function(len, ...) {
+  acc <- as.list(rep.int(1.5, len + 1L))
+  bump <- eval(parse(text = "function(x, ...) { acc[[2L]] <<- 99; x }"))
+  r <- .Internal(rapply(acc, bump, "ANY", NULL, "list"))
+  c(r[[1L]], r[[2L]])
+}
+
+# The same builtin, whose callback writes a register that is read after the call.
+rapply_other <- function(len, ...) {
+  acc <- rep.int(1.5, len)
+  bump <- eval(parse(text = "function(x, ...) { acc[1L] <<- 99; 0 }"))
+  c(acc, .Internal(rapply(list(0), bump, "ANY", NULL, "list"))[[1L]])
+}
+
 run <- function(len) {
   list(
     dyn_call(len), dyn_call_after_builtin(len), static_call(len),
     force_promise(len, bump_global()), dyn_builtin(len),
-    internal_callback(len), promise_body(len), compiled_writer(len)
+    internal_callback(len), promise_body(len), compiled_writer(len),
+    rapply_own(len), rapply_other(len)
   )
 }
 
@@ -86,7 +103,8 @@ results <- list()
 for (len in c(1L, 3L)) {
   old <- rep.int(1.5, len)
   want <- list(
-    c(old, 0), c(old, 0, 3), c(old, 0), c(old, 0), c(old, 0), c(old, 0), c(old, 0), c(old, 0)
+    c(old, 0), c(old, 0, 3), c(old, 0), c(old, 0), c(old, 0), c(old, 0), c(old, 0), c(old, 0),
+    c(1.5, 99), c(old, 0)
   )
   got <- run(len)
   for (k in seq_along(want)) {
