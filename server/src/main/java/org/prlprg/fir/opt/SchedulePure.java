@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
@@ -77,6 +78,11 @@ public final class SchedulePure extends AbstractionOptimization {
     return statement ->
         statement.expression() instanceof Call(StaticFnCallee callee)
             && callee.function() == function;
+  }
+
+  private static boolean isDeferrable(Statement statement) {
+    return Stream.concat(DEFER_RULES.stream(), DEFER_PROMISE_RULES.stream())
+        .anyMatch(rule -> rule.test(statement));
   }
 
   private static boolean isValuePromise(Statement statement) {
@@ -153,7 +159,8 @@ public final class SchedulePure extends AbstractionOptimization {
       // Targets are collected first and applied together. Several statements can want the same
       // target -- a `deopt` jump routinely reads more than one boxed register -- and moving them
       // one at a time puts each in front of the last, so they leapfrog forever and the enclosing
-      // fixpoint sequence never settles.
+      // fixpoint sequence never settles. The other phase's statements aren't in this batch;
+      // `placeBefore` accounts for them.
       var placements = new LinkedHashMap<Instruction, List<Statement>>();
       for (var statement : matching(rules)) {
         var deferral = deferral(statement);
@@ -324,12 +331,19 @@ public final class SchedulePure extends AbstractionOptimization {
       return copy;
     }
 
-    /// Move `statements` to just before `target`, keeping the ones already sitting there put.
+    /// Move `statements` to before `target`, keeping the ones already in place.
+    ///
+    /// A statement is in place when only deferrable statements are between it and `target`; the
+    /// rest go before that run, so each keeps its order relative to the run's statements. The run
+    /// can hold statements of the other phase (promise or `box`), which aren't in this batch:
+    /// skipping only its own made the two phases move their statements past each other on every
+    /// run.
     private boolean placeBefore(Instruction target, List<Statement> statements) {
       // The target is never an assumption (see `deferral`), so this keeps a checkpoint's leading
-      // assumptions leading. Skip the run of statements already immediately before the target.
+      // assumptions leading.
       var point = target;
-      while (point.prev() instanceof Statement placed && statements.remove(placed)) {
+      while (point.prev() instanceof Statement placed
+          && (statements.remove(placed) || isDeferrable(placed))) {
         point = placed;
       }
 

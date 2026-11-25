@@ -516,6 +516,88 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     }
   }
 
+  /// The promise and the `box` are deferred in separate phases. Each phase used to move its own
+  /// statement past the other one, so the text stayed the same but the pass reported a change.
+  @Test
+  void valuePromiseAndBoxBeforeOneDeopt_areStable() {
+    assertStable(
+        """
+        (x:I, n:v1(I)) -+> I {
+          mkenv-;
+          check L() else D();
+        L():
+          popenv;
+          return x;
+        D():
+          p: p(v1(I) -) = prom-<v1(I) ->{
+            return n;
+          };
+          b: v1(I) = box< I --> v1(I) >(x);
+          deopt 0 [b, p, b];
+        }
+        """);
+  }
+
+  @Test
+  void valuePromiseBetweenBoxesBeforeOneDeopt_isStable() {
+    assertStable(
+        """
+        (x:I, y:I, n:v1(I)) -+> I {
+          mkenv-;
+          check L() else D();
+        L():
+          popenv;
+          return x;
+        D():
+          b: v1(I) = box< I --> v1(I) >(x);
+          p: p(v1(I) -) = prom-<v1(I) ->{
+            return n;
+          };
+          b2: v1(I) = box< I --> v1(I) >(y);
+          deopt 0 [b, p, b2];
+        }
+        """);
+  }
+
+  @Test
+  void valuePromiseAndBoxUsedOnlyInADeopt_areDeferredOnce() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:I, n:v1(I)) -+> I {
+              p: p(v1(I) -) = prom-<v1(I) ->{
+                return n;
+              };
+              b: v1(I) = box< I --> v1(I) >(x);
+              mkenv-;
+              check L() else D();
+            L():
+              popenv;
+              return x;
+            D():
+              deopt 0 [b, p];
+            }
+            """);
+    assertTrue(Checker.checkAll(abstraction), "should type-check:\n" + abstraction);
+
+    assertTrue(run(abstraction), "both should move into the deopt branch:\n" + abstraction);
+    assertFalse(run(abstraction), "a second run should change nothing:\n" + abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "D():", "p: p(v1(I) -) = prom-");
+    assertOrder(printed, "D():", "b: v1(I) = box< I --> v1(I) >(x);");
+  }
+
+  /// `run` reports no change and leaves the text as it is.
+  private void assertStable(@Language("FIR") String text) {
+    var abstraction = ParseUtil.parseAbstraction(text);
+    assertTrue(Checker.checkAll(abstraction), "should type-check:\n" + abstraction);
+    var before = Printer.toString(abstraction);
+
+    assertFalse(run(abstraction), "should report no change:\n" + abstraction);
+    assertEquals(before, Printer.toString(abstraction));
+  }
+
   @Language("FIR")
   private static final String DEOPT_ONLY_PROMISE =
       """

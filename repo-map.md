@@ -777,6 +777,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/s3_method_substitute.R` — `substitute(x)` in a compiled S3 method after `UseMethod` forced `x`: the method still sees the caller's expression.
 - `.../examples/R/s3_subscript_untagged.R` — Static `[<-`, `[` and `as.character` calls on an S3 object: the methods see the tags of the R call (none), not the builtin's parameter names.
 - `.../examples/R/substitute_in_parent_frame.R` — `substitute(a, parent.frame())` in a function with no context reader by name: the special evaluates `parent.frame()`, so the function needs a context.
+- `.../examples/R/swap_fixpoint_feedback.R` — A value promise and a `box` before one `deopt` in the lazy optimized `swap` at `DEBUG=false`: `SchedulePure` must reach a fixpoint.
 - `server/src/test/resources/org/prlprg/session/` — Saved base environment and builtin data for test sessions.
 - `server/src/test/resources/org/prlprg/snapshot/` — `eval.R` (the eval driver), `gen2c/standalone.c` (compiled into a standalone FIŘ module; installs the vendored R's hooks at `dyn.load`, removes them at `dyn.unload`), bench scripts (`bench.R`, `optbench.R`, `synergy.R`, `ownership.R`, `promisebench.R`, which also counts `OwnershipBenchmark`'s copies), `order.txt`.
 - `server/src/test/resources/org/prlprg/gen2c/`, `bc2c/` — Build files and data for compiled-C tests.
