@@ -715,7 +715,18 @@ public final class BC2FirCFGCompiler {
         tryAddCheckpoint(true, stack);
       }
       case GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
-      case GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
+      case GetIntlBuiltin(var name) -> {
+        // `Fir2CCompiler` calls these builtins via their base closures, which aren't the
+        // `.Internal`: `stop` and `warning` have the closures' parameters in `builtins.fir`.
+        var builtin = new Builtin(get(name).name());
+        var function = builtin.function();
+        var arity = Objects.requireNonNull(GNURSession.readFunTab().get(builtin.name())).arity();
+        if (function.userProperties().readsContext()
+            || (arity != -1 && arity != function.parameterNames().size())) {
+          throw failUnsupported(".Internal(" + builtin.name() + "(...)) runs the base closure");
+        }
+        pushCall(builtin);
+      }
       case CheckFun() -> {
         var fun = pop();
         insert(checkFun(fun));
