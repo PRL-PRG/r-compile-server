@@ -96,6 +96,17 @@ same_twice <- function(n, len) {
   s
 }
 
+# A fresh vector with no references, two operands of an operator and read after it.
+fresh_twice <- function(n, len) {
+  s <- 0
+  for (k in 1:n) {
+    x <- rep.int(1.5, len) + 0
+    y <- x * x
+    s <- s + x[[1L]] * 10 + y[[len]]
+  }
+  s
+}
+
 # A dead register that is two arguments: both cells count it, so `names<-` doesn't give the vector
 # its own names. Only builtin calls, so that `x` is only in a register, and nothing after the call,
 # so that `x` is dead there.
@@ -109,7 +120,7 @@ run <- function(len) {
   list(
     read_after(3L, len), alias_as_numeric(3L, len), alias_phi(3L, len), param_outer(3L, len),
     const_loop(3L, len), const_loop(3L, len), lazy_outer(3L, len), unary(3L, len),
-    same_twice(3L, len), self_names(len)
+    same_twice(3L, len), self_names(len), fresh_twice(3L, len)
   )
 }
 

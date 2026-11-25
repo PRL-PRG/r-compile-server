@@ -1264,12 +1264,14 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
 // The width of `Fir_alias_mask`. A call with more arguments counts each of them.
 #define FIR_ALIAS_MASK_ARGS 64
 
-// Bit `i` is set if `args[i]` is also an entry of `linked` or another argument.
-static inline uint64_t Fir_alias_mask(int argc, SEXP *args, int nlinked, SEXP *linked) {
+// Bit `i` is set if `args[i]` is also an entry of `linked` or another argument, and, if
+// `unreferenced_only`, it has no references.
+static inline uint64_t Fir_alias_mask(int argc, SEXP *args, int nlinked, SEXP *linked,
+                                      bool unreferenced_only) {
   uint64_t mask = 0;
   for (int i = 0; i < argc; i++) {
     SEXP arg = args[i];
-    if (arg == R_MissingArg || arg == R_NilValue) {
+    if (arg == R_MissingArg || arg == R_NilValue || (unreferenced_only && !NO_REFERENCES(arg))) {
       continue;
     }
     for (int j = 0; j < nlinked; j++) {
@@ -1336,9 +1338,11 @@ SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SE
   }
   // An operand that is also a register or another operand counts, or the callee could write into
   // it while it's read. Others don't, as in GNU-R: R code that the builtin runs can write in place
-  // an argument that nothing else references.
-  uint64_t aliased = argc <= FIR_ALIAS_MASK_ARGS ? Fir_alias_mask(argc, args, nlinked, linked) : 0;
+  // an argument that nothing else references. An operator on plain data reuses only an operand
+  // with no references (`NO_REFERENCES` in `arithmetic.c`), so it needs no count for another one.
   bool runs_r = Fir_builtin_runs_r(blt_idx, argc, args, names);
+  uint64_t aliased =
+      argc <= FIR_ALIAS_MASK_ARGS ? Fir_alias_mask(argc, args, nlinked, linked, !runs_r) : 0;
   if (aliased == 0 && !runs_r && argc <= FIR_ALIAS_MASK_ARGS) {
     return Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_ARGS);
   }
