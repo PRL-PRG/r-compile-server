@@ -677,6 +677,8 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/eval_compiled_body_in_live_frame.R` — `eval` of a compiled closure's body in a live frame: its pop must not mark that frame as returned (`FIR_FRAME_RETURNED`).
 - `.../examples/R/closure_called_from_inlined_frame_in_elided_frame.R` — A closure made in a real frame inside an elided frame, called with its own elided frame: no cycle in the parent chain.
 - `.../examples/R/closure_from_frame_nested_in_elided_frame.R` — A closure from a real frame that an elided frame contains: its lookups reach the elided frame's parent, not the elided environment's current parent.
+- `.../examples/R/dyn_special_callee_value.R` — Dynamic calls of the special `{` through a promise parameter `fn`: `MergeAssumeLoadVar` must not merge the `ldf fn`.
+- `.../examples/R/dyn_special_enclosing_promise.R` — Dynamic calls of specials through a promise parameter of an enclosing function: `MergeAssumeLoadVar` must not merge the inner closure's `ldf` of it.
 - `.../examples/R/closure_guard_accepts_bytecode_closure.R` — A closure guard passes on a closure that a bytecode baseline creates (identical formals and bytecode).
 - `.../examples/R/ldf_guard_accepts_closure_of_other_factory.R` — An `ldf x ?- f` guard passes on closures of one inner function that two factories make over different frames.
 - `.../examples/R/elided_callee_env_collected.R` — After the outermost elided frame returns, the elided environment doesn't keep its parent alive: `gc()` runs the parent's finalizer.

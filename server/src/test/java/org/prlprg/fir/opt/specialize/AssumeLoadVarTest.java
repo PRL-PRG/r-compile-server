@@ -61,7 +61,7 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
               () --> cls { ... }
               () --> cls {
                 mkenv;
-                c: * = clos target;
+                c: cls = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
               BBdeopt1():
@@ -96,6 +96,143 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
         "the original Load should be removed; printed:\n" + printed);
   }
 
+  /// The `ldf` forces the promise, the merged `AssumeLoadFun` doesn't.
+  @Test
+  void doesNotMergeLoadFunOfPromiseParameter() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              (fn:*) --> cls { ... }
+              (fn:p(cls +)) --> cls {
+                mkenv;
+                st fn = fn;
+                check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
+              BB1():
+                x: cls = ldf fn;
+                check BB2() else BBdeopt2();
+              BB2():
+                target: cls = x ?- target;
+                popenv;
+                return target;
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+
+            fun target() {
+              () --> v1(I) {
+                return <int 7>;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "a Load(LOCAL_FUN) of a promise should not be merged");
+
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("x: cls = ldf fn"), "Load should remain; printed:\n" + printed);
+  }
+
+  /// `fn` is a promise parameter of the enclosing function, which the inner version doesn't store.
+  @Test
+  void doesNotMergeLoadFunOfEnclosingPromiseParameter() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun outer(fn) {
+              (fn:*) --> cls {
+                mkenv;
+                st fn = fn;
+                c: cls = clos inner;
+                popenv;
+                return c;
+              }
+            }
+
+            fun inner() {
+              () --> cls { ... }
+              () --> cls {
+                mkenv;
+                check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
+              BB1():
+                x: cls = ldf fn;
+                check BB2() else BBdeopt2();
+              BB2():
+                target: cls = x ?- target;
+                popenv;
+                return target;
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+
+            fun target() {
+              () --> v1(I) {
+                return <int 7>;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "a Load(LOCAL_FUN) of an enclosing promise should not be merged");
+
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("x: cls = ldf fn"), "Load should remain; printed:\n" + printed);
+  }
+
+  /// `bench_shootout_binarytrees`: `check(tree)` stores a promise into `tree`, but doesn't enclose
+  /// the function that calls `tree`.
+  @Test
+  void mergesLoadFunOfPromiseParameterOfUnrelatedFunction() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun check(fn) {
+              (fn:*) --> V {
+                mkenv;
+                st fn = fn;
+                popenv;
+                return <nil>;
+              }
+            }
+
+            fun inner() {
+              () --> cls { ... }
+              () --> cls {
+                mkenv;
+                check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
+              BB1():
+                x: cls = ldf fn;
+                check BB2() else BBdeopt2();
+              BB2():
+                target: cls = x ?- target;
+                popenv;
+                return target;
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+
+            fun target() {
+              () --> v1(I) {
+                return <int 7>;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("ldf fn ?- target"),
+        "Load + AssumeFunction should be merged into AssumeLoadFun; printed:\n" + printed);
+  }
+
   @Test
   void doesNotMergeLoadFunAndAssumeConstant() {
     var module =
@@ -105,7 +242,7 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
               () --> I { ... }
               () --> I {
                 mkenv;
-                c: * = clos target;
+                c: cls = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
               BBdeopt1():

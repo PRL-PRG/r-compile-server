@@ -168,7 +168,8 @@ class DefiniteForceTest implements AbstractionOptimizationUnitTest {
     var abstraction = ParseUtil.parseAbstraction(promiseLoading("~", "st x = <real 0.0>;"));
     assertTrue(run(abstraction), "optimization should report a change");
     var printed = Printer.toString(abstraction);
-    assertTrue(printed.contains("x2: V = x1 as V;"), "the force should be a cast:\n" + printed);
+    assertFalse(printed.contains("force?"), "the maybe-force should be gone:\n" + printed);
+    assertTrue(printed.contains(" as V;"), "the force should be a cast:\n" + printed);
   }
 
   @Test
@@ -196,7 +197,7 @@ class DefiniteForceTest implements AbstractionOptimizationUnitTest {
                 .formatted(promiseLoading("~", "st x = <real 0.0>;\n  f: cls = clos target;")));
     run(module);
     var printed = Printer.toString(module);
-    assertTrue(printed.contains("force? x1"), "the maybe-force should stay:\n" + printed);
+    assertTrue(printed.contains("force?"), "the maybe-force should stay:\n" + printed);
   }
 
   @Test
@@ -232,7 +233,7 @@ class DefiniteForceTest implements AbstractionOptimizationUnitTest {
   private void assertMaybeForceStays(Abstraction abstraction) {
     run(abstraction);
     var printed = Printer.toString(abstraction);
-    assertTrue(printed.contains("force? x1"), "the maybe-force should stay:\n" + printed);
+    assertTrue(printed.contains("force?"), "the maybe-force should stay:\n" + printed);
   }
 
   /// Makes an environment (`env` is its kind: `~` or empty), runs `beforePromise`, then forces a
