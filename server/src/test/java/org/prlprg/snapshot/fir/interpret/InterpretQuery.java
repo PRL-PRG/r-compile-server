@@ -67,6 +67,13 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   @Override
   public void verifyNoRegression(
       InterpretOutput previous, InterpretOutput current, Example example, SnapshotStore store) {
+    // A previous run that stopped at something unsupported (e.g. the GNU-R budget) has no result
+    // to compare. `InterpretAfterOptTest` compares optimized runs against the unoptimized snapshot,
+    // and an optimized run can get further. It must not crash.
+    if (previous.result().isSimplyUnsupported()
+        && (current.result() instanceof SexpResult.Ok || current.result().isSimplyUnsupported())) {
+      return;
+    }
     assertEquals(previous.result(), current.result(), "Return value or crash reason changed");
   }
 
