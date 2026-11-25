@@ -1262,6 +1262,71 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
   return result;
 }
 
+// The width of `Fir_alias_mask`. A call with more arguments counts each of them.
+#define FIR_ALIAS_MASK_ARGS 64
+
+// Bit `i` is set if `args[i]` is also an entry of `linked` or another argument.
+static inline uint64_t Fir_alias_mask(int argc, SEXP *args, int nlinked, SEXP *linked) {
+  uint64_t mask = 0;
+  for (int i = 0; i < argc; i++) {
+    SEXP arg = args[i];
+    if (arg == R_MissingArg || arg == R_NilValue) {
+      continue;
+    }
+    for (int j = 0; j < nlinked; j++) {
+      if (linked[j] == arg) {
+        mask |= 1ULL << i;
+        break;
+      }
+    }
+    // Each equal argument finds the first one, so the loop can stop there.
+    for (int j = 0; j < i; j++) {
+      if (args[j] == arg) {
+        mask |= 1ULL << i | 1ULL << j;
+        break;
+      }
+    }
+  }
+  return mask;
+}
+
+// Add `delta` to the count of each argument in `aliased`, or of each argument that isn't missing
+// or `NULL` if there are more than `FIR_ALIAS_MASK_ARGS`.
+static void Fir_link_aliased(int argc, SEXP *args, uint64_t aliased, int delta) {
+  for (int i = 0; i < argc; i++) {
+    SEXP arg = args[i];
+    bool counted = argc > FIR_ALIAS_MASK_ARGS ? arg != R_MissingArg && arg != R_NilValue
+                                              : (aliased >> i & 1) != 0;
+    if (counted) {
+      Fir_link(1, &arg, delta);
+    }
+  }
+}
+
+// The slow path of `Fir_call_builtin`, out of line so that the fast path has no stack frame of its
+// own. Without `runs_r` no argument is a promise, so `args` keeps its values during the call. Else
+// the call can force promise arguments in `args`, so `held` keeps the values that it counted.
+__attribute__((noinline)) static SEXP
+Fir_call_builtin_counted(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                         uint64_t aliased, bool runs_r, int nprotect, SEXP *linked) {
+  SEXP small[8];
+  SEXP *held = args;
+  const void *vmax = vmaxget();
+  if (runs_r) {
+    held = argc <= 8 ? small : (SEXP *)R_alloc(argc, sizeof(SEXP));
+    memcpy(held, args, argc * sizeof(SEXP));
+    Fir_link(nprotect, linked, 1);
+  }
+  Fir_link_aliased(argc, held, aliased, 1);
+  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_ARGS);
+  Fir_link_aliased(argc, held, aliased, -1);
+  if (runs_r) {
+    Fir_link(nprotect, linked, -1);
+  }
+  vmaxset(vmax);
+  return result;
+}
+
 SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
                       int nprotect, int nlinked, SEXP *linked) {
   if (R_FunTab[blt_idx].eval % 10 != 1) {
@@ -1272,33 +1337,14 @@ SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SE
   }
   // An operand that is also a register or another operand counts, or the callee could write into
   // it while it's read. Others don't, as in GNU-R: R code that the builtin runs can write in place
-  // an argument that nothing else references. `held` keeps the counted ones, as the call forces
-  // promise arguments in `args`.
-  SEXP held[argc > 0 ? argc : 1];
-  for (int i = 0; i < argc; i++) {
-    SEXP arg = args[i];
-    bool alias = false;
-    if (arg != R_MissingArg && arg != R_NilValue) {
-      for (int j = 0; !alias && j < nlinked; j++) {
-        alias = linked[j] == arg;
-      }
-      for (int j = 0; !alias && j < argc; j++) {
-        alias = j != i && args[j] == arg;
-      }
-    }
-    held[i] = alias ? arg : NULL;
-  }
-  Fir_link(argc, held, 1);
+  // an argument that nothing else references.
+  uint64_t aliased = argc <= FIR_ALIAS_MASK_ARGS ? Fir_alias_mask(argc, args, nlinked, linked) : 0;
   bool runs_r = Fir_builtin_runs_r(blt_idx, argc, args, names);
-  if (runs_r) {
-    Fir_link(nprotect, linked, 1);
+  if (aliased == 0 && !runs_r && argc <= FIR_ALIAS_MASK_ARGS) {
+    return Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_ARGS);
   }
-  SEXP result = Fir_call_primitive(blt_idx, call, env, argc, args, names, true, FIR_NR_ARGS);
-  if (runs_r) {
-    Fir_link(nprotect, linked, -1);
-  }
-  Fir_link(argc, held, -1);
-  return result;
+  return Fir_call_builtin_counted(blt_idx, call, env, argc, args, names, aliased, runs_r, nprotect,
+                                  linked);
 }
 
 // Wrap the symbol and call values (bit `i` of `values`) of a special's arguments in evaluated
