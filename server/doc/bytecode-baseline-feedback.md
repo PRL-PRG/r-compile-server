@@ -187,3 +187,6 @@ feedback {
 Nothing else `AbstractionFeedback` can hold is recorded: no reflective environments, no escaping
 promises, no promise force counts, and no feedback at all for promises, which the JIT records
 separately in a recording we don't reach.
+
+The JIT pipeline uses only the call counts and the parameter types of the recording (see
+[lazy-versions.md](lazy-versions.md#the-compilefirclosure-rpc)).

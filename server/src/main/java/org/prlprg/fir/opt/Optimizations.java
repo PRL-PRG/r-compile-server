@@ -166,6 +166,12 @@ public class Optimizations {
     return defaultOptimizations(threshold, modifyCheckpoints, NO_VERSION_LIMIT, List.of());
   }
 
+  /// [#defaultOptimizations(int,boolean)] without [SpeculateAssume], for code that can't
+  /// deoptimize (the JIT's FIŘ→C code): this pipeline inserts no assumption that can fail.
+  public static Optimization defaultOptimizationsWithoutAssume(int threshold) {
+    return defaultOptimizations(threshold, true, NO_VERSION_LIMIT, List.of("speculateAssume"));
+  }
+
   /// [#defaultOptimizations()], but no optimization creates a version of a function that has
   /// `versionLimit` versions (the baseline included).
   ///

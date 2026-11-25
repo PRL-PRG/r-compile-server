@@ -303,13 +303,15 @@ The server (`CompileService#compileFirClosure`) does these steps:
 2. It compiles the closure into a new module with `BC2FirClosureCompiler`. It uses the client's
    bytecode and doesn't recompile it, because the recording's offsets index that bytecode.
 3. It translates the recording into feedback for the module (`BcRecordingFeedback`).
-4. It runs `Optimizations#defaultOptimizations(threshold)` on the module with that feedback. The
+4. It runs `Optimizations#defaultOptimizationsWithoutAssume(threshold)` on the module with that
+   feedback. This pipeline has no `SpeculateAssume`, because FIŘ→C code cannot deoptimize. The
    optimizations create lazy versions as usual. For example, `CopyBaseline` creates a copy of the
-   baseline, which speculates on the feedback when it's evaluated.
+   baseline. The copy does not speculate on the feedback.
 5. It evaluates the function's versions that exist at this point (the copy), because the closure
    is hot. Optimizing the copy runs `SpeculateDispatch`, which creates a version per rank of the
    recorded parameter types (the most frequent type of each parameter, the second most frequent,
-   ...). Those versions stay lazy.
+   ...). Those versions stay lazy. The from-R dispatch guards them, so the argument types reach
+   the code only through these versions.
 6. It registers a `Fir2CSession` for the module in `FirModules`, and compiles the closure's
    function with `Fir2CCompiler#compile`. The copy is compiled. The specialized versions become
    stubs, which the client asks for with `CompileFirVersion`, as above.
@@ -322,16 +324,22 @@ The server (`CompileService#compileFirClosure`) does these steps:
 The client has one threshold (`Fir_jit_threshold`, default 10). `rsh_jit_enable(threshold)` and
 `rsh_fir_connect(..., threshold)` set it. The last call wins. The counting body uses it for the
 tiers, and a stub requests its version at call N. The client sends it in the request, and the
-server gives it to the optimizations, which use it as the minimum number of hits for speculation.
+server gives it to the optimizations. `SpeculateDispatch` and `OptimizeCallee` use it as the
+minimum number of hits of a parameter type. `SpecializeNonReflectiveEnv` and
+`SpecializeLocalPromise` use it as the minimum number of calls.
 
 ### Known limits
 
 - Without rcp, the baseline records nothing, so the server gets no feedback and doesn't
   speculate. rcp is only in the RCP variant of GNU-R, on Linux x86-64.
 - CI has no RCP build, so CI tests the tiers without feedback.
-- If a speculation fails after the closure is optimized, R signals an error ("FIŘ
-  deoptimization triggered at pc=... (unsupported)"). There is no deoptimization back to the
-  bytecode. Before the error, the deopt branch materializes an elided frame and stores into it.
+- There is no deoptimization back to the bytecode. If an assumption fails after the closure is
+  optimized, R signals an error ("FIŘ deoptimization triggered at pc=... (unsupported)"). Before
+  the error, the deopt branch materializes an elided frame and stores into it. So the JIT inserts
+  no `SpeculateAssume` assumption. These assumptions and errors remain:
+  - The bc2fir `BASEGUARD` assumption fails when the program shadows a base function.
+  - The runtime's value-dependent errors can still fire in a type-specialized version. Examples
+    are `x[i]` with more than one element, real `:` bounds, and integer `sum` overflow.
 - The server never removes a module from `FirModules`.
 - `rsh_compile` and the `Compile` RPC (the bytecode-to-C path) still exist, but the JIT doesn't
   use them.
@@ -366,7 +374,8 @@ server gives it to the optimizations, which use it as the minimum number of hits
   one says `fallback` and has no patch, a version the optimizations change is compiled, and a
   compiled version that becomes redundant is reverted (and compiled again when it changes).
 - `ServerTests#testCompileFirClosure` sends `CompileFirClosure` a recording, and checks the
-  versions that the optimizations create from it.
+  versions that the optimizations create from it: a stub for the recorded parameter type, and no
+  `assume` in an evaluated version, also after `CompileFirVersion` evaluates the stub.
 - `ManualFirServer` (test sources) serves one example for running `eval.R` by hand.
 - `VersionBenchmark` (a benchmark, not a test) runs a `#? benchmark:` example's call on the lazy
   module through `EvalQuery`'s path, with the client's default threshold (10). It runs the

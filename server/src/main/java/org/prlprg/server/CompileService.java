@@ -407,7 +407,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                     new BcRecordingFeedback.Recording(
                         name, (VecSXP) RDSReader.readByteString(rSession, request.getRecording()))))
             : null;
-    Optimizations.defaultOptimizations(request.getThreshold(), true)
+    Optimizations.defaultOptimizationsWithoutAssume(request.getThreshold())
         .run(feedback == null ? new MockModuleFeedback(module) : feedback, module);
     // The closure is hot, so its versions that exist now (the baseline's copy) are compiled, not
     // stubs. Evaluating them optimizes them, which creates the versions that specialize on the

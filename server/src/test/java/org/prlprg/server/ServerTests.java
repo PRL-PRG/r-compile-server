@@ -27,7 +27,6 @@ import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
@@ -261,9 +260,9 @@ public class ServerTests {
   }
 
   /// A closure the client's JIT sends once its bytecode ran often enough, with what the bytecode
-  /// recorded: the module is optimized with the recording, so it has a version that speculates on
-  /// the recorded type, which is a stub until the client calls it. Optimizing that version adds a
-  /// version for the recorded parameter type, which is a stub too.
+  /// recorded: the module is optimized with the recording, so it has a version for the recorded
+  /// parameter type, which is a stub until the client calls it. No version assumes anything,
+  /// because the compiled code can't deoptimize.
   @Test
   void testCompileFirClosure(Resources resources) throws Exception {
     assert server != null;
@@ -330,19 +329,13 @@ public class ServerTests {
     assertEquals("Fir_" + response.getModule() + "_fun_init_addOne", response.getInit());
     assertEquals("Fir_" + response.getModule() + "_fun_from_r_addOne", response.getFromR());
 
-    // `CopyBaseline`'s copy is evaluated: it assumes the recorded type, and optimizing it adds a
-    // version for the recorded parameter type, which is a stub until the client calls it.
+    // `CopyBaseline`'s copy is evaluated, and there is a version for the recorded parameter type,
+    // which is a stub until the client calls it.
     var session = entry.session();
     var function = Objects.requireNonNull(session.module().localFunction(Variable.named("addOne")));
-    var copy =
-        function.versions().stream()
-            .filter(v -> v != function.baseline() && v.isEvaluated())
-            .findFirst()
-            .orElseThrow(
-                () ->
-                    new AssertionError(
-                        "the baseline's copy must be compiled, not a stub: "
-                            + function.versions()));
+    assertTrue(
+        function.versions().stream().anyMatch(v -> v != function.baseline() && v.isEvaluated()),
+        () -> "the baseline's copy must be compiled, not a stub: " + function.versions());
     var specialized =
         function.versions().stream()
             .filter(v -> Printer.toString(v.signature()).equals("v1(R) -+> V"))
@@ -353,20 +346,25 @@ public class ServerTests {
                         "no version for the recorded parameter type: " + function.versions()));
     assertFalse(specialized.isEvaluated(), "the specialized version must be unevaluated");
     assertEquals(List.of(specialized), session.stubs(), "the specialized version is the only stub");
-    assertTrue(
-        copy.streamCfgs()
-            .flatMap(cfg -> cfg.bbs().stream())
-            .flatMap(bb -> bb.statements().stream())
-            .anyMatch(
-                stmt ->
-                    stmt.expression() instanceof Assume(AssumeType(var type))
-                        && type.equals(Type.BOXED_REAL)),
-        "the evaluated version must assume `x` is a real scalar:\n" + session.module());
+    assertNoEvaluatedAssume(function);
 
     // When the client calls the stub, the specialized version is evaluated.
     blockingStub.compileFirVersion(
         Messages.FirVersionRequest.newBuilder().setModule(session.id()).setStub(0).build());
     assertTrue(specialized.isEvaluated());
+    assertNoEvaluatedAssume(function);
+  }
+
+  private static void assertNoEvaluatedAssume(Function function) {
+    var assumes =
+        function.versions().stream()
+            .filter(v -> v.isEvaluated())
+            .flatMap(v -> v.streamCfgs())
+            .flatMap(cfg -> cfg.bbs().stream())
+            .flatMap(bb -> bb.statements().stream())
+            .filter(stmt -> stmt.expression() instanceof Assume)
+            .toList();
+    assertEquals(List.of(), assumes, "no evaluated version may assume:\n" + function);
   }
 
   private static VecSXP recording(int calls, SEXP branch, SEXP varCall, SEXP fun) {
