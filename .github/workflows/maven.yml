@@ -93,9 +93,10 @@ jobs:
           cache: maven
       - name: Set up GNU-R
         uses: ./.github/actions/setup-gnur
+      # `test` and `verify` run the tests.
       - name: Build artifact
         working-directory: server
-        run: ./mvnw --batch-mode --update-snapshots package
+        run: ./mvnw --batch-mode --update-snapshots -DskipTests package
       - name: Upload snapshot as artifact
         uses: actions/upload-artifact@v4
         with:

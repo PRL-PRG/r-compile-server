@@ -179,15 +179,18 @@ class SingleGNURProcess implements GNUR {
   /// and sends `list("value", x)`. In between, `.rcs_callback(x)` sends `list("callback", x)`, and
   /// evaluates the `"eval"`s it gets until it gets its `list("value", x)`, or a `list("abort")`,
   /// at which the evaluation it's in sends `list("aborted")` in place of its value.
+  ///
+  /// R sends each message in one write, without Nagle's algorithm: on Linux, a second small write
+  /// waits for the delayed ACK of the first, which costs 40 ms per round trip.
   private static final String CONNECT =
       """
       .rcs <- new.env()
-      .rcs$con <- socketConnection("127.0.0.1", %d, blocking = TRUE, open = "r+b", timeout = 86400)
+      .rcs$con <- socketConnection(
+        "127.0.0.1", %d, blocking = TRUE, open = "r+b", timeout = 86400, options = "no-delay")
       .rcs$parsed <- new.env()
       .rcs$send <- function(x) {
         bytes <- serialize(x, NULL, version = 2)
-        writeBin(length(bytes), .rcs$con, endian = "big")
-        writeBin(bytes, .rcs$con)
+        writeBin(c(writeBin(length(bytes), raw(), endian = "big"), bytes), .rcs$con)
         flush(.rcs$con)
       }
       .rcs$eval <- function(msg) {
