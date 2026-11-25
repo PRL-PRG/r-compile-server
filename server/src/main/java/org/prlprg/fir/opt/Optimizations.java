@@ -166,10 +166,17 @@ public class Optimizations {
     return defaultOptimizations(threshold, modifyCheckpoints, NO_VERSION_LIMIT, List.of());
   }
 
-  /// [#defaultOptimizations(int,boolean)] without [SpeculateAssume], for code that can't
-  /// deoptimize (the JIT's FIŘ→C code): this pipeline inserts no assumption that can fail.
-  public static Optimization defaultOptimizationsWithoutAssume(int threshold) {
-    return defaultOptimizations(threshold, true, NO_VERSION_LIMIT, List.of("speculateAssume"));
+  /// The pipeline of the rsh JIT (`CompileService#compileFirClosure`):
+  /// [#defaultOptimizations(int,boolean)] without two optimizations.
+  /// - [SpeculateAssume]: FIŘ→C code can't deoptimize, so its assumptions can't fail safely.
+  /// - [SpecializeNonReflectiveEnv]: the JIT's recording has no reflection evidence, so it would
+  ///   trust absent evidence.
+  public static Optimization jitOptimizations(int threshold) {
+    return defaultOptimizations(
+        threshold,
+        true,
+        NO_VERSION_LIMIT,
+        inPipelineOrder(List.of("speculateAssume", "specializeNonReflectiveEnv")));
   }
 
   /// [#defaultOptimizations()], but no optimization creates a version of a function that has

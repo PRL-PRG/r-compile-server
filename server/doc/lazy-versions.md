@@ -303,8 +303,9 @@ The server (`CompileService#compileFirClosure`) does these steps:
 2. It compiles the closure into a new module with `BC2FirClosureCompiler`. It uses the client's
    bytecode and doesn't recompile it, because the recording's offsets index that bytecode.
 3. It translates the recording into feedback for the module (`BcRecordingFeedback`).
-4. It runs `Optimizations#defaultOptimizationsWithoutAssume(threshold)` on the module with that
-   feedback. This pipeline has no `SpeculateAssume`, because FIŘ→C code cannot deoptimize. The
+4. It runs `Optimizations#jitOptimizations(threshold)` on the module with that feedback. This
+   pipeline has no `SpeculateAssume`, because FIŘ→C code cannot deoptimize. It has no
+   `SpecializeNonReflectiveEnv`, because the recording has no evidence of reflection. The
    optimizations create lazy versions as usual. For example, `CopyBaseline` creates a copy of the
    baseline. The copy does not speculate on the feedback.
 5. It evaluates the function's versions that exist at this point (the copy), because the closure
@@ -325,8 +326,8 @@ The client has one threshold (`Fir_jit_threshold`, default 10). `rsh_jit_enable(
 `rsh_fir_connect(..., threshold)` set it. The last call wins. The counting body uses it for the
 tiers, and a stub requests its version at call N. The client sends it in the request, and the
 server gives it to the optimizations. `SpeculateDispatch` and `OptimizeCallee` use it as the
-minimum number of hits of a parameter type. `SpecializeNonReflectiveEnv` and
-`SpecializeLocalPromise` use it as the minimum number of calls.
+minimum number of hits of a parameter type. `SpecializeLocalPromise` uses it as the minimum number
+of calls.
 
 ### Known limits
 
@@ -340,6 +341,13 @@ minimum number of hits of a parameter type. `SpecializeNonReflectiveEnv` and
   - The bc2fir `BASEGUARD` assumption fails when the program shadows a base function.
   - The runtime's value-dependent errors can still fire in a type-specialized version. Examples
     are `x[i]` with more than one element, real `:` bounds, and integer `sum` overflow.
+- The recording has no evidence of reflection, so the JIT pipeline has no
+  `SpecializeNonReflectiveEnv`: it would mark an environment non-reflective because no reflection
+  was recorded. Then `ElideEnv`, `ElideDeadStore` and `PromoteStaticallyKnownVariables` would
+  remove stores that a reflective read (such as `get`) needs.
+- `OptimizeCallee#isOneElement` and `OptimizeCallee#widenedIndexTypes` also trust absent recording
+  evidence. A `[` without a recorded result counts as one element. A subassign without a recorded
+  growth counts as no growth. This is not verified in the JIT.
 - The server never removes a module from `FirModules`.
 - `rsh_compile` and the `Compile` RPC (the bytecode-to-C path) still exist, but the JIT doesn't
   use them.
@@ -366,7 +374,8 @@ minimum number of hits of a parameter type. `SpecializeNonReflectiveEnv` and
 - `JitTieringTest` runs the tiers end to end. An R process with `rsh` enables the JIT with
   threshold 3 and 5, connects to `FirTestServer` in deterministic mode, and calls a closure. The
   test checks the tier after each group of calls, that the closure runs native code, and that the
-  server has one module for the closure. It doesn't use `GNUR#rshInstance`, because enabling
+  server has one module for the closure. Its `reflection` method checks that a closure that
+  reflects on its environment (`get`) returns plain R's values in the optimized tier. It doesn't use `GNUR#rshInstance`, because enabling
   GNU-R's JIT would change what the eval tests run.
 - `StubThresholdTest` runs one example with the stub threshold 2, and checks that the run leaves
   fewer versions evaluated than with threshold 1.
@@ -375,7 +384,8 @@ minimum number of hits of a parameter type. `SpecializeNonReflectiveEnv` and
   compiled version that becomes redundant is reverted (and compiled again when it changes).
 - `ServerTests#testCompileFirClosure` sends `CompileFirClosure` a recording, and checks the
   versions that the optimizations create from it: a stub for the recorded parameter type, and no
-  `assume` in an evaluated version, also after `CompileFirVersion` evaluates the stub.
+  `assume` in an evaluated version, also after `CompileFirVersion` evaluates the stub. The
+  general copy keeps a regular `mkenv`.
 - `ManualFirServer` (test sources) serves one example for running `eval.R` by hand.
 - `VersionBenchmark` (a benchmark, not a test) runs a `#? benchmark:` example's call on the lazy
   module through `EvalQuery`'s path, with the client's default threshold (10). It runs the

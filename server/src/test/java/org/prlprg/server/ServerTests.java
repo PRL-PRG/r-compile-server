@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +29,8 @@ import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
@@ -262,7 +265,8 @@ public class ServerTests {
   /// A closure the client's JIT sends once its bytecode ran often enough, with what the bytecode
   /// recorded: the module is optimized with the recording, so it has a version for the recorded
   /// parameter type, which is a stub until the client calls it. No version assumes anything,
-  /// because the compiled code can't deoptimize.
+  /// because the compiled code can't deoptimize, and the general copy keeps its environment,
+  /// because the recording has no evidence that it isn't reflected on.
   @Test
   void testCompileFirClosure(Resources resources) throws Exception {
     assert server != null;
@@ -347,6 +351,30 @@ public class ServerTests {
     assertFalse(specialized.isEvaluated(), "the specialized version must be unevaluated");
     assertEquals(List.of(specialized), session.stubs(), "the specialized version is the only stub");
     assertNoEvaluatedAssume(function);
+    var general =
+        function.versions().stream()
+            .filter(
+                v ->
+                    v != function.baseline()
+                        && v.isEvaluated()
+                        && v.signature()
+                            .parameterTypes()
+                            .equals(function.baseline().signature().parameterTypes()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no general copy: " + function.versions()));
+    var envTypes =
+        general
+            .streamCfgs()
+            .flatMap(cfg -> cfg.bbs().stream())
+            .flatMap(bb -> bb.statements().stream())
+            .flatMap(
+                stmt ->
+                    stmt.expression() instanceof MkEnv(var type) ? Stream.of(type) : Stream.of())
+            .toList();
+    assertEquals(
+        List.of(MkEnvType.REGULAR),
+        envTypes,
+        "the general copy must keep a regular environment:\n" + function);
 
     // When the client calls the stub, the specialized version is evaluated.
     blockingStub.compileFirVersion(

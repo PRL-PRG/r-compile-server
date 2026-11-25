@@ -7,7 +7,7 @@ import static org.prlprg.fir.opt.Optimizations.canonicalRemoval;
 import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
 import static org.prlprg.fir.opt.Optimizations.defaultOptimizationsWithVersionLimit;
 import static org.prlprg.fir.opt.Optimizations.defaultOptimizationsWithout;
-import static org.prlprg.fir.opt.Optimizations.defaultOptimizationsWithoutAssume;
+import static org.prlprg.fir.opt.Optimizations.jitOptimizations;
 import static org.prlprg.fir.opt.Optimizations.removalClosure;
 
 import java.util.List;
@@ -72,7 +72,8 @@ class OptimizationsTest {
     assertEquals("default", defaultOptimizations().name());
     assertEquals("defaultVersionLimit2", defaultOptimizationsWithVersionLimit(2).name());
     assertEquals(
-        "defaultThreshold3WithoutSpeculateAssume", defaultOptimizationsWithoutAssume(3).name());
+        "defaultThreshold3WithoutSpecializeNonReflectiveEnvAndSpeculateAssume",
+        jitOptimizations(3).name());
     assertThrows(IllegalArgumentException.class, () -> defaultOptimizationsWithVersionLimit(1));
 
     // `f` gets a version for the argument's type, unless the limit stops it

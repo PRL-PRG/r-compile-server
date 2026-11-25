@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.prlprg.AppConfig;
@@ -70,6 +72,52 @@ class JitTieringTest {
       report("original_string", tryCatch("a" + 1, error = conditionMessage))
       report("f_tier_end", rsh::rsh_jit_tier(f))
       """;
+
+  /// Calls a closure that reflects on its environment (`get`) into the optimized tier, and reports
+  /// its values, whether they are plain R's, and its tier.
+  private static final String REFLECTION_SCRIPT =
+      """
+      options(warn = 1)
+      threshold <- %dL
+      port <- %dL
+      calls <- 4L * threshold
+
+      report <- compiler::cmpfun(function(key, value) {
+        cat("@", key, "=", paste(deparse(value), collapse = " "), "\\n", sep = "")
+      })
+
+      invisible(compiler::enableJIT(3))
+      rsh::rsh_jit_enable(threshold)
+      rsh::rsh_fir_connect("127.0.0.1", port, deterministic = TRUE)
+
+      v_get <- "global"
+      c_get <- function(x) { v_get <- x * 2; get("v_get") }
+      values <- list()
+      for (i in seq_len(calls)) values[[i]] <- c_get(i)
+      report("c_get", values)
+      report("c_get_ok", identical(values, as.list(seq_len(calls) * 2)))
+      report("c_get_tier", rsh::rsh_jit_tier(c_get))
+      """;
+
+  /// The optimized tier keeps an environment that the closure reflects on, although the recording
+  /// has no evidence of reflection.
+  @Test
+  void reflection() throws Exception {
+    var server = FirTestServer.instance();
+    var modules = server.firModules();
+    // Ids are sequential, so the modules the script makes are the ones between these two.
+    var firstId = Integer.parseInt(modules.freshId().substring(1)) + 1;
+    try {
+      var output = runR(REFLECTION_SCRIPT.formatted(3, server.port()));
+      var reports = reports(output);
+      var msg = "R output:\n" + output;
+      assertEquals("TRUE", reports.get("c_get_ok"), msg);
+      assertEquals("\"optimized\"", reports.get("c_get_tier"), msg);
+    } finally {
+      var endId = Integer.parseInt(modules.freshId().substring(1));
+      IntStream.range(firstId, endId).forEach(id -> modules.remove("m" + id));
+    }
+  }
 
   @ParameterizedTest
   @ValueSource(ints = {3, 5})
