@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -230,8 +231,26 @@ public class AbstractionFeedback {
     remap(copy.growingSubAssigns, statements);
 
     var registers = new HashMap<Register, Register>();
+    var srcByName = new HashMap<String, Register>();
     Streams.zip(src.streamRegisters(srcBody), dst.streamRegisters(dstBody), Map::entry)
-        .forEach(e -> registers.put(e.getKey(), e.getValue()));
+        .forEach(
+            e -> {
+              registers.put(e.getKey(), e.getValue());
+              srcByName.put(e.getKey().name(), e.getKey());
+            });
+    // An optimization that replaces a statement gives the new one's assignee the old one's name
+    // (e.g. `Specialize`), and a version never hands a name out again. So feedback for a register
+    // that's no longer in `src` is for the register with its name, unless that has its own.
+    var recorded =
+        Stream.of(types, callees, constants, forceCount, allRecorded)
+            .flatMap(m -> m.keySet().stream())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    for (var register : recorded) {
+      var current = srcByName.get(register.name());
+      if (!registers.containsKey(register) && current != null && !recorded.contains(current)) {
+        registers.put(register, registers.get(current));
+      }
+    }
 
     remapKeys(copy.types, registers);
     remapKeys(copy.callees, registers);

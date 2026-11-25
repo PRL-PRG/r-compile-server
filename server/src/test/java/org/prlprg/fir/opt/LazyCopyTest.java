@@ -167,6 +167,37 @@ class LazyCopyTest {
     assertEquals(1, topLevel.runs, "one run for all of them, not one each");
   }
 
+  /// A copy of a version whose statement was replaced (as `Specialize` does: the new assignee has
+  /// the old one's name) keeps the feedback recorded for the old assignee.
+  @Test
+  void copyKeepsTheFeedbackOfAReplacedStatement() {
+    var module = module();
+    var f = f(module);
+    var source = f.baseline();
+    var topLevel = new CountingOptimization();
+    var feedback = new MockModuleFeedback(module);
+
+    var old = source.body().entry().statements().getFirst();
+    var oldAssignee = Objects.requireNonNull(old.assignee());
+    feedback.get(source).recordAssign(oldAssignee);
+    feedback.get(source).recordType(oldAssignee, Type.BOXED_INTEGER);
+    var replacement = old.copy((_, argument) -> argument);
+    oldAssignee.substUsesWith(Objects.requireNonNull(replacement.assignee()));
+    old.replaceWith(replacement);
+
+    var copy =
+        LazyCopy.create(
+            topLevel,
+            topLevel,
+            feedback,
+            f,
+            source,
+            FunctionParameter.copyAll(source.parameters()),
+            LazyCopy.Adapter.NONE);
+    var copied = Objects.requireNonNull(copy.body().entry().statements().getFirst().assignee());
+    assertEquals(Type.BOXED_INTEGER, feedback.get(copy).type(copied).union());
+  }
+
   /// The callee signature of `copy`'s fallback.
   private static Signature fallbackTarget(Abstraction copy) {
     return Objects.requireNonNull(copy.fallback()).entry().statements().stream()
