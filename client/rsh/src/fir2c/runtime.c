@@ -1315,7 +1315,9 @@ Fir_call_builtin_counted(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
   const void *vmax = vmaxget();
   if (runs_r) {
     held = argc <= 8 ? small : (SEXP *)R_alloc(argc, sizeof(SEXP));
-    memcpy(held, args, argc * sizeof(SEXP));
+    if (argc > 0) {
+      memcpy(held, args, argc * sizeof(SEXP));
+    }
     Fir_link(nprotect, linked, 1);
   }
   Fir_link_aliased(argc, held, aliased, 1);

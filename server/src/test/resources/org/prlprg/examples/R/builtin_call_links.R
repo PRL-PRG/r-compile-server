@@ -107,8 +107,8 @@ fresh_twice <- function(n, len) {
   s
 }
 
-# A dead register that is two arguments: both cells count it, so `names<-` doesn't give the vector
-# its own names. Only builtin calls, so that `x` is only in a register, and nothing after the call,
+# A dead register that is two arguments: the runtime counts it (its cells don't), so `names<-`
+# doesn't give the vector its own names. Only builtin calls, so that `x` is only in a register, and nothing after the call,
 # so that `x` is dead there.
 named_self <- function(len) {
   x <- as.character(seq_len(len))

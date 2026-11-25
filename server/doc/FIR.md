@@ -205,7 +205,7 @@ A static call of a builtin that isn't a special passes its arguments in cells th
 These cases are not covered, and a register can see the change there:
 
 - a function load (`ldf`) that forces a promise;
-- a warning's calling handler, below an intrinsic or an operator on plain data;
+- a warning's or an error's calling handler, and `options(error=)`, below an intrinsic or an operator on plain data (no wrong value is known from them);
 - an active binding, and a finalizer;
 - a call of a version in the builtins or intrinsics module that calls an R method (`length` of an S4 object, a subscript);
 - the forcing of a `...` element that a builtin's argument list builds (`Fir_build_arglist`);
