@@ -16,6 +16,9 @@
     <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
     <protobuf.version>4.27.2</protobuf.version>
     <grpc.version>1.64.0</grpc.version>
+    <!-- Surefire's JVM. The FIŘ interpreter recurses deeply (`recursive_function.fir` needs more
+         than Linux x86-64's default 1 MB thread stack; macOS arm64's default is 2 MB). -->
+    <argLine>-Xss4m</argLine>
   </properties>
 
   <dependencyManagement>
