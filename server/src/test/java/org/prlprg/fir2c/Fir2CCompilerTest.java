@@ -516,7 +516,8 @@ class Fir2CCompilerTest {
     var code = Fir2CCompiler.compile(main, GNUR.instance().getSession()).code().toString();
     assertTrue(code.contains("t_args_0[2] = r_j;"), code);
     assertTrue(code.contains("t_arg_names_0[2] = R_DotsSymbol;"), code);
-    assertTrue(code.contains("t_args_0, t_arg_names_0, 0x4ULL)"), "`j` is the value bit:\n" + code);
+    assertTrue(
+        code.contains("t_args_0, t_arg_names_0, 0x4ULL, "), "`j` is the value bit:\n" + code);
   }
 
   /// A pushed frame outlives the block that pushes it, whose `UNPROTECT` counts only the block's

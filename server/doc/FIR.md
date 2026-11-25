@@ -191,6 +191,30 @@ A call can end with its **source call**: `log%< *@!,*@! -+> V >(x, <missing>) in
 
 A **setter call** is the shape `bc2fir` gives `x[i] <- v`: `l = ld x`, then a call whose first argument is `l` (or an assumption, cast, or force of it) and whose source call's first argument is `` `*tmp*` ``, then `st x = r` of its result (after a checkpoint or goto at most). Fir2C runs it in GNU-R's assignment protocol (`Fir_Setter` in `client/rsh/src/fir2c/runtime.h`), as bytecode's `STARTASSIGN`/`SETTER_CALL`/`ENDASSIGN` do: it passes `x`'s binding without counting it, and counts the registers that outlive the call, so the callee modifies the vector in place when nothing else references it. A static call of a borrowing `[<-`/`[[<-` version calls its owning twin then. Outside a setter call, Fir2C also calls the owning twin when the first argument is `consume r`. If the optimizer keeps `x` in registers (no `ld x`/`st x`), the first argument is a register, and Fir2C copies its value first if anything counts a reference to it. Fir2C matches the shape only in a version's body CFG, not in a promise's. Likewise, `d = dup l'` followed by `st x = d` in the same block, with no R code or read of the old value between, copies only if GNU-R's `STARTASSIGN` would (`Fir_assign_dup`; `Fir_value_dup` if `x` is in registers). This covers a setter that the optimizer turned into a `dup` and a vector write.
 
+A register's value can also be bound in an environment without a count of its own, as on GNU-R's stack. R code can then write the binding in place (`x[1L] <<- 0`), and the register sees the change. So a statement that can run R code counts the registers that the frame reads after it, while it runs (`Fir_link`), as bytecode's `INCLNK_stack_commit`/`DECLNK_stack` do. The array holds only the SEXP registers of the CFG's C function. It doesn't hold a parameter that the frame doesn't read later: a caller that reads its argument later counts it at its own call. A promise's captures count in its data. The statements are:
+
+- a dynamic call, an in-context call, and a call through `Fir_call_base`;
+- a static call of a version that is not in the builtins or intrinsics modules, a dispatch call, and a fallback call (this includes a call of the bytecode baseline);
+- a builtin call: the runtime counts unless the builtin is an operator (`PP_BINARY`, `PP_BINARY2` or `PP_UNARY`), not a special, with no object, promise, or `...` argument (`Fir_builtin_runs_r`);
+- a force: the C code tests whether the value is an unevaluated promise, and counts only then.
+
+When a builtin forces a promise argument, in a static or a dynamic call, the runtime also counts the arguments.
+
+A static call of a builtin that isn't a special passes its arguments in cells that don't count them, as GNU-R's `CALLBUILTIN` does (`CONS_NR`; the cells of `...` elements still count). So the builtin reuses a dead operand: `x * 2 + 1` allocates one vector. The runtime counts an argument that is also another argument or a register that outlives the call (`linkedRegisters`, which also has the captures of live promises and the parameters), so the callee doesn't write into a value that is read later. For an operator on plain data, it counts such an argument only if the argument has no references, because the operator reuses only an operand with no references (`NO_REFERENCES`). As in GNU-R, R code that the builtin runs (a callback of `rapply`) can write in place an argument that nothing else references, and the builtin sees the change. A special gets counting cells.
+
+These cases are not covered, and a register can see the change there:
+
+- a function load (`ldf`) that forces a promise;
+- a warning's or an error's calling handler, and `options(error=)`, below an intrinsic or an operator on plain data (no wrong value is known from them);
+- an active binding, and a finalizer;
+- a call of a version in the builtins or intrinsics module that calls an R method (`length` of an S4 object, a subscript);
+- the forcing of a `...` element that a builtin's argument list builds (`Fir_build_arglist`);
+- `options(warning.expression=)`, and an interrupt handler that resumes.
+
+A jump out of a statement (an error, a deopt, `UseMethod`, a caught condition) leaves its counts raised, which costs only copies. A dynamic call of a builtin and a call of a lite special still build cells that count their arguments, and the count stays after the call, which also costs only copies.
+
+A setter call counts its own array (see above). When GNU-R's assignment protocol doesn't apply, a call through `Fir_call_setter` or `Fir_call_setter_builtin` still counts that array while it runs, but a static call of a builtins-module version counts nothing. A setter whose builtin Fir2C calls through `Fir_call_base` (`viaBase`) doesn't use the protocol: it counts the registers that the frame reads after the statement, as other calls do.
+
 Every call to a known function carries a signature. For a static call, the function must have a version whose parameters are at least as permissive as the signature's and whose strictness, effects, and return type are at least as restrictive. A dispatch call additionally requires the function to be *dispatchable* (its baseline's parameter and return types are all SEXP kinds) and the signature's parameter and return types to be SEXP kinds (the C dispatch passes each argument as an SEXP).
 
 ### Promise Creation

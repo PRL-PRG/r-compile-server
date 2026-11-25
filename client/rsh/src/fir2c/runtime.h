@@ -564,12 +564,35 @@ void Fir_store_parameter(SEXP symbol, SEXP value, SEXP env, SEXP parameter);
 /// the callee gets a call built from the arguments.
 /// `args` has no unsupplied trailing parameters (`Fir2CCompiler` drops them). An argument whose value
 /// is the missing argument is passed through, as in GNU-R.
-SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
+/// `linked[0..nprotect)` are the caller's registers that it reads after the call; they count while
+/// the builtin can run R code (see `Fir_link`). `linked[nprotect..nlinked)` are its other registers
+/// that outlive the call (captures and parameters). A builtin that isn't a special gets its
+/// arguments in cells that don't count them, as GNU-R's `CALLBUILTIN` does (`CONS_NR`), so it can
+/// write into an argument that nothing else references (a dead temporary in `x * 2 + 1`). An
+/// argument that is also in `linked` or another argument counts; for an operator on plain data,
+/// only if it has no references. A special gets counting cells.
+SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                      int nprotect, int nlinked, SEXP *linked);
 /// `Fir_call_builtin`, where bit `i` of `values` is set if `args[i]` is a value, not an expression
 /// for the callee to evaluate. A special evaluates its arguments, so it gets such a symbol or call
-/// in an evaluated promise.
+/// in an evaluated promise. `linked` always count.
 SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
-                             uint64_t values);
+                             uint64_t values, int nlinked, SEXP *linked);
+/// GNU-R's `INCLNK_stack_commit` (`delta` 1) and `DECLNK_stack` (`delta` -1) for registers: while
+/// R code runs, a register that outlives it counts, so the code can't write its value in place
+/// through a binding (`x[1L] <<- 0`). `NULL` entries are skipped. Inline, so that the C compiler
+/// unrolls the loop at a call with a constant `nlinked`.
+static inline void Fir_link(int nlinked, SEXP *linked, int delta) {
+  for (int i = 0; i < nlinked; i++) {
+    if (linked[i] != NULL) {
+      if (delta > 0) {
+        INCREMENT_REFCNT(linked[i]);
+      } else {
+        DECREMENT_REFCNT(linked[i]);
+      }
+    }
+  }
+}
 /// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
 SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
@@ -586,7 +609,10 @@ SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *a
 /// references in `linked` (every register that outlives the call), sets `x`'s binding as being
 /// assigned, and puts in `value` the binding's value, or a shallow copy if that's shared. The
 /// call then passes `value` without counting it, and `Fir_setter_end` undoes the rest and returns
-/// `result`. An error in between leaves the counts and the flag set, which only causes copies.
+/// `result`. An error in between leaves the counts and the flag set, which only causes copies. If
+/// the protocol doesn't apply, `Fir_call_setter` and `Fir_call_setter_builtin` count `linked` while
+/// the call runs. A static call of a builtins-module version counts nothing then, and a setter that
+/// `Fir2CCompiler` calls through `Fir_call_base` doesn't use a `Fir_Setter`.
 typedef struct {
   SEXP cell;
   SEXP value;
