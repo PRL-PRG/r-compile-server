@@ -609,7 +609,9 @@ SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *a
 /// assigned, and puts in `value` the binding's value, or a shallow copy if that's shared. The
 /// call then passes `value` without counting it, and `Fir_setter_end` undoes the rest and returns
 /// `result`. An error in between leaves the counts and the flag set, which only causes copies. If
-/// the protocol doesn't apply, the call counts `linked` while it runs.
+/// the protocol doesn't apply, `Fir_call_setter` and `Fir_call_setter_builtin` count `linked` while
+/// the call runs. A static call of a builtins-module version counts nothing then, and a setter that
+/// `Fir2CCompiler` calls through `Fir_call_base` doesn't use a `Fir_Setter`.
 typedef struct {
   SEXP cell;
   SEXP value;

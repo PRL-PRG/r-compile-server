@@ -85,12 +85,31 @@ rapply_other <- function(len, ...) {
   c(acc, .Internal(rapply(list(0), bump, "ANY", NULL, "list"))[[1L]])
 }
 
+# An operator whose argument is an object runs its S3 method, which calls the writer.
+ops_object <- function(len) {
+  acc <- rep.int(1.5, len)
+  Ops.bumper <- eval(parse(text = "function(e1, e2) { acc[1L] <<- 99; 0 }"))
+  o <- structure(1, class = "bumper")
+  c(acc, o + 1)
+}
+
+# A setter call outside the assignment protocol (`x` holds a symbol), whose function is the writer.
+setter_inactive <- function(len) {
+  acc <- rep.int(1.5, len)
+  `bump<-` <- eval(parse(text = "function(x, value) { acc[1L] <<- 99; value }"))
+  x <- quote(a)
+  c(acc, {
+    bump(x) <- 0
+    x
+  })
+}
+
 run <- function(len) {
   list(
     dyn_call(len), dyn_call_after_builtin(len), static_call(len),
     force_promise(len, bump_global()), dyn_builtin(len),
     internal_callback(len), promise_body(len), compiled_writer(len),
-    rapply_own(len), rapply_other(len)
+    rapply_own(len), rapply_other(len), ops_object(len), setter_inactive(len)
   )
 }
 
@@ -104,7 +123,7 @@ for (len in c(1L, 3L)) {
   old <- rep.int(1.5, len)
   want <- list(
     c(old, 0), c(old, 0, 3), c(old, 0), c(old, 0), c(old, 0), c(old, 0), c(old, 0), c(old, 0),
-    c(1.5, 99), c(old, 0)
+    c(1.5, 99), c(old, 0), c(old, 0), c(old, 0)
   )
   got <- run(len)
   for (k in seq_along(want)) {

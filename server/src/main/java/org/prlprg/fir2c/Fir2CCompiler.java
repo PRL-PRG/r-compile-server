@@ -2186,9 +2186,7 @@ public final class Fir2CCompiler {
                   yield force;
                 }
                 // Only a promise's code runs R code (see `#linkStatement`).
-                var disambiguator = tempArrayDisambiguators.getOrDefault("forced", 0);
-                tempArrayDisambiguators.put("forced", disambiguator + 1);
-                var forced = "t_forced_%d".formatted(disambiguator);
+                var forced = freshTemp("forced");
                 cCode.stmt("SEXP %s;", forced);
                 cCode.stmt(
                     "if (TYPEOF(%s) == PROMSXP && !PROMISE_IS_EVALUATED(%s)) {", value, value);
@@ -2865,16 +2863,7 @@ public final class Fir2CCompiler {
           }
 
           private Array emitLinkedArray(Set<Register> linked) {
-            return emitArray(
-                "linked",
-                "SEXP",
-                linked.stream()
-                    .filter(
-                        r ->
-                            registerRepr(r) == Repr.SEXP
-                                && (locals.contains(r) || version.isParameter(r)))
-                    .map(CfgEmitter.this::registerPlace)
-                    .toList());
+            return emitArray("linked", "SEXP", linkPlaces(linked));
           }
 
           /// The C places of the SEXP registers that this CFG's C function reads after `statement`.
@@ -2950,9 +2939,7 @@ public final class Fir2CCompiler {
                 .forEach(linked::add);
             var linkedArray = emitLinkedArray(linked);
 
-            var disambiguator = tempArrayDisambiguators.getOrDefault("setter", 0);
-            tempArrayDisambiguators.put("setter", disambiguator + 1);
-            var state = "t_setter_%d".formatted(disambiguator);
+            var state = freshTemp("setter");
             cCode.stmt("Fir_Setter %s;", state);
             if (setter.variable() == null) {
               cCode.stmt(
@@ -3357,15 +3344,19 @@ public final class Fir2CCompiler {
             return emitArray(baseName, "SEXP", arguments);
           }
 
+          /// A fresh name `t_<baseName>_<n>` for a C local.
+          private String freshTemp(String baseName) {
+            var disambiguator = tempArrayDisambiguators.getOrDefault(baseName, 0);
+            tempArrayDisambiguators.put(baseName, disambiguator + 1);
+            return "t_%s_%d".formatted(baseName, disambiguator);
+          }
+
           private Array emitArray(String baseName, String elemCType, List<String> arguments) {
             if (arguments.isEmpty()) {
               return new Array(0, "NULL");
             }
 
-            var disambiguator = tempArrayDisambiguators.getOrDefault(baseName, 0);
-            var arrayName = "t_%s_%d".formatted(baseName, disambiguator);
-            tempArrayDisambiguators.put(baseName, disambiguator + 1);
-
+            var arrayName = freshTemp(baseName);
             cCode.stmt("%s %s[%d];", elemCType, arrayName, arguments.size());
             for (var i = 0; i < arguments.size(); i++) {
               cCode.stmt("%s[%d] = %s;", arrayName, i, arguments.get(i));

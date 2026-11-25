@@ -1158,12 +1158,11 @@ static SEXP Fir_primitive(int blt_idx) {
   return cache[blt_idx];
 }
 
-// Whether the builtin can run R code with these arguments: it isn't an operator (by its grammar
-// kind) on plain data. An operator still runs a warning's calling handler.
+// Whether the builtin, which isn't a special, can run R code with these arguments: it isn't an
+// operator (by its grammar kind) on plain data. An operator still runs a warning's calling handler.
 static bool Fir_builtin_runs_r(int blt_idx, int argc, SEXP *args, SEXP *names) {
-  FUNTAB *fun = &R_FunTab[blt_idx];
-  PPkind kind = fun->gram.kind;
-  if (fun->eval % 10 != 1 || (kind != PP_BINARY && kind != PP_BINARY2 && kind != PP_UNARY)) {
+  PPkind kind = R_FunTab[blt_idx].gram.kind;
+  if (kind != PP_BINARY && kind != PP_BINARY2 && kind != PP_UNARY) {
     return true;
   }
   for (int i = 0; i < argc; i++) {

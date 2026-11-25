@@ -1,9 +1,7 @@
 # A builtin call counts the registers that outlive it and passes its arguments in cells that don't
-# count them (`Fir_call_builtin_linked`), so the builtin writes into an operand that nothing else
+# count them (`Fir_call_builtin`), so the builtin writes into an operand that nothing else
 # references. Each function reads a value that such a write would change if it were live. Each
-# runs at length 1 and 3. The vectors come from `rep.int`: `rep(1.5, len)` fails in the optimized
-# code ("the source expression of this promise is not available"), because the special `rep` gets
-# the symbol `len`, which is bound to a promise without a source expression.
+# runs at length 1 and 3. `rep.int`, as `rep(1.5, len)` fails in optimized code (a known defect).
 
 # An operand that is read after the call.
 read_after <- function(n, len) {
@@ -98,11 +96,20 @@ same_twice <- function(n, len) {
   s
 }
 
+# A dead register that is two arguments: both cells count it, so `names<-` doesn't give the vector
+# its own names. Only builtin calls, so that `x` is only in a register, and nothing after the call,
+# so that `x` is dead there.
+named_self <- function(len) {
+  x <- as.character(seq_len(len))
+  `names<-`(x, x)
+}
+self_names <- function(len) names(names(named_self(len)))
+
 run <- function(len) {
   list(
     read_after(3L, len), alias_as_numeric(3L, len), alias_phi(3L, len), param_outer(3L, len),
     const_loop(3L, len), const_loop(3L, len), lazy_outer(3L, len), unary(3L, len),
-    same_twice(3L, len)
+    same_twice(3L, len), self_names(len)
   )
 }
 
@@ -110,4 +117,7 @@ for (i in 1:12) {
   run(1L)
   run(3L)
 }
-list(run(1L), run(3L))
+# The check stops, as the unoptimized oracle has registers too.
+got <- list(run(1L), run(3L))
+if (!is.null(got[[1L]][[10L]]) || !is.null(got[[2L]][[10L]])) stop("self_names: names have names")
+got
