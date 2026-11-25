@@ -2064,7 +2064,7 @@ public final class InternalInterpreter implements Interpreter {
     SEXP codeStub;
     if (promExpr.expr() != null) {
       codeStub = promExpr.expr();
-    } else if (wrapped != null && run(new Read(wrapped)) instanceof Value.Sexp(var value)) {
+    } else if (wrapped != null && run(wrapped) instanceof Value.Sexp(var value)) {
       codeStub = value;
     } else {
       codeStub =

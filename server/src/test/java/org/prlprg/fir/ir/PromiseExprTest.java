@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc2fir.BC2FirClosureCompiler;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.Variable;
@@ -98,7 +99,27 @@ class PromiseExprTest {
             }
             """);
     var promise = promises(mainOf(module)).getFirst();
-    assertEquals("x", Objects.requireNonNull(promise.wrappedValue()).name());
+    var wrapped = Objects.requireNonNull(promise.wrappedValue());
+    assertEquals("x", Objects.requireNonNull(wrapped.variable()).name());
     assertNull(promises(mainOf(parseModule(WITH_EXPR))).getFirst().wrappedValue());
+
+    var constant =
+        """
+        fun main() {
+          () --> V {
+            p: p(v1(R) -) = prom<v1(R) ->{
+              return <real 1.5>;
+            };
+            q: p(R -) = prom<R ->{
+              return 1.5;
+            };
+            return p;
+          }
+        }
+        """;
+    var constantPromises = promises(mainOf(parseModule(constant)));
+    assertEquals(new Constant(SEXPs.real(1.5)), constantPromises.getFirst().wrappedValue());
+    // An unboxed constant isn't a SEXP the backends can use as the expression.
+    assertNull(constantPromises.get(1).wrappedValue());
   }
 }

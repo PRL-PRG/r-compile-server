@@ -717,6 +717,8 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `.../examples/R/promise_capture_substitute.R` — `substitute` on a compiled promise that captures a SEXP register gives the source expression (`R_PromiseExpr`).
 - `.../examples/R/dyn_on_exit_callee.R` — A closure that calls its parameter, passed `on.exit`, gets a context (`@needsContext`), so the handler runs at its exit.
 - `.../examples/R/promise_site_code.R` — Promises without captures, which share one code object for their site (`Fir_promise_site_code`): forced in a loop, and kept by a closure past their creator (`gcTorture`).
+- `.../examples/R/rep_param_length.R` — `rep(1.5, len)` tests if the promise of `len` is missing, which reads its expression: the `StrictifyPromise` wrapper of an unboxed parameter must stay an evaluated value promise (`SchedulePure` and `DeferIntoPromise` keep the `box` out of it).
+- `.../examples/fir/promise_wraps_constant.fir` — A promise without a source expression that only returns a constant is created evaluated too: `rep(1.5, len)` reads its expression.
 - `.../examples/R/subscript_default_method.R` — Subscripts that the fir2c runtime sends straight to the default method of `[`, `[[`, `[<-` and `[[<-`, and S3 targets that must still dispatch (`gcTorture`).
 - `.../examples/R/subscript_scalar_edges.R` — Scalar subscripts at the edges of the fir2c runtime's paths without an argument list: indices out of range or not scalar, targets with attributes, shared targets, coercing stores (`gcTorture`).
 - `.../examples/R/subscript_index_zero.R` — `x[i]` with `i` alternating between 0 and 2, so the optimizer must not select the `[` version that returns one element.

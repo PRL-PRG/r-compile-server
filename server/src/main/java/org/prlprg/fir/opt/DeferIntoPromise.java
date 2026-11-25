@@ -42,6 +42,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// - Instructions that read a vector that a not-moved instruction makes, since a later write can
 ///   change it in place (a `dup` of a shared vector can reuse it)
 /// - Loads, which read a binding that a later store can rebind
+/// - Anything into a promise that wraps a value ([Promise#wrappedValue()])
 ///
 /// Because the deferred instructions are pure, *moving* them into the promise body (rather than
 /// copying the control-flow subgraph) computes the same values, only lazily.
@@ -60,10 +61,13 @@ public final class DeferIntoPromise extends AbstractionOptimization {
     for (var bb : cfg.bbs()) {
       // Snapshot, since deferring mutates the block.
       for (var stmt : List.copyOf(bb.statements())) {
-        if (!(stmt.expression() instanceof Promise(_, _, var promiseBody, _, _))) {
+        if (!(stmt.expression() instanceof Promise promise)) {
           continue;
         }
-        changed |= deferInto(scope, stmt, promiseBody);
+        var promiseBody = promise.code();
+        if (promise.wrappedValue() == null) {
+          changed |= deferInto(scope, stmt, promiseBody);
+        }
         changed |= run(scope, promiseBody);
       }
     }

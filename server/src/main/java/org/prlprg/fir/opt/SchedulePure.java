@@ -51,8 +51,9 @@ import org.prlprg.fir.ir.variable.Register;
 /// A deferred instruction moves to just before the earliest use(s) of its assignee that no other
 /// use dominates. It's *copied* when those uses are in branches that don't dominate each other,
 /// and each use is then rewritten to the copy that covers it. Iff every use is inside a promise
-/// within the instruction's current CFG, the instruction is deferred into that promise. Nothing is
-/// deferred into a loop that doesn't contain it, where it would run once per iteration.
+/// within the instruction's current CFG, the instruction is deferred into that promise, unless the
+/// promise wraps a value ([Promise#wrappedValue()]): then it goes just before the promise.
+/// Nothing is deferred into a loop that doesn't contain it, where it would run once per iteration.
 ///
 /// A hoisted instruction moves to immediately after the latest definition of one of its arguments.
 /// If the instruction is in a promise and every argument is in the enclosing CFG, it's hoisted to
@@ -198,6 +199,13 @@ public final class SchedulePure extends AbstractionOptimization {
               .orElse(null);
       if (targetCfg == null) {
         return null;
+      }
+      // Never into a promise that wraps a value (see `Promise#wrappedValue`). The CFG that contains
+      // it has a statement, so it isn't the body of another one.
+      if (hierarchy.parentPromise(targetCfg) instanceof Statement parent
+          && parent.expression() instanceof Promise promise
+          && promise.wrappedValue() != null) {
+        targetCfg = Objects.requireNonNull(parent.parentBB()).owner();
       }
 
       var usesAt = new LinkedHashMap<Instruction, List<Use>>();

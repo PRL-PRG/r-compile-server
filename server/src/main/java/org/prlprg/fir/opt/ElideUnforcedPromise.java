@@ -13,7 +13,8 @@ import org.prlprg.fir.ir.type.Effects;
 
 /// Replaces promises that have been created at least [#threshold] times and never forced with
 /// an empty body that immediately deoptimizes. The promise's effect annotation is set to
-/// [Effects#NONE].
+/// [Effects#NONE]. A promise that wraps a value ([Promise#wrappedValue()]) has no effect to elide,
+/// so it stays.
 public final class ElideUnforcedPromise extends AbstractionOptimization {
   private final int threshold;
 
@@ -36,7 +37,7 @@ public final class ElideUnforcedPromise extends AbstractionOptimization {
       for (int i = 0; i < bb.statements().size(); i++) {
         var stmt = bb.statements().get(i);
         var assignee = stmt.assignee();
-        if (!(stmt.expression() instanceof Promise promise)) {
+        if (!(stmt.expression() instanceof Promise promise) || promise.wrappedValue() != null) {
           continue;
         }
 
