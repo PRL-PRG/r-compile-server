@@ -240,15 +240,17 @@ public class AbstractionFeedback {
             });
     // An optimization that replaces a statement gives the new one's assignee the old one's name
     // (e.g. `Specialize`), and a version never hands a name out again. So feedback for a register
-    // that's no longer in `src` is for the register with its name, unless that has its own.
+    // that's no longer in `src` is for the register with its name, unless that has its own. Of
+    // several such registers, the first recorded one is.
     var recorded =
-        Stream.of(types, callees, constants, forceCount, allRecorded)
+        Stream.of(allRecorded, types, callees, constants, forceCount)
             .flatMap(m -> m.keySet().stream())
             .collect(Collectors.toCollection(LinkedHashSet::new));
     for (var register : recorded) {
       var current = srcByName.get(register.name());
       if (!registers.containsKey(register) && current != null && !recorded.contains(current)) {
         registers.put(register, registers.get(current));
+        srcByName.remove(register.name());
       }
     }
 
