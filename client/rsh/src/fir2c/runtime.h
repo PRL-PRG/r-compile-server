@@ -457,8 +457,9 @@ SEXP Fir_mk_promise_shared(SEXP site_code, SEXP env);
 #define Fir_prom_cp(data) VECTOR_ELT((data), 1)
 #define Fir_prom_local(data) ((Fir_PromiseLocalData *)STDVEC_DATAPTR(VECTOR_ELT((data), 2)))
 /// An evaluated (GNU-R) promise whose expression and value are `value`, like the promises
-/// `do.call` makes for its arguments.
-SEXP Fir_mk_value_promise(SEXP value);
+/// `do.call` makes for its arguments. Unlike those, it keeps `env` (as `Fir_mk_promise`), which
+/// `Fir_reflective_load`/`_store` read, unless `value` is a symbol.
+SEXP Fir_mk_value_promise(SEXP value, SEXP env);
 /// Prepend `promise` to `tracked_list` (a pairlist of promises created in the current frame),
 /// re-protecting it at `idx`, and return `promise`. Used to remember which promises to mark
 /// escaped when the frame exits.

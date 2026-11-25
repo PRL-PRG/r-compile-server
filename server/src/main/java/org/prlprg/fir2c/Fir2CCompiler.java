@@ -2060,8 +2060,9 @@ public final class Fir2CCompiler {
                 yield "Fir_mk_closure(%s, %s, %s, %s)".formatted(fromRCName, formals, cp, env);
               }
               case Promise promise when promise.wrappedValue() != null ->
-                  "Fir_mk_value_promise(%s)"
-                      .formatted(emitArgument(Objects.requireNonNull(promise.wrappedValue())));
+                  "Fir_mk_value_promise(%s, %s)"
+                      .formatted(
+                          emitArgument(Objects.requireNonNull(promise.wrappedValue())), VAR_ENV);
               case Promise promise -> {
                 // Compile the promise
                 var sharing = sharing(promise, cfg);
