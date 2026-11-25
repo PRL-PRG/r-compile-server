@@ -200,6 +200,7 @@ public final class BC2FirCFGCompiler {
   private final Bc bc;
   private final @Nullable ModuleBcOriginMap bytecodes;
   private final @Nullable FunctionBcOrigin origin;
+  private final Set<String> unknownCallees;
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
@@ -223,18 +224,23 @@ public final class BC2FirCFGCompiler {
   /// instructions the copy-and-patch JIT records feedback for, and the `GETVAR`s that push a
   /// parameter's argument, are recorded in it. It's `null` for promise bodies, whose feedback the
   /// JIT records separately (and which we don't read).
+  ///
+  /// `unknownCallees` are those of the function whose frame the code runs in (see
+  /// [BC2FirClosureCompiler]), which its inner closures get.
   BC2FirCFGCompiler(
       @Nullable RSession r,
       CFGCursor cursor,
       Bc bc,
       @Nullable ModuleBcOriginMap bytecodes,
-      @Nullable FunctionBcOrigin origin) {
+      @Nullable FunctionBcOrigin origin,
+      Set<String> unknownCallees) {
     this.r = r;
     cfg = cursor.cfg();
     inferType = new InferType(cfg.scope());
     this.bc = bc;
     this.bytecodes = bytecodes;
     this.origin = origin;
+    this.unknownCallees = unknownCallees;
     this.cursor = cursor;
   }
 
@@ -816,14 +822,9 @@ public final class BC2FirCFGCompiler {
         var cloHash = Printer.toString(cloSxp, SEXPPrintOptions.FULL).hashCode();
         var generatedName = "%s_%x".formatted(inferDescriptiveName(""), cloHash);
 
-        // Since we generate the name from a hash of the closure's body, we may have a name
-        // conflict, but it's only with an identical closure we've already compiled.
-        // Therefore, we can reuse it.
-        var alreadyGenerated = module().lookupFunction(Variable.named(generatedName));
         var code =
-            alreadyGenerated != null
-                ? alreadyGenerated
-                : BC2FirClosureCompiler.compile(r, module(), generatedName, cloSxp, bytecodes);
+            BC2FirClosureCompiler.compileInner(
+                r, module(), generatedName, cloSxp, bytecodes, unknownCallees);
 
         pushInsert(new Closure(false, code));
       }
@@ -1293,7 +1294,7 @@ public final class BC2FirCFGCompiler {
     }
 
     var cfg = new CFG(scope());
-    new BC2FirCFGCompiler(r, new CFGCursor(cfg), bc, bytecodes, null).compileBc();
+    new BC2FirCFGCompiler(r, new CFGCursor(cfg), bc, bytecodes, null, unknownCallees).compileBc();
 
     return insertAndReturn(
         "_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg, false, expr));
