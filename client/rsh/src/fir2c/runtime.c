@@ -1248,7 +1248,10 @@ static SEXP Fir_call_primitive(int blt_idx, SEXP call, SEXP env, int argc, SEXP 
     protect_count++;
   }
 
+  // As GNU-R's `eval`, release the callee's `R_alloc` memory.
+  const void *vmax = vmaxget();
   SEXP result = fun.cfun(call, op, arglist, env);
+  vmaxset(vmax);
 
   UNPROTECT(protect_count);
 
@@ -1669,7 +1672,9 @@ static bool Fir_call_subscript_default(int blt_idx, SEXP call, SEXP env, int arg
     source = PROTECT(Rf_lcons(Rf_install(R_FunTab[blt_idx].name), arglist));
     protect_count++;
   }
+  const void *vmax = vmaxget();
   *result = dflts[kind](source, Fir_primitive(blt_idx), arglist, env);
+  vmaxset(vmax);
   UNPROTECT(protect_count);
   R_Visible = TRUE;
   return true;
