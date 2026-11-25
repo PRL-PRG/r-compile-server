@@ -384,6 +384,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `ElideRedundantBoxUnbox.java` — Elides redundant `box`/`unbox` calls by substituting their results with an equivalent register.
 - `ElideUnforcedPromise.java` — Replaces promises that are never forced with a deopt stub (`Promise#isDeoptStub`), which fir2c usually compiles to one promise for the site.
 - `ElideUnusedCheckpoints.java` — Removes checkpoint jumps whose success BB has no Assume statements.
+- `GlobalValueNumbering.java` — Merges pure static calls with the same callee and arguments into a dominating equivalent call (not in the default pipeline).
 - `HoistLoopAssume.java` — Moves the loop-invariant assumptions of a loop header's checkpoint to a new checkpoint on the loop's entry edge.
 - `Inline.java` — Inline forces, maybe-forces, and static calls when possible.
 - `LazyCopy.java` — Creates lazy copies of versions, and optimizes them when evaluated.
@@ -621,6 +622,7 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `ThrowingSupplier.java` — Supplier that may throw an error or exception.
 - `Triple.java` — A triple of values.
 - `Unit.java` — A type with one instance, SINGLETON.
+- `UnionFind.java` — Union-find (disjoint set) interface.
 - `UnreachableError.java` — Error for code that should be unreachable.
 - `UntilNullIterator.java` — Call a function to generate the next elements, stop when said function returns `null`.
 - `WeakHashSet.java` — Set with weak references to its elements.
