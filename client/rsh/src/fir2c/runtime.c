@@ -506,8 +506,19 @@ SEXP Fir_mk_promise_shared(SEXP site_code, SEXP env) {
 #endif
 }
 
-SEXP Fir_mk_value_promise(SEXP value) {
-  return R_mkEVPROMISE(value, value);
+SEXP Fir_mk_value_promise(SEXP value, SEXP env) {
+  ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
+  // See `Fir_push_env`.
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+  SEXP promise = R_mkEVPROMISE(value, value);
+  // `missing` looks a symbol expression up in the promise's environment, even when the promise is
+  // evaluated. The original promise's expression wasn't that symbol, so the lookup must fail.
+  if (TYPEOF(value) != SYMSXP) {
+    SET_PRENV(promise, env);
+  }
+  return promise;
 }
 
 SEXP Fir_track_promise(SEXP promise, SEXP *tracked_list, PROTECT_INDEX idx) {
