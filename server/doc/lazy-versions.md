@@ -342,7 +342,7 @@ of calls.
   no `SpeculateAssume` assumption. These assumptions and errors remain:
   - The bc2fir `BASEGUARD` assumption fails when the program shadows a base function.
   - The runtime's value-dependent errors can still fire in a type-specialized version. Examples
-    are `x[i]` with more than one element, real `:` bounds, and integer `sum` overflow.
+    are real `:` bounds and integer `sum` overflow.
 - The recording has no evidence of reflection, so the JIT pipeline has no
   `SpecializeNonReflectiveEnv`: it would mark an environment non-reflective because no reflection
   was recorded. Then `ElideEnv`, `ElideDeadStore` and `PromoteStaticallyKnownVariables` would
