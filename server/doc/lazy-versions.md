@@ -347,12 +347,13 @@ of calls.
   `SpecializeNonReflectiveEnv`: it would mark an environment non-reflective because no reflection
   was recorded. Then `ElideEnv`, `ElideDeadStore` and `PromoteStaticallyKnownVariables` would
   remove stores that a reflective read (such as `get`) needs.
-- `OptimizeCallee#isOneElement` and `OptimizeCallee#widenedIndexTypes` also trust absent recording
-  evidence. The recording has no `[` results (an inline `x[i]` is `VECSUBSET`, not `CALL`) and no
-  subassign growth. So a version for a scalar integer index calls the scalar `[` and the in-place
-  `[<-` or `[[<-`, also when the baseline saw an index below 1 or a growth. Then R signals an
-  error: "x[0] isn't one element" (a deopt), or "Subscript index out of bounds" (a runtime
-  assertion). This was verified on linode with `x[k]` and `x[k] <- 0`.
+- The recording also has no `[` results (an inline `x[i]` is `VECSUBSET`, not `CALL`) and no
+  subassign growth. So `CompileService` marks the JIT's feedback without subscripts
+  (`MockModuleFeedback#markWithoutSubscripts`). Then `OptimizeCallee` calls the generic `[` for a
+  non-constant index, and the generic `[<-` and `[[<-` for each subassign. Otherwise the scalar
+  `[` and the in-place `[<-` would signal an error for an index below 1 ("x[0] isn't one
+  element", a deopt) or a growth ("Subscript index out of bounds", a runtime assertion).
+  `JitTieringTest#subscripts` checks this (red only with a recording).
 - The from-R dispatch selects a specialized version only for an evaluated argument. A caller that
   passes a variable passes a promise, so it calls the general copy. Also, the recording types a
   parameter only through a plain `GETVAR`. A parameter that the closure reads only as an index

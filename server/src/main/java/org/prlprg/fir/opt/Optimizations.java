@@ -171,6 +171,9 @@ public class Optimizations {
   /// - [SpeculateAssume]: FIŘ→C code can't deoptimize, so its assumptions can't fail safely.
   /// - [SpecializeNonReflectiveEnv]: the JIT's recording has no reflection evidence, so it would
   ///   trust absent evidence.
+  ///
+  /// The recording has no subscript evidence either, so the JIT's feedback is
+  /// [marked without it][org.prlprg.fir.feedback.MockModuleFeedback#markWithoutSubscripts()].
   public static Optimization jitOptimizations(int threshold) {
     return defaultOptimizations(
         threshold,

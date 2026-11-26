@@ -74,10 +74,13 @@ class JitTieringTest {
       report("f_tier_end", rsh::rsh_jit_tier(f))
       """;
 
-  /// Defines `report` and `check`, enables the rsh JIT with threshold 3, and connects it to the
-  /// server at the port given to `formatted`. `check(key, f, expected)` calls `f` with `1..calls`,
-  /// and reports its values, whether they are `expected`, and its tier. Both are compiled before
-  /// the rsh JIT is enabled, so the JIT doesn't tier them.
+  /// Defines `report`, `check` and `check_values`, enables the rsh JIT with threshold 3, and
+  /// connects it to the server at the port given to `formatted`. `check(key, f, expected)` calls
+  /// `f` with `1..calls`, and reports its values (or the message of the error that stopped them),
+  /// whether they are `expected`, and its tier. `check_values(key, f, expected, args)` does the
+  /// same with each of `args`, which it passes as a literal, so `f` gets a value and not a promise:
+  /// only then can the JIT select a specialized version. The helpers are compiled before the rsh
+  /// JIT is enabled, so the JIT doesn't tier them.
   private static final String CONNECTED_PRELUDE =
       """
       options(warn = 1)
@@ -88,12 +91,23 @@ class JitTieringTest {
       report <- compiler::cmpfun(function(key, value) {
         cat("@", key, "=", paste(deparse(value), collapse = " "), "\\n", sep = "")
       })
-      check <- compiler::cmpfun(function(key, f, expected) {
-        values <- list()
-        for (i in seq_len(calls)) values[[i]] <- f(i)
+      report_check <- compiler::cmpfun(function(key, f, values, expected) {
         report(key, values)
         report(paste0(key, "_ok"), identical(values, expected))
         report(paste0(key, "_tier"), rsh::rsh_jit_tier(f))
+      })
+      check <- compiler::cmpfun(function(key, f, expected) {
+        values <- tryCatch({
+          values <- list()
+          for (i in seq_len(calls)) values[[i]] <- f(i)
+          values
+        }, error = conditionMessage)
+        report_check(key, f, values, expected)
+      })
+      check_values <- compiler::cmpfun(function(key, f, expected, args) {
+        text <- paste0("f(", vapply(args, deparse, ""), ")", collapse = ", ")
+        driver <- compiler::cmpfun(eval(parse(text = paste0("function() list(", text, ")"))))
+        report_check(key, f, tryCatch(driver(), error = conditionMessage), expected)
       })
 
       invisible(compiler::enableJIT(3))
@@ -127,6 +141,31 @@ class JitTieringTest {
         """,
         "c_rec",
         "c_inner");
+  }
+
+  /// The optimized tier reads `x[0]` and grows a vector with `[<-` and `[[<-`, although the
+  /// recording has no evidence of either. Index 0 and growth also occur in the recorded calls (4 to
+  /// 6), and again in the optimized ones.
+  @Test
+  void subscripts() throws Exception {
+    assertChecked(
+        """
+        c_idx <- function(k) { x <- c(10, 20, 30); if (k < 100L) x[k] else 0 }
+        c_idxr <- function(k) { x <- c(10, 20, 30); if (k < 100L) x[k] else 0 }
+        c_grow <- function(k) { x <- c(1, 2, 3, 4, 5, 6); if (k < 100L) x[k] <- 0; length(x) }
+        c_grow2 <- function(k) { x <- c(1, 2, 3, 4, 5, 6); if (k < 100L) x[[k]] <- 0; length(x) }
+        idx <- rep(c(1L, 2L, 3L, 0L), 3)
+        idx_values <- rep(list(10, 20, 30, numeric()), 3)
+        grow <- c(1L, 2L, 3L, 7L, 8L, 1L, 2L, 7L, 3L, 8L, 1L, 7L)
+        check_values("c_idx", c_idx, idx_values, idx)
+        check_values("c_idxr", c_idxr, idx_values, as.numeric(idx))
+        check_values("c_grow", c_grow, as.list(pmax(6L, grow)), grow)
+        check_values("c_grow2", c_grow2, as.list(pmax(6L, grow)), grow)
+        """,
+        "c_idx",
+        "c_idxr",
+        "c_grow",
+        "c_grow2");
   }
 
   /// Run `cases` after [#CONNECTED_PRELUDE], and assert that each `check` of `keys` gave the
