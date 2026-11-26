@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -73,46 +74,78 @@ class JitTieringTest {
       report("f_tier_end", rsh::rsh_jit_tier(f))
       """;
 
-  /// Calls a closure that reflects on its environment (`get`) into the optimized tier, and reports
-  /// its values, whether they are plain R's, and its tier.
-  private static final String REFLECTION_SCRIPT =
+  /// Defines `report` and `check`, enables the rsh JIT with threshold 3, and connects it to the
+  /// server at the port given to `formatted`. `check(key, f, expected)` calls `f` with `1..calls`,
+  /// and reports its values, whether they are `expected`, and its tier. Both are compiled before
+  /// the rsh JIT is enabled, so the JIT doesn't tier them.
+  private static final String CONNECTED_PRELUDE =
       """
       options(warn = 1)
-      threshold <- %dL
+      threshold <- 3L
       port <- %dL
       calls <- 4L * threshold
 
       report <- compiler::cmpfun(function(key, value) {
         cat("@", key, "=", paste(deparse(value), collapse = " "), "\\n", sep = "")
       })
+      check <- compiler::cmpfun(function(key, f, expected) {
+        values <- list()
+        for (i in seq_len(calls)) values[[i]] <- f(i)
+        report(key, values)
+        report(paste0(key, "_ok"), identical(values, expected))
+        report(paste0(key, "_tier"), rsh::rsh_jit_tier(f))
+      })
 
       invisible(compiler::enableJIT(3))
       rsh::rsh_jit_enable(threshold)
       rsh::rsh_fir_connect("127.0.0.1", port, deterministic = TRUE)
-
-      v_get <- "global"
-      c_get <- function(x) { v_get <- x * 2; get("v_get") }
-      values <- list()
-      for (i in seq_len(calls)) values[[i]] <- c_get(i)
-      report("c_get", values)
-      report("c_get_ok", identical(values, as.list(seq_len(calls) * 2)))
-      report("c_get_tier", rsh::rsh_jit_tier(c_get))
       """;
 
   /// The optimized tier keeps an environment that the closure reflects on, although the recording
   /// has no evidence of reflection.
   @Test
   void reflection() throws Exception {
+    assertChecked(
+        """
+        v_get <- "global"
+        c_get <- function(x) { v_get <- x * 2; get("v_get") }
+        check("c_get", c_get, as.list(seq_len(calls) * 2))
+        """,
+        "c_get");
+  }
+
+  /// The optimized tier runs the promises and inner closures of the closure's bytecode. The
+  /// baseline's compiler (rcp) replaces their bodies in the bytecode it compiles.
+  @Test
+  void promiseAndClosureBodies() throws Exception {
+    assertChecked(
+        """
+        c_rec <- function(n) if (n > 1L) c_rec(n - 1L) else n
+        c_inner <- function(x) { g <- function(z) z * 2; g(x) }
+        check("c_rec", c_rec, as.list(rep(1L, calls)))
+        check("c_inner", c_inner, as.list(seq_len(calls) * 2))
+        """,
+        "c_rec",
+        "c_inner");
+  }
+
+  /// Run `cases` after [#CONNECTED_PRELUDE], and assert that each `check` of `keys` gave the
+  /// expected values in the optimized tier. Removes the modules that the server made.
+  private static void assertChecked(String cases, String... keys) throws Exception {
     var server = FirTestServer.instance();
     var modules = server.firModules();
     // Ids are sequential, so the modules the script makes are the ones between these two.
     var firstId = Integer.parseInt(modules.freshId().substring(1)) + 1;
     try {
-      var output = runR(REFLECTION_SCRIPT.formatted(3, server.port()));
+      var output = runR(CONNECTED_PRELUDE.formatted(server.port()) + cases);
       var reports = reports(output);
       var msg = "R output:\n" + output;
-      assertEquals("TRUE", reports.get("c_get_ok"), msg);
-      assertEquals("\"optimized\"", reports.get("c_get_tier"), msg);
+      Stream.of(keys)
+          .forEach(
+              key -> {
+                assertEquals("TRUE", reports.get(key + "_ok"), key + ". " + msg);
+                assertEquals("\"optimized\"", reports.get(key + "_tier"), key + ". " + msg);
+              });
     } finally {
       var endId = Integer.parseInt(modules.freshId().substring(1));
       IntStream.range(firstId, endId).forEach(id -> modules.remove("m" + id));

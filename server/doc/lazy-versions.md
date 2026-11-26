@@ -270,7 +270,9 @@ tier):
 2. *Baseline*: from call N+1, the closure runs the baseline. With rcp, the baseline is the
    bytecode that rcp compiled with recording (`Fir_bc_baseline_code`, the code that the bytecode
    baselines of a module run, see [bytecode-baseline-feedback.md](bytecode-baseline-feedback.md)).
-   Without rcp, the baseline is the bytecode.
+   rcp compiles a copy of the bytecode, because it replaces the promise and closure bodies in the
+   constant pools of the bytecode that it compiles. So the state's bytecode, which the request
+   sends, stays bytecode. Without rcp, the baseline is the bytecode.
 3. *Optimized*: after call 2N, the client sends a request for the closure on the stub worker
    thread (see [The client](#the-client)). Later calls poll for the answer. In `deterministic`
    mode, call 2N+1 waits for the answer, so the closure runs optimized from call 2N+1. When the
