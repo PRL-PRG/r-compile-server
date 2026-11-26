@@ -1,20 +1,26 @@
+output <- commandArgs(trailingOnly = TRUE)
+if (length(output) > 1L) stop("Pass one path for the base environment file", call. = FALSE)
+
 basevars <- ls("package:base", all.names = TRUE)
 types <- sapply(basevars, \(x) typeof(get(x)))
 
 specials <- basevars[types == "special"]
-cat("saving ", length(specials), " specials\n")
-saveRDS(specials, "specials.RDS", version = 2)
-
 builtins <- basevars[types == "builtin"]
-cat("saving ", length(builtins), " builtins\n")
-saveRDS(builtins, "builtins.RDS", version = 2)
+if (length(output) == 0L) {
+  cat("saving ", length(specials), " specials\n")
+  saveRDS(specials, "specials.RDS", version = 2)
+  cat("saving ", length(builtins), " builtins\n")
+  saveRDS(builtins, "builtins.RDS", version = 2)
+}
 
 builtin_internals <- unique(c(builtins(), builtins(internal = TRUE)))
 builtin_internals_black_list <- c("kronecker", ".dynLibs", "body<-")
 builtin_internals <- setdiff(builtin_internals, builtin_internals_black_list)
-simple_builtin_internals <- builtin_internals[sapply(builtin_internals, \(x) .Internal(is.builtin.internal(as.name(x))))]
-cat("saving ", length(simple_builtin_internals), " builtin internals\n")
-saveRDS(simple_builtin_internals, "builtins-internal.RDS", version = 2)
+if (length(output) == 0L) {
+  simple_builtin_internals <- builtin_internals[sapply(builtin_internals, \(x) .Internal(is.builtin.internal(as.name(x))))]
+  cat("saving ", length(simple_builtin_internals), " builtin internals\n")
+  saveRDS(simple_builtin_internals, "builtins-internal.RDS", version = 2)
+}
 
 base_env_funs <- basevars[sapply(basevars, \(x) is.function(get(x)))]
 base_env_funs <- setdiff(base_env_funs, builtin_internals_black_list)
@@ -39,6 +45,11 @@ for (x in setdiff(basevars, session_state)) {
   if (!is.function(value) && !is.environment(value) && !has_extptr(value)) {
     assign(x, value, latest_base_env)
   }
+}
+
+if (length(output) == 1L) {
+  saveRDS(latest_base_env, output[[1L]], version = 2)
+  quit(save = "no")
 }
 
 cat("saving ", length(basevars), " base variables\n")

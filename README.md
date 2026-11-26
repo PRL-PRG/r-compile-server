@@ -50,6 +50,8 @@ If the dev container is too slow, you can also setup on the host machine. To do 
 - Test and static anaylses with `make check` or `mvn verify`
 - Format with `make format` or `mvn spotless:apply`. This requires to have `npm` installed.
 
+Use the [rbench driver](benchmarks/README.md) to measure peak FIŘ JIT performance.
+
 ## Troubleshooting
 
 - **Problem:** In Maven, `Could not find or initialize a local git repository. A repository is required`

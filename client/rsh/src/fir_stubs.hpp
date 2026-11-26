@@ -18,6 +18,9 @@ SEXP fir_connect(SEXP address, SEXP port, SEXP deterministic, SEXP threshold);
 // a stub loads what has arrived the next time it's called.
 SEXP fir_drain();
 
+// Get the counts of submitted, processed, failed, and outstanding FIŘ requests.
+SEXP fir_status();
+
 // Set the JIT threshold N (`Fir_jit_threshold`).
 SEXP set_jit_threshold(SEXP threshold);
 

@@ -34,3 +34,11 @@ clean:
 .PHONY: run
 run:
 	R_HOME="$(R_HOME)" $(MVN) compile exec:java
+
+.PHONY: rbench-build
+rbench-build:
+	$(MVN) $(MVN_ARGS) -Dmaven.test.skip=true -DincludeScope=runtime \
+		-Dmdep.outputFile=target/rbench-classpath compile \
+		org.apache.maven.plugins:maven-dependency-plugin:3.11.0:build-classpath
+	$(R) --no-echo --vanilla -f src/test/resources/org/prlprg/session/bootstrap.R \
+		--args target/classes/org/prlprg/session/latest-baseenv.RDS

@@ -10,6 +10,8 @@ extern RCNTXT *R_GlobalContext;
 }
 
 #include <condition_variable>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <grpcpp/channel.h>
 #include <grpcpp/client_context.h>
@@ -74,6 +76,13 @@ struct Answer {
   protocol::FirClosureResponse closure_response;
 };
 
+struct FirStatus {
+  uint64_t submitted;
+  uint64_t processed;
+  uint64_t failed;
+  std::size_t outstanding;
+};
+
 using InitFun = SEXP (*)(SEXP pool);
 
 // Run `body`, and return the message of the R error it raises, if any (a warning raises one under
@@ -126,6 +135,9 @@ class FirStubClient {
   std::mutex mutex;
   std::condition_variable changed;
   uint64_t next_ticket = 1;
+  // Only the R thread processes replies and reads these counters.
+  uint64_t replies_processed = 0;
+  uint64_t replies_failed = 0;
   // Not sent yet.
   std::deque<Request> requests;
   // Whether the worker is waiting for the server.
@@ -336,7 +348,9 @@ public:
         lock.unlock();
         warning = load(arrived.key(), arrived.mapped());
       }
+      replies_processed++;
       if (!warning.empty()) {
+        replies_failed++;
         Rf_warning("%s", warning.c_str());
       }
       lock.lock();
@@ -347,6 +361,11 @@ public:
   void drain() {
     std::unique_lock<std::mutex> lock(mutex);
     changed.wait(lock, [&] { return requests.empty() && !waiting; });
+  }
+
+  FirStatus status() {
+    std::lock_guard<std::mutex> lock(mutex);
+    return {next_ticket - 1, replies_processed, replies_failed, requests.size() + waiting};
   }
 
   // Forget every stub and closure request. For when the modules the stubs are in are about to be
@@ -589,6 +608,17 @@ SEXP fir_drain() {
     FIR_STUB_CLIENT->drain();
   }
   return R_NilValue;
+}
+
+SEXP fir_status() {
+  const auto status = FIR_STUB_CLIENT == nullptr ? FirStatus{} : FIR_STUB_CLIENT->status();
+  SEXP out = Rf_allocVector(REALSXP, 5);
+  REAL(out)[0] = static_cast<double>(status.submitted);
+  REAL(out)[1] = static_cast<double>(status.processed);
+  REAL(out)[2] = static_cast<double>(status.failed);
+  REAL(out)[3] = static_cast<double>(status.outstanding);
+  REAL(out)[4] = static_cast<double>(Fir_bc_baseline_compile_count());
+  return out;
 }
 
 } // namespace rsh

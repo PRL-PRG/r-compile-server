@@ -22,6 +22,13 @@ Paths are from the repository root. Keep this file current when you add, move, o
 - `out/`, `target/` — Build output (not tracked).
 - `R/` — Vendored GNU-R (submodule). `RCP=1 ./tools/build-gnur.sh R` builds the RCP variant.
 
+## benchmarks
+
+- `benchmarks/README.md` — Instructions for FIŘ JIT benchmarks.
+- `benchmarks/rbench-fir.py` — Driver for FIŘ benchmarks.
+- `benchmarks/fir-profile.R` — FIŘ warmup and verification for the rbench harness.
+- `benchmarks/comparison.json`, `benchmarks/fir.json`, `benchmarks/gnu-r.json`, `benchmarks/manifest.json` — Shootout reports and run settings.
+
 ## proto
 
 - `proto/messages.proto` — Protocol buffer messages between client and server.

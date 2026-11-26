@@ -3,9 +3,11 @@ package org.prlprg.server;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.health.v1.HealthCheckResponse;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -15,7 +17,7 @@ public class CompileServer {
 
   private final Server server;
   private final CompileService service;
-  private HealthStatusManager health;
+  private final HealthStatusManager health;
 
   static {
     try (var is = CompileServer.class.getResourceAsStream("/logging.properties")) {
@@ -27,10 +29,14 @@ public class CompileServer {
 
   /// Serve on `port`, or on any free port if it's 0 (see [#port()]).
   public CompileServer(int port) {
+    this(ServerBuilder.forPort(port));
+  }
+
+  private CompileServer(ServerBuilder<?> builder) {
     this.health = new HealthStatusManager();
     this.service = new CompileService();
     this.server =
-        ServerBuilder.forPort(port)
+        builder
             .addService(service)
             .addService(health.getHealthService())
             .addService(
@@ -85,8 +91,21 @@ public class CompileServer {
   }
 
   public static void main(String[] args) throws Exception {
-    CompileServer server = new CompileServer(8980);
+    var announcePort = args.length != 0;
+    if (announcePort && (args.length != 2 || !args[0].equals("--port"))) {
+      throw new IllegalArgumentException("Usage: CompileServer [--port PORT]");
+    }
+    var server =
+        announcePort
+            ? new CompileServer(
+                NettyServerBuilder.forAddress(
+                    new InetSocketAddress("127.0.0.1", Integer.parseInt(args[1]))))
+            : new CompileServer(8980);
     server.start();
+    if (announcePort) {
+      System.out.println("RCS_READY " + server.port());
+      System.out.flush();
+    }
     server.blockUntilShutdown();
   }
 }

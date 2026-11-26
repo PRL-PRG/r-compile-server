@@ -6,6 +6,7 @@
 #include "../common2c/rsh_utils.h"
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -291,6 +292,7 @@ enum {
 /// with feedback recording if rcp is available, the bytecode itself otherwise. Compiled on the
 /// first call and cached in the pool.
 SEXP Fir_bc_baseline_code(SEXP pool);
+uint64_t Fir_bc_baseline_compile_count(void);
 /// What the copy-and-patch JIT recorded for the code in `pool` (see `Fir_bc_baseline_code`),
 /// with `calls` as the number of calls: the list `server/doc/bytecode-baseline-feedback.md`
 /// describes. `R_NilValue` if rcp isn't available or the code wasn't compiled yet.

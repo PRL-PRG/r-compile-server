@@ -1925,6 +1925,12 @@ static SEXP Fir_set_rcp_recording(SEXP value) {
   return old;
 }
 
+static uint64_t baseline_compile_count = 0;
+
+uint64_t Fir_bc_baseline_compile_count(void) {
+  return baseline_compile_count;
+}
+
 SEXP Fir_bc_baseline_code(SEXP pool) {
   SEXP code = Fir_const(pool, FIR_BC_BASELINE_JIT);
   if (code != R_NilValue) {
@@ -1942,6 +1948,7 @@ SEXP Fir_bc_baseline_code(SEXP pool) {
     // restore the option instead of setting it once, so we don't change how anything else in the
     // session gets compiled.
     SEXP old_recording = PROTECT(Fir_set_rcp_recording(Rf_ScalarLogical(TRUE)));
+    baseline_compile_count++;
     SEXP compiled = cmpfun(closure, R_NilValue);
     PROTECT(compiled);
     Fir_set_rcp_recording(old_recording);

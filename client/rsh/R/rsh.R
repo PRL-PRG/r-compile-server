@@ -219,3 +219,9 @@ rsh_fir_connect <- function(address="0.0.0.0", port=8980L, deterministic=FALSE, 
 rsh_fir_drain <- function() {
   invisible(.Call(C_fir_drain))
 }
+
+rsh_fir_status <- function() {
+  status <- .Call(C_fir_status)
+  names(status) <- c("submitted", "processed", "failed", "outstanding", "baseline_compiles")
+  status
+}

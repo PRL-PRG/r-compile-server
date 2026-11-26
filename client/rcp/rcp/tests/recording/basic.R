@@ -1,6 +1,17 @@
 options(rcp.cmpfun.type_recording = TRUE)
 library(rcp)
 
+bytecode <- compiler::cmpfun(function(x) {
+  nested <- function(y) y
+  nested(x + 1L)
+})
+original <- serialize(bytecode, NULL)
+candidate <- bytecode
+attr(candidate, "test_copy") <- TRUE
+compiled <- rcp::rcp_cmpfun(candidate)
+stopifnot(identical(serialize(bytecode, NULL), original))
+stopifnot(identical(compiled(4L), 5L), identical(bytecode(4L), 5L))
+
 # Type recording splits recorded program points into three per-opcode groups.
 # rcp_export_recording() returns a named list:
 #   branch   (brifnot) : bcids, taken, not_taken

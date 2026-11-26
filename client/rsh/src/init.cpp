@@ -19,6 +19,7 @@ static const R_CallMethodDef callMethods[] = {
     {"clear_cache", (DL_FUNC)&rsh::clear_cache, 0},
     {"fir_connect", (DL_FUNC)&rsh::fir_connect, 4},
     {"fir_drain", (DL_FUNC)&rsh::fir_drain, 0},
+    {"fir_status", (DL_FUNC)&rsh::fir_status, 0},
     {"set_jit_threshold", (DL_FUNC)&rsh::set_jit_threshold, 1},
     {"rsh_jit_closure", (DL_FUNC)&rsh::rsh_jit_closure, 3},
     {"rsh_tier", (DL_FUNC)&rsh::rsh_tier, 1},

@@ -58,10 +58,15 @@ class JitTieringTest {
       for (i in seq_len(threshold) + threshold) ok <- identical(f(i), i + 1) && ok
       report("f_results_baseline", ok)
       report("f_tier_2n", rsh::rsh_jit_tier(f))
+      rsh::rsh_fir_drain()
+      report("f_drained", identical(rsh:::rsh_fir_status()[1:4],
+        c(submitted = 1, processed = 0, failed = 0, outstanding = 0)))
 
       report("f_eager", f(41))
       report("f_tier_optimized", rsh::rsh_jit_tier(f))
       report("f_compiled", rsh::is_compiled(f))
+      report("f_answer_processed", identical(rsh:::rsh_fir_status()[1:4],
+        c(submitted = 1, processed = 1, failed = 0, outstanding = 0)))
       y <- 41
       report("f_promise", f(y))
       report("f_integer", identical(f(1L), 1L + 1))
@@ -96,10 +101,12 @@ class JitTieringTest {
       assertEquals("\"baseline\"", reports.get("f_tier_n"), msg);
       assertEquals("TRUE", reports.get("f_results_baseline"), msg);
       assertEquals("\"baseline\"", reports.get("f_tier_2n"), msg);
+      assertEquals("TRUE", reports.get("f_drained"), msg);
 
       assertEquals("42", reports.get("f_eager"), msg);
       assertEquals("\"optimized\"", reports.get("f_tier_optimized"), msg);
       assertEquals("TRUE", reports.get("f_compiled"), msg);
+      assertEquals("TRUE", reports.get("f_answer_processed"), msg);
       assertEquals("42", reports.get("f_promise"), msg);
       assertEquals("TRUE", reports.get("f_integer"), msg);
       assertEquals("TRUE", reports.get("f_vector"), msg);

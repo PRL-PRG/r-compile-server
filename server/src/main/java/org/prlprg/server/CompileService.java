@@ -283,6 +283,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + request.getModule());
 
     var response = Messages.FirVersionResponse.newBuilder();
+    var started = System.nanoTime();
     try {
       var session = entry.session();
       Fir2CCompiler.StubAnswer answer;
@@ -319,6 +320,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                       + msg.substring(0, Math.min(msg.length(), 7000)))
               .asRuntimeException());
       return;
+    } finally {
+      logFirCompileTime("version", started);
     }
 
     responseObserver.onNext(response.build());
@@ -336,9 +339,15 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         "Received request to compile closure "
             + request.getName()
             + " to FIR"
-            + (request.hasRecording() ? " with a recording" : ""));
+            + (request.hasRecording() ? " with a recording" : "")
+            + " ("
+            + request.getClosure().size()
+            + " closure bytes, "
+            + request.getRecording().size()
+            + " recording bytes)");
 
     Messages.FirClosureResponse response;
+    var started = System.nanoTime();
     try {
       response = compileFirClosure(request);
     } catch (Exception e) {
@@ -354,10 +363,16 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                       + msg.substring(0, Math.min(msg.length(), 7000)))
               .asRuntimeException());
       return;
+    } finally {
+      logFirCompileTime("closure", started);
     }
 
     responseObserver.onNext(response);
     responseObserver.onCompleted();
+  }
+
+  private static void logFirCompileTime(String kind, long started) {
+    logger.info("RCS_COMPILE " + kind + " " + (System.nanoTime() - started));
   }
 
   /// Compile `code` into an object file, and return its contents. The files are temporary.

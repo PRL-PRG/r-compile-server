@@ -2902,7 +2902,8 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 						  SEXP formals, int is_closure, SEXP escape_ext)
 {
 	SEXP bcode_code = BCODE_CODE(bcode);
-	SEXP bcode_consts = BCODE_CONSTS(bcode);
+	// The interpreter and the compile server use the original bytecode.
+	SEXP bcode_consts = PROTECT(Rf_shallow_duplicate(BCODE_CONSTS(bcode)));
 
 	SEXP code = PROTECT(R_bcDecode(bcode_code));
 
@@ -2960,15 +2961,16 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				if (TYPEOF(body) == BCODESXP)
 				{
 					DEBUG_PRINT("**********\nCompiling closure\n");
-					// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); //
-					// Should not be needed, constpool is ours
 					closure_counter++;
 					char closure_name_buf[256];
 					const char *base_name = name ? name : "closure";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals, 1, R_NilValue);
-					SET_VECTOR_ELT(fb, 1, res);
+					SEXP patched = PROTECT(Rf_shallow_duplicate(fb));
+					SEXP res = PROTECT(copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals, 1, R_NilValue));
+					SET_VECTOR_ELT(patched, 1, res);
+					SET_VECTOR_ELT(bcode_consts, opargs[0], patched);
+					UNPROTECT(2);
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
 				{
@@ -3013,8 +3015,6 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 						case BCODESXP:
 						{
 							DEBUG_PRINT("**********\nCompiling promise\n");
-							// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]);
-							// Should not be needed, constpool is ours
 							closure_counter++;
 							char closure_name_buf[256];
 							const char *base_name = name ? name : "promise";
@@ -3208,7 +3208,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 		UNPROTECT(1);
 	}
 
-	UNPROTECT(1);
+	UNPROTECT(2);
 	return ptr;
 }
 
