@@ -20,4 +20,11 @@ public interface ModuleFeedback {
   default boolean isPartial() {
     return false;
   }
+
+  /// Whether the run that recorded this recorded the results of `[` calls and the growth of `[<-`
+  /// and `[[<-` calls ([AbstractionFeedback#growingSubAssigns]). If not, a missing record is no
+  /// evidence that `x[i]` is one element or that a subassign stays within its vector.
+  default boolean recordsSubscripts() {
+    return true;
+  }
 }

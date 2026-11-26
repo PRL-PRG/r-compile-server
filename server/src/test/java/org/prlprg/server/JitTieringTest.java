@@ -10,6 +10,9 @@ import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.prlprg.AppConfig;
@@ -70,6 +73,123 @@ class JitTieringTest {
       report("original_string", tryCatch("a" + 1, error = conditionMessage))
       report("f_tier_end", rsh::rsh_jit_tier(f))
       """;
+
+  /// Defines `report`, `check` and `check_values`, enables the rsh JIT with threshold 3, and
+  /// connects it to the server at the port given to `formatted`. `check(key, f, expected)` calls
+  /// `f` with `1..calls`, and reports its values (or the message of the error that stopped them),
+  /// whether they are `expected`, and its tier. `check_values(key, f, expected, args)` does the
+  /// same with each of `args`, which it passes as a literal, so `f` gets a value and not a promise:
+  /// only then can the JIT select a specialized version. The helpers are compiled before the rsh
+  /// JIT is enabled, so the JIT doesn't tier them.
+  private static final String CONNECTED_PRELUDE =
+      """
+      options(warn = 1)
+      threshold <- 3L
+      port <- %dL
+      calls <- 4L * threshold
+
+      report <- compiler::cmpfun(function(key, value) {
+        cat("@", key, "=", paste(deparse(value), collapse = " "), "\\n", sep = "")
+      })
+      report_check <- compiler::cmpfun(function(key, f, values, expected) {
+        report(key, values)
+        report(paste0(key, "_ok"), identical(values, expected))
+        report(paste0(key, "_tier"), rsh::rsh_jit_tier(f))
+      })
+      check <- compiler::cmpfun(function(key, f, expected) {
+        values <- tryCatch({
+          values <- list()
+          for (i in seq_len(calls)) values[[i]] <- f(i)
+          values
+        }, error = conditionMessage)
+        report_check(key, f, values, expected)
+      })
+      check_values <- compiler::cmpfun(function(key, f, expected, args) {
+        text <- paste0("f(", vapply(args, deparse, ""), ")", collapse = ", ")
+        driver <- compiler::cmpfun(eval(parse(text = paste0("function() list(", text, ")"))))
+        report_check(key, f, tryCatch(driver(), error = conditionMessage), expected)
+      })
+
+      invisible(compiler::enableJIT(3))
+      rsh::rsh_jit_enable(threshold)
+      rsh::rsh_fir_connect("127.0.0.1", port, deterministic = TRUE)
+      """;
+
+  /// The optimized tier keeps an environment that the closure reflects on, although the recording
+  /// has no evidence of reflection.
+  @Test
+  void reflection() throws Exception {
+    assertChecked(
+        """
+        v_get <- "global"
+        c_get <- function(x) { v_get <- x * 2; get("v_get") }
+        check("c_get", c_get, as.list(seq_len(calls) * 2))
+        """,
+        "c_get");
+  }
+
+  /// The optimized tier runs the promises and inner closures of the closure's bytecode. The
+  /// baseline's compiler (rcp) replaces their bodies in the bytecode it compiles.
+  @Test
+  void promiseAndClosureBodies() throws Exception {
+    assertChecked(
+        """
+        c_rec <- function(n) if (n > 1L) c_rec(n - 1L) else n
+        c_inner <- function(x) { g <- function(z) z * 2; g(x) }
+        check("c_rec", c_rec, as.list(rep(1L, calls)))
+        check("c_inner", c_inner, as.list(seq_len(calls) * 2))
+        """,
+        "c_rec",
+        "c_inner");
+  }
+
+  /// The optimized tier reads `x[0]` and grows a vector with `[<-` and `[[<-`, although the
+  /// recording has no evidence of either. Index 0 and growth also occur in the recorded calls (4 to
+  /// 6), and again in the optimized ones.
+  @Test
+  void subscripts() throws Exception {
+    assertChecked(
+        """
+        c_idx <- function(k) { x <- c(10, 20, 30); if (k < 100L) x[k] else 0 }
+        c_idxr <- function(k) { x <- c(10, 20, 30); if (k < 100L) x[k] else 0 }
+        c_grow <- function(k) { x <- c(1, 2, 3, 4, 5, 6); if (k < 100L) x[k] <- 0; length(x) }
+        c_grow2 <- function(k) { x <- c(1, 2, 3, 4, 5, 6); if (k < 100L) x[[k]] <- 0; length(x) }
+        idx <- rep(c(1L, 2L, 3L, 0L), 3)
+        idx_values <- rep(list(10, 20, 30, numeric()), 3)
+        grow <- c(1L, 2L, 3L, 7L, 8L, 1L, 2L, 7L, 3L, 8L, 1L, 7L)
+        check_values("c_idx", c_idx, idx_values, idx)
+        check_values("c_idxr", c_idxr, idx_values, as.numeric(idx))
+        check_values("c_grow", c_grow, as.list(pmax(6L, grow)), grow)
+        check_values("c_grow2", c_grow2, as.list(pmax(6L, grow)), grow)
+        """,
+        "c_idx",
+        "c_idxr",
+        "c_grow",
+        "c_grow2");
+  }
+
+  /// Run `cases` after [#CONNECTED_PRELUDE], and assert that each `check` of `keys` gave the
+  /// expected values in the optimized tier. Removes the modules that the server made.
+  private static void assertChecked(String cases, String... keys) throws Exception {
+    var server = FirTestServer.instance();
+    var modules = server.firModules();
+    // Ids are sequential, so the modules the script makes are the ones between these two.
+    var firstId = Integer.parseInt(modules.freshId().substring(1)) + 1;
+    try {
+      var output = runR(CONNECTED_PRELUDE.formatted(server.port()) + cases);
+      var reports = reports(output);
+      var msg = "R output:\n" + output;
+      Stream.of(keys)
+          .forEach(
+              key -> {
+                assertEquals("TRUE", reports.get(key + "_ok"), key + ". " + msg);
+                assertEquals("\"optimized\"", reports.get(key + "_tier"), key + ". " + msg);
+              });
+    } finally {
+      var endId = Integer.parseInt(modules.freshId().substring(1));
+      IntStream.range(firstId, endId).forEach(id -> modules.remove("m" + id));
+    }
+  }
 
   @ParameterizedTest
   @ValueSource(ints = {3, 5})

@@ -186,6 +186,10 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
   ///   empty vector. The index becomes a vector.
   /// - A typed `[<-` or `[[<-`, which only writes within the vector, where the call was recorded to
   ///   grow it. The index becomes any value, which leaves the generic version.
+  ///
+  /// If `feedback` doesn't record subscripts
+  /// ([org.prlprg.fir.feedback.ModuleFeedback#recordsSubscripts()]), every non-constant `[` index
+  /// and every subassign is widened.
   static @Nullable ImmutableList<Type> widenedIndexTypes(
       Function function,
       Abstraction version,
@@ -206,7 +210,8 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
         && !isOneElement(callArgs.get(1), elementKind, feedback, statement)) {
       widened = Type.primitiveVector(indexKind, Ownership.SHARED);
     } else if ((name.equals(Variable.named("[<-")) || name.equals(Variable.named("[[<-")))
-        && feedback.growingSubAssigns.contains(statement)
+        && (!feedback.module().recordsSubscripts()
+            || feedback.growingSubAssigns.contains(statement))
         && indexType.kind().repr() == Repr.SEXP
         && !version.signature().returnType().equals(Type.ANY_VALUE_SEXP)) {
       widened = Type.ANY_VALUE_SEXP;
@@ -228,20 +233,23 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
     };
   }
 
-  /// Whether `x[index]` is one element: `index` isn't a constant below 1, and the result of `call`
-  /// wasn't recorded as a vector of another length (a vector of the element kind that isn't `v1`).
+  /// Whether `x[index]` is one element: `index` is a constant of at least 1, or `index` isn't a
+  /// constant, `feedback` records subscripts, and the result of `call` wasn't recorded as a vector
+  /// of another length (a vector of the element kind that isn't `v1`).
   private static boolean isOneElement(
       Argument index, PrimitiveKind elementKind, AbstractionFeedback feedback, Statement call) {
     return switch (index) {
       case Constant(Value.Sexp(IntSXP i)) -> i.get(0) >= 1;
       case Constant(Value.Sexp(RealSXP r)) -> r.get(0) >= 1;
       default ->
-          recordedResults(feedback, call)
-              .map(r -> feedback.type(r).union())
-              .allMatch(
-                  t ->
-                      !t.isSubtypeOf(Type.primitiveVector(elementKind, Ownership.SHARED))
-                          || t.isSubtypeOf(Type.primitiveVector1(elementKind, Ownership.SHARED)));
+          feedback.module().recordsSubscripts()
+              && recordedResults(feedback, call)
+                  .map(r -> feedback.type(r).union())
+                  .allMatch(
+                      t ->
+                          !t.isSubtypeOf(Type.primitiveVector(elementKind, Ownership.SHARED))
+                              || t.isSubtypeOf(
+                                  Type.primitiveVector1(elementKind, Ownership.SHARED)));
     };
   }
 

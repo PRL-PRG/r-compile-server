@@ -287,9 +287,9 @@ enum {
   FIR_BC_BASELINE_SIZE = 5,
 };
 
-/// The code a bytecode baseline evaluates: the bytecode compiled by the copy-and-patch JIT (rcp)
-/// with feedback recording if rcp is available, the bytecode itself otherwise. Compiled on the
-/// first call and cached in the pool.
+/// The code a bytecode baseline evaluates: a copy of the bytecode compiled by the copy-and-patch
+/// JIT (rcp) with feedback recording if rcp is available, the bytecode itself otherwise. Compiled
+/// on the first call and cached in the pool. The pool's bytecode stays unchanged.
 SEXP Fir_bc_baseline_code(SEXP pool);
 /// What the copy-and-patch JIT recorded for the code in `pool` (see `Fir_bc_baseline_code`),
 /// with `calls` as the number of calls: the list `server/doc/bytecode-baseline-feedback.md`

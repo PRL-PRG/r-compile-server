@@ -270,7 +270,9 @@ tier):
 2. *Baseline*: from call N+1, the closure runs the baseline. With rcp, the baseline is the
    bytecode that rcp compiled with recording (`Fir_bc_baseline_code`, the code that the bytecode
    baselines of a module run, see [bytecode-baseline-feedback.md](bytecode-baseline-feedback.md)).
-   Without rcp, the baseline is the bytecode.
+   rcp compiles a copy of the bytecode, because it replaces the promise and closure bodies in the
+   constant pools of the bytecode that it compiles. So the state's bytecode, which the request
+   sends, stays bytecode. Without rcp, the baseline is the bytecode.
 3. *Optimized*: after call 2N, the client sends a request for the closure on the stub worker
    thread (see [The client](#the-client)). Later calls poll for the answer. In `deterministic`
    mode, call 2N+1 waits for the answer, so the closure runs optimized from call 2N+1. When the
@@ -303,13 +305,16 @@ The server (`CompileService#compileFirClosure`) does these steps:
 2. It compiles the closure into a new module with `BC2FirClosureCompiler`. It uses the client's
    bytecode and doesn't recompile it, because the recording's offsets index that bytecode.
 3. It translates the recording into feedback for the module (`BcRecordingFeedback`).
-4. It runs `Optimizations#defaultOptimizations(threshold)` on the module with that feedback. The
+4. It runs `Optimizations#jitOptimizations(threshold)` on the module with that feedback. This
+   pipeline has no `SpeculateAssume`, because FIŘ→C code cannot deoptimize. It has no
+   `SpecializeNonReflectiveEnv`, because the recording has no evidence of reflection. The
    optimizations create lazy versions as usual. For example, `CopyBaseline` creates a copy of the
-   baseline, which speculates on the feedback when it's evaluated.
+   baseline. The copy does not speculate on the feedback.
 5. It evaluates the function's versions that exist at this point (the copy), because the closure
    is hot. Optimizing the copy runs `SpeculateDispatch`, which creates a version per rank of the
    recorded parameter types (the most frequent type of each parameter, the second most frequent,
-   ...). Those versions stay lazy.
+   ...). Those versions stay lazy. The from-R dispatch guards them, so the argument types reach
+   the code only through these versions.
 6. It registers a `Fir2CSession` for the module in `FirModules`, and compiles the closure's
    function with `Fir2CCompiler#compile`. The copy is compiled. The specialized versions become
    stubs, which the client asks for with `CompileFirVersion`, as above.
@@ -322,16 +327,37 @@ The server (`CompileService#compileFirClosure`) does these steps:
 The client has one threshold (`Fir_jit_threshold`, default 10). `rsh_jit_enable(threshold)` and
 `rsh_fir_connect(..., threshold)` set it. The last call wins. The counting body uses it for the
 tiers, and a stub requests its version at call N. The client sends it in the request, and the
-server gives it to the optimizations, which use it as the minimum number of hits for speculation.
+server gives it to the optimizations. `SpeculateDispatch` and `OptimizeCallee` use it as the
+minimum number of hits of a parameter type. `SpecializeLocalPromise` uses it as the minimum number
+of calls.
 
 ### Known limits
 
 - Without rcp, the baseline records nothing, so the server gets no feedback and doesn't
   speculate. rcp is only in the RCP variant of GNU-R, on Linux x86-64.
 - CI has no RCP build, so CI tests the tiers without feedback.
-- If a speculation fails after the closure is optimized, R signals an error ("FIŘ
-  deoptimization triggered at pc=... (unsupported)"). There is no deoptimization back to the
-  bytecode. Before the error, the deopt branch materializes an elided frame and stores into it.
+- There is no deoptimization back to the bytecode. If an assumption fails after the closure is
+  optimized, R signals an error ("FIŘ deoptimization triggered at pc=... (unsupported)"). Before
+  the error, the deopt branch materializes an elided frame and stores into it. So the JIT inserts
+  no `SpeculateAssume` assumption. These assumptions and errors remain:
+  - The bc2fir `BASEGUARD` assumption fails when the program shadows a base function.
+  - The runtime's value-dependent errors can still fire in a type-specialized version. Examples
+    are real `:` bounds and integer `sum` overflow.
+- The recording has no evidence of reflection, so the JIT pipeline has no
+  `SpecializeNonReflectiveEnv`: it would mark an environment non-reflective because no reflection
+  was recorded. Then `ElideEnv`, `ElideDeadStore` and `PromoteStaticallyKnownVariables` would
+  remove stores that a reflective read (such as `get`) needs.
+- The recording also has no `[` results (an inline `x[i]` is `VECSUBSET`, not `CALL`) and no
+  subassign growth. So `CompileService` marks the JIT's feedback without subscripts
+  (`MockModuleFeedback#markWithoutSubscripts`). Then `OptimizeCallee` calls the generic `[` for a
+  non-constant index, and the generic `[<-` and `[[<-` for each subassign. Otherwise the scalar
+  `[` and the in-place `[<-` would signal an error for an index below 1 ("x[0] isn't one
+  element", a deopt) or a growth ("Subscript index out of bounds", a runtime assertion).
+  `JitTieringTest#subscripts` checks this (red only with a recording).
+- The from-R dispatch selects a specialized version only for an evaluated argument. A caller that
+  passes a variable passes a promise, so it calls the general copy. Also, the recording types a
+  parameter only through a plain `GETVAR`. A parameter that the closure reads only as an index
+  (`x[k]`) gets no specialized version.
 - The server never removes a module from `FirModules`.
 - `rsh_compile` and the `Compile` RPC (the bytecode-to-C path) still exist, but the JIT doesn't
   use them.
@@ -358,7 +384,8 @@ server gives it to the optimizations, which use it as the minimum number of hits
 - `JitTieringTest` runs the tiers end to end. An R process with `rsh` enables the JIT with
   threshold 3 and 5, connects to `FirTestServer` in deterministic mode, and calls a closure. The
   test checks the tier after each group of calls, that the closure runs native code, and that the
-  server has one module for the closure. It doesn't use `GNUR#rshInstance`, because enabling
+  server has one module for the closure. Its `reflection` method checks that a closure that
+  reflects on its environment (`get`) returns plain R's values in the optimized tier. It doesn't use `GNUR#rshInstance`, because enabling
   GNU-R's JIT would change what the eval tests run.
 - `StubThresholdTest` runs one example with the stub threshold 2, and checks that the run leaves
   fewer versions evaluated than with threshold 1.
@@ -366,7 +393,9 @@ server gives it to the optimizations, which use it as the minimum number of hits
   one says `fallback` and has no patch, a version the optimizations change is compiled, and a
   compiled version that becomes redundant is reverted (and compiled again when it changes).
 - `ServerTests#testCompileFirClosure` sends `CompileFirClosure` a recording, and checks the
-  versions that the optimizations create from it.
+  versions that the optimizations create from it: a stub for the recorded parameter type, and no
+  `assume` in an evaluated version, also after `CompileFirVersion` evaluates the stub. The
+  general copy keeps a regular `mkenv`.
 - `ManualFirServer` (test sources) serves one example for running `eval.R` by hand.
 - `VersionBenchmark` (a benchmark, not a test) runs a `#? benchmark:` example's call on the lazy
   module through `EvalQuery`'s path, with the client's default threshold (10). It runs the

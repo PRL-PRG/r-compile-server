@@ -398,7 +398,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     var bytecodes = new ModuleBcOriginMap();
     var function = BC2FirClosureCompiler.compile(rSession, module, name, closure, bytecodes);
 
-    var feedback =
+    var recording =
         request.hasRecording()
             ? BcRecordingFeedback.translate(
                 module,
@@ -407,8 +407,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                     new BcRecordingFeedback.Recording(
                         name, (VecSXP) RDSReader.readByteString(rSession, request.getRecording()))))
             : null;
-    Optimizations.defaultOptimizations(request.getThreshold(), true)
-        .run(feedback == null ? new MockModuleFeedback(module) : feedback, module);
+    var feedback = recording == null ? new MockModuleFeedback(module) : recording;
+    // The JIT records neither `[` results nor subassign growth.
+    feedback.markWithoutSubscripts();
+    Optimizations.jitOptimizations(request.getThreshold()).run(feedback, module);
     // The closure is hot, so its versions that exist now (the baseline's copy) are compiled, not
     // stubs. Evaluating them optimizes them, which creates the versions that specialize on the
     // feedback; those start as stubs.

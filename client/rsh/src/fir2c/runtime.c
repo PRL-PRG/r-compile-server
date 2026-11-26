@@ -2084,6 +2084,47 @@ static SEXP Fir_set_rcp_recording(SEXP value) {
   return old;
 }
 
+static SEXP Fir_copy_bytecode_const(SEXP value);
+
+/// A copy of the bytecode `code` with its own constant pools, so `C_rcp_cmpfun` can compile it
+/// without changing `code`.
+static SEXP Fir_copy_bytecode(SEXP code) {
+  SEXP consts = PROTECT(Fir_copy_bytecode_const(BCODE_CONSTS(code)));
+  // How `.Internal(mkCode(...))` makes bytecode.
+  SEXP copy = Rf_cons(BCODE_CODE(code), consts);
+  SET_TYPEOF(copy, BCODESXP);
+  UNPROTECT(1);
+  return copy;
+}
+
+/// `value`, a constant of a bytecode's pool, with the bytecode it holds copied
+/// (`Fir_copy_bytecode`): in lists (e.g. `MAKECLOSURE`'s), and as a closure's body.
+static SEXP Fir_copy_bytecode_const(SEXP value) {
+  switch (TYPEOF(value)) {
+  case BCODESXP:
+    return Fir_copy_bytecode(value);
+  case CLOSXP: {
+    if (TYPEOF(BODY(value)) != BCODESXP) {
+      return value;
+    }
+    SEXP copy = PROTECT(Rf_duplicate(value));
+    SET_BODY(copy, Fir_copy_bytecode(BODY(value)));
+    UNPROTECT(1);
+    return copy;
+  }
+  case VECSXP: {
+    SEXP copy = PROTECT(Rf_shallow_duplicate(value));
+    for (R_xlen_t i = 0; i < XLENGTH(value); i++) {
+      SET_VECTOR_ELT(copy, i, Fir_copy_bytecode_const(VECTOR_ELT(value, i)));
+    }
+    UNPROTECT(1);
+    return copy;
+  }
+  default:
+    return value;
+  }
+}
+
 SEXP Fir_bc_baseline_code(SEXP pool) {
   SEXP code = Fir_const(pool, FIR_BC_BASELINE_JIT);
   if (code != R_NilValue) {
@@ -2093,10 +2134,15 @@ SEXP Fir_bc_baseline_code(SEXP pool) {
   code = Fir_const(pool, FIR_BC_BASELINE_CODE);
   SEXP (*cmpfun)(SEXP, SEXP) = Fir_rcp()->cmpfun;
   if (cmpfun != NULL) {
-    // `C_rcp_cmpfun` copy-and-patches a closure whose body is already bytecode in place,
-    // replacing the body with an external pointer to the JIT-compiled code
-    // (which `eval` in the RCP variant of GNU-R runs in the environment it's evaluated in).
-    SEXP closure = PROTECT(Rf_mkCLOSXP(Fir_const(pool, FIR_BC_BASELINE_FORMALS), code, R_GlobalEnv));
+    // `C_rcp_cmpfun` copy-and-patches a closure whose body is already bytecode in place: it
+    // replaces the body with an external pointer to the JIT-compiled code (which `eval` in the
+    // RCP variant of GNU-R runs in the environment it's evaluated in), and does the same to the
+    // promise and closure bodies in the bytecode's constant pools. So it compiles a copy, and the
+    // pool keeps bytecode that the server can compile (the rsh JIT sends it).
+    SEXP copy = PROTECT(Fir_copy_bytecode(code));
+    SEXP closure = Rf_mkCLOSXP(Fir_const(pool, FIR_BC_BASELINE_FORMALS), copy, R_GlobalEnv);
+    UNPROTECT(1);
+    PROTECT(closure);
     // Compile with feedback recording, which is what `Fir_bc_baseline_recording` reads. Set and
     // restore the option instead of setting it once, so we don't change how anything else in the
     // session gets compiled.
