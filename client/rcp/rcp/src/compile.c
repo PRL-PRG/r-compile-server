@@ -757,6 +757,15 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 		break;
 	}
 
+	// The stencil compiler assumes a hole's symbol has a nonzero address, so a
+	// zero value may be miscompiled. That applies to the value itself, not to
+	// what is patched: a PC-relative jump to the code right after it is patched
+	// with displacement 0 and is fine.
+	if (ptr == 0)
+		warning("Zero integer passed as an argument to BC instruction. Relocation "
+				"type: %d. Stencil: %s. Hole: %d. ",
+				hole->kind, stencil->name, hole_id);
+
 	ptr += hole->addend;
 	if (hole->is_pc_relative)
 		ptr -= (ptrdiff_t)&loc[hole->offset];
@@ -768,10 +777,6 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 			  "not fit into %hu bytes). Relocation type: %d. Stencil: %s. Hole: "
 			  "%d. Try to set memory model to large.\n",
 			  (void *)ptr, hole->size, hole->kind, stencil->name, hole_id);
-	if (ptr == 0)
-		warning("Zero integer passed as an argument to BC instruction. Relocation "
-				"type: %d. Stencil: %s. Hole: %d. ",
-				hole->kind, stencil->name, hole_id);
 
 	memcpy(&dst[hole->offset], &ptr, hole->size);
 }
@@ -2515,7 +2520,7 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 
 	// Group 4 (reflection flag): for closures only, a flag raised at return if the
 	// call frame environment was reflectively accessed (envir.c recordReflection
-	// binds Rsh_ReflectivelyAccessed in it). Exceptional exits are not tracked.
+	// sets RSH_REFLECTED_MASK in its flags). Exceptional exits are not tracked.
 	// Inverted logic for closures: 1 = not (yet) accessed, cleared to 0 by the check
 	// stencil so its runtime store is of an immediate 0. Non-closures get no stencil
 	// and keep the NA sentinel. C_rcp_export_recording maps these back to R logicals.
@@ -3610,8 +3615,10 @@ static void save_original_cmpfun(void)
 	// Get the compiler namespace
 	SEXP compiler_namespace = PROTECT(R_FindNamespace(Rf_mkString("compiler")));
 
-	// Save the original cmpfun to a global variable
+	// Save the original cmpfun to a global variable. Preserve it: once
+	// rcp_jit_enable() rebinds `compiler::cmpfun`, this global is its only reference.
 	original_cmpfun = Rf_findVarInFrame(compiler_namespace, Rf_install("cmpfun"));
+	R_PreserveObject(original_cmpfun);
 
 	UNPROTECT_SAFE(compiler_namespace);
 }
@@ -4613,6 +4620,7 @@ void rcp_destr(void)
 	{
 		C_rcp_override_cmpfun(original_cmpfun);
 		DEBUG_PRINT("Restored original cmpfun\n");
+		R_ReleaseObject(original_cmpfun);
 		original_cmpfun = NULL;
 	}
 }

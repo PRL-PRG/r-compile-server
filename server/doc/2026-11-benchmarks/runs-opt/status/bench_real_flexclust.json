@@ -1,0 +1,14 @@
+{
+ "example": "bench_real_flexclust",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "failed",
+ "reason": "test failure: the benchmark call of <none> failed",
+ "exit": 0,
+ "seconds": 2064,
+ "load_start": 1.2,
+ "load_end": 1.09,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {},
+ "no_time": {}
+}

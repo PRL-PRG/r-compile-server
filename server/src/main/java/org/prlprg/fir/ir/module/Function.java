@@ -8,12 +8,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.WeakHashMap;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.abstraction.LazyBody;
+import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.properties.FunctionUserProperties;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
@@ -24,11 +29,17 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.TaggedElem;
 
 public final class Function {
   /// Versions that have been added to functions, so we can ensure the same version isn't added
   /// to multiple.
-  private static final Set<Abstraction> PAIRED_VERSIONS = new HashSet<>();
+  ///
+  /// Weak, so that it doesn't keep every module ever made alive.
+  private static final Set<Abstraction> PAIRED_VERSIONS =
+      Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
   // Backlink
   private final Module owner;
@@ -38,6 +49,7 @@ public final class Function {
   private final Comments comments;
   private final NamedVariable name;
   private final List<NamedVariable> parameterNames;
+  private @Nullable ListSXP formals;
   private @Nullable Abstraction baseline;
   /// Stored by identity, in insertion order; [#versions()] derives the sorted (dispatch-order)
   /// view on demand.
@@ -116,6 +128,55 @@ public final class Function {
     return parameterNames;
   }
 
+  /// The GNU-R formals of the closures of this function: [#parameterNames()] with their default
+  /// expressions, or with the missing argument when the function has none (e.g. it didn't come
+  /// from a GNU-R closure). FIŘ code computes the defaults itself, so these are only for what
+  /// inspects the closure (`formals()`, `match.arg`, printing).
+  public ListSXP formals() {
+    return formals != null
+        ? formals
+        : parameterNames.stream()
+            .map(nv -> new TaggedElem(nv.name(), SEXPs.MISSING_ARG))
+            .collect(SEXPs.toList());
+  }
+
+  /// Set the default expressions of the parameters (see [#formals()]).
+  ///
+  /// @throws IllegalArgumentException If `formals` doesn't have one element per parameter name.
+  public void setFormals(ListSXP formals) {
+    if (formals.size() != parameterNames.size()) {
+      throw new IllegalArgumentException(
+          "Formals " + formals + " don't match parameter names " + parameterNames);
+    }
+    this.formals = formals;
+  }
+
+  /// The parameter of `st variable = value` in `cfg`, a CFG of `version` that runs at the
+  /// closure's entry, if `value` is the phi that merges the parameter with its default (see
+  /// `bc2fir`'s `compileParameter`). GNU-R marks the binding of an unsupplied parameter with a
+  /// default, so `missing` is TRUE until it is assigned again.
+  public @Nullable FunctionParameter defaultedParameter(
+      Abstraction version, CFG cfg, NamedVariable variable, Argument value) {
+    var index = parameterNames.indexOf(variable);
+    if (index < 0
+        || formals().get(index).value().equals(SEXPs.MISSING_ARG)
+        || !(value instanceof Read(var phi))) {
+      return null;
+    }
+    var parameter = version.parameters().get(index);
+    var parameterRead = new Read(parameter);
+    return cfg.bbs().stream()
+            .anyMatch(
+                bb -> {
+                  var phiIndex = bb.phiParameters().indexOf(phi);
+                  return phiIndex >= 0
+                      && bb.phiArguments(phiIndex).stream()
+                          .anyMatch(as -> as.contains(parameterRead));
+                })
+        ? parameter
+        : null;
+  }
+
   /// Returns the function's baseline.
   ///
   /// @throws IllegalStateException If the function was constructed without a baseline and it
@@ -161,8 +222,17 @@ public final class Function {
   /// Gets the best version whose signature can be substituted with `signature` in a call, i.e.
   /// the best version with more permissive parameters and more restrictive effects/return.
   public @Nullable Abstraction guess(Signature signature) {
+    return guess(signature, null);
+  }
+
+  /// [#guess(Signature)], but never returns `excluded`.
+  ///
+  /// This is how a [FallbackCallee][org.prlprg.fir.ir.callee.FallbackCallee] in `excluded`'s
+  /// fallback is resolved.
+  public @Nullable Abstraction guess(Signature signature, @Nullable Abstraction excluded) {
     for (var version : versions()) {
-      if (signature.hasNarrowerParameters(version.signature())
+      if (version != excluded
+          && signature.hasNarrowerParameters(version.signature())
           && version.signature().hasNarrowerPostconditions(signature)) {
         return version;
       }
@@ -188,6 +258,14 @@ public final class Function {
   /// Construct a new version, immediately add it to this function, and return it
   public Abstraction addVersion(List<FunctionParameter> params, boolean isStub) {
     var version = new Abstraction(owner, params, isStub);
+    addVersion(version);
+    return version;
+  }
+
+  /// Construct a new version whose body is computed by `body` when it's first accessed,
+  /// immediately add it to this function, and return it
+  public Abstraction addVersion(List<FunctionParameter> params, LazyBody.Initializer body) {
+    var version = new Abstraction(owner, params, body);
     addVersion(version);
     return version;
   }

@@ -6,6 +6,7 @@ import static org.prlprg.fir.opt.Cleanup.cleanup;
 import java.util.Objects;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.check.Checker;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -264,6 +265,63 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       assertNull(cfg(module).bb("L4"), "intermediate goto should become unreachable");
       assertNull(cfg(module).bb("L5"), "nested if should become unreachable");
     }
+
+    @Test
+    void phiUsedOutsideItsJump_notBypassed() {
+      // Origin substitution replaces `a`/`b` with `p`, so `L2` uses `L1`'s phi directly.
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (v:v(I)b, c0:B, c:B) -~> I {
+                d: v(I)o = dup v;
+                e: v(I)o = dup v;
+                if c0 then L0() else L1(consume e);
+              L0():
+                if c then L1(consume d) else L1(consume d);
+              L1(p: v(I)o):
+                goto L2(p, p);
+              L2(a: v(I), b: v(I)):
+                x: I = a[1];
+                y: I = b[x];
+                return y;
+              }
+              """);
+
+      run(abstraction);
+
+      var printed = Printer.toString(abstraction);
+      assertTrue(Checker.checkAll(abstraction), "should type-check; got:\n" + printed);
+    }
+
+    @Test
+    void consumedPhiArgumentPassedTwice_consumedOnce() {
+      // L3 gives `p` and `a`/`b` other origins, so origin substitution doesn't remove them first.
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (v:v(I)b, c0:B, c1:B, c:B) -~> I {
+                d: v(I)o = dup v;
+                e: v(I)o = dup v;
+                if c0 then L0() else L3();
+              L0():
+                if c then L1(consume d) else L1(consume d);
+              L3():
+                if c1 then L1(consume e) else L2(e, e);
+              L1(p: v(I)o):
+                goto L2(p, p);
+              L2(a: v(I), b: v(I)):
+                x: I = a[1];
+                y: I = b[x];
+                return y;
+              }
+              """);
+
+      assertTrue(run(abstraction), "should remove no-effect if jump");
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(printed.contains("if c then"), "the if should be removed; got:\n" + printed);
+      assertTrue(Checker.checkAll(abstraction), "should type-check; got:\n" + printed);
+    }
   }
 
   // endregion
@@ -289,6 +347,49 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var printed = Printer.toString(abstraction);
       // After phi removal and merging, y should be substituted with x
       assertTrue(printed.contains("return x"), "y should be substituted with x; got:\n" + printed);
+    }
+
+    @Test
+    void consumedOwnedPhiArgument_keepsWrite() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (v:v(I)b) -~> v(I)f {
+                d: v(I)o = dup v;
+                goto L0(consume d);
+              L0(p: v(I)o):
+                p[0] = 9;
+                return consume p;
+              }
+              """);
+
+      assertTrue(run(abstraction), "should remove single-predecessor phi");
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(printed.contains("consume d[0]"), "the write was lost; got:\n" + printed);
+      assertTrue(Checker.checkAll(abstraction), "should type-check; got:\n" + printed);
+    }
+
+    @Test
+    void consumedSharedPhiArgument_consumedOnce() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (v:v(I)b) -~> v(I)f {
+                d: v(I)o = dup v;
+                goto L0(consume d);
+              L0(p: v(I)):
+                a: I = p[1];
+                e: v(I)o = dup p;
+                e[0] = a;
+                return consume e;
+              }
+              """);
+
+      assertTrue(run(abstraction), "should remove single-predecessor phi");
+
+      var printed = Printer.toString(abstraction);
+      assertTrue(Checker.checkAll(abstraction), "should type-check; got:\n" + printed);
     }
   }
 
@@ -427,6 +528,101 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
   }
   */
 
+  /// `solve_queens` of `queens_regression` (and the former example `bench_ai_awf_queens`): a
+  /// promise made in a loop reads `board`, which the loop then rebinds, and a block boundary lies
+  /// between the promise and the call it's passed to. The load reads the parameter only on the
+  /// first iteration, so it must not become the parameter.
+  @Test
+  void loadInLoopPromise_afterRebinding_notSubstitutedWithFirstIterationValue() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun solve(board, n) {
+              (board:*, n:*) -+> V { ... }
+              (board:p(v(R) +), n:I) -+> I {
+                mkenv~;
+                st board = board;
+                goto L1(0);
+              L1(k: I):
+                k1: I = `+`< I,I --> I >(k, 1);
+                c: L = `<`< I,I --> L >(k1, n);
+                c1: B = naToFalse< L --> B >(c);
+                if c1 then L2() else L4();
+              L2():
+                p: p(v(R) +) = prom<v(R) +>{
+                  board1: * = ld board;
+                  board2: V = force? board1;
+                  board3: v(R) = board2 ?: v(R);
+                  return board3;
+                };
+                goto L3();
+              L3():
+                r: V = isSafe< p(v(R) +) -+> V >(p);
+                board4: v(R) = mk< -+> v(R) >();
+                st board = board4;
+                goto L1(k1);
+              L4():
+                popenv;
+                return k1;
+              }
+            }
+
+            fun isSafe(b) {
+              (b:p(v(R) +)) -+> V { ... }
+            }
+
+            fun mk() {
+              () -+> v(R) { ... }
+            }
+            """);
+
+    run(module);
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("board1: * = ld board;"),
+        "the promise must still load `board`; got:\n" + printed);
+    assertFalse(
+        printed.contains("force? board;"),
+        "the promise must not read the parameter `board`; got:\n" + printed);
+  }
+
+  /// `outliers` of `bench_riposte_cleaning`: `ldf f` forces the promise bound to `f`, so its
+  /// result is the forced closure, not the promise parameter.
+  @Test
+  void loadFunOfPromise_notSubstitutedWithPromise() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun outer(f) {
+              (f:*) -+> V { ... }
+              (f:p(cls -)) -+> cls {
+                mkenv~;
+                st f = f;
+                f1: cls = ldf f;
+                check L0() else D0();
+              L0():
+                f2: cls = f1 ?- g;
+                popenv;
+                return f2;
+              D0():
+                deopt 0 [];
+              }
+            }
+
+            fun g() {
+              () -+> V { ... }
+            }
+            """);
+
+    run(module);
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("f2: cls = f1 ?- g;"),
+        "the assumption must check the loaded closure, not the promise `f`; got:\n" + printed);
+  }
+
   // endregion
 
   // region Remove unused locals
@@ -477,6 +673,54 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
 
   @Nested
   class RemoveEffectiveNoOps {
+    @Test
+    void visibilityWrite_lastKept_overwrittenRemoved() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (x:I) --> I {
+                setInvisible< --> V >();
+                setVisible< --> V >();
+                return x;
+              }
+              """);
+
+      assertTrue(run(abstraction), "should remove the overwritten write");
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(printed.contains("setInvisible"), "overwritten write; got:\n" + printed);
+      assertTrue(printed.contains("setVisible"), "last write; got:\n" + printed);
+    }
+
+    @Test
+    void visibilityWriteInPromise_keptOnlyAfterAWriter() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (x:I) -~> I {
+                mkenv;
+                p: p(I -) = prom<I ->{
+                  setVisible< --> V >();
+                  return x;
+                };
+                q: p(I -) = prom<I ->{
+                  setInvisible< --> V >();
+                  return x;
+                };
+                st p = p;
+                st q = q;
+                popenv;
+                return x;
+              }
+              """);
+
+      run(abstraction);
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(printed.contains("setVisible"), "no writer before; got:\n" + printed);
+      assertTrue(printed.contains("setInvisible"), "a writer; got:\n" + printed);
+    }
+
     @Test
     void pureExpressionWithoutAssignee_removed() {
       var abstraction =
@@ -550,6 +794,28 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       assertTrue(
           printed.contains("?: v1(I)"),
           "assume should not be removed (used by checkpoint); got:\n" + printed);
+    }
+
+    @Test
+    void loadWithKnownOrigin_removed() {
+      var abstraction =
+          ParseUtil.parseAbstraction(
+              """
+              (x:V) -~> V {
+                mkenv;
+                st y = x;
+                y1: * = ld y;
+                popenv;
+                return y1;
+              }
+              """);
+
+      run(abstraction);
+
+      var printed = Printer.toString(abstraction);
+      assertFalse(
+          printed.contains("ld y"),
+          "a load of a variable that is bound can't raise an error; got:\n" + printed);
     }
   }
 
@@ -628,7 +894,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
 
   private static CFG cfg(Module module) {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main")));
-    return Objects.requireNonNull(main.versions().first().cfg());
+    return main.versions().first().body();
   }
   // endregion
 }

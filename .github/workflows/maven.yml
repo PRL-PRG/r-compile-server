@@ -10,9 +10,9 @@ name: Java CI with Maven
 
 # Nearly everything this builds lives under server/ -- including the .proto
 # files, which `make -C proto` copies into server/src/main/protobuf. The
-# exceptions are client/rsh/src, whose headers the server's tests compile the
-# generated C against (plus the fir2c runtime sources they compile into it, so
-# the result loads without the `rsh` package), and the vendored GNU-R those
+# exceptions are client/rsh, whose headers the server's tests compile the
+# generated C against and whose package the FIŘ→C eval tests load into R (so
+# it's built and installed, from proto/ too), and the vendored GNU-R those
 # tests run and link against (the `R` gitlink plus the script that builds it).
 # The two `paths` lists must be kept in sync; GitHub Actions does not support
 # YAML anchors.
@@ -21,31 +21,35 @@ on:
     branches: ["main"]
     paths:
       - "server/**"
-      - "client/rsh/src/**"
+      - "client/rsh/**"
+      - "proto/**"
       # Only the gitlink is tracked for the submodule, so this is a plain path
       # rather than an `R/**` glob, which would never match.
       - "R"
       - "tools/build-gnur.sh"
       - ".github/workflows/maven.yml"
       - ".github/actions/setup-gnur/**"
+      - ".github/actions/setup-rsh/**"
   pull_request:
     branches: ["main"]
     paths:
       - "server/**"
-      - "client/rsh/src/**"
+      - "client/rsh/**"
+      - "proto/**"
       - "R"
       - "tools/build-gnur.sh"
       - ".github/workflows/maven.yml"
       - ".github/actions/setup-gnur/**"
+      - ".github/actions/setup-rsh/**"
   workflow_dispatch:
 
 # Skip the `stdlib_*` examples in the snapshot tests: they're slow and cover the
 # same code paths as the smaller examples. `TestConfig` picks this up from the
 # environment, which the forked Surefire JVMs inherit.
 #
-# FIXME: `bench_awf_*|bench_shootout_*` are skipped because they OOM the forked Surefire JVM.
+# FIXME: `bench_awf_.*|bench_shootout_.*` are skipped because they OOM the forked Surefire JVM.
 env:
-  EXAMPLE_FILTER: "(?!stdlib_|bench_awf_*|bench_shootout_*).*"
+  EXAMPLE_FILTER: "(?!stdlib_|bench_awf_.*|bench_shootout_.*).*"
 
 # All the jobs run `./mvnw` rather than the runner's `mvn`: the build needs
 # Maven 4 (maven-compiler-plugin 4.x), while the runner images still ship Maven
@@ -89,9 +93,10 @@ jobs:
           cache: maven
       - name: Set up GNU-R
         uses: ./.github/actions/setup-gnur
+      # `test` and `verify` run the tests.
       - name: Build artifact
         working-directory: server
-        run: ./mvnw --batch-mode --update-snapshots package
+        run: ./mvnw --batch-mode --update-snapshots -DskipTests package
       - name: Upload snapshot as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -109,6 +114,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+      # A contributor without `git lfs install` commits the content itself, which `.gitattributes`
+      # can't prevent. Compare the tracked snapshots with the ones git LFS knows.
+      - name: Check that every tracked snapshot is a git LFS pointer
+        run: diff <(git ls-files -- server/src/test/snapshots | sort) <(git lfs ls-files --name-only | sort)
       - name: Set up JDK 26
         uses: actions/setup-java@v5
         with:
@@ -117,6 +126,8 @@ jobs:
           cache: maven
       - name: Set up GNU-R
         uses: ./.github/actions/setup-gnur
+      - name: Set up rsh
+        uses: ./.github/actions/setup-rsh
       - name: Run tests (no static analyses)
         working-directory: server
         run: ./mvnw --batch-mode --update-snapshots test
@@ -135,6 +146,8 @@ jobs:
           cache: maven
       - name: Set up GNU-R
         uses: ./.github/actions/setup-gnur
+      - name: Set up rsh
+        uses: ./.github/actions/setup-rsh
       - name: Run tests and static analyses
         working-directory: server
         run: ./mvnw --batch-mode --update-snapshots verify
@@ -161,6 +174,8 @@ jobs:
           cache: maven
       - name: Set up GNU-R
         uses: ./.github/actions/setup-gnur
+      - name: Set up rsh
+        uses: ./.github/actions/setup-rsh
       - name: Run tests and static analyses
         working-directory: server
         run: ./mvnw --batch-mode --update-snapshots verify

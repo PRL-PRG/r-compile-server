@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `shapiro.test` <- function (x) 
 {
     DNAME <- deparse1(substitute(x))

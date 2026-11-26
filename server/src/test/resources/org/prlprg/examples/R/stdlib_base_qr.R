@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `qr` <- function (x, ...) 
 UseMethod("qr")
 

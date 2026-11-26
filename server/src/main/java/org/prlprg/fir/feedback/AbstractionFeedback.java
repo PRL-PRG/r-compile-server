@@ -4,14 +4,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Type;
@@ -27,6 +30,14 @@ public class AbstractionFeedback {
   /// Create a feedback for a single-[Abstraction] module, only for use in tests.
   public static AbstractionFeedback standaloneForTesting(Abstraction abstraction) {
     return new MockModuleFeedback(abstraction.module()).get(abstraction);
+  }
+
+  /// Create a feedback that isn't in `module`, so whatever is recorded in it is discarded.
+  ///
+  /// For code that must record somewhere but whose feedback doesn't describe a version's body,
+  /// i.e. its [fallback][Abstraction#fallback()].
+  public static AbstractionFeedback discarded(ModuleFeedback module) {
+    return new AbstractionFeedback(module);
   }
 
   private final ModuleFeedback module;
@@ -63,6 +74,8 @@ public class AbstractionFeedback {
   /// `prom` statements whose promises were recorded to escape (outlive the stack frame they were
   /// created in, then get forced afterwards).
   public final Set<Statement> escapingPromises = new LinkedHashSet<>();
+  /// `[<-` and `[[<-` calls that were recorded to grow their vector (assign past its end).
+  public final Set<Statement> growingSubAssigns = new LinkedHashSet<>();
 
   AbstractionFeedback(ModuleFeedback module) {
     this.module = module;
@@ -90,6 +103,12 @@ public class AbstractionFeedback {
             ? Optional.of(callee)
             : oldCallee.flatMap(o -> o == callee ? Optional.of(callee) : Optional.empty());
     callees.put(register, updatedCallee);
+  }
+
+  /// Record that the register was assigned a closure whose function feedback can't name, so that
+  /// no callee is ever speculated for it.
+  public void recordUnknownCallee(Register register) {
+    callees.put(register, Optional.empty());
   }
 
   /// Record that the register was assigned exactly `value`
@@ -166,6 +185,16 @@ public class AbstractionFeedback {
     numCalls = 0;
   }
 
+  /// Make the feedback recorded for the statement `old` apply to `replacement`, which takes its
+  /// place.
+  public void replaceStatement(Statement old, Statement replacement) {
+    for (var statements : List.of(reflectiveEnvs, escapingPromises, growingSubAssigns)) {
+      if (statements.remove(old)) {
+        statements.add(replacement);
+      }
+    }
+  }
+
   /// Create a deep copy.
   private AbstractionFeedback copy() {
     var copy = new AbstractionFeedback(module);
@@ -177,6 +206,7 @@ public class AbstractionFeedback {
     copy.allRecorded.putAll(this.allRecorded);
     copy.reflectiveEnvs.addAll(this.reflectiveEnvs);
     copy.escapingPromises.addAll(this.escapingPromises);
+    copy.growingSubAssigns.addAll(this.growingSubAssigns);
     return copy;
   }
 
@@ -184,20 +214,45 @@ public class AbstractionFeedback {
   ///
   /// @param src The [Abstraction] this contains feedback for.
   /// @param dst The [Abstraction] the copy will contain feedback for, which must be
-  ///            structurally equivalent.
+  ///            structurally equivalent. Its body may still be being evaluated (it's copied into
+  ///            while it is), but must have been started.
   AbstractionFeedback copy(Abstraction src, Abstraction dst) {
     var copy = copy();
 
+    var srcBody = src.body();
+    var dstBody = Objects.requireNonNull(Objects.requireNonNull(dst.lazyBody()).peek());
+
     var statements = new HashMap<Statement, Statement>();
-    Streams.zip(streamStatements(src), streamStatements(dst), Map::entry)
+    Streams.zip(streamStatements(srcBody), streamStatements(dstBody), Map::entry)
         .forEach(e -> statements.put(e.getKey(), e.getValue()));
 
     remap(copy.reflectiveEnvs, statements);
     remap(copy.escapingPromises, statements);
+    remap(copy.growingSubAssigns, statements);
 
     var registers = new HashMap<Register, Register>();
-    Streams.zip(src.streamRegisters(), dst.streamRegisters(), Map::entry)
-        .forEach(e -> registers.put(e.getKey(), e.getValue()));
+    var srcByName = new HashMap<String, Register>();
+    Streams.zip(src.streamRegisters(srcBody), dst.streamRegisters(dstBody), Map::entry)
+        .forEach(
+            e -> {
+              registers.put(e.getKey(), e.getValue());
+              srcByName.put(e.getKey().name(), e.getKey());
+            });
+    // An optimization that replaces a statement gives the new one's assignee the old one's name
+    // (e.g. `Specialize`), and a version never hands a name out again. So feedback for a register
+    // that's no longer in `src` is for the register with its name, unless that has its own. Of
+    // several such registers, the first recorded one is.
+    var recorded =
+        Stream.of(allRecorded, types, callees, constants, forceCount)
+            .flatMap(m -> m.keySet().stream())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    for (var register : recorded) {
+      var current = srcByName.get(register.name());
+      if (!registers.containsKey(register) && current != null && !recorded.contains(current)) {
+        registers.put(register, registers.get(current));
+        srcByName.remove(register.name());
+      }
+    }
 
     remapKeys(copy.types, registers);
     remapKeys(copy.callees, registers);
@@ -207,9 +262,8 @@ public class AbstractionFeedback {
     return copy;
   }
 
-  private static Stream<Statement> streamStatements(Abstraction abstraction) {
-    return abstraction
-        .streamCfgs()
+  private static Stream<Statement> streamStatements(CFG body) {
+    return Abstraction.streamCfgs(body)
         .flatMap(cfg -> cfg.bbs().stream())
         .flatMap(bb -> bb.statements().stream());
   }

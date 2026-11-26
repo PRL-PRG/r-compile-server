@@ -8,6 +8,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.regex.Pattern;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -18,15 +19,15 @@ import org.jetbrains.annotations.Nullable;
  * names, and syntax left over from older versions of the textual form).
  */
 public final class FirAnnotator implements Annotator {
-  private static final Pattern FUN_DECLARATION = Pattern.compile("(?m)^\\s*fun\\b");
+  private static final Pattern FUN_DECLARATION = Pattern.compile("(?m)^[ \\t]*fun\\b");
 
   /** A register definition at the start of a statement: {@code name: type = ...}. */
   private static final Pattern ASSIGNEE =
-      Pattern.compile("(?m)^\\s*(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:[^=;\\n]*=");
+      Pattern.compile("(?m)^[ \\t]*(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:[^=;\\n]*=");
 
   /** A block header: {@code Label(params):} at the start of a line. */
   private static final Pattern BLOCK_HEADER =
-      Pattern.compile("(?m)^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(([^)\\n]*)\\)\\s*:\\s*(?:#.*)?$");
+      Pattern.compile("(?m)^[ \\t]*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(([^)\\n]*)\\)\\s*:\\s*(?:#.*)?$");
 
   /** A typed name in a parameter list: {@code name: type} (the type is not validated). */
   private static final Pattern TYPED_NAME =
@@ -59,10 +60,11 @@ public final class FirAnnotator implements Annotator {
       return issues;
     }
 
-    var stripped = FirTextScanner.stripCommentsAndStrings(text);
+    var stripped = mask(text);
+    lintSexps(text, issues);
     lintFunctionDeclarations(stripped, issues);
     lintDelimiters(stripped, issues);
-    lintSemicolons(text, issues);
+    lintSemicolons(stripped, issues);
     lintParameters(text, stripped, issues);
     lintLegacyDeclarationLists(stripped, issues);
     lintAssignees(text, stripped, issues);
@@ -70,7 +72,53 @@ public final class FirAnnotator implements Annotator {
     return issues;
   }
 
+  /**
+   * A copy of {@code text} whose comments, strings, backtick names and SEXP literals are spaces, so
+   * that offsets stay 1:1. Strings and backtick names keep their quotes, and SEXP literals their
+   * last `>`, so a lint can find them (and read a name from {@code text}), and a missing `;` after
+   * them is reported there. A SEXP literal also loses its newlines, so its statement stays on one
+   * line.
+   */
+  static String mask(String text) {
+    var masked = text.toCharArray();
+    var lexer = new FirLexer();
+    for (lexer.start(text); lexer.getTokenType() != null; lexer.advance()) {
+      var type = lexer.getTokenType();
+      var start = lexer.getTokenStart();
+      var end = lexer.getTokenEnd();
+      if (type == FirTokenTypes.BACKTICK_IDENTIFIER || type == FirTokenTypes.STRING) {
+        start++;
+        end -= end > start && text.charAt(end - 1) == text.charAt(start - 1) ? 1 : 0;
+      } else if (type == FirTokenTypes.SEXP) {
+        end -= text.charAt(end - 1) == '>' ? 1 : 0;
+      } else if (type != FirTokenTypes.COMMENT) {
+        continue;
+      }
+      for (var i = start; i < end; i++) {
+        if (type == FirTokenTypes.SEXP || masked[i] != '\n') {
+          masked[i] = ' ';
+        }
+      }
+    }
+    return new String(masked);
+  }
+
   // region Lint checks
+
+  private static void lintSexps(String text, ArrayList<Issue> issues) {
+    var lexer = new FirLexer();
+    for (lexer.start(text); lexer.getTokenType() != null; lexer.advance()) {
+      var start = lexer.getTokenStart();
+      if (lexer.getTokenType() == FirTokenTypes.SEXP
+          && text.charAt(lexer.getTokenEnd() - 1) != '>') {
+        issues.add(
+            new Issue(
+                new TextRange(start, start + 1),
+                HighlightSeverity.ERROR,
+                "Unclosed S-expression literal"));
+      }
+    }
+  }
 
   private static void lintFunctionDeclarations(String stripped, ArrayList<Issue> issues) {
     if (FUN_DECLARATION.matcher(stripped).find()) {
@@ -82,37 +130,33 @@ public final class FirAnnotator implements Annotator {
 
   private static void lintDelimiters(String stripped, ArrayList<Issue> issues) {
     var stack = new ArrayDeque<Delimiter>();
-    FirTextScanner.scan(
-        stripped,
-        0,
-        stripped.length(),
-        (i, c) -> {
-          if (c == '(' || c == '[' || c == '{') {
-            stack.push(new Delimiter(c, i));
-          } else if (c == ')' || c == ']' || c == '}') {
-            if (stack.isEmpty()) {
-              issues.add(
-                  new Issue(
-                      new TextRange(i, i + 1),
-                      HighlightSeverity.ERROR,
-                      "Unmatched closing delimiter `" + c + "`"));
-            } else {
-              var open = stack.pop();
-              if (!isMatchingPair(open.value(), c)) {
-                issues.add(
-                    new Issue(
-                        new TextRange(i, i + 1),
-                        HighlightSeverity.ERROR,
-                        "Mismatched closing delimiter `"
-                            + c
-                            + "` (expected `"
-                            + matchingClose(open.value())
-                            + "`)"));
-              }
-            }
+    for (var i = 0; i < stripped.length(); i++) {
+      var c = stripped.charAt(i);
+      if (c == '(' || c == '[' || c == '{') {
+        stack.push(new Delimiter(c, i));
+      } else if (c == ')' || c == ']' || c == '}') {
+        if (stack.isEmpty()) {
+          issues.add(
+              new Issue(
+                  new TextRange(i, i + 1),
+                  HighlightSeverity.ERROR,
+                  "Unmatched closing delimiter `" + c + "`"));
+        } else {
+          var open = stack.pop();
+          if (!isMatchingPair(open.value(), c)) {
+            issues.add(
+                new Issue(
+                    new TextRange(i, i + 1),
+                    HighlightSeverity.ERROR,
+                    "Mismatched closing delimiter `"
+                        + c
+                        + "` (expected `"
+                        + matchingClose(open.value())
+                        + "`)"));
           }
-          return true;
-        });
+        }
+      }
+    }
 
     for (var open : stack) {
       issues.add(
@@ -123,35 +167,16 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  private static void lintSemicolons(String text, ArrayList<Issue> issues) {
+  private static void lintSemicolons(String stripped, ArrayList<Issue> issues) {
     var lineStart = 0;
-    while (lineStart <= text.length()) {
-      var lineEnd = text.indexOf('\n', lineStart);
-      if (lineEnd < 0) {
-        lineEnd = text.length();
-      }
-
-      var commentStart = FirTextScanner.findCommentStart(text, lineStart, lineEnd);
-      var visibleEnd = commentStart >= 0 ? commentStart : lineEnd;
-      var visibleLine = text.substring(lineStart, visibleEnd);
-      var trimmed = visibleLine.trim();
-      if (shouldEndWithSemicolon(trimmed)) {
-        var highlightEnd = visibleEnd;
-        while (highlightEnd > lineStart && Character.isWhitespace(text.charAt(highlightEnd - 1))) {
-          highlightEnd--;
-        }
-        var safeEnd = Math.max(lineStart + 1, highlightEnd);
+    for (var line : stripped.split("\n", -1)) {
+      if (shouldEndWithSemicolon(line.trim())) {
+        var end = lineStart + line.stripTrailing().length();
         issues.add(
             new Issue(
-                new TextRange(safeEnd - 1, safeEnd),
-                HighlightSeverity.WARNING,
-                "Potentially missing `;`"));
+                new TextRange(end - 1, end), HighlightSeverity.WARNING, "Potentially missing `;`"));
       }
-
-      if (lineEnd == text.length()) {
-        break;
-      }
-      lineStart = lineEnd + 1;
+      lineStart += line.length() + 1;
     }
   }
 
@@ -184,10 +209,11 @@ public final class FirAnnotator implements Annotator {
    * a valid register name, and flag the legacy {@code reg} prefix.
    */
   private static void lintParameters(String text, String stripped, ArrayList<Issue> issues) {
+    var match = matchingParens(stripped);
     for (var i = 0; i < stripped.length(); i++) {
       if (stripped.charAt(i) != '(' || !isFirstOnLine(stripped, i)) continue;
 
-      var close = findMatchingParenDelimiter(stripped, i);
+      var close = match[i];
       if (close < 0 || !isVersionArrowAfterParen(stripped, close + 1)) continue;
 
       for (var segment : splitTopLevelCommaSegments(stripped, i + 1, close)) {
@@ -305,35 +331,39 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  /**
-   * Whether only whitespace precedes {@code offset} on its line. A version header's `(` starts its
-   * line; a `(` inside a call signature (`f< v1(I) --> V >(...)`) never does.
-   */
-  private static boolean isFirstOnLine(String stripped, int offset) {
-    for (var i = offset - 1; i >= 0; i--) {
-      var c = stripped.charAt(i);
-      if (c == '\n') {
-        return true;
-      }
-      if (!Character.isWhitespace(c)) {
+  /** Whether only whitespace precedes {@code offset} on its line. */
+  private static boolean isFirstOnLine(CharSequence buffer, int offset) {
+    for (var i = offset - 1; i >= 0 && buffer.charAt(i) != '\n'; i--) {
+      if (!Character.isWhitespace(buffer.charAt(i))) {
         return false;
       }
     }
     return true;
   }
 
-  private static int findMatchingParenDelimiter(String stripped, int openOffset) {
-    var depth = 1;
-    for (var i = openOffset + 1; i < stripped.length(); i++) {
-      var c = stripped.charAt(i);
-      if (c == '(') depth++;
-      else if (c == ')') {
-        depth--;
-        if (depth == 0) return i;
+  /** The `)` that closes the `(` at {@code openOffset} on its line (a parameter list), or -1. */
+  /**
+   * The offset of the `)` that closes each `(`, indexed by the `(` offset, or -1 if none. One pass,
+   * so a file of unclosed `(` stays linear. A parameter list has no `{` or `;`, so these end every
+   * open `(`.
+   */
+  private static int[] matchingParens(String stripped) {
+    var match = new int[stripped.length()];
+    Arrays.fill(match, -1);
+    var open = new ArrayDeque<Integer>();
+    for (var i = 0; i < stripped.length(); i++) {
+      switch (stripped.charAt(i)) {
+        case '(' -> open.push(i);
+        case ')' -> {
+          if (!open.isEmpty()) match[open.pop()] = i;
+        }
+        case '{', ';' -> open.clear();
+        default -> {}
       }
     }
-    return -1;
+    return match;
   }
+
 
   private static boolean isVersionArrowAfterParen(String stripped, int offset) {
     var i = offset;

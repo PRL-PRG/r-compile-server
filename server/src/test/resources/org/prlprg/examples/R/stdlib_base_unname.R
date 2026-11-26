@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `unname` <- function (obj, force = FALSE) 
 {
     if (!is.null(names(obj))) 

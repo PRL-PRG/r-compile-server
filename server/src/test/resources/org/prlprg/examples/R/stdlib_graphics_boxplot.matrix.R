@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `boxplot.matrix` <- function (x, use.cols = TRUE, ...) 
 {
     groups <- if (use.cols) {

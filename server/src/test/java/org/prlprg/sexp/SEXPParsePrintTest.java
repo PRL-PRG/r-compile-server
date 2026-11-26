@@ -1,6 +1,7 @@
 package org.prlprg.sexp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import net.jqwik.api.Arbitrary;
@@ -51,6 +52,23 @@ public class SEXPParsePrintTest {
   }
 
   @Test
+  public void testNaNBits() {
+    assertParsesToBits("NA_REAL", 0x7FF00000000007A2L);
+    assertParsesToBits("+NaN", 0x7FF8000000000000L);
+    assertParsesToBits("-NaN", 0xFFF8000000000000L);
+    assertParsesToBits("+NaN(0x7ff0000000000001)", 0x7FF0000000000001L);
+    assertParsesToBits("-NaN(0xfff8000000000123)", 0xFFF8000000000123L);
+    assertParsesToBits("<real 1.0, -NaN, NA_REAL>", 0xFFF8000000000000L, 1);
+    assertRoundTrip("+NaN(0x7ff0000000000001)");
+    assertRoundTrip("<real 1.0, -NaN, NA_REAL>");
+    assertRoundTrip("<real +NaN>", true);
+
+    // An `NA` with the quiet bit set is still `NA` to GNU-R.
+    assertEquals(
+        "NA_REAL", Printer.toString(SEXPs.real(Double.longBitsToDouble(0x7FF80000000007A2L))));
+  }
+
+  @Test
   public void testVector() {
     assertRoundTrip("<int 1, 2, 3>");
     assertRoundTrip("<real 1.0, 2.0, 3.0>");
@@ -94,6 +112,20 @@ public class SEXPParsePrintTest {
     assertRoundTrip("<lang foo()>", true);
     assertRoundTrip("<lang `+`(1, 2)>", true);
     assertRoundTrip("<lang {\n  hello(\"world\");\n  foo(bar(baz))\n}>", true);
+
+    // A function that isn't a symbol or call is always delimited.
+    assertRoundTrip("<lang <builtin sum>(1, 2)>");
+    assertRoundTrip("<lang <builtin sum>()>", true);
+  }
+
+  @Test
+  public void testBuiltinAndSpecial() {
+    // The parser checks the type against GNU-R's `R_FunTab`, not the index: `|` is index 81 and
+    // `quote` index 29.
+    assertRoundTrip("<builtin `|`>");
+    assertRoundTrip("<special quote>");
+    assertParseFails("<special `|`>");
+    assertParseFails("<builtin quote>");
   }
 
   @Test
@@ -155,8 +187,25 @@ public class SEXPParsePrintTest {
     }
   }
 
+  /// Parse the string into a real vector and assert its first element has the raw `bits`, then
+  /// round-trip the string.
+  private void assertParsesToBits(String input, long bits) {
+    assertParsesToBits(input, bits, 0);
+    assertRoundTrip(input);
+  }
+
+  private void assertParsesToBits(String input, long bits, int index) {
+    var real = (RealSXP) Parser.fromString(input, SEXP.class);
+    assertEquals(
+        Long.toHexString(bits), Long.toHexString(Double.doubleToRawLongBits(real.get(index))));
+  }
+
   /// Parse the string into an [SEXP], print it, and assert that the original and printed
   /// strings are equal.
+  private void assertParseFails(String input) {
+    assertThrows(ParseException.class, () -> Parser.fromString(input, SEXP.class));
+  }
+
   private void assertRoundTrip(String input) {
     assertRoundTrip(input, false);
   }

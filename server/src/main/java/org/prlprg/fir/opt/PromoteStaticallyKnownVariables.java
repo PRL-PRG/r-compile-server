@@ -7,13 +7,17 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.CfgReachability;
 import org.prlprg.fir.analyze.cfg.Loads;
+import org.prlprg.fir.analyze.cfg.Loops;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -28,6 +32,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Closure;
@@ -36,12 +41,16 @@ import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Noop;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.Store.StoreType;
+import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Goto;
+import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -65,14 +74,26 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 ///   observable.
 /// - It re-stores the promoted value in every deopt branch, because a deopt resumes GNU-R
 ///   bytecode that reads the variable out of the environment.
-public final class PromoteStaticallyKnownVariables implements AbstractionOptimization {
+///   So a variable that is only stored is promoted too: only the deopt branches keep its stores.
+/// - A variable that is only *maybe* bound at some deopt is promoted where it's bound (where
+///   [OriginAnalysis] knows its origins), and stored back on each edge out of that region (see
+///   [#writeBack]), so a deopt out of the region sees the binding the removed stores left.
+public final class PromoteStaticallyKnownVariables extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
-    var cfg = abstraction.cfg();
-    if (cfg == null) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
+    if (abstraction.isStub()) {
       return false;
     }
+    var cfg = abstraction.body();
+
+    // [OriginAnalysis] has no state for an unreachable block, and a phi needs an argument from
+    // every predecessor, so remove them (without `DEBUG`, nothing else has yet).
+    var reachable = new CfgReachability(cfg).maySucceed(cfg.entry());
+    cfg.bbs().stream().filter(bb -> !reachable.contains(bb)).toList().forEach(cfg::removeBB);
 
     var changed = false;
     while (true) {
@@ -106,23 +127,71 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
               CfgDominatorTree.class,
               CfgHierarchy.class,
               CfgReachability.class,
-              Loads.class);
+              Loads.class,
+              Loops.class);
       var originAnalysis = analyses.get(OriginAnalysis.class);
       var hierarchy = analyses.get(CfgHierarchy.class);
       var loads = analyses.get(Loads.class);
       var reachability = analyses.get(cfg, CfgReachability.class);
       var dominatorTree = analyses.get(cfg, CfgDominatorTree.class);
+      var loops = analyses.get(cfg, Loops.class);
       var dominanceFrontier = dominanceFrontier(dominatorTree);
 
       for (var candidate : collectCandidates(originAnalysis, hierarchy, loads).values()) {
-        if (!deoptsKeepTheBinding(candidate, originAnalysis, reachability)) {
+        var writeBack = !deoptsKeepTheBinding(candidate, originAnalysis, reachability);
+        if (writeBack
+            && (!hasOneEnv()
+                || (loads.get(candidate.variable()).isEmpty()
+                    && !storesLessOften(candidate, originAnalysis, loops)))) {
           continue;
         }
-        promote(candidate, originAnalysis, dominatorTree, dominanceFrontier);
+        promote(candidate, writeBack, originAnalysis, dominatorTree, dominanceFrontier);
         return true;
       }
 
       return false;
+    }
+
+    /// Whether the abstraction makes one environment. Then each store goes to the frame that holds
+    /// the variable, so a store at the end of the region where it's bound (at a block entry where
+    /// paths merge, or where [#lostAt] says the analysis loses track of it) puts back the binding
+    /// that the removed stores left.
+    private boolean hasOneEnv() {
+      return scope
+              .streamCfgs()
+              .flatMap(someCfg -> someCfg.bbs().stream())
+              .flatMap(bb -> bb.statements().stream())
+              .filter(statement -> statement.expression() instanceof MkEnv)
+              .count()
+          == 1;
+    }
+
+    /// Whether a store of the store-only `candidate` is in a loop that contains no end of the
+    /// region where the variable is bound. Then [#rename] stores it back less often than the loop
+    /// stores it. After a promotion, each store is at an end of the region, so this stops the loop
+    /// in [#runWithoutRecording].
+    private boolean storesLessOften(
+        Candidate candidate, OriginAnalysis originAnalysis, Loops loops) {
+      var variable = candidate.variable();
+      var ends = cfg.bbs().stream().filter(bb -> endsRegion(bb, variable, originAnalysis)).toList();
+      return candidate.storeBlocks().stream()
+          .map(loops::getInnermostLoop)
+          .filter(Objects::nonNull)
+          .anyMatch(loop -> ends.stream().noneMatch(loop::contains));
+    }
+
+    /// Whether the region where `variable` is bound ends in `bb` (see [#lostAt]), or on an edge
+    /// from `bb` to a block that isn't a deopt branch.
+    private static boolean endsRegion(
+        BB bb, NamedVariable variable, OriginAnalysis originAnalysis) {
+      var lost = lostAt(bb, variable, originAnalysis);
+      return IntStream.range(0, lost.length).anyMatch(i -> lost[i])
+          || (!originAnalysis.getPossible(bb, bb.statements().size() - 1, variable).isEmpty()
+              && bb.successors().stream()
+                  .anyMatch(
+                      successor ->
+                          !(successor.jump().expression() instanceof Deopt)
+                              && originAnalysis.getPossible(successor, -1, variable).isEmpty()));
     }
 
     /// Whether every deopt branch a store can reach still knows what the variable holds, so
@@ -229,7 +298,11 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
                   continue;
                 }
 
-                candidates.computeIfAbsent(variable, Candidate::new).addStore(bb);
+                // A store in a deopt branch is the form a promotion leaves, so it alone doesn't
+                // make a candidate (the promotion would only put it back).
+                if (!(bb.jump().expression() instanceof Deopt)) {
+                  candidates.computeIfAbsent(variable, Candidate::new).addStore(bb);
+                }
               }
               case Load(var loadType, var variable)
                   when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN -> {
@@ -240,10 +313,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
                   if (loadType != LoadType.LOCAL_VAR
                       || !readsCreationTimeValue(someCfg, variable, originAnalysis, hierarchy)) {
                     forbidden.add(variable);
-                    continue;
                   }
-
-                  candidates.computeIfAbsent(variable, Candidate::new).addLoad();
                   continue;
                 }
 
@@ -253,11 +323,13 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
                     || (loadType == LoadType.LOCAL_FUN
                         && origins.stream().anyMatch(origin -> !isClosure(origin)))) {
                   forbidden.add(variable);
-                  continue;
                 }
-
-                candidates.computeIfAbsent(variable, Candidate::new).addLoad();
               }
+              // An inlined callee's frame reads and writes this one's bindings with these.
+              case Load(var loadType, var variable) when loadType == LoadType.SUPER_VAR ->
+                  forbidden.add(variable);
+              case Store(var storeType, var variable) when storeType == StoreType.SUPER_VAR ->
+                  forbidden.add(variable);
               case ReflectiveLoad(var variable) -> forbidden.add(variable);
               case ReflectiveStore(var variable) -> forbidden.add(variable);
               case org.prlprg.fir.ir.expression.Assume(var assumption) -> {
@@ -277,16 +349,17 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       // A symbol or language constant argument is evaluated in this environment by whatever
       // receives it (a GNU-R special gets `x[i]` as the symbols `x` and `i`), so it reads the
       // variable by name at runtime, with no load to rewrite. [Loads] records those alongside real
-      // loads, so a statement it lists that isn't a [Load] is one of them.
+      // loads, so a statement it lists that isn't a [Load] of the variable is one of them (or a
+      // load of `..N`, which reads `...`).
       candidates
           .values()
           .removeIf(
               candidate ->
                   loads.get(candidate.variable()).stream()
-                      .anyMatch(load -> !(load.expression() instanceof Load)));
-      candidates
-          .values()
-          .removeIf(candidate -> !candidate.hasLoads() || candidate.storeBlocks().isEmpty());
+                      .anyMatch(
+                          load ->
+                              !(load.expression() instanceof Load(_, var loaded)
+                                  && loaded.equals(candidate.variable()))));
       return candidates;
     }
 
@@ -299,8 +372,8 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
     /// with the value the renaming walk carries at the creation site.
     ///
     /// A promise body runs at the *force*, which in general is anywhere the promise reaches, so we
-    /// only accept the shape the compiler actually emits for an argument: a local promise (only
-    /// local promises may read the enclosing registers at all), used once, handed straight to a
+    /// only accept the shape the compiler actually emits for an argument: a local promise, used
+    // once, handed straight to a
     /// strict parameter of a static call in the same block, with no store to the variable between
     /// the two. A strict parameter is forced inside that call, and the callee can't store into this
     /// environment -- reaching it would take reflection, which [#envIsPrivate] has ruled out.
@@ -311,7 +384,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
         CfgHierarchy hierarchy) {
       var promiseStatement = hierarchy.parentPromise(promiseCfg);
       if (promiseStatement == null
-          || !(promiseStatement.expression() instanceof Promise(_, _, _, var isLocal))
+          || !(promiseStatement.expression() instanceof Promise(_, _, _, var isLocal, _))
           || !isLocal) {
         return false;
       }
@@ -369,13 +442,14 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
 
     private void promote(
         Candidate candidate,
+        boolean writeBack,
         OriginAnalysis originAnalysis,
         CfgDominatorTree dominatorTree,
         Map<BB, Set<BB>> dominanceFrontier) {
       var variable = candidate.variable();
       var phiBlocks = phiBlocks(candidate, originAnalysis, dominanceFrontier);
       var phis = appendPhis(variable, phiBlocks, originAnalysis);
-      rename(cfg.entry(), variable, null, phis, originAnalysis, dominatorTree);
+      rename(cfg.entry(), variable, null, phis, writeBack, originAnalysis, dominatorTree);
       scope.setNamedVariableType(variable, Type.ANY_SEXP);
     }
 
@@ -388,10 +462,11 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       while (!worklist.isEmpty()) {
         var bb = worklist.removeFirst();
         for (var frontierBb : dominanceFrontier.getOrDefault(bb, Set.of())) {
-          if (originAnalysis.getPossible(frontierBb, -1, candidate.variable()).size() <= 1
-              || !result.add(frontierBb)) {
-            continue;
+          if (originAnalysis.getPossible(frontierBb, -1, candidate.variable()).size() > 1) {
+            result.add(frontierBb);
           }
+          // A merge without a phi still changes the value its dominator carries, so its own
+          // frontier may need one.
           if (visited.add(frontierBb)) {
             worklist.addLast(frontierBb);
           }
@@ -414,9 +489,11 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
             originAnalysis.getPossible(bb, -1, variable).stream()
                 .map(scope::typeOf)
                 .reduce(
-                    Type.ANY_SEXP,
+                    (Type) null,
                     (left, right) -> Type.union(left, right == null ? Type.ANY_SEXP : right));
-        var phi = new BlockParameter(scope.freshName(variable.name()), phiType);
+        var phi =
+            new BlockParameter(
+                scope.freshName(variable.name()), phiType == null ? Type.ANY_SEXP : phiType);
         bb.appendPhiParameter(phi);
         phis.put(bb, phi);
       }
@@ -429,15 +506,41 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
         NamedVariable variable,
         @Nullable Argument current,
         Map<BB, BlockParameter> phis,
+        boolean writeBack,
         OriginAnalysis originAnalysis,
         CfgDominatorTree dominatorTree) {
+      var entryOrigins = originAnalysis.getPossible(bb, -1, variable);
       if (phis.containsKey(bb)) {
         current = new Read(phis.get(bb));
+      } else if (entryOrigins.size() == 1) {
+        // Paths that stored the same value merge here without a phi, and the dominator may be
+        // before the stores.
+        current = entryOrigins.iterator().next();
+      } else if (writeBack && entryOrigins.isEmpty()) {
+        current = null;
       }
 
-      for (var i = 0; i < bb.statements().size(); i++) {
-        var statement = bb.statements().get(i);
+      // Before the rewrite: the analysis recomputes a state inside a block from its statements.
+      var unknownAtEnd =
+          writeBack
+              && originAnalysis.getPossible(bb, bb.statements().size() - 1, variable).isEmpty();
+      var lost = writeBack ? lostAt(bb, variable, originAnalysis) : null;
+      var statements = bb.statements();
+      for (var i = 0; i < statements.size(); i++) {
+        var statement = statements.get(i);
+        // The region also ends inside a block, e.g. at a force of a promise that the analysis
+        // doesn't know.
+        if (lost != null && lost[i] && current != null) {
+          if (!(statement.expression() instanceof PopEnv)) {
+            store(variable, current).insertBefore(statement);
+          }
+          current = null;
+        }
         current = rewriteStatement(bb, i, statement, variable, current, originAnalysis);
+      }
+      // E.g. after a `popenv`, where a store would go to the enclosing environment.
+      if (unknownAtEnd) {
+        current = null;
       }
 
       restoreBeforeDeopt(bb, variable, current);
@@ -445,13 +548,76 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       if (!phis.isEmpty()) {
         appendPhiArguments(bb.jump(), current, phis);
       }
+      if (writeBack && current != null) {
+        writeBack(bb, variable, current, originAnalysis);
+      }
 
       for (var child :
           dominatorTree.immediateDominees(bb).stream()
               .sorted(Comparator.comparing(BB::label))
               .toList()) {
-        rename(child, variable, current, phis, originAnalysis, dominatorTree);
+        rename(child, variable, current, phis, writeBack, originAnalysis, dominatorTree);
       }
+    }
+
+    /// For each statement of `bb`, whether [OriginAnalysis] knows what `variable` holds before the
+    /// statement but not after it. E.g. a force of a promise that the analysis doesn't know taints
+    /// the environment.
+    private static boolean[] lostAt(BB bb, NamedVariable variable, OriginAnalysis originAnalysis) {
+      var lost = new boolean[bb.statements().size()];
+      var known = !originAnalysis.getPossible(bb, -1, variable).isEmpty();
+      for (var i = 0; i < lost.length; i++) {
+        var knownAfter = !originAnalysis.getPossible(bb, i, variable).isEmpty();
+        lost[i] = known && !knownAfter;
+        known = knownAfter;
+      }
+      return lost;
+    }
+
+    /// Stores `current` to `variable` on each edge from `bb` to a block where it's not known to be
+    /// bound (the end of the region where it's promoted), so the frame there is the one the removed
+    /// stores left. A deopt branch gets [#restoreBeforeDeopt] instead.
+    private void writeBack(
+        BB bb, NamedVariable variable, Argument current, OriginAnalysis originAnalysis) {
+      var exits =
+          bb.jump().targets().stream()
+              .map(Target::bb)
+              .filter(
+                  target ->
+                      !(target.jump().expression() instanceof Deopt)
+                          && originAnalysis.getPossible(target, -1, variable).isEmpty())
+              .collect(Collectors.toCollection(LinkedHashSet::new));
+      if (exits.isEmpty()) {
+        return;
+      }
+
+      switch (bb.jump().expression()) {
+        // A store before the jump is also right on an edge that stays in the region (e.g. a
+        // `check`'s deopt branch), only redundant.
+        case Goto _, Checkpoint _ -> bb.appendStatement(store(variable, current));
+        case If _ -> {
+          // `mapTargets` on the jump in place wouldn't update the targets' predecessors.
+          var jump = bb.jump().copy((_, argument) -> argument);
+          jump.mapTargets(
+              target -> {
+                if (!exits.contains(target.bb())) {
+                  return target;
+                }
+                var edge = cfg.addBB();
+                edge.appendStatement(store(variable, current));
+                edge.setJump(new Jump(new Goto(new BBRef(target.bb())), target.phiArgs()));
+                return new Target(edge, ImmutableList.of());
+              });
+          bb.setJump(jump);
+        }
+        default ->
+            throw new IllegalStateException(
+                "Unexpected edge out of the region of " + variable + ": " + bb.jump());
+      }
+    }
+
+    private static Statement store(NamedVariable variable, Argument value) {
+      return new Statement(new Store(StoreType.LOCAL_VAR, variable), List.of(value));
     }
 
     private @Nullable Argument rewriteStatement(
@@ -486,7 +652,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
           statement.replaceWith(new Statement(statement.comments(), new Noop(), List.of()));
           yield resolved;
         }
-        case Promise(_, _, var code, _) -> {
+        case Promise(_, _, var code, _, _) -> {
           rewritePromiseBody(code, variable, current);
           yield current;
         }
@@ -535,7 +701,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       if (current == null || !(bb.jump().expression() instanceof Deopt)) {
         return;
       }
-      bb.appendStatement(new Statement(new Store(StoreType.LOCAL_VAR, variable), List.of(current)));
+      bb.appendStatement(store(variable, current));
     }
 
     private void appendPhiArguments(
@@ -586,7 +752,6 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
   private static final class Candidate {
     private final NamedVariable variable;
     private final LinkedHashSet<BB> storeBlocks = new LinkedHashSet<>();
-    private int loads = 0;
 
     private Candidate(NamedVariable variable) {
       this.variable = variable;
@@ -598,14 +763,6 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
 
     void addStore(BB bb) {
       storeBlocks.add(bb);
-    }
-
-    void addLoad() {
-      loads++;
-    }
-
-    boolean hasLoads() {
-      return loads > 0;
     }
 
     Set<BB> storeBlocks() {

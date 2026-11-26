@@ -20,9 +20,14 @@ setup-gnur:
 	$(TOOLS_DIR)/build-gnur.sh R
 	$(BASE_DIR)/R/bin/Rscript -e 'install.packages(c("yaml", "inline"), repos = "https://cloud.r-project.org")'
 
+.PHONY: proto
+proto:
+	$(MAKE) -C proto
+
 .PHONY: setup-git
 setup-git:
 	cp -f .githooks/pre-commit.sh .git/hooks/pre-commit
+	git lfs install --local
 
 .PHONY: clean
 clean: 

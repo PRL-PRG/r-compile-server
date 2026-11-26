@@ -76,11 +76,10 @@ public abstract class Checker {
     return List.of(
         new CFGChecker(!exclusionsSet.contains(Exclude.STRICT_CFG)),
         new TypeAndEffectChecker(),
-        new DispatchReturnTypeChecker(),
+        new DispatchSignatureChecker(),
         exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new ProvenanceChecker(),
         exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new StrictnessChecker(),
-        new EnvironmentChecker(),
-        exclusionsSet.contains(Exclude.CAPTURE) ? NULL : new CaptureChecker());
+        new EnvironmentChecker());
   }
 
   private @Nullable Function function = null;
@@ -127,7 +126,11 @@ public abstract class Checker {
     }
 
     this.function = function;
-    doRun(version);
+    if (version.isStub() || version.isEvaluated()) {
+      doRun(version);
+    } else {
+      doRunUnevaluated(version);
+    }
     this.function = null;
   }
 
@@ -147,7 +150,14 @@ public abstract class Checker {
     return !errors.isEmpty();
   }
 
+  /// Check a version that's a stub or whose body is evaluated.
   protected abstract void doRun(Abstraction version);
+
+  /// Check a version whose body is unevaluated, without evaluating it (checking would otherwise
+  /// evaluate every version).
+  ///
+  /// By default, checks nothing: there's no body to check.
+  protected void doRunUnevaluated(Abstraction version) {}
 
   /// The function currently being checked.
   protected final @Nullable Function function() {
@@ -158,7 +168,7 @@ public abstract class Checker {
     errors.add(
         new CheckException(
             function(),
-            abstraction.cfg() == null ? null : new CFGCursor(abstraction.cfg()),
+            abstraction.isEvaluated() ? new CFGCursor(abstraction.body()) : null,
             message));
   }
 
@@ -183,9 +193,5 @@ public abstract class Checker {
   public enum Exclude {
     STRICT_CFG,
     PROVENANCE,
-    /// Excludes [CaptureChecker]. Before [org.prlprg.fir.opt.specialize.SpecializeLocalPromise]
-    /// runs (i.e. mid-optimization and right after `bc2fir`), capturing promises are legitimately
-    /// non-local, so the capture check would report spurious errors.
-    CAPTURE,
   }
 }

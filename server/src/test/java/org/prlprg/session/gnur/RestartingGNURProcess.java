@@ -1,6 +1,9 @@
 package org.prlprg.session.gnur;
 
+import java.time.Duration;
+import java.util.function.UnaryOperator;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.TestConfig;
 import org.prlprg.session.RSession;
 import org.prlprg.session.TestRSession;
 import org.prlprg.sexp.EnvSXP;
@@ -9,17 +12,25 @@ import org.prlprg.util.Pair;
 
 class RestartingGNURProcess implements GNUR {
   static @Nullable RestartingGNURProcess INSTANCE;
+  static @Nullable RestartingGNURProcess RSH_INSTANCE;
 
   private final TestRSession session;
+  private final Duration timeout;
   private @Nullable GNUR R;
 
   RestartingGNURProcess(TestRSession session) {
+    this(session, Duration.ofSeconds(TestConfig.R_EVAL_TIMEOUT));
+  }
+
+  /// `timeout` is how long each evaluation may take before the process is killed.
+  RestartingGNURProcess(TestRSession session, Duration timeout) {
     this.session = session;
+    this.timeout = timeout;
   }
 
   private void check() {
     if (R == null || !R.isAlive()) {
-      R = new SingleGNURProcess(session);
+      R = new SingleGNURProcess(session, timeout);
     }
   }
 
@@ -40,6 +51,13 @@ class RestartingGNURProcess implements GNUR {
     check();
     assert R != null;
     return R.eval(source, input);
+  }
+
+  @Override
+  public SEXP eval(String source, SEXP input, UnaryOperator<SEXP> callback) {
+    check();
+    assert R != null;
+    return R.eval(source, input, callback);
   }
 
   @Override

@@ -4,38 +4,23 @@ import java.util.List;
 import org.prlprg.AppConfig;
 import org.prlprg.AppConfig.CfgDebugLevel;
 
+/// Runs sub-optimizations in a sequence repeatedly until a fixpoint. Shared by
+/// [ModuleFixpointSequence] and [AbstractionFixpointSequence], which are different kinds of
+/// optimizations and so can't share a superclass.
 abstract class GenFixpointSequence<Opt, Feedback, Target> {
   /// If more than this many optimizations are run, it's assumed that no fixpoint will be reached,
   /// and an error is thrown.
   private static final int HARD_LIMIT = 1000;
 
-  private final String name;
   private final int maxIterations;
   private final List<Opt> subOptimizations;
 
-  @SafeVarargs
-  protected GenFixpointSequence(String name, Opt... subOptimizations) {
-    this(name, Integer.MAX_VALUE, subOptimizations);
-  }
-
-  @SafeVarargs
-  protected GenFixpointSequence(String name, int maxIterations, Opt... subOptimizations) {
-    this.name = name;
+  protected GenFixpointSequence(int maxIterations, List<Opt> subOptimizations) {
     this.maxIterations = maxIterations;
-    this.subOptimizations = List.of(subOptimizations);
+    this.subOptimizations = subOptimizations;
   }
 
-  // @Override
-  public final String name() {
-    return name;
-  }
-
-  @Override
-  public String toString() {
-    return getClass().getSimpleName() + "[" + name + "]";
-  }
-
-  protected final boolean runImpl(Feedback feedback, Target target) {
+  final boolean run(Feedback feedback, Target target) {
     var check = AppConfig.CFG_DEBUG_LEVEL.compareTo(CfgDebugLevel.AFTER_STEP) >= 0;
 
     var iteration = 0;

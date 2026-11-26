@@ -1,0 +1,17 @@
+{
+ "title": "Trim promise and closure bookkeeping on calls, and clear the outermost elided parent",
+ "motivation": "Each return of a version that creates promises called `Fir_mark_promises_escaped` on a tracking list that was often empty. `Fir_assume_function`, which guards each call of a known closure, was an out-of-line call.",
+ "solution": "`Fir2CCompiler` emits an inline test `if (local_promises != R_NilValue)` before `Fir_mark_promises_escaped`, and `Fir_assume_function` and `Fir_is_compiled_closure` move to `runtime_inline.h` as `static ALWAYS_INLINE`. The vendored R counts the elided pushes that are not nested in an elided frame (`Rsh_ElidedDepth`), and its contexts save and restore the count and the singleton's parent at a caught error. The pop of the outermost elided frame sets the singleton's parent to `R_EmptyEnv`, so the singleton, a GC root, does not keep the last callee's closure environment alive. A nested push and its pop do not write the parent, and a recursive push with the same parent skips the write, so the inline push and pop keep their gain there.",
+ "commitKinds": {
+  "c0efd7db2": "optimization"
+ },
+ "files": {
+  "client/rsh/src/fir2c/runtime.c": "Increments `Rsh_ElidedDepth` in the elided push, sets `R_EmptyEnv` in the pop of the outermost elided frame, saves and restores the depth at the from-R entry, and removes the out-of-line closure tests.",
+  "client/rsh/src/fir2c/runtime.h": "Adds the depth parameter to the from-R set and unset functions, documents the pop of the outermost elided frame, and removes two out-of-line declarations.",
+  "client/rsh/src/fir2c/runtime_inline.h": "The inline elided push and pop keep `Rsh_ElidedDepth`; adds `Fir_is_compiled_closure` and `Fir_assume_function` as `static ALWAYS_INLINE`.",
+  "repo-map.md": "Adds the examples `elided_callee_env_collected.R` and `elided_frame_after_error_caught_in_callee.R`.",
+  "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java": "The from-R entry saves and restores the elided depth, and a return calls `Fir_mark_promises_escaped` only on a non-empty tracking list.",
+  "server/src/test/resources/org/prlprg/examples/R/elided_callee_env_collected.R": "New example where `gc()` must collect the parent of the outermost elided frame after it returns.",
+  "server/src/test/resources/org/prlprg/examples/R/elided_frame_after_error_caught_in_callee.R": "New example where an error caught in a callee skips the pop of an elided frame, and `gc()` must still collect that frame's parent."
+ }
+}

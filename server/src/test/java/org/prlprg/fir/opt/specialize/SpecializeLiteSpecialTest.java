@@ -36,7 +36,7 @@ class SpecializeLiteSpecialTest implements AbstractionOptimizationUnitTest {
             """);
 
     assertTrue(run(abstraction), "optimization should report a change");
-    assertTrue(Checker.checkAll(abstraction, Checker.Exclude.CAPTURE), "the result should check");
+    assertTrue(Checker.checkAll(abstraction), "the result should check");
 
     var printed = Printer.toString(abstraction);
     assertFalse(printed.contains("<sym "), "no symbol should be left; printed:\n" + printed);
@@ -63,7 +63,7 @@ class SpecializeLiteSpecialTest implements AbstractionOptimizationUnitTest {
             """);
 
     assertTrue(run(abstraction), "optimization should report a change");
-    assertTrue(Checker.checkAll(abstraction, Checker.Exclude.CAPTURE), "the result should check");
+    assertTrue(Checker.checkAll(abstraction), "the result should check");
 
     var printed = Printer.toString(abstraction);
     assertTrue(

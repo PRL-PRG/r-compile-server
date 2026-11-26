@@ -1,0 +1,16 @@
+{
+ "example": "bench_misc_k_means_1d_vec",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 130,
+ "load_start": 2.53,
+ "load_end": 1.54,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {},
+ "no_time": {
+  "elideBuiltinClosure": "nothing to benchmark (no compiled module)"
+ }
+}

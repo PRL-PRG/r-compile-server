@@ -34,6 +34,7 @@ public sealed interface SEXP
         LangSXP,
         ListOrVectorSXP,
         PromSXP,
+        S4SXP,
         StrOrRegSymSXP,
         SymOrLangSXP {
   /// Deep copy an [SEXP] by serializing and deserializing it.

@@ -1,0 +1,28 @@
+01	origins-rerun	8687b89ac	8687b89ac	-	old/monday-825a/report.md
+02	phi-union-type	1fa230776	1fa230776	-	old/monday-825a/report.md
+03	r-entry	823644050	823644050	-	old/monday-825a/report.md
+04	skip-set-enclos	c2842945e	8badbdb2a	-	old/monday-825a/report.md
+05	rsh-inline	9c3efa48c	9c3efa48c	B0	proposals.md §1
+06	cold-builtin-callee	95e889d25	95e889d25	D1	proposals.md §2
+07	forward-param-promise	28d4584e3	28d4584e3	D2	proposals.md §3
+08	interpreter-mocks	c8053ba76	65fc16a31	M1	proposals.md §4
+09	base-guard-assume	89aae9dd6	c090931e4	P1	proposals.md §5-7
+10	static-matrix-subassign	437894636	eead3fab7	M2	proposals.md §8-9
+11	store-only-promotion	81e16cdef	0d2d0812d	P2	proposals.md §10,11,13
+12	reuse-dominating-force	fc4d4d3cf	fc4d4d3cf	D3	proposals.md §14
+13	elide-check-missing	a7f4f60a0	a7f4f60a0	D3b	proposals.md §15
+14	inline-type-tests	544395514	544395514	B2	proposals.md §16
+15	sink-deopt-promises	32c448f09	32c448f09	P3	proposals.md §17
+16	inline-scalar-helpers	91cc5ad6f	91cc5ad6f	B3	proposals.md §18
+17	maybe-unbound-promotion	f9c4f5684	cc70257ce	P4	proposals.md §20-21
+18	subscript-default-method	08b63276a	4c4f7119d	B4	proposals.md §22-23
+19	store-only-store-back	7109263f9	0286e1d1a	P4b	proposals.md §24-25
+20	shared-stub-promise	ab714c171	2ed617a66	D4	proposals.md §19,27,28
+21	shared-promise-code	2019b41a5	2019b41a5	D5	proposals.md §30
+22	scalar-subscript-paths	f74b65d8c	b6e8f7115	B5	proposals.md §26,31,32
+23	hoist-loop-assume	bd3d0605e	bd3d0605e	P6	proposals.md §33
+24	inline-elided-push-pop	83af0f8d8	83af0f8d8	B6	proposals.md §34
+25	elide-range-read	ce097ab46	cca4b7b12	P8	proposals.md §35-37
+26	inline-logical-and-or	f34f38bcd	f34f38bcd	B7	proposals.md §38
+27	hot-path-bookkeeping	c0efd7db2	c0efd7db2	B8	proposals.md §39
+28	own-phi-web	eb33adc37	6f92533ec	P9	proposals.md §40-43

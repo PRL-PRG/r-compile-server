@@ -14,8 +14,7 @@ public final class ModuleBcOriginMap {
   /// association (so the compiler can add the function's feedback registers to it).
   ///
   /// If the name was already recorded, keeps and returns the existing bytecode (a generated name
-  /// collision is only ever with an identical closure, see [BC2FirCFGCompiler]'s `MakeClosure`
-  /// handling).
+  /// collision is only ever with an identical closure, see [BC2FirClosureCompiler#compileInner]).
   FunctionBcOrigin record(String functionName, Bc bc, ListSXP formals) {
     return byFunctionName.computeIfAbsent(functionName, _ -> new FunctionBcOrigin(bc, formals));
   }

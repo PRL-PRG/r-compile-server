@@ -286,8 +286,8 @@ cat("Test 12 (missing recording errors): OK\n")
 # ---------------------------------------------------------------------------
 # Test 13: reflection flag.
 # A callee that grabs its parent frame reflectively accesses the compiled
-# function's own call frame; envir.c's recordReflection then binds
-# Rsh_ReflectivelyAccessed in it, which the return-time check stencil observes
+# function's own call frame; envir.c's recordReflection then marks it
+# (RSH_REFLECTED_MASK), which the return-time check stencil observes
 # and reports as reflection = TRUE. A function that never exposes its frame
 # reports FALSE.
 # ---------------------------------------------------------------------------

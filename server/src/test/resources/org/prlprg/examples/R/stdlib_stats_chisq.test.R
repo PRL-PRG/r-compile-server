@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `chisq.test` <- function (x, y = NULL, correct = TRUE, p = rep(1/length(x), length(x)), 
     rescale.p = FALSE, simulate.p.value = FALSE, B = 2000) 
 {

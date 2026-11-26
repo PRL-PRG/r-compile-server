@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `hist.POSIXt` <- function (x, breaks, ..., xlab = deparse1(substitute(x)), plot = TRUE, 
     freq = FALSE, start.on.monday = TRUE, format, right = TRUE) 
 {

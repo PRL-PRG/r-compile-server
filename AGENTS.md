@@ -100,18 +100,37 @@ For tests
 ### Compilation Pipeline
 
 ```
-R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
+R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code      (bc2c, `Compile` RPC)
                      ↓              ↓
                   Cache Layer   Cache Layer
+
+Bytecode + rcp recording → FIŘ module → optimized FIŘ → C Code → Native Object Code
+                                         (lazy versions become stubs; `CompileFirClosure`, then
+                                          `CompileFirVersion` per stub)
 ```
+
+The rsh JIT uses the FIŘ path: a closure runs bytecode, then a baseline that records feedback, then
+the server's FIŘ module (see `./server/doc/lazy-versions.md`).
 
 ### Testing Strategy
 
 - **Snapshot integration tests**: Each test runs on example source code from `src/test/resources/org/prlprg/examples/`. It takes as input either the source itself and/or outputs of tests for earlier segments of the pipeline (e.g. the FIŘ to C test takes as input a FIŘ module encoding the example, which is produced by the FIŘ parser test for FIŘ examples and BC to FIŘ test for R examples). It produces output, which is either the next stage or end result of the pipeline, and saves it to a subdirectory of `src/test/snapshots/org/prlprg/snapshots/`.
+  - The eval tests of a `#? benchmark:` example also run its benchmark call once after `main` (which is only the warmup) and compare the value with the oracle's and the snapshot's (`benchValue.rds`; the `noBenchEval` option skips it), so a wrong benchmark result fails a test.
+  - The benchmark examples are `bench_<category>_<name>.R`, with the categories `awf`, `shootout`, `real`, `ati`, `scalar`, `mathkernel`, `riposte` and `misc`. They are ports of the programs of rbenchmark (https://github.com/rbenchmark/benchmarks) and RBenchmarking (https://github.com/reactorlabs/RBenchmarking). Line 1 of each (after its options) names its upstream file. They keep their upstream licenses, not this repository's MIT license (see `./server/doc/benchmark-licenses.md`). `./server/doc/benchmark-ports.md` has the port rules and the upstream programs that are not ported: `riposte/qr` and `riposte/tpc` (broken upstream), `algorithm/ICA/ica.R` (needs the package `fastICA`, which the vendored R does not have), and `shootout/meteor-contest` (each call has a fixed cost of 1.5 s). `promise_reflect_benchmark.R` is a `#? benchmark:` example that is not a port: it is a fixture of `PromiseBenchmark`.
+  - The optimizer's feedback in these tests comes from a run of each example in the Java FIŘ interpreter (`TestInterpreter`). GNU-R runs an operation that the interpreter does not support (`GnuRFallback`: only calls whose arguments and result are data, within a cost budget per top-level run). If GNU-R cannot run it, the interpreter stops there ("unsupported"), and the feedback is partial.
+  - `InterpretAfterOptTest#testForced` also runs the checkers on the optimized module, with every version evaluated, so a pass that makes invalid FIŘ fails a test.
+  - The eval tests of a `#? gcTorture` example run `main` under `gctorture` (a GC at each allocation, not during the benchmark call), so a value that compiled code or the runtime does not protect makes the test fail. A few small examples have it (loop with a setter, promises, recursion through elided frames, the warmup of a deopt example).
+  - The FIŘ→C eval tests run the compiled code in an R that has the `rsh` package loaded, connected to a compile server in the test JVM that compiles the versions the code's stubs ask for (see `./server/doc/lazy-versions.md`). So `rsh` must be installed in the vendored R (`make -C client/rsh install`) or in a library in `R_LIBS` (e.g. a worktree's private one), and reinstalled after changing its runtime; the tests check this.
+- **JIT tiering test**: `JitTieringTest` runs an R process with the rsh JIT enabled against the test server, and checks that a closure moves through the tiers (interpreted, baseline, optimized). It also needs `rsh` installed.
+- **Benchmarks**: `snapshot/bench` runs the `#? benchmark:` examples (run them by class name; they aren't `*Test`s). `PromiseBenchmark` uses a statistics build of the C runtime (`-DFIR_STATS`, see `Fir2CQuery#stats()`); the timed benchmarks never do. `VersionBenchmark` compiles its lazy module with only the version call counters (`-DFIR_VERSION_STATS`), which runs on the normal `rsh` runtime. `KeyBenchmark` has one method per key category of optimizations (copy elision, variable and environment elision, promise inlining, scalar unboxing, contextual dispatch); each method benchmarks the examples without that category, into its own `snapshot/bench/key/<category>` CSVs. Contextual dispatch is not a removal set: its variant limits each function to one version besides the baseline (`Optimizations#defaultOptimizationsWithVersionLimit`).
 - **Unit tests**: JUnit 5
 - **Property tests**: JQwik
 
 ## Miscellaneous
+
+### Repository map
+
+`./repo-map.md` has one line per file (per directory for generated, vendored, and data trees). Update it when you add, move, or delete a file.
 
 ### Protocol Buffers
 
@@ -133,7 +152,7 @@ Tools that are automatically invoked by Makefiles and other code. Don't invoke d
 
 At `./.github/workflows`. Both workflows are gated on `paths`, so most changes run neither. Both can also be run manually via `workflow_dispatch`, which ignores `paths`.
 
-- `maven.yml` - builds and tests `./server`. Runs on `server/**`, which also covers the protocol buffers, since `make -C proto` copies them into `./server/src/main/protobuf`, and on `client/rsh/src/**`, whose headers the tests compile the generated C against.
+- `maven.yml` - builds and tests `./server`. Runs on `server/**`, which also covers the protocol buffers, since `make -C proto` copies them into `./server/src/main/protobuf`, on `proto/**` and `client/rsh/**`, since the tests build and install `rsh` (its headers are what the generated C is compiled against, and the FIŘ→C eval tests load the package).
 - `rcp-benchmarks.yml` - builds the rcp Docker images, runs rcp's test suites, and runs the benchmarks on a self-hosted runner. Runs on `client/rcp/**`, `R`, `tools/build-gnur.sh` (which builds the R it links against), and `client/rsh/inst/benchmarks/**` (the harness it drives). `R` is the submodule pointer: only the gitlink is tracked, so it's a plain path and not a `R/**` glob, which would never match.
 
 When editing these, note that a `paths` list can't be shared between a workflow's `push` and `pull_request` triggers, because GitHub Actions does not support YAML anchors -- keep the two copies in sync.

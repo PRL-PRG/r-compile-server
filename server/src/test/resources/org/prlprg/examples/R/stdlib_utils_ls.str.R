@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("are not all TRUE")
 `ls.str` <- function (pos = -1, name, envir, all.names = FALSE, pattern, 
     mode = "any") 
 {

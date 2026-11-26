@@ -1,8 +1,12 @@
 package org.prlprg.snapshot.bc;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.prlprg.sexp.AllEqual.assertAllEqual;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcOptLevel;
@@ -35,9 +39,9 @@ public record BCQuery(BcOptLevel optimizationLevel) implements Query<Bc> {
   }
 
   @Override
-  public Bc oracle(Example example, SnapshotStore store) {
+  public @Nullable Bc oracle(Example example, SnapshotStore store) {
     if (optimizationLevel == BcOptLevel.FIR) {
-      return Query.super.oracle(example, store);
+      return null;
     }
 
     return genCompute(
@@ -69,6 +73,14 @@ public record BCQuery(BcOptLevel optimizationLevel) implements Query<Bc> {
       throw new SkipQueryException(name());
     }
     return bcSxp.bc();
+  }
+
+  /// The oracle is GNU-R's compiler, whose constant folding rounds like the platform's libm.
+  @Override
+  public void verifyEqual(Bc expected, Bc actual, Example example, SnapshotStore store) {
+    assertEquals(expected.code(), actual.code(), "Code changed");
+    assertAllEqual(
+        SEXPs.vec(expected.consts()), SEXPs.vec(actual.consts()), "Constant pool changed");
   }
 
   @FunctionalInterface

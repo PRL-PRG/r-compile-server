@@ -1,0 +1,16 @@
+{
+ "example": "bench_shootout_spectral_norm",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 197,
+ "load_start": 1.29,
+ "load_end": 2.49,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {},
+ "no_time": {
+  "inline": "nothing to benchmark (no compiled module)"
+ }
+}

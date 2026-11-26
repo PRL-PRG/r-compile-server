@@ -14,6 +14,8 @@ import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.util.Files;
 
 public sealed interface SexpResult {
@@ -63,7 +65,8 @@ public sealed interface SexpResult {
   /// Like [#check(Example)], but also finds options filtered to `queryName` (e.g.
   /// `#? [opt.fir2c.opt.eval]crashes` for a crash that only happens in optimized code).
   ///
-  /// `crashes` may have a scalar string argument; if so, the crash message must contain it.
+  /// `crashes` may have a scalar string argument; if so, the crash message must contain it, unless
+  /// the crash is only that something is unsupported.
   default void check(Example example, String queryName) {
     var crashesOption = example.options().get(queryName, "crashes");
     var expectCrash = crashesOption != null;
@@ -72,7 +75,8 @@ public sealed interface SexpResult {
           fail("Expected **crash**, got success.\nReturned: " + value);
       case Error(var message, var isSimplyUnsupported) when !expectCrash && !isSimplyUnsupported ->
           fail("Expected success, got crash.\n" + message);
-      case Error(var message, var _) when expectCrash && !crashesOption.args().isEmpty() -> {
+      case Error(var message, var isSimplyUnsupported)
+          when expectCrash && !isSimplyUnsupported && !crashesOption.args().isEmpty() -> {
         var expectedInMessage =
             crashesOption
                 .expectOneArg()
@@ -106,7 +110,13 @@ public sealed interface SexpResult {
   /// For comparing optimized and unoptimized compilations of the same program, because the
   /// optimized and unoptimized code are *semantically* but not *structurally* equivalent.
   default String withoutCompiledCode() {
-    return renumberRefs(SexpResultPrivate.COMPILED_CODE.matcher(toString()).replaceAll("<code>"));
+    return renumberRefs(
+        SexpResultPrivate.COMPILED_CODE.matcher(untruncated()).replaceAll("<code>"));
+  }
+
+  /// [#toString()] without the element, attribute, and string length limits, for comparison.
+  default String untruncated() {
+    return Printer.toString(this, new SEXPPrintContext(SexpResultPrivate.UNTRUNCATED));
   }
 
   /// Renumbers printed reference ids in order of first appearance.
@@ -136,12 +146,12 @@ public sealed interface SexpResult {
       if (!(o instanceof Ok(SEXP value1))) {
         return false;
       }
-      return Objects.equals(value.toString(), value1.toString());
+      return untruncated().equals(new Ok(value1).untruncated());
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(value.toString());
+      return untruncated().hashCode();
     }
 
     @Override
@@ -191,6 +201,19 @@ public sealed interface SexpResult {
 }
 
 final class SexpResultPrivate {
+  static final SEXPPrintOptions UNTRUNCATED =
+      new SEXPPrintOptions(
+          false,
+          SEXPPrintOptions.DEFAULT.printEnvironmentDetails(),
+          null,
+          false,
+          true,
+          false,
+          Long.MAX_VALUE,
+          Long.MAX_VALUE,
+          Long.MAX_VALUE,
+          SEXPPrintOptions.DEFAULT.maxDepth());
+
   /// Bytecode or external pointer [SEXP] printed
   static final Pattern COMPILED_CODE = Pattern.compile("<bcode#\\d+(?: \\.\\.\\.)?>|<extptr>");
 

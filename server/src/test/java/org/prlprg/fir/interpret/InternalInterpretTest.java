@@ -7,10 +7,12 @@ import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.interpret.internal.InternalInterpretUnsupportedException;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
@@ -134,6 +136,81 @@ class InternalInterpretTest {
     var result = interpreter.call("main", new Value.Sexp(SEXPs.integer(1)));
 
     assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
+  }
+
+  /// `missing< * --> B >` compares a promise with the missing argument without forcing it, even if
+  /// its value is the missing argument. `missing< * --> v(L) >` reads the binding a string names.
+  @Test
+  void missingDoesntForcePromiseAndReadsStringBinding() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun onPromise() {
+              () -+> B {
+                pr: p(V ~) = prom<V ~>{ return <missing>; };
+                r: B = missing< * --> B >(pr);
+                return r;
+              }
+            }
+
+            fun onString() {
+              () -+> V {
+                mkenv;
+                st x = <missing>;
+                r: v(L) = missing< * --> v(L) >(<str "x">);
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertEquals(new Value.Bool(false), interpreter.call("onPromise"));
+    assertEquals(new Value.Sexp(SEXPs.TRUE), interpreter.call("onString"));
+  }
+
+  /// `as.logical` of a vector converts each element, as GNU-R's does.
+  @Test
+  void asLogicalOfVectorConvertsEachElement() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                x: v(R)o = v(R)[1.0, 0.0];
+                d: dots = dots[];
+                r: v(L) = `as.logical`%< *@!,dots -+> v(L) >(x, d);
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertEquals(
+        new Value.Sexp(SEXPs.logical(Logical.TRUE, Logical.FALSE)), interpreter.call("main"));
+  }
+
+  /// GNU-R's `sum` of integers out of the integer range is a double, so the version that returns
+  /// `I` deopts (unsupported in the interpreter). It wrapped around.
+  @Test
+  void typedIntegerSumOutOfRangeIsUnsupported() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I {
+                x: v(I)o = v(I)[2147483647, 2];
+                s: I = sum< v(I),miss --> I >(x, <missing>);
+                return s;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertThrows(InternalInterpretUnsupportedException.class, () -> interpreter.call("main"));
   }
 
   @Test
@@ -297,6 +374,74 @@ class InternalInterpretTest {
     // `sys.frame(-1)` from `inner` accesses `main`'s frame, so it's `main`'s `mkenv` that's marked.
     assertEquals(1, reflectiveEnvCount(interpreter, module, "main"));
     assertEquals(0, reflectiveEnvCount(interpreter, module, "inner"));
+  }
+
+  /// `sys.frame(-1)` in a promise that `id` forces counts from `k`, which created the promise, so
+  /// it's `main`'s frame and not `id`'s.
+  @Test
+  void sysFrameInPromiseCountsFromItsFrame() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                r: V = k< -+> V >();
+                popenv;
+                return r;
+              }
+            }
+
+            fun k() {
+              () -+> V {
+                mkenv;
+                p: p(V +) = prom<V +>{
+                  vargs: dots = dots[<int -1>];
+                  s: V = `sys.frame`%< dots -+> V >(vargs);
+                  return s;
+                };
+                r: V = id< p(V +) -+> V >(p);
+                popenv;
+                return r;
+              }
+            }
+
+            fun id(e) {
+              (e:p(V +)) -+> V {
+                v: V = force? e;
+                return v;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    interpreter.call("main");
+
+    assertEquals(1, reflectiveEnvCount(interpreter, module, "main"));
+  }
+
+  /// `sys.frame(0)` is the global environment, and GNU-R marks the frame that calls it.
+  @Test
+  void sysFrameZeroIsGlobalAndMarksCaller() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                vargs: dots = dots[<int 0>];
+                r: V = `sys.frame`%< dots -+> V >(vargs);
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertEquals(new Value.Sexp(interpreter.globalEnv()), interpreter.call("main"));
+    assertEquals(1, reflectiveEnvCount(interpreter, module, "main"));
   }
 
   @Test

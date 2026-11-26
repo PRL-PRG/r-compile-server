@@ -803,7 +803,7 @@ static INLINE void Rsh_MakeClosure(Value *stack, SEXP mkclos_arg,
                                    Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
   SEXP srcref = VECTOR_ELT_0(mkclos_arg, 2);
   Rsh_do_MakeClosure(stack, mkclos_arg, fun_ptr, c_cp, rho,
-                     TYPEOF(srcref) != NILSXP);
+                     TYPEOF(srcref) != NILSXP ? TRUE : FALSE);
 }
 
 static INLINE void Rsh_CheckFun(Value *stack) {

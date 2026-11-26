@@ -189,6 +189,22 @@ public record SEXPPrintOptions(
             maxDepth);
   }
 
+  public SEXPPrintOptions withMaxElements(long maxElements) {
+    return maxElements == this.maxElements
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printEnvironmentDetails,
+            environmentDetailPrinter,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
   public SEXPPrintOptions withMapsSorted(boolean printMapsSorted) {
     return printMapsSorted == this.printMapsSorted
         ? this

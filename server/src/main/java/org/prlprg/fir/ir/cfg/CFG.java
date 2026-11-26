@@ -47,8 +47,9 @@ public final class CFG {
     return scope;
   }
 
+  /// Whether this is the code of a promise, as opposed to a version's body or fallback.
   public boolean isPromise() {
-    return scope.cfg() != this;
+    return !scope.isRoot(this);
   }
 
   public Module module() {

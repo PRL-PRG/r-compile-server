@@ -1,8 +1,10 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -17,17 +19,34 @@ import org.prlprg.util.Streams;
 
 /// Compile a new version with feedback from parameters on an existing version.
 ///
+/// The feedback of each parameter is separate, so it doesn't say which types were passed
+/// together. This assumes that the k-th most frequent types of the parameters were: it creates
+/// one version per rank k (up to `parameterLimit`), whose parameter types are each parameter's
+/// k-th most frequent type, or the parameter's own type if it has fewer recorded types.
+///
 /// TODO: Somewhere we should store removed specializations which were deoptimized.
 /// Also remove ones with more specific assumptions which turn out to not be optimizations over
 /// other verisons, and try to merge ones that are equal by compiling with the intersected
 /// assumptions. In both cases, we need to keep track of those removed so they aren't recompiled.
-public record SpeculateDispatch(int threshold, int parameterLimit, int versionLimit)
-    implements AbstractionOptimization {
+public final class SpeculateDispatch extends AbstractionOptimization {
+  private final int threshold;
+  private final int parameterLimit;
+  private final int versionLimit;
+
+  public SpeculateDispatch(int threshold, int parameterLimit, int versionLimit) {
+    this.threshold = threshold;
+    this.parameterLimit = parameterLimit;
+    this.versionLimit = versionLimit;
+  }
+
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction version) {
     // Don't specialize stubs, can't run if there's no function
-    if (function == null || version.cfg() == null) {
+    if (function == null || version.isStub()) {
       return false;
     }
 
@@ -38,15 +57,27 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
     }
 
     // See if parameter feedback suggests more specific types
-    var candidates =
+    var hits =
         version.parameters().stream()
             .map(
                 param ->
-                    feedback.type(param).streamHits(threshold, param.type()).limit(parameterLimit))
-            .gather(Streams.cartesianShuffled())
-            // If there are *many* versions even checking them all is too slow.
-            // If there are many parameters we may get many versions.
-            .limit(newVersionLimit * 9L)
+                    feedback
+                        .type(param)
+                        .streamHits(threshold, param.type())
+                        .limit(parameterLimit)
+                        .toList())
+            .toList();
+    var ranks = hits.stream().mapToInt(List::size).max().orElse(0);
+    var candidates =
+        IntStream.range(0, ranks)
+            .mapToObj(
+                rank ->
+                    Streams.zip(
+                            version.parameters().stream(),
+                            hits.stream(),
+                            (param, paramHits) ->
+                                rank < paramHits.size() ? paramHits.get(rank) : param.type())
+                        .collect(ImmutableList.toImmutableList()))
             // Check the version is more specific than an existing one.
             .filter(
                 parameterTypes -> {
@@ -95,7 +126,7 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
     candidates.forEach(
         newParameterTypes -> {
           changed[0] = true;
-          copy(feedback.module(), function, version, newParameterTypes);
+          LazyCopy.create(topLevel, this, feedback.module(), function, version, newParameterTypes);
         });
     return changed[0];
   }

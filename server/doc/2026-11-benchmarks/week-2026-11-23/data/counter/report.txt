@@ -1,0 +1,146 @@
+# Per-build totals (examples with data in every build)
+examples with data in all builds: 133 of 134; NA: {'bcopt': [], 'ce0': ['bench_shootout_pidigits_orbit'], 'ce1': ['bench_shootout_pidigits_orbit'], 'ce2': ['bench_shootout_pidigits_orbit'], 'tip': ['bench_shootout_pidigits_orbit'], 'gvn': ['bench_shootout_pidigits_orbit']}
+build | copies | copied MB | allocs | alloc MB | len1 numeric allocs | geomean copies/bc (+1) | geomean copied bytes/bc (+1 KB) | geomean allocs/bc | geomean alloc bytes/bc
+bcopt | 290815 | 213.8 | 20633276 | 4574 | 12278667 | 1.000 | 1.000 | 1.000 | 1.000
+ce0 | 457552 | 360.7 | 50517859 | 7094 | 38735214 | 1.752 | 1.813 | 1.706 | 1.856
+ce1 | 457552 | 360.7 | 50517859 | 7094 | 38735214 | 1.752 | 1.813 | 1.706 | 1.856
+ce2 | 437293 | 296.6 | 45864655 | 4905 | 35178226 | 1.456 | 1.375 | 1.562 | 1.554
+tip | 437293 | 296.6 | 45864655 | 4905 | 35178226 | 1.456 | 1.375 | 1.562 | 1.554
+gvn | 437265 | 275.2 | 45864206 | 4846 | 35178177 | 1.455 | 1.368 | 1.561 | 1.552
+
+# Largest changes between consecutive builds (vector copies, then allocations)
+ce0->ce1 copies: 
+ce0->ce1 copied bytes: 
+ce0->ce1 allocs: 
+ce1->ce2 copies: shootout_knucleotide_brute 8725->14, shootout_knucleotide_brute_2 8725->14, shootout_fasta_3 2806->6, shootout_mandelbrot_noout_naive 20->0, ati_att3_3 13->0, riposte_sample 5->4, shootout_nbody_2 8002->8001, shootout_nbody_3 8002->8001
+ce1->ce2 copied bytes: ati_att3_3 31200000->0, shootout_mandelbrot_noout_naive 16384160->0, shootout_knucleotide_brute_2 14307784->264, riposte_sample 12000000->8000000, shootout_fasta_3 1344092->92, shootout_nbody_2 904152->904120, shootout_nbody_3 904152->904120, shootout_nbody_naive_2 3000152->3000120
+ce1->ce2 allocs: shootout_mandelbrot_orbit 4714536->3433360, shootout_binarytrees_naive 5937834->5160878, scalar_crt 1307605->938005, shootout_fasta_naive_2 720864->442819, misc_pi_lapply 405019->180018, shootout_nbody_orbit 798481->644388, shootout_mandelbrot_naive 464094->343941, shootout_mandelbrot_naive_ascii 441431->341758
+ce2->tip copies: 
+ce2->tip copied bytes: 
+ce2->tip allocs: awf_mandelbrot 1191->1211, riposte_cleaning 1223->1203
+tip->gvn copies: riposte_raysphere 252->224
+tip->gvn copied bytes: riposte_raysphere 44805824->22405824
+tip->gvn allocs: riposte_mandelbrot 3226->2826, shootout_nbody_orbit 644388->644364, shootout_nbody_vectorized 463880->463856, shootout_spectralnorm_alt_2 2275->2274
+
+# Boxing rank: length-1 logical/integer/double allocations, tip vs bc.opt (top 25 by tip)
+example | tip | bc.opt | tip-bc | tip/all-tip-allocs
+scalar_fib | 6004000 | 2005 | 6001995 | 1.00
+mathkernel_mmm_t1 | 3438625 | 9132 | 3429493 | 0.99
+shootout_mandelbrot_orbit | 3408596 | 52555 | 3356041 | 0.99
+shootout_binarytrees_naive | 2529748 | 1733064 | 796684 | 0.49
+shootout_fannkuchredux_naive | 1895360 | 468861 | 1426499 | 0.88
+mathkernel_int_na_vec_add_t1 | 1600001 | 290002 | 1309999 | 1.00
+mathkernel_int_vec_add_t1 | 1600001 | 2 | 1599999 | 1.00
+ati_att3_4 | 1470702 | 490704 | 979998 | 1.00
+scalar_prime | 1300930 | 817293 | 483637 | 1.00
+scalar_crt | 936600 | 511004 | 425596 | 1.00
+real_convolution_slow | 828151 | 26183 | 801968 | 0.99
+real_convolution | 627531 | 2543 | 624988 | 0.99
+real_volcano | 571343 | 220554 | 350789 | 0.85
+scalar_gcd | 514108 | 464110 | 49998 | 1.00
+shootout_fannkuch_redux | 493940 | 20180 | 473760 | 0.38
+shootout_fasta_naive_2 | 352685 | 311630 | 41055 | 0.80
+shootout_nbody_orbit | 340167 | 292191 | 47976 | 0.53
+shootout_spectralnorm_alt_3 | 307195 | 202227 | 104968 | 0.99
+shootout_spectralnorm_alt_4 | 302145 | 204676 | 97469 | 0.97
+shootout_spectral_norm_vectorized | 259273 | 195284 | 63989 | 0.95
+shootout_fasta_naive | 251268 | 198577 | 52691 | 0.70
+shootout_spectral_norm | 245571 | 183867 | 61704 | 0.98
+shootout_binarytrees_2 | 238520 | 163841 | 74679 | 0.49
+shootout_mandelbrot_naive | 233786 | 126308 | 107478 | 0.68
+shootout_mandelbrot_naive_ascii | 231760 | 124282 | 107478 | 0.68
+
+# bc.opt vs tip
+
+## (a) bc.opt only: 1 copies (0.0 %), 2.29 MB; examples: ati_att3_3 1
+- ALTREP wrapper data copy at first write: 1 copies, 2344 KB; top: ati_att3_3/gcd2 double[65536+] 1
+
+## (c) tip only: 146479 copies (33.5 %), 85.12 MB; examples: shootout_nbody_naive 75000, shootout_nbody_naive_2 25001, shootout_fannkuchredux 15287, shootout_revcomp 14999, shootout_fasta_2 5579, shootout_nbody_2 4001
+- FIR deep dup inlined in a version (Fir_dup/Fir_value_dup/Fir_assign_dup): 110903 copies, 34311 KB; top: shootout_nbody_naive/v:advance double[2-63] 74997; shootout_fannkuchredux/v:fannkuch integer[2-63] 15287; shootout_revcomp/v:exchange character[64-1023] 14999
+- builtin [<- / [[<- / $<- on a shared vector (do_subassign_dflt): 31003 copies, 3633 KB; top: shootout_nbody_naive_2/v:advance double[2-63] 25000; shootout_nbody_3/v:advance double[2-63] 3000; shootout_nbody_2/v:advance double[2-63] 3000
+- builtin [<- / [[<- / $<- on a shared vector (do_subassign2_dflt): 2506 copies, 48828 KB; top: shootout_spectralnorm_alt_4/v:eval_A double[1024-65535] 2500; shootout_nbody_naive/v:offset_momentum double[2-63] 3; shootout_nbody/v:offset_momentum double[2-63] 3
+- complex assignment, shared target (FIR setter, register): 2027 copies, 391 KB; top: shootout_nbody_3/v:advance double[2-63] 1000; shootout_nbody_2/v:advance double[2-63] 1000; awf_bounce/v:execute double[2-63] 25
+- complex assignment, shared target (FIR setter, env variable): 40 copies, 3 KB; top: ati_att3_5/v:run_f72465c integer[2-63] 33; shootout_nbody_vectorized/v:run double[2-63] 3; shootout_nbody_orbit/v:run double[2-63] 3
+
+## (d) both bc.opt and tip: 290814 copies (66.5 %), 211.47 MB; examples: shootout_fannkuchredux_naive 40319, misc_lr_ols_lapply 38000, shootout_fannkuch_redux 35280, misc_logit_regre_lapply 35006, misc_lr_lms_lapply 35006, awf_bounce_nonames_simple 30000
+- complex assignment, shared target (bc STARTASSIGN): 197980 copies, 41817 KB; top: shootout_fannkuchredux_naive/fannkuch integer[2-63] 40319; misc_lr_ols_lapply/FUN double[2-63] 38000; shootout_fannkuch_redux/run integer[2-63] 35280
+- complex assignment, shared target (bc STARTASSIGN, promise target): 38249 copies, 1842 KB; top: awf_bounce_nonames_simple/bounce double[2-63] 30000; awf_bounce_nonames/bounce double[2-63] 2500; shootout_nbody/diag<- double[2-63] 2000
+- other: match5 <- stringSubscript: 19082 copies, 17047 KB; top: shootout_knucleotide_brute_3/gen_freq character[1] 7690; shootout_reversecomplement_2/paste character[2-63] 5000; shootout_reversecomplement/paste character[2-63] 5000
+- other: do_asvector <- bcEval_loop: 12015 copies, 1971 KB; top: shootout_nbody/as.vector double[2-63] 6000; shootout_nbody_3/as.vector double[2-63] 3000; shootout_nbody_2/as.vector double[2-63] 3000
+- other: do_logic <- bcEval_loop: 8400 copies, 41997 KB; top: riposte_black_scholes/which logical[64-1023] 2000; real_flexclust_no_s4/FUN logical[2-63] 2000; real_flexclust/FUN logical[2-63] 2000
+- other: match5 <- bcEval_loop: 7711 copies, 2218 KB; top: shootout_mandelbrot_orbit/%in% character[2-63] 2050; shootout_mandelbrot_orbit/%in% character[1] 2050; misc_k_nn_lapply/factor character[2-63] 598
+- other: do_nextmethod <- do_internal: 5503 copies, 43 KB; top: misc_nn/NextMethod character[1] 2900; misc_k_nn/NextMethod character[1] 2600; riposte_lr_test/NextMethod character[1] 1
+- other: R_unary <- bcEval_loop: 1070 copies, 61915 KB; top: riposte_black_scholes/black_scholes double[64-1023] 1000; riposte_raysphere/intersect double[65536+] 56; real_flexclust_no_s4/as.matrix double[1024-65535] 5
+
+# ce0 vs ce2
+
+## (b) ce0 only (removed by new copy elision): 20259 copies (4.4 %), 64.12 MB; examples: shootout_knucleotide_brute 8711, shootout_knucleotide_brute_2 8711, shootout_fasta_3 2800, shootout_mandelbrot_noout_naive 20, ati_att3_3 13, riposte_sample 1
+- complex assignment, shared target (FIR setter, env variable): 20222 copies, 15285 KB; top: shootout_knucleotide_brute/v:gen_freq integer[0] 8711; shootout_knucleotide_brute_2/v:gen_freq integer[64-1023] 3908; shootout_fasta_3/v:random_fasta double[2-63] 2800
+- other: R_unary <- do_arith: 22 copies, 19906 KB; top: shootout_mandelbrot_noout_naive/v:mandelbrot_noout_naive double[65536+] 20; shootout_nbody_2/v:offset_momentum double[2-63] 1; riposte_sample/ifelse double[65536+] 1
+- ALTREP wrapper data copy at first write: 13 copies, 30469 KB; top: ati_att3_3/gcd2 double[65536+] 13
+- builtin [<- / [[<- / $<- on a shared vector (do_subassign_dflt): 2 copies, 0 KB; top: shootout_nbody_naive_2/v:offset_momentum double[2-63] 1; shootout_nbody_3/v:offset_momentum double[2-63] 1
+
+## (b') ce2 only (added): 0 copies (0.0 %), 0.00 MB; examples: 
+
+## ce0 and ce2: 437293 copies (95.6 %), 296.60 MB; examples: shootout_nbody_naive 75003, shootout_fannkuchredux_naive 40319, misc_lr_ols_lapply 38000, shootout_fannkuch_redux 35280, misc_logit_regre_lapply 35006, misc_lr_lms_lapply 35006
+- FIR deep dup inlined in a version (Fir_dup/Fir_value_dup/Fir_assign_dup): 251865 copies, 43013 KB; top: shootout_nbody_naive/v:advance double[2-63] 75000; shootout_fannkuch_redux/v:run integer[2-63] 35280; misc_lr_lms_lapply/v:grad.func double[2-63] 35000
+- complex assignment, shared target (FIR setter, env variable): 55413 copies, 4255 KB; top: misc_lr_ols_lapply/v:b.func double[2-63] 19000; misc_lr_ols_lapply/v:A.func double[2-63] 19000; shootout_fannkuchredux_naive/v:fannkuch integer[2-63] 10079
+- complex assignment, shared target (FIR setter, register): 35796 copies, 1447 KB; top: awf_bounce_nonames_simple/v:bounce double[2-63] 30000; awf_bounce_nonames/v:bounce double[2-63] 2500; awf_bounce/v:bounce double[2-63] 1250
+- builtin [<- / [[<- / $<- on a shared vector (do_subassign_dflt): 31001 copies, 3633 KB; top: shootout_nbody_naive_2/v:advance double[2-63] 25000; shootout_nbody_3/v:advance double[2-63] 3000; shootout_nbody_2/v:advance double[2-63] 3000
+- other: match5 <- stringSubscript: 19082 copies, 17047 KB; top: shootout_knucleotide_brute_3/cat character[1] 7659; shootout_reversecomplement_2/paste character[2-63] 5000; shootout_reversecomplement/paste character[2-63] 5000
+- other: do_asvector <- bcEval_loop: 12015 copies, 1971 KB; top: shootout_nbody/as.vector double[2-63] 6000; shootout_nbody_3/as.vector double[2-63] 3000; shootout_nbody_2/as.vector double[2-63] 3000
+- other: do_logic <- bcEval_loop: 8355 copies, 26372 KB; top: riposte_black_scholes/which logical[64-1023] 2000; real_flexclust_no_s4/FUN logical[2-63] 2000; real_flexclust/FUN logical[2-63] 2000
+- other: match5 <- bcEval_loop: 7711 copies, 2218 KB; top: shootout_mandelbrot_orbit/%in% character[2-63] 2050; shootout_mandelbrot_orbit/%in% character[1] 2050; misc_k_nn_lapply/factor character[2-63] 598
+
+# ce0 vs ce1
+
+## ce0 only (removed by register links): 0 copies (0.0 %), 0.00 MB; examples: 
+
+## ce1 only (added by register links): 0 copies (0.0 %), 0.00 MB; examples: 
+
+## ce0 and ce1: 457552 copies (100.0 %), 360.72 MB; examples: shootout_nbody_naive 75003, shootout_fannkuchredux_naive 40319, misc_lr_ols_lapply 38000, shootout_fannkuch_redux 35280, misc_logit_regre_lapply 35006, misc_lr_lms_lapply 35006
+- FIR deep dup inlined in a version (Fir_dup/Fir_value_dup/Fir_assign_dup): 251865 copies, 43013 KB; top: shootout_nbody_naive/v:advance double[2-63] 75000; shootout_fannkuch_redux/v:run integer[2-63] 35280; misc_lr_lms_lapply/v:grad.func double[2-63] 35000
+- complex assignment, shared target (FIR setter, env variable): 75635 copies, 19540 KB; top: misc_lr_ols_lapply/v:b.func double[2-63] 19000; misc_lr_ols_lapply/v:A.func double[2-63] 19000; shootout_fannkuchredux_naive/v:fannkuch integer[2-63] 10079
+- complex assignment, shared target (FIR setter, register): 35796 copies, 1447 KB; top: awf_bounce_nonames_simple/v:bounce double[2-63] 30000; awf_bounce_nonames/v:bounce double[2-63] 2500; awf_bounce/v:bounce double[2-63] 1250
+- builtin [<- / [[<- / $<- on a shared vector (do_subassign_dflt): 31003 copies, 3633 KB; top: shootout_nbody_naive_2/v:advance double[2-63] 25000; shootout_nbody_3/v:advance double[2-63] 3000; shootout_nbody_2/v:advance double[2-63] 3000
+- other: match5 <- stringSubscript: 19082 copies, 17047 KB; top: shootout_knucleotide_brute_3/cat character[1] 7659; shootout_reversecomplement_2/paste character[2-63] 5000; shootout_reversecomplement/paste character[2-63] 5000
+- other: do_asvector <- bcEval_loop: 12015 copies, 1971 KB; top: shootout_nbody/as.vector double[2-63] 6000; shootout_nbody_3/as.vector double[2-63] 3000; shootout_nbody_2/as.vector double[2-63] 3000
+- other: do_logic <- bcEval_loop: 8355 copies, 26372 KB; top: riposte_black_scholes/which logical[64-1023] 2000; real_flexclust_no_s4/FUN logical[2-63] 2000; real_flexclust/FUN logical[2-63] 2000
+- other: match5 <- bcEval_loop: 7711 copies, 2218 KB; top: shootout_mandelbrot_orbit/%in% character[2-63] 2050; shootout_mandelbrot_orbit/%in% character[1] 2050; misc_k_nn_lapply/factor character[2-63] 598
+
+# ce1 vs ce2
+
+## ce1 only (removed by builtin cells): 20259 copies (4.4 %), 64.12 MB; examples: shootout_knucleotide_brute 8711, shootout_knucleotide_brute_2 8711, shootout_fasta_3 2800, shootout_mandelbrot_noout_naive 20, ati_att3_3 13, riposte_sample 1
+- complex assignment, shared target (FIR setter, env variable): 20222 copies, 15285 KB; top: shootout_knucleotide_brute/v:gen_freq integer[0] 8711; shootout_knucleotide_brute_2/v:gen_freq integer[64-1023] 3908; shootout_fasta_3/v:random_fasta double[2-63] 2800
+- other: R_unary <- do_arith: 23 copies, 19906 KB; top: shootout_mandelbrot_noout_naive/v:mandelbrot_noout_naive double[65536+] 20; shootout_nbody_3/v:offset_momentum double[2-63] 1; shootout_nbody_2/v:offset_momentum double[2-63] 1
+- ALTREP wrapper data copy at first write: 13 copies, 30469 KB; top: ati_att3_3/gcd2 double[65536+] 13
+- builtin [<- / [[<- / $<- on a shared vector (do_subassign_dflt): 1 copies, 0 KB; top: shootout_nbody_naive_2/v:offset_momentum double[2-63] 1
+
+## ce2 only (added by builtin cells): 0 copies (0.0 %), 0.00 MB; examples: 
+
+## ce1 and ce2: 437293 copies (95.6 %), 296.60 MB; examples: shootout_nbody_naive 75003, shootout_fannkuchredux_naive 40319, misc_lr_ols_lapply 38000, shootout_fannkuch_redux 35280, misc_logit_regre_lapply 35006, misc_lr_lms_lapply 35006
+- FIR deep dup inlined in a version (Fir_dup/Fir_value_dup/Fir_assign_dup): 251865 copies, 43013 KB; top: shootout_nbody_naive/v:advance double[2-63] 75000; shootout_fannkuch_redux/v:run integer[2-63] 35280; misc_lr_lms_lapply/v:grad.func double[2-63] 35000
+- complex assignment, shared target (FIR setter, env variable): 55413 copies, 4255 KB; top: misc_lr_ols_lapply/v:b.func double[2-63] 19000; misc_lr_ols_lapply/v:A.func double[2-63] 19000; shootout_fannkuchredux_naive/v:fannkuch integer[2-63] 10079
+- complex assignment, shared target (FIR setter, register): 35796 copies, 1447 KB; top: awf_bounce_nonames_simple/v:bounce double[2-63] 30000; awf_bounce_nonames/v:bounce double[2-63] 2500; awf_bounce/v:bounce double[2-63] 1250
+- builtin [<- / [[<- / $<- on a shared vector (do_subassign_dflt): 31002 copies, 3633 KB; top: shootout_nbody_naive_2/v:advance double[2-63] 25000; shootout_nbody_3/v:advance double[2-63] 3000; shootout_nbody_2/v:advance double[2-63] 3000
+- other: match5 <- stringSubscript: 19082 copies, 17047 KB; top: shootout_knucleotide_brute_3/cat character[1] 7659; shootout_reversecomplement_2/paste character[2-63] 5000; shootout_reversecomplement/paste character[2-63] 5000
+- other: do_asvector <- bcEval_loop: 12015 copies, 1971 KB; top: shootout_nbody/as.vector double[2-63] 6000; shootout_nbody_3/as.vector double[2-63] 3000; shootout_nbody_2/as.vector double[2-63] 3000
+- other: do_logic <- bcEval_loop: 8355 copies, 26372 KB; top: riposte_black_scholes/which logical[64-1023] 2000; real_flexclust_no_s4/FUN logical[2-63] 2000; real_flexclust/FUN logical[2-63] 2000
+- other: match5 <- bcEval_loop: 7711 copies, 2218 KB; top: shootout_mandelbrot_orbit/%in% character[2-63] 2050; shootout_mandelbrot_orbit/%in% character[1] 2050; misc_k_nn_lapply/factor character[2-63] 598
+
+# tip vs gvn
+
+## tip only: 28 copies (0.0 %), 21.36 MB; examples: riposte_raysphere 28
+- other: R_unary <- do_arith: 28 copies, 21875 KB; top: riposte_raysphere/bench_reps double[65536+] 28
+
+## gvn only: 0 copies (0.0 %), 0.00 MB; examples: 
+
+## tip and gvn: 437265 copies (100.0 %), 275.24 MB; examples: shootout_nbody_naive 75003, shootout_fannkuchredux_naive 40319, misc_lr_ols_lapply 38000, shootout_fannkuch_redux 35280, misc_logit_regre_lapply 35006, misc_lr_lms_lapply 35006
+- FIR deep dup inlined in a version (Fir_dup/Fir_value_dup/Fir_assign_dup): 251865 copies, 43013 KB; top: shootout_nbody_naive/v:advance double[2-63] 75000; shootout_fannkuch_redux/v:run integer[2-63] 35280; misc_lr_lms_lapply/v:grad.func double[2-63] 35000
+- complex assignment, shared target (FIR setter, env variable): 55413 copies, 4255 KB; top: misc_lr_ols_lapply/v:b.func double[2-63] 19000; misc_lr_ols_lapply/v:A.func double[2-63] 19000; shootout_fannkuchredux_naive/v:fannkuch integer[2-63] 10079
+- complex assignment, shared target (FIR setter, register): 35796 copies, 1447 KB; top: awf_bounce_nonames_simple/v:bounce double[2-63] 30000; awf_bounce_nonames/v:bounce double[2-63] 2500; awf_bounce/v:bounce double[2-63] 1250
+- builtin [<- / [[<- / $<- on a shared vector (do_subassign_dflt): 31003 copies, 3633 KB; top: shootout_nbody_naive_2/v:advance double[2-63] 25000; shootout_nbody_3/v:advance double[2-63] 3000; shootout_nbody_2/v:advance double[2-63] 3000
+- other: match5 <- stringSubscript: 19082 copies, 17047 KB; top: shootout_knucleotide_brute_3/cat character[1] 7659; shootout_reversecomplement_2/paste character[2-63] 5000; shootout_reversecomplement/paste character[2-63] 5000
+- other: do_asvector <- bcEval_loop: 12015 copies, 1971 KB; top: shootout_nbody/as.vector double[2-63] 6000; shootout_nbody_3/as.vector double[2-63] 3000; shootout_nbody_2/as.vector double[2-63] 3000
+- other: do_logic <- bcEval_loop: 8355 copies, 26372 KB; top: riposte_black_scholes/which logical[64-1023] 2000; real_flexclust_no_s4/FUN logical[2-63] 2000; real_flexclust/FUN logical[2-63] 2000
+- other: match5 <- bcEval_loop: 7711 copies, 2218 KB; top: shootout_mandelbrot_orbit/%in% character[2-63] 2050; shootout_mandelbrot_orbit/%in% character[1] 2050; misc_k_nn_lapply/factor character[2-63] 598

@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.util.Files;
 import org.prlprg.util.cc.CCCompilationBuilder;
 
@@ -44,6 +45,9 @@ public class RshCompiler {
           "-fno-plt",
           "-fexceptions",
           "-fstack-clash-protection",
+          // GNU-R rounds each arithmetic operation, so `a * b + c` must not become a fused
+          // multiply-add (GCC's default contracts across statements, clang's within one).
+          "-ffp-contract=off",
           //          "-fcf-protection",
           "-Wformat",
           "-Werror=format-security",
@@ -62,7 +66,7 @@ public class RshCompiler {
   }
 
   public RshCompiler(List<String> compilerFlags) {
-    this.compilerFlags = compilerFlags;
+    this.compilerFlags = List.copyOf(compilerFlags);
   }
 
   /// Runtime sources to compile into a module that is loaded on its own, i.e. with `-DRSH_TESTS`
@@ -81,6 +85,12 @@ public class RshCompiler {
   }
 
   public static RshCompiler getInstance(int optimizationLevel, RuntimeVariant variant) {
+    return getInstance(optimizationLevel, variant, true);
+  }
+
+  /// @param debugInfo Whether to emit debug info (`-g`).
+  public static RshCompiler getInstance(
+      int optimizationLevel, RuntimeVariant variant, boolean debugInfo) {
     var flags = new ArrayList<>(COMMON_COMPILER_FLAGS);
 
     var rshInclude =
@@ -91,16 +101,24 @@ public class RshCompiler {
     flags.add("-I" + rshInclude);
 
     if (optimizationLevel == 0) {
-      flags.add("-g3");
-      flags.add("-ggdb");
+      if (debugInfo) {
+        flags.add("-g3");
+        flags.add("-ggdb");
+      }
       flags.add("-Wno-unused-function");
     } else {
       flags.add("-DNDEBUG");
-      flags.add("-g");
+      if (debugInfo) {
+        flags.add("-g");
+      }
     }
     flags.add("-O" + optimizationLevel);
 
     return new RshCompiler(flags);
+  }
+
+  public @Unmodifiable List<String> flags() {
+    return compilerFlags;
   }
 
   public CCCompilationBuilder createBuilder(Path input, Path output) {

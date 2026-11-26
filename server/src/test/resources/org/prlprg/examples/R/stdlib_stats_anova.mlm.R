@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("object 'f' not found")
 `anova.mlm` <- function (object, ..., test = c("Pillai", "Wilks", "Hotelling-Lawley", 
     "Roy", "Spherical"), Sigma = diag(nrow = p), T = Thin.row(Proj(M) - 
     Proj(X)), M = diag(nrow = p), X = ~0, idata = data.frame(index = seq_len(p)), 

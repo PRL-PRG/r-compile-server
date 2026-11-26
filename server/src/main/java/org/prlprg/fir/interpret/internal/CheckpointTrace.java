@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-import org.jspecify.annotations.Nullable;
 
 /// Computed and records an [InternalInterpreter]'s state at deoptimization point when reaching each
 /// [`Checkpoint` instruction][org.prlprg.fir.ir.instruction.Checkpoint].
@@ -16,14 +15,8 @@ import org.jspecify.annotations.Nullable;
 /// By default, this is disabled to avoid creating unused snapshots. Call [#track()] to
 /// temporarily enable.
 public class CheckpointTrace {
-  private final InternalInterpreter owner;
   private final List<DeoptSnapshot> snapshots = new ArrayList<>();
   private boolean isRecording = false;
-  private @Nullable String moduleToString = null;
-
-  CheckpointTrace(InternalInterpreter owner) {
-    this.owner = owner;
-  }
 
   /// Temporarily enable, run `action`, then disable. Returns the recorded snapshots.
   ///
@@ -35,7 +28,6 @@ public class CheckpointTrace {
     assert snapshots.isEmpty();
 
     isRecording = true;
-    moduleToString = owner.module().toString();
     try {
       action.run();
       return ImmutableList.copyOf(snapshots);
@@ -47,9 +39,7 @@ public class CheckpointTrace {
 
   void record(Supplier<DeoptSnapshot> getSnapshot) {
     if (isRecording) {
-      var snapshot = getSnapshot.get();
-      snapshot.unsafeSetModuleToString(moduleToString);
-      snapshots.add(snapshot);
+      snapshots.add(getSnapshot.get());
     }
   }
 }

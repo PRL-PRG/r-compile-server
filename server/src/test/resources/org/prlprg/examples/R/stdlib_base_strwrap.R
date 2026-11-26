@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `strwrap` <- function (x, width = 0.9 * getOption("width"), indent = 0, exdent = 0, 
     prefix = "", simplify = TRUE, initial = prefix) 
 {

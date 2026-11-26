@@ -42,6 +42,10 @@ public record StaticClosure() implements SpecializeOptimization {
     if (function.versions().stream().anyMatch(version -> version.effects().reflect())) {
       return Result.UNCHANGED;
     }
+    if (function.versions().stream().anyMatch(v -> !v.isStub() && !v.isEvaluated())) {
+      // Which variables an unevaluated version references isn't known.
+      return Result.UNCHANGED;
+    }
 
     var referencedVariables = localEnvReferencedVariables(function);
     if (analyses.get(OriginAnalysis.class).anyMayBeLocal(bb, index, referencedVariables)) {

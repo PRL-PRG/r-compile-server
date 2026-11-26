@@ -3,9 +3,14 @@ package org.prlprg.fir.opt;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
@@ -22,13 +27,17 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Dup;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
@@ -48,12 +57,20 @@ import org.prlprg.fir.ir.variable.Register;
 ///     substitute occurrences of `a` with `b`).
 ///   - Remove unused assignees (convert `r = e` to `e` if `r` is unused) and phis.
 /// - Instructions
-///   - Remove trivial no-ops (pure expressions not assigned to anything).
+///   - Remove trivial no-ops (pure expressions not assigned to anything), except a `setVisible` or
+///     `setInvisible` that no later write or module function call in its block replaces, in a
+///     closure or in a promise that can set `R_Visible` off.
 ///
 /// This is a special optimization that's implicitly run after other optimizations, and never
 /// reports changes.
-public record Cleanup(boolean reportChanges) implements AbstractionOptimization {
-  /// Run the [Cleanup] optimization on `module`
+public final class Cleanup extends AbstractionOptimization {
+  private final boolean reportChanges;
+
+  public Cleanup(boolean reportChanges) {
+    this.reportChanges = reportChanges;
+  }
+
+  /// Run the [Cleanup] optimization on every evaluated version in `module`
   public static boolean cleanup(Module module) {
     var changed = false;
     for (var function : module.localFunctions()) {
@@ -64,8 +81,44 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     return changed;
   }
 
-  /// Run the [Cleanup] optimization on `abstraction`
+  /// The text of each version after a [#debugCleanup] of it that changed nothing, and the number
+  /// of changes that optimizations had reported then.
+  private static final Map<Abstraction, Clean> CLEAN =
+      Collections.synchronizedMap(new WeakHashMap<>());
+
+  private static final AtomicLong REPORTED_CHANGES = new AtomicLong();
+
+  private record Clean(String text, long reportedChanges) {}
+
+  /// Counts a change that an optimization reports (see [#debugCleanup]).
+  static void reportChange() {
+    REPORTED_CHANGES.incrementAndGet();
+  }
+
+  /// [#cleanup(Abstraction)], except when the last one of `abstraction` changed nothing, and since
+  /// then no optimization reported a change and its text stayed the same.
+  static void debugCleanup(Abstraction abstraction) {
+    if (!abstraction.isStub() && !abstraction.isEvaluated()) {
+      return;
+    }
+    var reported = REPORTED_CHANGES.get();
+    var text = abstraction.toString();
+    var clean = CLEAN.get(abstraction);
+    if (clean != null && clean.reportedChanges == reported && clean.text.equals(text)) {
+      return;
+    }
+    if (cleanup(abstraction)) {
+      CLEAN.remove(abstraction);
+    } else {
+      CLEAN.put(abstraction, new Clean(text, reported));
+    }
+  }
+
+  /// Run the [Cleanup] optimization on `abstraction`, unless it's unevaluated
   public static boolean cleanup(Abstraction abstraction) {
+    if (!abstraction.isStub() && !abstraction.isEvaluated()) {
+      return false;
+    }
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;
@@ -73,7 +126,10 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
 
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return reportChanges && opt.changed;
@@ -83,6 +139,9 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     final Abstraction scope;
     final InferEffects inferEffects;
     final Substituter substituter;
+    /// Variable loads whose value [#substituteWithOrigins] replaced. Each reads a variable that the
+    /// analysis knows is bound, so it can't raise "object not found".
+    final Set<Statement> resolvedLoads = new LinkedHashSet<>();
     boolean changed = false;
 
     OnAbstraction(Abstraction scope) {
@@ -111,7 +170,7 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     }
 
     void removeUnreachableBlocks(CFG cfg) {
-      var unreachable = new HashSet<>(cfg.bbs());
+      var unreachable = new LinkedHashSet<>(cfg.bbs());
       var worklist = new ArrayList<BB>();
 
       // Start from entry block
@@ -203,9 +262,13 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
       return exits.size() == 1 ? Iterables.getOnlyElement(exits) : null;
     }
 
+    /// Whether `bb` only forwards to its successors, so jumps to it can be redirected to them.
+    /// Its phis must only be used by its own jump, since jumps that bypass it don't define them.
     boolean isTransparentBranchBypass(BB bb) {
       return bb.statements().isEmpty()
-          && (bb.jump().expression() instanceof Goto || bb.jump().expression() instanceof If);
+          && (bb.jump().expression() instanceof Goto || bb.jump().expression() instanceof If)
+          && bb.phiParameters().stream()
+              .allMatch(phi -> phi.uses().stream().allMatch(use -> use.instruction() == bb.jump()));
     }
 
     @Nullable ImmutableList<Target> instantiatedTargets(Target incoming) {
@@ -253,17 +316,27 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
         return argument;
       }
 
+      // A `consume` can only be used once, and the phi may be used more than once, so substitute
+      // the consumed register instead (which keeps each use's `consume`-ness).
       var phiArg = phiArgs.get(phiIndex);
+      if (phiArg instanceof Consume(var consumed)) {
+        if (!canSubstituteConsumed(variable, consumed)) {
+          return null;
+        }
+        phiArg = new Read(consumed);
+      }
       return switch (argument) {
         case Read _ -> phiArg;
-        case Consume _ ->
-            switch (phiArg) {
-              case Read(var register) -> new Consume(register);
-              case Consume _ -> phiArg;
-              case Constant _ -> null;
-            };
+        case Consume _ -> phiArg instanceof Read(var register) ? new Consume(register) : null;
         case Constant _ -> argument;
       };
+    }
+
+    /// Whether `register`, assigned `consume consumed`, can be substituted with `consumed` (each
+    /// use keeping its `consume`-ness), which is when that doesn't change its ownership.
+    boolean canSubstituteConsumed(Register register, Register consumed) {
+      return scope.typeOf(register).ownership() == Ownership.OWNED
+          && scope.typeOf(consumed).ownership() == Ownership.OWNED;
     }
 
     void removeSinglePredecessorPhis(BB bb) {
@@ -303,10 +376,22 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
         return;
       }
 
-      // Substitute each phi parameter with the corresponding argument
-      for (var i = 0; i < phiParams.size(); i++) {
+      // Substitute each phi parameter with the corresponding argument. A `consume` can only be
+      // used once, so the phi is substituted with the consumed register (which keeps each use's
+      // `consume`-ness), or if that would change its ownership, with a register it's moved into.
+      // Iterate backwards so the moves, each prepended, stay in order.
+      for (var i = phiParams.size() - 1; i >= 0; i--) {
         var phi = phiParams.get(i);
         var arg = phiArgs.get(i);
+        if (arg instanceof Consume(var consumed)) {
+          if (canSubstituteConsumed(phi, consumed)) {
+            arg = new Read(consumed);
+          } else {
+            var move = new Statement(new Dup(), List.of(arg));
+            arg = new Read(move.setAssignee(scope.freshName(phi.name()), phi.type()));
+            bb.prependStatement(move);
+          }
+        }
 
         substituter.stage(phi, arg);
       }
@@ -386,16 +471,20 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
 
       for (var entry : originAnalysis.registerOrigins().entrySet()) {
         var register = entry.getKey();
-        var origin = entry.getValue();
+        Argument origin = entry.getValue();
 
         // Can't substitute invalid
         if (!scope.contains(register)) {
           continue;
         }
 
-        // Can't substitute with `consume`, unless there's exactly one other occurrence.
-        if (origin instanceof Consume(var used) && used.useCount() > 2) {
-          continue;
+        // A `consume` can only be used once, so substitute the consumed register instead (which
+        // keeps each use's `consume`-ness), unless that would change the register's ownership.
+        if (origin instanceof Consume(var used)) {
+          if (!canSubstituteConsumed(register, used)) {
+            continue;
+          }
+          origin = new Read(used);
         }
 
         // Can't substitute if origin analysis is too smart, e.g. looks through promises,
@@ -416,6 +505,11 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
         }
 
         substituter.stage(register, origin);
+        if (register instanceof AssigneeOf a
+            && a.statement().expression() instanceof Load(var loadType, _)
+            && (loadType == LoadType.LOCAL_VAR || loadType == LoadType.SUPER_VAR)) {
+          resolvedLoads.add(a.statement());
+        }
         changed = true;
       }
 
@@ -458,12 +552,29 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     }
 
     void removeEffectiveNoOps(CFG cfg) {
+      // A promise's forcer sets `R_Visible` on, so a promise that can't set it off needs no write.
+      var keepsVisibility =
+          !cfg.isPromise()
+              || cfg.bbs().stream()
+                  .flatMap(bb -> bb.statements().stream())
+                  .anyMatch(InferEffects::maySetInvisible);
       for (var bb : cfg.bbs()) {
+        // Only a `return` reads `R_Visible`, so a write is dead if a later one in the block
+        // replaces it.
+        var liveVisibilityWrites = new HashSet<Statement>();
+        var overwritten = !keepsVisibility;
+        for (var stmt : bb.statements().reversed()) {
+          if (!overwritten && InferEffects.writesVisibility(stmt)) {
+            liveVisibilityWrites.add(stmt);
+          }
+          overwritten |= InferEffects.overwritesVisibility(stmt);
+        }
         for (int i = 0; i < bb.statements().size(); ) {
           var stmt = bb.statements().get(i);
           if ((stmt.assignee() != null && stmt.assignee().isUsed())
               || stmt.expression() instanceof Assume
-              || inferEffects.of(stmt) != Effects.NONE) {
+              || liveVisibilityWrites.contains(stmt)
+              || (inferEffects.maySignal(stmt) && !resolvedLoads.contains(stmt))) {
             i++;
             continue;
           }

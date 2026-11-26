@@ -212,4 +212,46 @@ public class RDSReaderTest {
     var sexp = R.eval("compiler::cmpfun(function(x) local(x))");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }
+
+  /// Namespace versions can contain `-`, like nlme's.
+  @Test
+  public void testNamespaceVersionWithHyphen() {
+    var R = GNUR.instance();
+
+    var sexp = R.eval("environment(nlme::lme)");
+    assertThat(sexp).isInstanceOf(NamespaceEnvSXP.class);
+    assertThat(((NamespaceEnvSXP) sexp).version()).contains("-");
+  }
+
+  /// External pointers keep their attributes, e.g. the class of a `DLLInfo`'s `info`.
+  @Test
+  public void testExtptrAttributes() {
+    var R = GNUR.instance();
+
+    var sexp = R.eval("getLoadedDLLs()[['base']][['info']]");
+    assertThat(sexp).isInstanceOf(ExtptrSxp.class);
+    assertEquals(SEXPs.string("DLLInfoReference"), sexp.attributes().get("class"));
+  }
+
+  /// A call's function can be any SEXP, e.g. a closure (as in an S4 generic's `skeleton`).
+  @Test
+  public void testCallOfClosure() {
+    var R = GNUR.instance();
+
+    var sexp = R.eval("as.call(list(function(x) x, 1))");
+    assertThat(sexp).isInstanceOf(LangSXP.class);
+    assertThat(((LangSXP) sexp).fun()).isInstanceOf(CloSXP.class);
+  }
+
+  /// A non-vector S4 object keeps its slots.
+  @Test
+  public void testS4() {
+    var R = GNUR.instance();
+
+    var sexp = R.eval("methods::getClass('numeric')");
+    assertThat(sexp).isInstanceOf(S4SXP.class);
+    assertEquals(
+        SEXPs.string("numeric"),
+        sexp.attributes().get("className").withAttributes(Attributes.NONE));
+  }
 }

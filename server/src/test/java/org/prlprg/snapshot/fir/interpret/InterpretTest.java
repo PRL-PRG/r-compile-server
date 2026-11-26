@@ -1,12 +1,20 @@
 package org.prlprg.snapshot.fir.interpret;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.prlprg.sexp.AllEqual.assertAllEqual;
 
+import java.util.IdentityHashMap;
+import java.util.Map;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.ir.FirQuery;
@@ -34,7 +42,11 @@ class InterpretTest {
 
     switch (evalOutput.result()) {
       case Ok(var evalValue) when interpretOutput.result() instanceof Ok(var interpretValue) ->
-          assertEquals(evalValue, interpretValue, "Return value changed");
+          assertAllEqual(
+              withoutClosureDetails(evalValue, new IdentityHashMap<>()),
+              withoutClosureDetails(interpretValue, new IdentityHashMap<>()),
+              (e, i) -> new Ok(e).withoutCompiledCode().equals(new Ok(i).withoutCompiledCode()),
+              "Return value changed");
       case Ok(var evalValue)
           when interpretOutput.result() instanceof Error(var interpretError, var _) ->
           fail(
@@ -54,6 +66,33 @@ class InterpretTest {
         // Both crashed, the messages will be different
       }
     }
+  }
+
+  /// `sexp` with what differs between closures the interpreter and GNU-R make replaced: the body.
+  ///
+  /// `envs` maps each environment already copied to its copy, because a closure's environment may
+  /// bind the closure itself.
+  private static SEXP withoutClosureDetails(SEXP sexp, Map<EnvSXP, EnvSXP> envs) {
+    return switch (sexp) {
+      case CloSXP c ->
+          SEXPs.closure(
+              c.parameters(),
+              SEXPs.symbol("code"),
+              (EnvSXP) withoutClosureDetails(c.env(), envs),
+              c.attributes());
+      case UserEnvSXP e when envs.containsKey(e) -> envs.get(e);
+      case UserEnvSXP e -> {
+        var copy = new UserEnvSXP();
+        envs.put(e, copy);
+        copy.setParent((EnvSXP) withoutClosureDetails(e.parent(), envs));
+        copy.setAttributes(e.attributes());
+        e.bindings().forEach(b -> copy.set(b.getKey(), withoutClosureDetails(b.getValue(), envs)));
+        yield copy;
+      }
+      case VecSXP v ->
+          SEXPs.vec(v.stream().map(x -> withoutClosureDetails(x, envs)).toList(), v.attributes());
+      default -> sexp;
+    };
   }
 
   /// Call the interpreter many times, check that output is the same.

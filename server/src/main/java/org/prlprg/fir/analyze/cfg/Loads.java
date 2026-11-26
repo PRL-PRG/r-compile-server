@@ -8,10 +8,16 @@ import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -20,17 +26,20 @@ import org.prlprg.sexp.AbstractListSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.StrSXP;
 
-/// Computes a map of [NamedVariable] to the local [Load] statements that load said variable, or to
-/// statements with symbol or language constant arguments that may load said variable when evaluated
-/// (e.g. a GNU-R special evaluates its unevaluated symbol arguments in the caller's environment).
+/// Computes a map of [NamedVariable] to the local [Load] statements that load said variable (a load
+/// of `..N` also loads `...`), to the load assumptions of it, or to statements with symbol or
+// language constant arguments that may
+/// load said variable when evaluated (e.g. a GNU-R special evaluates its unevaluated symbol
+/// arguments in the caller's environment, and a deopt stub promise its expression).
 public final class Loads implements Analysis {
   private final Multimap<NamedVariable, Statement> loads = ArrayListMultimap.create();
 
   @AnalysisConstructor
   public Loads(Abstraction scope) {
-    if (scope.cfg() != null) {
-      run(scope.cfg());
+    if (!scope.isStub()) {
+      run(scope.body());
     }
   }
 
@@ -44,9 +53,26 @@ public final class Loads implements Analysis {
       for (var statement : bb.statements()) {
         switch (statement.expression()) {
           case Load(var loadType, var variable)
-              when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN ->
-              loads.put(variable, statement);
-          case Promise(_, _, var code, _) -> run(code);
+              when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN -> {
+            loads.put(variable, statement);
+            // `..N` reads an element of the `...` binding.
+            if (variable.isDdNum()) {
+              loads.put(NamedVariable.DOTS, statement);
+            }
+          }
+          // The checkpoint loads the variable to check the assumption.
+          case Assume(AssumeLoadFun(var variable, _)) -> loads.put(variable, statement);
+          case Assume(AssumeLoadVar(var variable, _)) -> loads.put(variable, statement);
+          case Promise(_, _, var code, _, var expr) -> {
+            run(code);
+            // A body that only deopts evaluates `expr` in the environment when it's forced.
+            if (expr != null
+                && code.bbs().size() == 1
+                && code.entry().statements().isEmpty()
+                && code.entry().jump().expression() instanceof Deopt) {
+              addSymbolLoads(expr, statement);
+            }
+          }
           default -> {}
         }
 
@@ -54,9 +80,16 @@ public final class Loads implements Analysis {
         // (e.g. a GNU-R special evaluates its unevaluated arguments in the caller's environment),
         // so it may load every named variable it mentions.
         if (!(statement.expression() instanceof Promise)) {
+          // A `@readsPromise` builtin (`missing`) reads a one-element string as a symbol.
+          var readsStrings =
+              statement.expression() instanceof Call(StaticFnCallee(var fn, _, _))
+                  && fn.get().userProperties().readsPromise();
           for (var argument : statement.args()) {
             if (argument instanceof Constant(Value.Sexp(var sexp))) {
               addSymbolLoads(sexp, statement);
+              if (readsStrings && sexp instanceof StrSXP string && string.size() == 1) {
+                loads.put(Variable.named(string.get(0)), statement);
+              }
             }
           }
         }

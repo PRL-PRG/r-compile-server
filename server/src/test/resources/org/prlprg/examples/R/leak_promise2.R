@@ -8,5 +8,4 @@ for (i in 1:11) {
 }
 
 h <- g(12)  # `x <- i` is leaked, `x` is still 0
-h()  # x <- i` is forced, `x` would now be 12,
-     # except the FIR program will crash because it speculated `x <- i` is local
+h()  # `x <- i` is forced in `g`'s frame, the global `x` is still 0

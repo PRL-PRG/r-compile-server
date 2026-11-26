@@ -43,7 +43,12 @@ public final class FirLexer extends LexerBase {
           "force",
           "dup",
           "as",
-          "consume");
+          "consume",
+          "in");
+
+  /** Keywords without an operand. Any other keyword before `;`, `,`, `)` or `]` is a register. */
+  private static final Set<String> NULLARY_KEYWORDS =
+      Set.of("noop", "mkenv", "popenv", "unreachable");
 
   /**
    * Keywords that contain non-identifier characters, so they must be matched before identifiers
@@ -51,8 +56,6 @@ public final class FirLexer extends LexerBase {
    */
   private static final List<String> COMPOUND_KEYWORDS =
       List.of(
-          "@liteSpecial",
-          "@strict",
           "clos-static",
           "ldf-glob",
           "ldf-base",
@@ -63,20 +66,58 @@ public final class FirLexer extends LexerBase {
           "force?",
           "prom-");
 
+  /** Function and version properties. Only whitespace precedes them on their line. */
+  private static final List<String> PROPERTIES =
+      List.of(
+          "@strict",
+          "@liteSpecial",
+          "@readsContext",
+          "@needsContext",
+          "@readsPromise",
+          "@needsPromises",
+          "@signals");
+
   /** Constant literals that are identifiers. */
   private static final Set<String> CONSTANTS =
       Set.of("TRUE", "FALSE", "TRUE_LGL", "FALSE_LGL", "NA_LGL", "NA_INT", "NA_REAL", "NA_STR");
 
   /** Type kinds that are always types. */
-  private static final Set<String> TYPE_NAMES = Set.of("I", "L", "R", "S", "V", "B", "cls", "miss");
+  private static final Set<String> TYPE_NAMES =
+      Set.of("I", "L", "R", "S", "V", "B", "cls", "miss", "dots");
 
   /**
    * Names that are types (or vector constructors) only when applied: {@code v(I)}, {@code v1(I)},
-   * {@code p(V +)}, {@code p?(V +)}, {@code dots[...]}. Otherwise they're ordinary register names.
+   * {@code p(V +)}, {@code p?(V +)}. Otherwise they're ordinary register names.
    */
-  private static final Set<String> APPLIED_TYPE_NAMES = Set.of("v", "v1", "p", "dots");
+  private static final Set<String> APPLIED_TYPE_NAMES = Set.of("v", "v1", "p");
+
+  /** The ownerships of a vector type, directly after its `)`: {@code v(I)o}. */
+  private static final Set<String> OWNERSHIPS = Set.of("s", "o", "b", "f");
+
+  // The state is the context of the current token on its line; 0 is a line start. Its low bits
+  // (`PREV`) say what the previous significant token on the line means for the next word. A word
+  // after `fun`, `clos`, `ld`, `$`, `dyn`, ... is a name, whatever its spelling (the printer
+  // doesn't backquote `ld check`).
+  static final int NONE = 0;
+  static final int FUN = 1;
+  static final int FUNREF = 2;
+  static final int VAR = 3;
+  static final int DYN = 4;
+  static final int DYN_CALLEE = 5;
+  static final int DOTS = 6;
+  static final int ENV = 7;
+  static final int PREV = 7;
+  /** A token other than whitespace precedes this one on its line. */
+  static final int MID_LINE = 8;
+  /** The line starts with `fun`. */
+  static final int FUN_LINE = 16;
+  /** Inside the names of {@code dyn f[x, y]}. */
+  static final int ARGS_DYN = 32;
+  /** Inside the elements of {@code dots[x = a]}. */
+  static final int ARGS_DOTS = 64;
 
   private @NotNull CharSequence buffer = "";
+  private int state;
   private int endOffset;
   private int tokenStart;
   private int tokenEnd;
@@ -92,12 +133,13 @@ public final class FirLexer extends LexerBase {
     this.tokenStart = startOffset;
     this.tokenEnd = startOffset;
     this.tokenType = null;
+    this.state = initialState;
     locateToken();
   }
 
   @Override
   public int getState() {
-    return 0;
+    return state;
   }
 
   @Override
@@ -117,8 +159,48 @@ public final class FirLexer extends LexerBase {
 
   @Override
   public void advance() {
+    state = stateAfterToken();
     position = tokenEnd;
     locateToken();
+  }
+
+  private int stateAfterToken() {
+    if (tokenType == TokenType.WHITE_SPACE) {
+      for (var i = tokenStart; i < tokenEnd; i++) {
+        if (buffer.charAt(i) == '\n') return 0;
+      }
+      return (state & PREV) == ENV ? state & ~PREV : state;
+    }
+    // Only short tokens matter, so don't copy a long one (a SEXP literal).
+    var text =
+        tokenEnd - tokenStart <= 11 ? buffer.subSequence(tokenStart, tokenEnd).toString() : "";
+    var prev = state & PREV;
+    var args = state & (ARGS_DYN | ARGS_DOTS);
+    var isFun = tokenType == FirTokenTypes.KEYWORD && text.equals("fun");
+    var funLine = (state & MID_LINE) == 0 ? (isFun ? FUN_LINE : 0) : state & FUN_LINE;
+    var next = NONE;
+    if (tokenType == FirTokenTypes.KEYWORD || tokenType == FirTokenTypes.OPERATOR) {
+      next =
+          switch (text) {
+            case "fun" -> FUN;
+            case "clos", "clos-static", "?-" -> FUNREF;
+            case "ld", "ld-super", "ldf", "ldf-glob", "ldf-base", "st", "st-super", "$" -> VAR;
+            case "dyn" -> DYN;
+            case "@" -> ENV;
+            default -> NONE;
+          };
+    } else if (tokenType == FirTokenTypes.TYPE && text.equals("dots")) {
+      next = DOTS;
+    } else if (prev == DYN
+        && (tokenType == FirTokenTypes.IDENTIFIER
+            || tokenType == FirTokenTypes.BACKTICK_IDENTIFIER)) {
+      next = DYN_CALLEE;
+    } else if (text.equals("[")) {
+      args = prev == DYN_CALLEE ? ARGS_DYN : prev == DOTS ? ARGS_DOTS : args;
+    } else if (text.equals("]")) {
+      args = 0;
+    }
+    return next | MID_LINE | funLine | args;
   }
 
   @Override
@@ -160,6 +242,19 @@ public final class FirLexer extends LexerBase {
       tokenEnd = position;
       tokenType = FirTokenTypes.COMMENT;
       return;
+    }
+
+    if (startsWith("@!")) {
+      tokenEnd = position + 2;
+      tokenType = FirTokenTypes.PROPERTY;
+      return;
+    }
+    for (var property : PROPERTIES) {
+      if (startsWith(property) && isBoundaryAfter(property) && (state & MID_LINE) == 0) {
+        tokenEnd = position + property.length();
+        tokenType = FirTokenTypes.PROPERTY;
+        return;
+      }
     }
 
     for (var keyword : COMPOUND_KEYWORDS) {
@@ -261,26 +356,17 @@ public final class FirLexer extends LexerBase {
     return index >= endOffset || !isIdentifierPart(buffer.charAt(index));
   }
 
+  /**
+   * Reads a string or backtick name. It ends before a raw newline: the printer escapes newlines,
+   * so a raw one means the quote isn't closed.
+   */
   private void readQuoted(char quote) {
     position++;
-    var escaped = false;
-    while (position < endOffset) {
+    while (position < endOffset && buffer.charAt(position) != '\n') {
       var c = buffer.charAt(position);
-      if (escaped) {
-        escaped = false;
-        position++;
-        continue;
-      }
-      if (c == '\\') {
-        escaped = true;
-        position++;
-        continue;
-      }
-      if (c == quote) {
-        position++;
-        break;
-      }
-      position++;
+      var escapes = c == '\\' && position + 1 < endOffset && buffer.charAt(position + 1) != '\n';
+      position += escapes ? 2 : 1;
+      if (c == quote) break;
     }
     tokenEnd = position;
   }
@@ -314,13 +400,16 @@ public final class FirLexer extends LexerBase {
   /**
    * Reads a `<...>` SEXP literal as one token. The contents are R-ish syntax, so nested `<...>`,
    * quoted strings, and backtick names (which may be `>` themselves) are skipped over rather than
-   * interpreted; the token ends at the matching `>` or the end of the line.
+   * interpreted. The token ends at the matching `>`. So that an unclosed literal doesn't swallow
+   * the rest of the file, it also ends at a newline outside R braces (the printer breaks lines
+   * only in a `{` block), unless an attribute line (`| names=...` or `, dim=...`) follows.
    */
   private void readSexpLiteral() {
-    var depth = 0;
+    var angles = 0;
+    var braces = 0;
     while (position < endOffset) {
       var c = buffer.charAt(position);
-      if (c == '\n') {
+      if (c == '\n' && braces <= 0 && !sexpContinuesAt(position)) {
         break;
       }
       if (c == '"' || c == '`') {
@@ -328,16 +417,26 @@ public final class FirLexer extends LexerBase {
         continue;
       }
       position++;
-      if (c == '<') {
-        depth++;
-      } else if (c == '>') {
-        depth--;
-        if (depth == 0) {
-          break;
+      switch (c) {
+        case '<' -> angles++;
+        case '>' -> {
+          if (--angles == 0) {
+            tokenEnd = position;
+            return;
+          }
         }
+        case '{' -> braces++;
+        case '}' -> braces--;
+        default -> {}
       }
     }
     tokenEnd = position;
+  }
+
+  private boolean sexpContinuesAt(int newline) {
+    var next = newline;
+    while (next < endOffset && Character.isWhitespace(buffer.charAt(next))) next++;
+    return next < endOffset && (buffer.charAt(next) == '|' || buffer.charAt(next) == ',');
   }
 
   private boolean isNumberStart(char c) {
@@ -386,7 +485,7 @@ public final class FirLexer extends LexerBase {
     return Character.isLetter(c) || c == '_';
   }
 
-  private static boolean isIdentifierPart(char c) {
+  static boolean isIdentifierPart(char c) {
     return Character.isLetterOrDigit(c) || c == '_';
   }
 
@@ -398,16 +497,35 @@ public final class FirLexer extends LexerBase {
     tokenEnd = position;
 
     var text = buffer.subSequence(tokenStart, tokenEnd).toString();
-    if (KEYWORDS.contains(text)) {
+    var prev = state & PREV;
+    if ((prev >= FUN && prev <= DYN)
+        || isDefinedAt(tokenEnd)
+        || (KEYWORDS.contains(text) && !NULLARY_KEYWORDS.contains(text) && isOperandAt(tokenEnd))) {
+      tokenType = FirTokenTypes.IDENTIFIER;
+    } else if (KEYWORDS.contains(text)) {
       tokenType = FirTokenTypes.KEYWORD;
     } else if (CONSTANTS.contains(text)) {
       tokenType = FirTokenTypes.CONSTANT;
     } else if (TYPE_NAMES.contains(text)
-        || (APPLIED_TYPE_NAMES.contains(text) && isApplied(tokenEnd))) {
+        || (APPLIED_TYPE_NAMES.contains(text) && isApplied(tokenEnd))
+        || (OWNERSHIPS.contains(text) && tokenStart > 0 && buffer.charAt(tokenStart - 1) == ')')) {
       tokenType = FirTokenTypes.TYPE;
     } else {
       tokenType = FirTokenTypes.IDENTIFIER;
     }
+  }
+
+  /** Whether a word that ends at {@code index} is defined there (a `:` follows: `dots: dots`). */
+  private boolean isDefinedAt(int index) {
+    return index < endOffset && buffer.charAt(index) == ':';
+  }
+
+  /** Whether a word that ends at {@code index} is an operand (`;`, `,`, `)` or `]` follows). */
+  private boolean isOperandAt(int index) {
+    while (index < endOffset && (buffer.charAt(index) == ' ' || buffer.charAt(index) == '\t')) {
+      index++;
+    }
+    return index < endOffset && ";,)]".indexOf(buffer.charAt(index)) >= 0;
   }
 
   /** Whether the text at {@code index} is `(`, `?(`, or `[` (ignoring nothing: no spaces). */

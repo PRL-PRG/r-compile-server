@@ -1,0 +1,90 @@
+example	removed	callees
+bench_ati_att1_2	2	unbox x2
+bench_ati_att1_5	1	unbox x1
+bench_ati_att3_4	2	unbox x2
+bench_ati_att3_5	12	unbox x12
+bench_awf_bounce	6	unbox x6
+bench_awf_bounce_nonames	17	unbox x17
+bench_awf_bounce_nonames_simple	17	unbox x17
+bench_awf_mandelbrot	42	unbox x40, box x2
+bench_awf_storage	4	unbox x4
+bench_mathkernel_double_na_vec_add_t1	5	`-` x4, unbox x1
+bench_mathkernel_double_na_vec_add_t2	1	unbox x1
+bench_mathkernel_double_vec_add_t1	4	`-` x4
+bench_mathkernel_int_na_vec_add_t1	3	`-` x2, unbox x1
+bench_mathkernel_int_na_vec_add_t2	1	unbox x1
+bench_mathkernel_int_vec_add_t1	2	`-` x2
+bench_mathkernel_mmm_t1	4	unbox x4
+bench_mathkernel_mmm_t2	2	unbox x2
+bench_misc_ica_lapply	1	unbox x1
+bench_misc_k_means	1	unbox x1
+bench_misc_k_means_1d	1	unbox x1
+bench_misc_k_means_1d_lapply	3	unbox x3
+bench_misc_k_means_1d_vec	3	unbox x3
+bench_misc_k_means_lapply	2	unbox x2
+bench_misc_k_means_vec	3	unbox x3
+bench_misc_k_nn	1	unbox x1
+bench_misc_k_nn_lapply	1	unbox x1
+bench_misc_logit_regre2_lapply	2	unbox x2
+bench_misc_logit_regre_1var_lapply	2	`-` x1, unbox x1
+bench_misc_logit_regre_lapply	2	unbox x2
+bench_misc_lr	1	unbox x1
+bench_misc_lr_1var_lms_lapply	1	`-` x1
+bench_misc_lr_1var_lms_vec	1	`-` x1
+bench_misc_lr_1var_ols_lapply	1	`-` x1
+bench_misc_lr_ols_lapply	1	unbox x1
+bench_misc_nn	1	unbox x1
+bench_misc_nn_lapply	1	unbox x1
+bench_misc_pca_lapply	1	unbox x1
+bench_misc_pi_lapply	2	unbox x2
+bench_misc_rw2d1	6	unbox x6
+bench_real_convolution	3	`-` x1, `+` x1, unbox x1
+bench_real_convolution_slow	1	unbox x1
+bench_real_flexclust	3	unbox x3
+bench_real_flexclust_no_s4	1	unbox x1
+bench_real_volcano	27	unbox x27
+bench_riposte_filter1d	4	unbox x2, length x2
+bench_riposte_kmeans	2	unbox x2
+bench_riposte_mandelbrot	3	`*` x2, unbox x1
+bench_riposte_pca	10	unbox x10
+bench_riposte_pca_blocked	13	unbox x13
+bench_riposte_raysphere	2	`-` x1, unbox x1
+bench_scalar_crt	4	unbox x4
+bench_scalar_fib	4	unbox x4
+bench_scalar_prime	4	unbox x4
+bench_shootout_binarytrees	1	unbox x1
+bench_shootout_binarytrees_2	23	unbox x8, `*` x5, `-` x5, box x5
+bench_shootout_binarytrees_naive	26	unbox x11, `*` x5, `-` x5, box x5
+bench_shootout_fannkuch_redux	49	unbox x42, `+` x4, `-` x3
+bench_shootout_fannkuchredux	5	unbox x5
+bench_shootout_fannkuchredux_naive	10	unbox x10
+bench_shootout_fasta_c	3	unbox x3
+bench_shootout_fasta_naive	1	unbox x1
+bench_shootout_fasta_naive_2	1	unbox x1
+bench_shootout_fastaredux	1	unbox x1
+bench_shootout_fastaredux_naive	3	unbox x3
+bench_shootout_knucleotide	4	unbox x4
+bench_shootout_knucleotide_brute	4	unbox x4
+bench_shootout_knucleotide_brute_2	8	unbox x8
+bench_shootout_knucleotide_brute_3	8	unbox x8
+bench_shootout_mandelbrot_ascii	1	unbox x1
+bench_shootout_mandelbrot_naive_ascii	1	unbox x1
+bench_shootout_mandelbrot_noout	1	unbox x1
+bench_shootout_mandelbrot_noout_naive	5	unbox x5
+bench_shootout_mandelbrot_orbit	2	unbox x2
+bench_shootout_nbody_2	5	unbox x5
+bench_shootout_nbody_3	5	unbox x5
+bench_shootout_nbody_naive	9	unbox x9
+bench_shootout_nbody_naive_2	11	unbox x11
+bench_shootout_nbody_orbit	70	unbox x40, box x24, `+` x6
+bench_shootout_nbody_vectorized	52	box x24, unbox x22, `+` x6
+bench_shootout_pidigits	28	unbox x28
+bench_shootout_pidigits_orbit	48	unbox x48
+bench_shootout_regexdna	1	unbox x1
+bench_shootout_spectral_norm	18	unbox x14, `+` x3, box x1
+bench_shootout_spectral_norm_vectorized	7	unbox x7
+bench_shootout_spectralnorm	7	unbox x6, `+` x1
+bench_shootout_spectralnorm_alt_2	6	`as.logical` x2, length x2, box x2
+bench_shootout_spectralnorm_alt_3	6	unbox x6
+bench_shootout_spectralnorm_alt_4	5	unbox x4, `+` x1
+bench_shootout_spectralnorm_naive	14	unbox x6, `+` x6, `-` x2

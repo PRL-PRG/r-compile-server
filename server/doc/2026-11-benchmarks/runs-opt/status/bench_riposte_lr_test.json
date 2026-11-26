@@ -1,0 +1,14 @@
+{
+ "example": "bench_riposte_lr_test",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 113,
+ "load_start": 1.39,
+ "load_end": 1.81,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {},
+ "no_time": {}
+}

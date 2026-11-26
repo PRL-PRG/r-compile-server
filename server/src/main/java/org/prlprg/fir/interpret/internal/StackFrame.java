@@ -38,6 +38,8 @@ final class StackFrame {
   /// InternalInterpreter#call][InternalInterpreter]) they can all be marked
   /// [escaped][PromiseCode#escaped].
   private final List<PromiseCode> createdPromises = new ArrayList<>();
+  /// What [InternalInterpreter#onExit(Runnable)] registered.
+  private final List<Runnable> onExit = new ArrayList<>();
   /// Shared with [InternalInterpreter]: maps user-created environments to the `mkenv` statement
   /// that created them. [#mkEnv()] adds to it; [#put(NamedVariable, Value)] reads it to reject
   /// stores to elided environments.
@@ -46,15 +48,33 @@ final class StackFrame {
   private int numEnvsPushed = 0;
   /// Whether this frame has [deopt-restored][#markDeoptRestored()].
   private boolean deoptRestored = false;
+  /// The environment of the closure being called, i.e. [#environment] before any `mkenv`.
+  private final EnvSXP closureEnv;
+  /// Whether this frame runs a version's [fallback][Abstraction#fallback()] instead of its body.
+  private final boolean isFallback;
 
-  StackFrame(Function function, EnvSXP parentEnv, Map<EnvSXP, Statement> userEnvPositions) {
+  StackFrame(
+      Function function,
+      EnvSXP parentEnv,
+      Map<EnvSXP, Statement> userEnvPositions,
+      boolean isFallback) {
     this.function = function;
     environment = parentEnv;
+    closureEnv = parentEnv;
     this.userEnvPositions = userEnvPositions;
+    this.isFallback = isFallback;
   }
 
   Function function() {
     return function;
+  }
+
+  EnvSXP closureEnv() {
+    return closureEnv;
+  }
+
+  boolean isFallback() {
+    return isFallback;
   }
 
   @UnmodifiableView
@@ -72,7 +92,9 @@ final class StackFrame {
   /// Enters a sub-frame for `position`'s [`CFG`][org.prlprg.fir.ir.cfg.CFG].
   public void enter(CFGCursor position, ModuleFeedback feedback) {
     var scope = position.cfg().scope();
-    var scopeFeedback = feedback.get(scope);
+    // A fallback's registers and statements are gone once the body is evaluated, so what's
+    // recorded about them would refer to nothing.
+    var scopeFeedback = isFallback ? AbstractionFeedback.discarded(feedback) : feedback.get(scope);
     subFrames.add(new SubFrame(position, scopeFeedback));
   }
 
@@ -167,6 +189,15 @@ final class StackFrame {
       promise.escaped = true;
     }
     createdPromises.clear();
+  }
+
+  void addOnExit(Runnable action) {
+    onExit.add(action);
+  }
+
+  void runOnExit() {
+    onExit.forEach(Runnable::run);
+    onExit.clear();
   }
 
   public void mkEnv() {

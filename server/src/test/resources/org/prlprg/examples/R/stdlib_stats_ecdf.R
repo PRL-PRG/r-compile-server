@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `ecdf` <- function (x) 
 {
     x <- sort(x)

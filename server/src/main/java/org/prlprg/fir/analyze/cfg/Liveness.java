@@ -102,6 +102,28 @@ public final class Liveness implements CfgAnalysis {
     return Collections.unmodifiableSet(Objects.requireNonNull(liveOut.get(bb)));
   }
 
+  /// Get the registers live right after `statement`: used by a later instruction of its block, or
+  /// live out of the block. This includes `statement`'s assignee if it's used.
+  public @Unmodifiable Set<Register> liveAfter(Statement statement) {
+    var bb = statement.parentBB();
+    if (bb == null || bb.owner() != cfg) {
+      throw new IllegalArgumentException("Statement not in CFG");
+    }
+
+    var live = successorLiveIn(bb);
+    live.addAll(uses(bb.jump()));
+    for (var stmt : bb.statements().reversed()) {
+      if (stmt == statement) {
+        return Collections.unmodifiableSet(live);
+      }
+      if (stmt.assignee() != null) {
+        live.remove(stmt.assignee());
+      }
+      live.addAll(uses(stmt));
+    }
+    throw new IllegalArgumentException("Statement not in its parent BB");
+  }
+
   private void run() {
     // Phase 1: Fixed-point iteration for block-level liveness
     computeBlockLiveness();

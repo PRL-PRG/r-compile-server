@@ -23,11 +23,34 @@ public class CUnit {
   }
 
   public void addGlobalVariable(String type, String name) {
-    globalVariables.add(new CGlobalVariable(type, name));
+    globalVariables.add(new CGlobalVariable(type, name, null));
+  }
+
+  /// A global variable initialized with the C expression `initializer`.
+  public void addGlobalVariable(String type, String name, String initializer) {
+    globalVariables.add(new CGlobalVariable(type, name, initializer));
   }
 
   public void addExternFunction(String returnType, String name, List<String> parameters) {
     externFunctions.add(new CExternFunction(returnType, name, parameters));
+  }
+
+  /// A global variable holding a pointer to a function with the given signature, initially
+  /// `NULL`: `returnType (*name)(parameters);`.
+  public void addGlobalFunctionPointer(String returnType, String name, List<String> parameters) {
+    globalVariables.add(
+        new CGlobalVariable(returnType, functionPointerDeclarator(name, parameters), null));
+  }
+
+  /// `extern` declaration of [#addGlobalFunctionPointer(String, String, List)].
+  public void addExternGlobalFunctionPointer(
+      String returnType, String name, List<String> parameters) {
+    externGlobalVariables.add(
+        new CExternGlobalVariable(returnType, functionPointerDeclarator(name, parameters)));
+  }
+
+  private static String functionPointerDeclarator(String name, List<String> parameters) {
+    return "(*" + name + ")(" + String.join(", ", parameters) + ")";
   }
 
   public CFunction addFunction(String returnType, String name, List<String> parameters) {

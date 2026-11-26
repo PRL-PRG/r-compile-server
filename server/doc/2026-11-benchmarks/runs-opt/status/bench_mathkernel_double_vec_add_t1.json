@@ -1,0 +1,19 @@
+{
+ "example": "bench_mathkernel_double_vec_add_t1",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 2506,
+ "load_start": 1.5,
+ "load_end": 1.79,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {},
+ "no_time": {
+  "elideTrivialAssume": "R REPL timed out after 600 s",
+  "specializeSubscript": "R REPL timed out after 600 s",
+  "unbox": "R REPL timed out after 600 s",
+  "elideUnusedCheckpoints": "R REPL timed out after 600 s"
+ }
+}

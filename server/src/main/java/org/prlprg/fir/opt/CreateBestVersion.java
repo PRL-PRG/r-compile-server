@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
-
 import com.google.common.collect.ImmutableList;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -11,15 +9,26 @@ import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.util.Lists;
+import org.prlprg.util.Streams;
 
 /// If there's a call whose best guaranteed version
 /// ([Function#guess(org.prlprg.fir.ir.type.Signature)]) does not exactly match its arguments'
 /// static types, copy that version into a new one and narrow the parameter types to match
-public record CreateBestVersion(int versionLimit) implements AbstractionOptimization {
+public final class CreateBestVersion extends AbstractionOptimization {
+  private final int versionLimit;
+
+  public CreateBestVersion(int versionLimit) {
+    this.versionLimit = versionLimit;
+  }
+
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction version) {
     var callStatements =
         version
             .streamCfgs()
@@ -28,11 +37,12 @@ public record CreateBestVersion(int versionLimit) implements AbstractionOptimiza
             .filter(s -> s.expression() instanceof Call)
             .toList();
     boolean[] changed = {false};
-    callStatements.forEach(stmt -> changed[0] |= run(feedback, version, stmt));
+    callStatements.forEach(stmt -> changed[0] |= run(topLevel, feedback, version, stmt));
     return changed[0];
   }
 
-  private boolean run(AbstractionFeedback feedback, Abstraction scope, Statement statement) {
+  private boolean run(
+      Optimization topLevel, AbstractionFeedback feedback, Abstraction scope, Statement statement) {
     if (!(statement.expression() instanceof Call call)
         || !(call.callee() instanceof StaticFnCallee callee)) {
       // We can't optimize dynamic calls
@@ -50,9 +60,17 @@ public record CreateBestVersion(int versionLimit) implements AbstractionOptimiza
       // Invalid, null type
       return false;
     }
+    // A read of an owned register only lends it, so it can only be passed as borrowed.
     var argumentTypes =
         ImmutableList.copyOf(
-            Lists.mapStrict(callArguments, a -> Objects.requireNonNull(scope.typeOf(a))));
+            Lists.mapStrict(
+                callArguments,
+                a -> {
+                  var type = Objects.requireNonNull(scope.typeOf(a));
+                  return type.ownership() == Ownership.OWNED
+                      ? type.withOwnership(Ownership.BORROWED)
+                      : type;
+                }));
 
     var bestSignature = OptimizeCallee.bestSignature(callee, argumentTypes);
     var bestVersion = calleeFun.guess(bestSignature);
@@ -60,13 +78,24 @@ public record CreateBestVersion(int versionLimit) implements AbstractionOptimiza
       // Invalid, there should always be a possible version
       return false;
     }
-    if (bestVersion.isStub() || bestVersion.signature().parameterTypes().equals(argumentTypes)) {
+    // A parameter can't be fresh, so a fresh argument's parameter keeps its ownership. Making it
+    // owned is `CreateOwnedParameterVersion`'s job.
+    var parameterTypes =
+        Streams.zip(
+                argumentTypes.stream(),
+                bestVersion.signature().parameterTypes().stream(),
+                (argumentType, parameterType) ->
+                    argumentType.ownership() == Ownership.FRESH
+                        ? argumentType.withOwnership(parameterType.ownership())
+                        : argumentType)
+            .collect(ImmutableList.toImmutableList());
+    if (bestVersion.isStub() || bestVersion.signature().parameterTypes().equals(parameterTypes)) {
       // Stub or already best parameter types = we can't further optimize the version
       return false;
     }
 
     // Create a new version with the exact parameter types
-    copy(feedback.module(), calleeFun, bestVersion, argumentTypes);
+    LazyCopy.create(topLevel, this, feedback.module(), calleeFun, bestVersion, parameterTypes);
     return true;
   }
 }

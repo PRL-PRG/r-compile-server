@@ -1,15 +1,131 @@
 package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
+import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.check.Checker;
+import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXPs;
 
 class SchedulePureTest implements AbstractionOptimizationUnitTest {
   @Override
   public AbstractionOptimization optimization() {
     return new SchedulePure();
+  }
+
+  /// The backends create a promise that wraps a value already evaluated, so its body must stay
+  /// `return <register>`: the box moves to the promise, not into it.
+  @Test
+  void boxIsntMovedIntoAWrappedValuePromise() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              st q = n;
+              p: p(v1(R) -) = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              return n;
+            }
+            """);
+
+    assertTrue(run(abstraction), "box should move to just before the promise");
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "st q = n;", "nb: v1(R) = box< R --> v1(R) >(n);");
+    assertOrder(printed, "nb: v1(R) = box< R --> v1(R) >(n);", "p: p(v1(R) -) = prom<v1(R) ->{");
+    assertOrder(printed, "p: p(v1(R) -) = prom<v1(R) ->{", "return nb;");
+    assertTrue(printed.contains("prom<v1(R) ->{\n    return nb;"), printed);
+  }
+
+  @Test
+  void unboxIsntHoistedIntoACheckpointsAssumptions() {
+    // `y` is hoisted to right after `x1`, which would put it between the checkpoint's assumptions
+    // -- and an assumption after another statement is never checked.
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*) -+> I {
+              mkenv;
+              check L1() else D0();
+            L1():
+              x1: v1(I) = x ?: v1(I);
+              x2: v1(I) = x ?: v1(I);
+              y: I = unbox< v1(I) --> I >(x1);
+              y2: I = unbox< v1(I) --> I >(x2);
+              s: I = `+`< I,I --> I >(y, y2);
+              popenv;
+              return s;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+    assertFalse(run(abstraction), "unboxes hoisted past the same assumptions should be stable");
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "x2: v1(I) = x ?: v1(I);", "y: I = unbox< v1(I) --> I >(x1);");
+    assertOrder(printed, "x2: v1(I) = x ?: v1(I);", "y2: I = unbox< v1(I) --> I >(x2);");
+  }
+
+  @Test
+  void boxIsntDeferredInFrontOfACheckpointsAssumptions() {
+    // The first use after the assumptions is the deferral target; a `box` in front of the
+    // assumptions would make them not leading, so the checkpoint would never check them.
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*, n:I) -+> v1(I) {
+              boxed: v1(I) = box< I --> v1(I) >(n);
+              check L1() else D0();
+            L1():
+              x1: v1(I) = x ?: v1(I);
+              return boxed;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "x ?: v1(I);", "boxed: v1(I) = box< I --> v1(I) >(n);");
+  }
+
+  @Test
+  void boxUsedByAnAssumptionStaysBeforeTheCheckpoint() {
+    // Its only use is an assumption, and no place in the success block is both before that use and
+    // after the leading assumptions.
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*, n:I) -+> I {
+              boxed: v1(I) = box< I --> v1(I) >(n);
+              check L1() else D0();
+            L1():
+              x ?: v1(I);
+              boxed ?= <int 5>;
+              return n;
+            D0():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "boxed: v1(I) = box< I --> v1(I) >(n);", "check L1() else D0();");
   }
 
   @Test
@@ -45,7 +161,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
             """
             (x:I) -~> p(v1(I) -) {
               boxed: v1(I) = box< I --> v1(I) >(x);
-              p: p(v1(I) -) = prom<v1(I) ->{
+              p: p(v1(I) -) = prom<v1(I) ->[<sym x>]{
                 return boxed;
               };
               return p;
@@ -55,7 +171,7 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "box should be deferred into the promise");
 
     var printed = Printer.toString(abstraction);
-    assertOrder(printed, "prom<v1(I) ->{", "boxed: v1(I) = box< I --> v1(I) >(x);");
+    assertOrder(printed, "prom<v1(I) ->[<sym x>]{", "boxed: v1(I) = box< I --> v1(I) >(x);");
     assertOrder(printed, "boxed: v1(I) = box< I --> v1(I) >(x);", "return boxed;");
   }
 
@@ -280,6 +396,248 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
         deopt.matches("(?s).*deopt 0 \\[boxed\\d+];.*"),
         "the deopt argument should name that copy, not the original:\n" + printed);
   }
+
+  @Test
+  void valuePromiseUsedOnlyInDeoptBranches_isCopiedIntoEach() {
+    var module = ParseUtil.parseModule(DEOPT_ONLY_PROMISE);
+
+    assertTrue(run(module), Printer.toString(module));
+    assertFalse(run(module), "a second run should change nothing:\n" + module);
+
+    var full = Printer.toString(module);
+    var printed = full.substring(full.indexOf("(n:v1(I))"));
+    assertTrue(Checker.checkAll(module), "should type-check:\n" + printed);
+    // Each deopt branch has a promise, under its own names.
+    for (var pattern : List.of("(\\w+): p\\(v1\\(I\\) -\\) = prom-", "(\\w+): v1\\(I\\) = box")) {
+      var names = Pattern.compile(pattern).matcher(printed).results().map(m -> m.group(1)).toList();
+      assertEquals(2, Set.copyOf(names).size(), pattern + " in:\n" + printed);
+    }
+    assertOrder(printed, "D():", "st x = p");
+    assertFalse(
+        printed.substring(0, printed.indexOf("check")).contains("prom-"),
+        "the entry has no promise:\n" + printed);
+  }
+
+  @Test
+  void valuePromiseUsedOnTheMainPath_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (i:I) --> p(v1(I) -) {
+              p: p(v1(I) -) = prom-<v1(I) ->{
+                pb: v1(I) = box< I --> v1(I) >(i);
+                return pb;
+              };
+              mkenv;
+              check B() else D();
+            B():
+              popenv;
+              return p;
+            D():
+              st x = p;
+              deopt 0 [];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  @Test
+  void promiseThatLoads_isLeftAlone() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            () --> I {
+              mkenv;
+              p: p(V -) = prom<V ->{
+                r: V = ld y;
+                return r;
+              };
+              check B() else D();
+            B():
+              popenv;
+              return 0;
+            D():
+              st x = p;
+              deopt 0 [];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// The two uses are in incomparable branches, so without the loop limit the `box` is copied
+  /// into the deopt branch and into the loop body.
+  @Test
+  void boxIsNotDeferredIntoALoop() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:I, c:B) --> I {
+              boxed: v1(I) = box< I --> v1(I) >(x);
+              check H() else D();
+            H():
+              if c then Body() else Exit();
+            Body():
+              u: V = `==`< v1(I),v1(I) -+> V >(boxed, boxed);
+              goto H();
+            Exit():
+              return x;
+            D():
+              deopt 0 [boxed];
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// The version deopts when `n` is at least 3; the baseline then forces the promise the deopt
+  /// branch stored. The result and the checkpoint snapshots are the same before and after.
+  @Test
+  void valuePromiseInDeoptBranch_keepsTheDeoptState() {
+    for (var n : new int[] {1, 5}) {
+      var argument = new Value.Sexp(SEXPs.integer(n));
+      var module = ParseUtil.parseModule(DEOPT_ONLY_PROMISE);
+      var interpreter = new InternalInterpreter(module);
+      registerBuiltins(interpreter);
+      var before = new Value[1];
+      var after = new Value[1];
+      var beforeTrace =
+          interpreter.checkpointTrace().track(() -> before[0] = interpreter.call("f", argument));
+      assertTrue(run(module));
+      var afterTrace =
+          interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("f", argument));
+
+      var printed = Printer.toString(module);
+      assertEquals(argument, after[0], printed);
+      assertEquals(before[0], after[0], printed);
+      assertEquals(beforeTrace, afterTrace, printed);
+      assertFalse(afterTrace.isEmpty(), printed);
+    }
+  }
+
+  /// The promise and the `box` are deferred in separate phases. Each phase used to move its own
+  /// statement past the other one, so the text stayed the same but the pass reported a change.
+  @Test
+  void valuePromiseAndBoxBeforeOneDeopt_areStable() {
+    assertStable(
+        """
+        (x:I, n:v1(I)) -+> I {
+          mkenv-;
+          check L() else D();
+        L():
+          popenv;
+          return x;
+        D():
+          p: p(v1(I) -) = prom-<v1(I) ->{
+            return n;
+          };
+          b: v1(I) = box< I --> v1(I) >(x);
+          deopt 0 [b, p, b];
+        }
+        """);
+  }
+
+  @Test
+  void valuePromiseBetweenBoxesBeforeOneDeopt_isStable() {
+    assertStable(
+        """
+        (x:I, y:I, n:v1(I)) -+> I {
+          mkenv-;
+          check L() else D();
+        L():
+          popenv;
+          return x;
+        D():
+          b: v1(I) = box< I --> v1(I) >(x);
+          p: p(v1(I) -) = prom-<v1(I) ->{
+            return n;
+          };
+          b2: v1(I) = box< I --> v1(I) >(y);
+          deopt 0 [b, p, b2];
+        }
+        """);
+  }
+
+  @Test
+  void valuePromiseAndBoxUsedOnlyInADeopt_areDeferredOnce() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:I, n:v1(I)) -+> I {
+              p: p(v1(I) -) = prom-<v1(I) ->{
+                return n;
+              };
+              b: v1(I) = box< I --> v1(I) >(x);
+              mkenv-;
+              check L() else D();
+            L():
+              popenv;
+              return x;
+            D():
+              deopt 0 [b, p];
+            }
+            """);
+    assertTrue(Checker.checkAll(abstraction), "should type-check:\n" + abstraction);
+
+    assertTrue(run(abstraction), "both should move into the deopt branch:\n" + abstraction);
+    assertFalse(run(abstraction), "a second run should change nothing:\n" + abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "D():", "p: p(v1(I) -) = prom-");
+    assertOrder(printed, "D():", "b: v1(I) = box< I --> v1(I) >(x);");
+  }
+
+  /// `run` reports no change and leaves the text as it is.
+  private void assertStable(@Language("FIR") String text) {
+    var abstraction = ParseUtil.parseAbstraction(text);
+    assertTrue(Checker.checkAll(abstraction), "should type-check:\n" + abstraction);
+    var before = Printer.toString(abstraction);
+
+    assertFalse(run(abstraction), "should report no change:\n" + abstraction);
+    assertEquals(before, Printer.toString(abstraction));
+  }
+
+  @Language("FIR")
+  private static final String DEOPT_ONLY_PROMISE =
+      """
+      fun f(n) {
+        (n:*) -+> V {
+          mkenv;
+          check B() else D();
+        B():
+          r: * = ld x;
+          v: V = force? r;
+          popenv;
+          return v;
+        D():
+          deopt 0 [];
+        }
+        (n:v1(I)) -+> V {
+          i: I = unbox< v1(I) --> I >(n);
+          p: p(v1(I) -) = prom-<v1(I) ->{
+            pb: v1(I) = box< I --> v1(I) >(i);
+            return pb;
+          };
+          mkenv-;
+          k: L = `<`< I,I --> L >(i, 3);
+          kk: B = naToFalse< L --> B >(k);
+          check B() else D();
+        B():
+          kk ?= TRUE;
+          check B2() else D2();
+        B2():
+          popenv;
+          return n;
+        D():
+          st x = p;
+          deopt 0 [];
+        D2():
+          st x = p;
+          deopt 0 [];
+        }
+      }
+      """;
 
   private static void assertOrder(String printed, String first, String second) {
     var firstIndex = printed.indexOf(first);

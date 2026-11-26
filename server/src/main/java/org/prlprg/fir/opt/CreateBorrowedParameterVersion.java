@@ -1,20 +1,15 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.analyze.type.Provenance;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.callee.Callee;
-import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
@@ -39,10 +34,19 @@ import org.prlprg.fir.ir.variable.FunctionParameter;
 /// This is the inverse of [CreateOwnedParameterVersion], and the two never fight over the same
 /// parameter: that one promotes exactly the parameters a `dup` reads, and this one skips those (see
 /// [#isDupped]).
-public record CreateBorrowedParameterVersion(int versionLimit) implements AbstractionOptimization {
+public final class CreateBorrowedParameterVersion extends AbstractionOptimization {
+  private final int versionLimit;
+
+  public CreateBorrowedParameterVersion(int versionLimit) {
+    this.versionLimit = versionLimit;
+  }
+
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction version) {
     if (function == null || version.isStub() || version == function.baseline()) {
       return false;
     }
@@ -64,6 +68,8 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
       var parameterType = newParameterTypes.get(i);
       if ((parameterType.ownership() != Ownership.OWNED
               && parameterType.ownership() != Ownership.SHARED)
+          || !parameterType.isValue()
+          || !parameterType.kind().isWellFormedWithOwnership()
           || needsOwnership(parameter)
           || isDupped(parameter)
           || escapes(parameter, escapingCfgs)) {
@@ -82,7 +88,7 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
       return false;
     }
 
-    copy(feedback.module(), function, version, newParameterTypes);
+    LazyCopy.create(topLevel, this, feedback.module(), function, version, newParameterTypes);
     return true;
   }
 
@@ -125,13 +131,10 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
   ///
   /// Two uses let it escape:
   ///
-  /// - An argument of a call that expects a *shared* parameter, which is exactly the parameter a
-  ///   callee is allowed to retain (store into an environment, capture in a closure or promise).
-  ///   A dynamic call's callee isn't known, so every one of its arguments counts (see
-  ///   [#expectsShared]).
+  /// - A use that [shares][Provenance#escapes] it, e.g. an argument of a call that expects a shared
+  ///   parameter or of a dynamic call, or a `dots` element.
   /// - A read inside a non-local promise, which may be forced after the frame that created it
-  ///   returns. [org.prlprg.fir.check.CaptureChecker] rejects those, but it's excluded from the
-  ///   part of the pipeline this optimization runs in, so they do reach us.
+  ///   returns.
   ///
   /// `escapingCfgs` must be [#escapingCfgs] of the version `parameter` belongs to.
   private static boolean escapes(FunctionParameter parameter, Set<CFG> escapingCfgs) {
@@ -140,33 +143,10 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
 
   private static boolean escapes(Use use, Set<CFG> escapingCfgs) {
     var bb = use.instruction().parentBB();
-    if (bb == null || escapingCfgs.contains(bb.owner())) {
-      // A detached instruction isn't in any CFG, so we can't tell; assume the worst.
-      return true;
-    }
-
-    return use.instruction() instanceof Statement statement
-        && statement.expression() instanceof Call(var callee)
-        && expectsShared(callee, use.index());
-  }
-
-  /// Whether the argument at `index` of a call to `callee` may be retained after the call returns.
-  ///
-  /// `index` is an index into the owning statement's arguments: 0 is the callee's own argument and
-  /// the call arguments follow it, so it lines up with `callee`'s parameters shifted by one.
-  private static boolean expectsShared(Callee callee, int index) {
-    return switch (callee) {
-      // Nothing bounds what an unknown callee does with its arguments.
-      case DynamicCallee _ -> true;
-      case StaticFnCallee(_, _, var signature) -> {
-        var parameterTypes = signature.parameterTypes();
-        // Index 0 is the closure-with-env, which is shared, and an index past the end is an arity
-        // mismatch that `TypeAndEffectChecker` reports; assume the worst for both.
-        yield index == 0
-            || index > parameterTypes.size()
-            || parameterTypes.get(index - 1).ownership() == Ownership.SHARED;
-      }
-    };
+    // A detached instruction isn't in any CFG, so we can't tell; assume the worst.
+    return bb == null
+        || escapingCfgs.contains(bb.owner())
+        || Provenance.escapes(use.instruction(), use.index());
   }
 
   /// The CFGs of `version` that sit inside a non-local promise, at any depth.
@@ -176,9 +156,8 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
   /// promise).
   private static Set<CFG> escapingCfgs(Abstraction version) {
     var escapingCfgs = new HashSet<CFG>();
-    var cfg = version.cfg();
-    if (cfg != null) {
-      collectEscapingCfgs(cfg, false, escapingCfgs);
+    if (!version.isStub()) {
+      collectEscapingCfgs(version.body(), false, escapingCfgs);
     }
     return escapingCfgs;
   }
@@ -192,7 +171,7 @@ public record CreateBorrowedParameterVersion(int versionLimit) implements Abstra
 
     for (var bb : cfg.bbs()) {
       for (var statement : bb.statements()) {
-        if (statement.expression() instanceof Promise(_, _, var code, var local)) {
+        if (statement.expression() instanceof Promise(_, _, var code, var local, _)) {
           collectEscapingCfgs(code, isEscaping || !local, escapingCfgs);
         }
       }

@@ -1,0 +1,14 @@
+total 5626
+  4255  dyn: base or package closure
+   503  static: forced after a branch, nested, passed on, or unknown
+   353  static: forced before first branch, not @!
+   272  static: param @!
+   136  dyn: module closure or unknown
+    54  builtin call
+    23  dispatch call
+    14  other: st
+    12  other: phi
+     4  static: callee version not resolved (call signature differs from header)
+in a version body: {'static: forced before first branch, not @!': 311, 'static: param @!': 142, 'static: forced after a branch, nested, passed on, or unknown': 438, 'static: callee version not resolved (call signature differs from header)': 4}
+movable: {'@!': 69, 'not @!, forced first': 168}
+movable @! by example: [('shootout_pidigits', 17), ('shootout_pidigits_orbit', 14), ('shootout_nbody_orbit', 6), ('shootout_fannkuchredux_naive', 4), ('shootout_spectralnorm', 4), ('shootout_spectralnorm_alt_3', 4), ('shootout_spectralnorm_alt_4', 4), ('scalar_crt', 3), ('shootout_binarytrees', 3), ('shootout_binarytrees_2', 3), ('misc_lr_1var_lms_vec', 2), ('scalar_fib_rec', 2), ('shootout_binarytrees_naive', 2), ('awf_storage', 1)]

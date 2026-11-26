@@ -1,6 +1,10 @@
 package org.prlprg.fir.opt;
 
+import java.util.ArrayDeque;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -14,8 +18,10 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
+import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -34,10 +40,18 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Note that it does *not* combine `Load(LOCAL_FUN)` with `AssumeConstant`, nor `Load(LOCAL_VAR)`
 /// with `AssumeFunction`.
-public record MergeAssumeLoadVar() implements AbstractionOptimization {
+///
+/// It also doesn't merge a `Load(LOCAL_FUN)` of a variable that a [Store] in this version, or in a
+/// version of a function that makes a closure of its function (transitively), may bind to a promise
+/// (e.g. a parameter). The `Load` forces the promise, but the `AssumeLoadFun` fails on an unforced
+/// promise instead, so it would fail on every call that passes a fresh one.
+public final class MergeAssumeLoadVar extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     boolean[] changed = {false};
     var substs = new Substituter(scope);
 
@@ -79,6 +93,10 @@ public record MergeAssumeLoadVar() implements AbstractionOptimization {
               // ...followed by a checkpoint...
               if (loadAssignee == null
                   || !(bb1.jump().expression() instanceof Checkpoint checkpoint2)) {
+                return;
+              }
+              // ...unless the `Load` may force a promise, which the merged lookup won't.
+              if (loadType == LoadType.LOCAL_FUN && mayStorePromise(scope, loadVariable)) {
                 return;
               }
               var bb2 = checkpoint2.success().get();
@@ -145,5 +163,54 @@ public record MergeAssumeLoadVar() implements AbstractionOptimization {
             });
 
     return changed[0];
+  }
+
+  /// Whether a [Store] in `scope`, or in an evaluated version of a function that makes a closure of
+  /// its function (transitively), may bind `variable` to a promise.
+  private static boolean mayStorePromise(Abstraction scope, NamedVariable variable) {
+    var functions = scope.module().localFunctions();
+    var enclosing = new LinkedHashSet<Function>();
+    var worklist =
+        functions.stream()
+            .filter(f -> f.versions().stream().anyMatch(v -> v == scope))
+            .collect(Collectors.toCollection(ArrayDeque::new));
+    while (!worklist.isEmpty()) {
+      var inner = worklist.pop();
+      functions.stream()
+          .filter(
+              f ->
+                  !enclosing.contains(f)
+                      && evaluatedVersions(f, scope)
+                          .flatMap(MergeAssumeLoadVar::statements)
+                          .anyMatch(
+                              stmt -> stmt.expression() instanceof Closure c && c.code() == inner))
+          .forEach(
+              f -> {
+                enclosing.add(f);
+                worklist.add(f);
+              });
+    }
+    return Stream.concat(
+            Stream.of(scope), enclosing.stream().flatMap(f -> evaluatedVersions(f, scope)))
+        .anyMatch(
+            version ->
+                statements(version)
+                    .anyMatch(
+                        stmt ->
+                            stmt.expression() instanceof Store(_, var stored)
+                                && stored.equals(variable)
+                                && !version.typeOf(stmt.arg(0)).isValue()));
+  }
+
+  /// The versions of `function` whose bodies are free to read: `scope` and the evaluated ones.
+  private static Stream<Abstraction> evaluatedVersions(Function function, Abstraction scope) {
+    return function.versions().stream().filter(v -> v == scope || v.isEvaluated());
+  }
+
+  private static Stream<Statement> statements(Abstraction version) {
+    return version
+        .streamCfgs()
+        .flatMap(cfg -> cfg.bbs().stream())
+        .flatMap(bb -> bb.statements().stream());
   }
 }

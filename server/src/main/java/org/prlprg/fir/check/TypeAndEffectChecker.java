@@ -1,5 +1,7 @@
 package org.prlprg.fir.check;
 
+import java.util.List;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
@@ -15,6 +17,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -52,6 +55,7 @@ import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Repr;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -68,6 +72,21 @@ public final class TypeAndEffectChecker extends Checker {
 
   @Override
   protected void doRun(Abstraction version) {
+    checkSignature(version);
+
+    // Check type and effects.
+    new OnAbstraction(version).run();
+  }
+
+  /// The signature isn't lazy, so it's checked the same; and the fallback stands in for the body.
+  @Override
+  protected void doRunUnevaluated(Abstraction version) {
+    checkSignature(version);
+
+    new OnAbstraction(version).runFallback();
+  }
+
+  private void checkSignature(Abstraction version) {
     var function = function();
     if (function != null) {
       // Check guaranteed effects
@@ -119,23 +138,34 @@ public final class TypeAndEffectChecker extends Checker {
         }
       }
     }
-
-    // Check type and effects.
-    new OnAbstraction(version).run();
   }
 
   public static boolean assumeCanSucceed(Assumption assumption, Type argType) {
-    var requiredType =
-        switch (assumption) {
-          case AssumeType(var type) -> type;
-          case AssumeConstant(var constant) -> constant.type();
-          case AssumeFunction _ -> Type.CLOSURE;
-          case AssumeLoadFun _, AssumeLoadVar _ ->
-              throw new IllegalArgumentException("Assumption has no target, so this isn't called");
-        };
+    var requiredType = requiredType(assumption);
     // Every runtime value's type is guaranteed to either be `argType` or a subtype.
     // Iff `requiredType` is disjoint, the assumption can't succeed.
     return argType.isSubtypeOf(requiredType) || requiredType.isSubtypeOf(argType);
+  }
+
+  /// Whether a value of `argType` can pass the assumption. Ownership is static, and two types that
+  /// may be promises share the promise without effects.
+  private static boolean assumeMayHold(Assumption assumption, Type argType) {
+    var required = requiredType(assumption);
+    var promisity = required.promisity();
+    return (argType.kind().isSubtypeOf(required.kind())
+            || required.kind().isSubtypeOf(argType.kind()))
+        && !(argType.promisity().isValue() && promisity.isPromise())
+        && !(argType.promisity().isPromise() && promisity.isValue());
+  }
+
+  private static Type requiredType(Assumption assumption) {
+    return switch (assumption) {
+      case AssumeType(var type) -> type;
+      case AssumeConstant(var constant) -> constant.type();
+      case AssumeFunction _ -> Type.CLOSURE;
+      case AssumeLoadFun _, AssumeLoadVar _ ->
+          throw new IllegalArgumentException("Assumption has no target, so this isn't called");
+    };
   }
 
   private class OnAbstraction {
@@ -143,23 +173,41 @@ public final class TypeAndEffectChecker extends Checker {
     final InferType inferType;
     final InferEffects inferEffects;
 
+    /// Whether the version's parameter types differ from its baseline's.
+    final boolean hasNarrowerParameters;
+
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
       inferType = new InferType(scope);
       inferEffects = new InferEffects(scope);
+      var function = function();
+      hasNarrowerParameters =
+          function != null
+              && !scope
+                  .signature()
+                  .parameterTypes()
+                  .equals(function.baseline().signature().parameterTypes());
     }
 
     void run() {
-      var cfg = scope.cfg();
-      if (cfg == null) {
-        // Stub
+      if (scope.isStub()) {
         return;
       }
 
+      run(scope.body(), scope.streamRegisters());
+    }
+
+    void runFallback() {
+      if (scope.fallback() != null) {
+        run(scope.fallback(), scope.streamFallbackRegisters());
+      }
+    }
+
+    private void run(CFG cfg, Stream<Register> registers) {
       var onCfg = new OnCfg(cfg);
 
       // Check register and named-variable type well-formedness
-      scope.streamRegisters().forEach(onCfg::checkWellFormedRegister);
+      registers.forEach(onCfg::checkWellFormedRegister);
       scope.namedVariableTypes().forEach(onCfg::checkWellFormedNamed);
 
       // Check return type well-formedness
@@ -169,8 +217,8 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       // Check return type and effects are expected
-      var returnType = inferType.of(scope.cfg());
-      var effects = inferEffects.of(scope.cfg());
+      var returnType = inferType.of(cfg);
+      var effects = inferEffects.of(cfg);
       onCfg.checkAssignment(returnType, scope.returnType(), "Return type mismatch");
       onCfg.checkSubEffects(effects, scope.effects(), "Function effects mismatch");
 
@@ -231,7 +279,13 @@ public final class TypeAndEffectChecker extends Checker {
             if (target != null) {
               var argType = scope.typeOf(target);
 
-              if (!assumeCanSucceed(assumption, argType)) {
+              // A version's narrower parameter types can make an assumption that it copied from a
+              // wider version fail in a branch that they make dead (e.g. `x ?: v1(R)` when
+              // `missing(x)` is false, in the version for a missing `x`), also on a register
+              // that they select (the promise of `x`'s default value, when `missing(x)` is true).
+              if (!scope.parameters().contains(target.variable())
+                  && !hasNarrowerParameters
+                  && !assumeMayHold(assumption, argType)) {
                 report(
                     "Assumption can't succeed, clearly we never recorded it ("
                         + target
@@ -282,22 +336,13 @@ public final class TypeAndEffectChecker extends Checker {
                 checkSubtype(
                     closureWithEnvType, Type.CLOSURE, "Environment provider must be a closure");
 
-                // Check arguments against signature parameters.
-                if (signature.parameterTypes().size() != argumentTypes.size()) {
-                  report(
-                      "Signature expects "
-                          + signature.parameterTypes().size()
-                          + " arguments, got "
-                          + argumentTypes.size());
+                checkArguments(signature, argumentTypes);
+              }
+              case FallbackCallee(var signature) -> {
+                if (cursor.cfg() != scope.fallback()) {
+                  report("Fallback call outside of a fallback's single block");
                 }
-                for (int i = 0;
-                    i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
-                    i++) {
-                  var paramType = signature.parameterTypes().get(i);
-                  var argType = argumentTypes.get(i);
-                  checkMatches(
-                      argType, paramType, "Type mismatch in argument " + i + " (for signature)");
-                }
+                checkArguments(signature, argumentTypes);
               }
               case DynamicCallee(var argumentNames) -> {
                 var calleeType = scope.typeOf(closureOrCalleeArg);
@@ -373,7 +418,7 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case MkEnv _, Noop _, PopEnv _ -> {}
-          case Promise(var expectedInnerType, var expectedEffects, var promiseCode, _) -> {
+          case Promise(var expectedInnerType, var expectedEffects, var promiseCode, _, _) -> {
             checkWellFormed(expectedInnerType);
             if (!expectedInnerType.isValue()) {
               report(
@@ -530,6 +575,19 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       void run(Jump jump) {
+        // An owned phi can write its vector in place, so it must be given one that nothing else
+        // holds (an owned register moves into it).
+        for (var i = 0; i < jump.argCount(); i++) {
+          var phi = jump.phiAt(i);
+          var ownership = scope.typeOf(jump.arg(i)).ownership();
+          if (phi != null
+              && phi.type().ownership() == Ownership.OWNED
+              && ownership != Ownership.OWNED
+              && ownership != Ownership.FRESH) {
+            report("Owned phi " + phi + " can't be given " + jump.arg(i) + " {:" + ownership + "}");
+          }
+        }
+
         switch (jump.expression()) {
           case Checkpoint _, Deopt _, Goto _, Return _, Unreachable _ -> {}
           case If _ -> {
@@ -571,6 +629,24 @@ public final class TypeAndEffectChecker extends Checker {
         }
       }
 
+      /// Check a call's arguments against its signature's parameters.
+      void checkArguments(Signature signature, List<@Nullable Type> argumentTypes) {
+        if (signature.parameterTypes().size() != argumentTypes.size()) {
+          report(
+              "Signature expects "
+                  + signature.parameterTypes().size()
+                  + " arguments, got "
+                  + argumentTypes.size());
+        }
+        for (int i = 0;
+            i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
+            i++) {
+          var paramType = signature.parameterTypes().get(i);
+          var argType = argumentTypes.get(i);
+          checkMatches(argType, paramType, "Type mismatch in argument " + i + " (for signature)");
+        }
+      }
+
       void checkSubtype(@Nullable Type type, Type expected, String message) {
         if (type != null && !type.isSubtypeOf(expected)) {
           report(message + ": " + type + " doesn't subtype " + expected);
@@ -578,15 +654,24 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       void checkMatches(@Nullable Type type, Type expected, String message) {
-        if (type != null && !type.matches(expected)) {
+        if (type != null && !sharedIfOwned(type, expected).matches(expected)) {
           report(message + ": " + type + " doesn't match " + expected);
         }
       }
 
       void checkAssignment(@Nullable Type type, Type expected, String message) {
-        if (type != null && !type.canBeAssignedTo(expected)) {
+        if (type != null && !sharedIfOwned(type, expected).canBeAssignedTo(expected)) {
           report(message + ": can't assign " + type + " to " + expected);
         }
+      }
+
+      /// An owned value where a shared one is expected (a `st`, a return, a shared register or
+      /// parameter) shares the register, so `Provenance` reports a write, `consume`, or move after
+      /// it.
+      private static Type sharedIfOwned(Type type, Type expected) {
+        return type.ownership() == Ownership.OWNED && expected.ownership() == Ownership.SHARED
+            ? type.withOwnership(Ownership.SHARED)
+            : type;
       }
 
       void checkSubEffects(Effects effects, Effects expected, String message) {

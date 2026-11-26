@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `r2dtable` <- function (n, r, c) 
 {
     if (length(n <- as.integer(n)) == 0L || (n < 0) || is.na(n)) 

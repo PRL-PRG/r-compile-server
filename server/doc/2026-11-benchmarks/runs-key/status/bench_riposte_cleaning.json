@@ -1,0 +1,16 @@
+{
+ "example": "bench_riposte_cleaning",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "failed",
+ "reason": "1 tests failed",
+ "exit": 1,
+ "seconds": 90,
+ "load_start": 1.71,
+ "load_end": 1.41,
+ "csv_files": 4,
+ "optimizations": "$^",
+ "failures": {
+  "benchmarkPromiseInlining(Example, SnapshotStore)[1] bench_riposte_cleaning": "Expected success, got crash. R REPL died (status: 1). Output: Error in f() : FI\u0158 deoptimization triggered at pc=1 (unsupported)"
+ },
+ "no_time": {}
+}

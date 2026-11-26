@@ -1,6 +1,7 @@
 package org.prlprg.fir.parseprint;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -8,7 +9,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
@@ -62,6 +62,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.PrimitiveKind;
@@ -81,6 +82,10 @@ import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.TaggedElem;
 import org.prlprg.util.Characters;
 
 /// Parses [Module]s: the outermost FIŘ parse context.
@@ -97,6 +102,33 @@ import org.prlprg.util.Characters;
 ///   - [FunctionParseContext.AbstractionParseContext.BodyParseContext] — a version's body: its
 ///     [CFG]'s blocks, instructions, and arguments.
 public final class ModuleParseContext {
+  /// Words that begin an expression or jump when they're the first word of a statement, so a
+  /// register or function named one of them is backquoted there (see [IrPrintContext]).
+  static final ImmutableSet<String> STATEMENT_KEYWORDS =
+      ImmutableSet.of(
+          "noop",
+          "clos",
+          "dup",
+          "dyn",
+          "force",
+          "ldf",
+          "ld",
+          "mkenv",
+          "popenv",
+          "prom",
+          "st",
+          "consume",
+          "v",
+          "v1",
+          "dots",
+          "check",
+          "deopt",
+          "if",
+          "goto",
+          "raise",
+          "return",
+          "unreachable");
+
   @ParseMethod
   private Module parseModule(Parser p) {
     var s = p.scanner();
@@ -166,29 +198,73 @@ public final class ModuleParseContext {
 
       var strict = false;
       var liteSpecial = false;
+      var readsContext = false;
+      var needsContext = false;
+      var readsPromise = false;
+      var needsPromises = false;
+      var signals = false;
       while (s.trySkip('@')) {
         switch (s.readIdentifierOrKeyword()) {
           case "strict" -> strict = true;
           case "liteSpecial" -> liteSpecial = true;
+          case "readsContext" -> readsContext = true;
+          case "needsContext" -> needsContext = true;
+          case "readsPromise" -> readsPromise = true;
+          case "needsPromises" -> needsPromises = true;
+          case "signals" -> signals = true;
           case String unknown -> throw s.fail("unknown user property: @" + unknown);
         }
       }
 
       s.assertAndSkip("fun ");
       var name = p.parse(NamedVariable.class);
-      var parameterNames = List.copyOf(p.parseList("(", ")", NamedVariable.class));
+      // Each parameter is a name, optionally `= <default>` (the GNU-R formal's default).
+      var formals =
+          p
+              .parseList(
+                  "(",
+                  ")",
+                  () -> {
+                    var parameterName = p.parse(NamedVariable.class);
+                    var defaultValue =
+                        s.trySkip('=') ? p.parse(Value.class).box() : SEXPs.MISSING_ARG;
+                    return new TaggedElem(parameterName.name(), defaultValue);
+                  },
+                  SkipWhitespace.ALL)
+              .stream()
+              .collect(SEXPs.toList());
+      var parameterNames = formals.names().stream().map(Variable::named).toList();
 
       var function = module.addFunction(name, parameterNames);
+      if (formals.values().stream().anyMatch(v -> v != SEXPs.MISSING_ARG)) {
+        function.setFormals(formals);
+      }
       function.comments().addAll(comments);
       function.userProperties().setStrict(strict);
       function.userProperties().setLiteSpecial(liteSpecial);
+      function.userProperties().setReadsContext(readsContext);
+      function.userProperties().setNeedsContext(needsContext);
+      function.userProperties().setReadsPromise(readsPromise);
+      function.userProperties().setNeedsPromises(needsPromises);
 
       s.assertAndSkip('{');
       while (!s.nextCharIs('}')) {
         var version = p.withContext(forAbstraction()).parse(Abstraction.class);
+        // The printed form doesn't declare the types of named variables. `bc2fir` gives `...` the
+        // dots parameter's type, maybe; the others' are `*`, the default.
+        var dotsIndex = parameterNames.indexOf(NamedVariable.DOTS);
+        if (dotsIndex != -1
+            && dotsIndex < version.parameters().size()
+            && version.parameters().get(dotsIndex).type().kind() instanceof Kind.Dots) {
+          version.setNamedVariableType(
+              NamedVariable.DOTS,
+              version.parameters().get(dotsIndex).type().withConcreteness(Concreteness.MAYBE));
+        }
         if (function.versions().isEmpty()) {
           function.addBaseline(version);
         } else {
+          // `@signals` on a function is `@signals` on each version but the (generic) baseline.
+          version.setSignals(version.signals() || signals);
           function.addVersion(version);
         }
       }
@@ -287,6 +363,7 @@ public final class ModuleParseContext {
         var s = p.scanner();
 
         var comments = p.parse(Comments.class);
+        var signals = s.trySkip("@signals");
 
         // Parameters, e.g. `(n:*, m:I@!)`.
         var parameters = new ArrayList<FunctionParameter>();
@@ -309,11 +386,17 @@ public final class ModuleParseContext {
 
         s.assertAndSkip('{');
 
+        if (s.trySkip(IrPrintContext.UNEVALUATED_BODY)) {
+          throw s.fail(
+              "can't parse an unevaluated version: its printed form doesn't say how to evaluate it");
+        }
+
         var isStub = s.trySkip("...");
         var abstraction = new Abstraction(module, parameters, isStub);
         abstraction.comments().addAll(comments);
         abstraction.setReturnType(returnType);
         abstraction.setEffects(effects);
+        abstraction.setSignals(signals);
 
         if (isStub) {
           s.assertAndSkip('}');
@@ -326,7 +409,7 @@ public final class ModuleParseContext {
           define(parameter.name(), parameter);
         }
 
-        var body = new BodyParseContext(Objects.requireNonNull(abstraction.cfg()));
+        var body = new BodyParseContext(abstraction.body());
         body.parseInto(p.withContext(body));
 
         s.assertAndSkip('}');
@@ -452,8 +535,9 @@ public final class ModuleParseContext {
           String assigneeName = null;
           Type assigneeType = null;
           String headName = null;
+          var isHeadQuoted = s.nextCharIs('`');
           if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
-            var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+            var nameHead = isHeadQuoted ? Names.read(s, true) : s.readIdentifierOrKeyword();
             if (s.trySkip(':')) {
               // A real register definition declares its type inline: `r0: T = <expr>`.
               assigneeName = nameHead;
@@ -467,7 +551,7 @@ public final class ModuleParseContext {
             }
           }
 
-          var parsed = parseExpr(p, headName);
+          var parsed = parseExpr(p, headName, isHeadQuoted);
 
           // Legacy bare-argument statement (old `Aea`): no expression, just a single argument. The
           // new IR has no forwarding node, so it emits no statement. With an assignee (`r = <arg>`)
@@ -487,6 +571,12 @@ public final class ModuleParseContext {
           }
 
           var statement = new Statement(comments, parsed.expression(), parsed.args());
+          if (s.trySkip("in")) {
+            if (!(p.parse(SEXP.class) instanceof LangSXP source)) {
+              throw s.fail("the source after `in` must be a call (`<lang ...>`)");
+            }
+            statement.setSource(source);
+          }
           if (assigneeName != null) {
             if (assigneeType == null) {
               throw s.fail(
@@ -574,8 +664,9 @@ public final class ModuleParseContext {
         /// Parse an expression and its arguments. `headName`, if non-null, is an identifier already
         /// read from the input that begins the expression (an ugly necessity because the grammar
         /// has no lookahead and we must commit to reading `r =` before knowing whether `r` is an
-        /// assignee).
-        private ParsedExpr parseExpr(Parser p, @Nullable String headName) {
+        /// assignee). It was backquoted iff `isHeadQuoted`, in which case it's a register or
+        /// function name even if it's a keyword.
+        private ParsedExpr parseExpr(Parser p, @Nullable String headName, boolean isHeadQuoted) {
           var s = p.scanner();
           Argument headArg = null;
 
@@ -586,11 +677,16 @@ public final class ModuleParseContext {
                 || s.nextCharIs('<')) {
               headArg = p.parse(Argument.class);
             } else if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
-              headName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+              isHeadQuoted = s.nextCharIs('`');
+              headName = isHeadQuoted ? Names.read(s, true) : s.readIdentifierOrKeyword();
             }
           }
 
-          if (headName != null) {
+          if (headName != null && isHeadQuoted) {
+            if (isInScope(headName)) {
+              headArg = resolveUse(headName, s);
+            }
+          } else if (headName != null) {
             switch (headName) {
               case "noop":
                 return new ParsedExpr(new Noop(), List.of());
@@ -674,13 +770,18 @@ public final class ModuleParseContext {
                   var valueType = p.parse(Type.class);
                   var effects = p.parse(Effects.class);
                   s.assertAndSkip('>');
+                  SEXP expr = null;
+                  if (s.trySkip('[')) {
+                    expr = p.parse(SEXP.class);
+                    s.assertAndSkip(']');
+                  }
                   s.assertAndSkip('{');
                   var promiseCfg = new CFG(cfg.scope());
                   var promiseCtx = withCfg(promiseCfg);
                   promiseCtx.parseInto(p.withContext(promiseCtx));
                   s.assertAndSkip('}');
                   return new ParsedExpr(
-                      new Promise(valueType, effects, promiseCfg, local), List.of());
+                      new Promise(valueType, effects, promiseCfg, local, expr), List.of());
                 }
               case "st":
                 {

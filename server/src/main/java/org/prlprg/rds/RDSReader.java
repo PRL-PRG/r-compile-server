@@ -1,7 +1,5 @@
 package org.prlprg.rds;
 
-import static java.util.Objects.requireNonNull;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
 import com.google.protobuf.ByteString;
@@ -152,7 +150,8 @@ public class RDSReader implements Closeable {
             case BUILTIN -> readBuiltin();
             case SPECIAL -> readSpecial();
             case CPLX -> readComplex(flags);
-            case EXTPTR -> readExternalPtr();
+            case EXTPTR -> readExternalPtr(flags);
+            case S4 -> new S4SXP(readAttributes(flags));
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
       case RDSItemType.Special s ->
@@ -165,19 +164,20 @@ public class RDSReader implements Closeable {
             case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
             case REFSXP -> readRef(flags);
             case NAMESPACESXP -> readNamespace();
+            case PACKAGESXP -> readPackage();
             case BCREPDEF, BCREPREF ->
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
             case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
             case PERSISTSXP -> readPersist(flags);
             case ALTREPSXP -> readAltRep(flags);
-            case GENERICREFSXP, PACKAGESXP, CLASSREFSXP ->
+            case GENERICREFSXP, CLASSREFSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
   }
 
-  private SEXP readExternalPtr() throws IOException {
+  private SEXP readExternalPtr(Flags flags) throws IOException {
     // R assigns the external pointer its reference index *before* it (de)serializes the prot and
     // tag (`HashAdd` then `WriteItem` in `WriteItem`, `AddReadRef` then `ReadItem` in `ReadItem`),
     // so claim the slot up-front: anything referenced while reading them would otherwise be off by
@@ -188,7 +188,7 @@ public class RDSReader implements Closeable {
     var prot = readItem();
     var tag = readItem();
 
-    var ptr = new ExtptrSxp(prot, tag);
+    var ptr = new ExtptrSxp(prot, tag, readAttributes(flags));
     refTable.set(index, ptr);
     return ptr;
   }
@@ -277,6 +277,16 @@ public class RDSReader implements Closeable {
     refTable.add(namespace);
 
     return namespace;
+  }
+
+  /// A package environment (an environment named `package:...`). R reads it as the attached
+  /// package of that name, or the global environment if it can't attach one. A session doesn't know
+  /// what's attached, so this reads it as the global environment.
+  private SEXP readPackage() throws IOException {
+    readStringVec();
+    var env = rsession.globalEnv();
+    refTable.add(env);
+    return env;
   }
 
   // Note that this method is not used to StringSXPs.
@@ -457,16 +467,12 @@ public class RDSReader implements Closeable {
       ListSXP ansList = (ListSXP) ans;
 
       var fun = ansList.get(0).value();
-      if (!(fun instanceof SymOrLangSXP funSymOrLang)) {
-        throw new RDSException("Expected symbol or language, got: " + fun.type());
-      }
-
       ListSXP args = SEXPs.NULL;
       if (ansList.size() > 1) {
         args = ansList.fromIndex(1);
       }
 
-      ans = SEXPs.lang(funSymOrLang, args, attributes);
+      ans = SEXPs.lang(fun, args, attributes);
     }
 
     if (pos >= 0) {
@@ -497,13 +503,17 @@ public class RDSReader implements Closeable {
     // any tag that might be present.
     readTag(flags);
 
-    var x = readItem();
-    if (!(x instanceof SymOrLangSXP fun)) {
-      throw new RDSException("Expected symbol or language");
-    }
-    if (!(readItem() instanceof ListSXP args)) {
+    var fun = readItem();
+    // The arguments' first cell can be a LANGSXP: R parses `lhs |> f(args)` into
+    // `lcons(f, lcons(lhs, args))`.
+    var argsFlags = readFlags();
+    var argsType = argsFlags.getType();
+    if (!argsType.isSexp(SEXPType.NIL)
+        && !argsType.isSexp(SEXPType.LIST)
+        && !argsType.isSexp(SEXPType.LANG)) {
       throw new RDSException("Expected list");
     }
+    var args = (ListSXP) readList(argsFlags, SEXPType.LIST);
     return SEXPs.lang(fun, args, attributes);
   }
 
@@ -512,22 +522,7 @@ public class RDSReader implements Closeable {
     if (!flags.getType().isSexp(SEXPType.CHAR)) {
       throw new RDSException("Expected CHAR");
     }
-    var encoding = flags.getLevels().encoding();
-
-    var length = in.readInt();
-
-    String out;
-    if (length == -1) {
-      out = Constants.NA_STRING;
-    } else {
-      // Sometimes R strings have no defined encoding.
-      if (encoding == null) {
-        encoding = nativeEncoding;
-      }
-      out = in.readString(length, encoding);
-    }
-
-    return out;
+    return readChars(flags);
   }
 
   private StrSXP readStrs(Flags flags) throws IOException {
@@ -643,7 +638,9 @@ public class RDSReader implements Closeable {
     Attributes attributes = null;
 
     while (!flags.getType().isSexp(SEXPType.NIL)) {
-      if (!flags.getType().isSexp(listType)) {
+      // A pairlist cell can be a LANGSXP (see `readLang`).
+      if (!flags.getType().isSexp(listType)
+          && !(listType == SEXPType.LIST && flags.getType().isSexp(SEXPType.LANG))) {
         throw new RDSException(
             "Expected "
                 + listTypeDesc
@@ -738,11 +735,11 @@ public class RDSReader implements Closeable {
   }
 
   private String readChars(Flags flags) throws IOException {
-    var len = in.readInt();
-    // charset should never be null for strings
-    var charset = requireNonNull(flags.getLevels().encoding());
-
-    return in.readString(len, charset);
+    var length = in.readInt();
+    if (length == -1) {
+      return Constants.NA_STRING;
+    }
+    return CharsxpCodec.decode(in.readBytes(length), flags.getLevels(), nativeEncoding);
   }
 
   private Flags readFlags() throws IOException {

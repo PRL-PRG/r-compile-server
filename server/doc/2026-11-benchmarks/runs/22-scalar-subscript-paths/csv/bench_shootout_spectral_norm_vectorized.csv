@@ -1,0 +1,7 @@
+"","removed","loc","loc.diff","time","slowdown","pct.none","pct.bc.opt","same.as"
+"1","<none>",587,0,0.03875,1,100,187.3,NA
+"2","<none> (rerun)",587,0,0.03912,1.01,101,189.1,NA
+"3","ast",NA,NA,0.02344,0.605,60.5,113.3,NA
+"4","bc.default",NA,NA,0.0235,0.606,60.6,113.6,NA
+"5","bc.opt",NA,NA,0.02069,0.534,53.4,100,NA
+"6","fir2c.default",587,0,0.03887,1.003,100.3,187.9,NA

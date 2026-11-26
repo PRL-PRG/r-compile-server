@@ -3,17 +3,21 @@ package org.prlprg.fir.analyze.resolve;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Maybe;
 
 class OriginAnalysisTest {
   /// The register named `name` defined in `version` (registers are identity-based, so tests look
@@ -45,7 +49,7 @@ class OriginAnalysisTest {
 
     var analysis = new OriginAnalysis(main);
 
-    var cfg = Objects.requireNonNull(main.cfg());
+    var cfg = main.body();
     var bb = cfg.entry();
 
     // After store statement, variable x should have r0's origin
@@ -110,7 +114,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var bb3 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB3"));
+    var bb3 = Objects.requireNonNull(main.body().bb("BB3"));
 
     var analysis = new OriginAnalysis(main);
 
@@ -140,7 +144,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
 
     var analysis = new OriginAnalysis(main);
 
@@ -195,7 +199,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var bb2 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB2"));
+    var bb2 = Objects.requireNonNull(main.body().bb("BB2"));
 
     var analysis = new OriginAnalysis(main);
 
@@ -228,7 +232,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(
@@ -259,7 +263,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(
@@ -334,6 +338,28 @@ class OriginAnalysisTest {
     assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
   }
 
+  /// A version that returns a SEXP (`v1(R)`) folds to the boxed element, not the unboxed one.
+  @Test
+  void testConstantFoldSubscriptReadOfSexpVersionIsBoxed() {
+    var firText =
+        """
+      fun main() {
+        () --> v1(R) {
+          mkenv;
+          vec: v1(R) = box< R --> v1(R) >(1.0);
+          result: v1(R) = `[`< v(R)b,v1(I),miss,miss --> v1(R) >(vec, <int 1>, <missing>, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.real(1.0)), analysis.get(reg(main, "result")));
+  }
+
   @Test
   void testConstantFoldDoubleSubscriptRead() {
     var firText =
@@ -353,6 +379,52 @@ class OriginAnalysisTest {
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
+  }
+
+  /// A `...` subscript is a matrix column, which the fold doesn't implement, so `m[[1, 2]]` and
+  /// `m[1, 2] <- 9` mustn't fold as `m[[1]]` and `m[1] <- 9`.
+  @Test
+  void testConstantFoldSkipsMatrixSubscripts() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          col: dots = dots[<int 2>];
+          read: I = `[[`< V,I,dots,miss --> I >(<int 1, 2, 3, 4 | dim=<int 2, 2>>, 1, col, <missing>);
+          write: V = `[<-`< V,I,I,dots --> V >(<int 1, 2, 3, 4 | dim=<int 2, 2>>, 1, 9, col);
+          return write;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertInstanceOf(Read.class, analysis.get(reg(main, "read")));
+    assertInstanceOf(Read.class, analysis.get(reg(main, "write")));
+  }
+
+  /// `[` keeps the element's name, which a scalar constant can't.
+  @Test
+  void testConstantFoldSkipsNamedSubscript() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          result: I = `[`< V,I,miss,miss --> I >(<int 1, 2 | names=<str "a", "b">>, 1, <missing>, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -384,7 +456,7 @@ class OriginAnalysisTest {
         () --> v(I) {
           mkenv;
           vec: v1(I) = box< I --> v1(I) >(42);
-          result: v(I) = `[[<-`< v(I),I,I --> v(I) >(vec, 1, 99);
+          result: v(I) = `[[<-`< v(I),I,I,miss --> v(I) >(vec, 1, 99, <missing>);
           return result;
         }
       }
@@ -439,6 +511,43 @@ class OriginAnalysisTest {
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.NULL), analysis.get(reg(main, "result")));
+  }
+
+  /// `missing< * --> B >` compares its argument with the missing argument, without forcing it.
+  /// `missing< * --> v(L) >` is GNU-R's, which reads the variable a symbol or string names (here a
+  /// missing one), so those don't fold.
+  @Test
+  void testConstantFoldMissing() {
+    var firText =
+        """
+      fun main() {
+        () -+> V {
+          mkenv;
+          st x = <missing>;
+          pr: p(V ~) = prom<V ~>{ return <missing>; };
+          onPromise: B = missing< * --> B >(pr);
+          onValue: B = missing< * --> B >(<int 1>);
+          onMissing: B = missing< * --> B >(<missing>);
+          onStringB: B = missing< * --> B >(<str "x">);
+          onString: v(L) = missing< * --> v(L) >(<str "x">);
+          onSymbol: v(L) = missing< * --> v(L) >(<sym x>);
+          popenv;
+          return onString;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    var no = new Constant(new Value.Bool(false));
+    assertEquals(no, analysis.get(reg(main, "onPromise")));
+    assertEquals(no, analysis.get(reg(main, "onValue")));
+    assertEquals(new Constant(new Value.Bool(true)), analysis.get(reg(main, "onMissing")));
+    assertEquals(no, analysis.get(reg(main, "onStringB")));
+    assertEquals(new Read(reg(main, "onString")), analysis.get(reg(main, "onString")));
+    assertEquals(new Read(reg(main, "onSymbol")), analysis.get(reg(main, "onSymbol")));
   }
 
   @Test
@@ -579,7 +688,7 @@ class OriginAnalysisTest {
         () --> v(I) {
           mkenv;
           vec: v1(I) = box< I --> v1(I) >(42);
-          result: v(I) = `[[<-`< v(I),I,I --> v(I) >(vec, 2, 99);
+          result: v(I) = `[[<-`< v(I),I,I,miss --> v(I) >(vec, 2, 99, <missing>);
           return result;
         }
       }
@@ -619,7 +728,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
 
     var analysis = new OriginAnalysis(main);
 
@@ -634,6 +743,41 @@ class OriginAnalysisTest {
     // The load and the forced value resolve to those constants.
     assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "r")));
     assertEquals(new Constant(SEXPs.integer(0)), analysis.get(reg(main, "f")));
+  }
+
+  /// `GETVAR` checks the loaded binding for the missing argument before it forces it. The check
+  /// only inspects the promise, so the promise body still runs for the first time at the force,
+  /// and its store replaces `a`.
+  @Test
+  void testCheckMissingBeforeForceDoesntForcePromise() {
+    var firText =
+        """
+        fun main() {
+          () -+> V {
+            mkenv;
+            pr:p(V ~) = prom<V ~>{ st a = <int 99>; return <int 0>; };
+            st p = pr;
+            st a = <int 1>;
+            q:* = ld p;
+            checkMissing< * -~> V >(q);
+            f:V = force? q;
+            r:V = ld a;
+            popenv;
+            return r;
+          }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var entry = main.body().entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 5, Variable.named("a")));
+    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "r")));
   }
 
   /// A promise that stores to `a` is super-stored into the (untracked) global env, so it leaks: it
@@ -663,7 +807,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
 
     var analysis = new OriginAnalysis(main);
 
@@ -676,6 +820,79 @@ class OriginAnalysisTest {
     assertEquals(
         Set.of(new Constant(SEXPs.integer(1)), new Constant(SEXPs.integer(99))),
         analysis.getPossible(entry, 4, Variable.named("a")));
+  }
+
+  /// The leaked promise's body runs where the inner environment is pushed (`x` is 1), and at the
+  /// last `popenv` after it is popped (`x` is 99). The merge of the two entry states, which have
+  /// different environment depths, keeps both bindings of `x`.
+  @Test
+  void testPromiseBodyRunAtDifferentEnvDepthsMergesTheirFrames() {
+    var firText =
+        """
+        fun main() {
+          (c:B) -+> V {
+            mkenv~;
+            st x = <int 1>;
+            pr:p(V +) = prom<V +>{ x1:* = ld x; return x1; };
+            st-super gp = pr;
+            mkenv;
+            if c then L1() else L2();
+          L1():
+            force pr;
+            goto L2();
+          L2():
+            popenv;
+            st x = <int 99>;
+            popenv;
+            return <nil>;
+          }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertNotEquals(new Constant(SEXPs.integer(1)), analysis.get(reg(main, "x1")));
+  }
+
+  /// A reflective call taints the inner environment, where the variable `p` holds the promise.
+  /// The call may take the promise from there (`parent.frame()$p`) and force it after the
+  /// function returns, so the promise leaks, and its load of `x` may see the later store.
+  @Test
+  void testPromiseInTaintedEnvironmentLeaks() {
+    var firText =
+        """
+        fun main() {
+          (c:B) -+> V {
+            mkenv~;
+            st x = <int 1>;
+            pr:p(V +) = prom<V +>{ x1:* = ld x; return x1; };
+            mkenv;
+            st p = pr;
+            if c then L1() else L2();
+          L1():
+            force pr;
+            goto L2();
+          L2():
+            g< -+> V >();
+            popenv;
+            st x = <int 99>;
+            popenv;
+            return <nil>;
+          }
+        }
+
+        fun g() {
+          () -+> V { return <int 0>; }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertNotEquals(new Constant(SEXPs.integer(1)), analysis.get(reg(main, "x1")));
   }
 
   /// Same as [#testLeakedPromiseMaybeForcedAtCall], except the call is effect-free. Forcing the
@@ -704,7 +921,7 @@ class OriginAnalysisTest {
 
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var entry = main.body().entry();
 
     var analysis = new OriginAnalysis(main);
 
@@ -713,17 +930,17 @@ class OriginAnalysisTest {
         analysis.getPossible(entry, 4, Variable.named("a")));
   }
 
-  /// The shape `bench_ai_awf_permute`'s `permute` compiles to: `list` is seeded before the loop
-  /// with the promise `_p` (its default argument), and each iteration reassigns it twice, so the
-  /// last store (`list22`) is the only one that reaches the back edge. Inside the body, before the
-  /// first `swap` call, `list` is therefore the phi of `_p` and `list22` — `list16` never survives
-  /// an iteration.
+  /// The shape that `permute` of the former example `bench_ai_awf_permute` compiles to: `list` is
+  /// seeded before the loop with the promise `_p` (its default argument), and each iteration
+  /// reassigns it twice, so the last store (`list22`) is the only one that reaches the back edge.
+  /// Inside the body, before the first `swap` call, `list` is therefore the phi of `_p` and
+  /// `list22` — `list16` never survives an iteration.
   ///
   /// `_p` escapes (the loop merge sees a promise on one edge and a plain value on the other), and
   /// so do the wrapper promises the body builds, so the reflective calls in the loop may force one
   /// of them and pick up whatever bindings it leaves behind. The loop header can't: an increment
-  /// and a comparison have no effects to run a reflective promise body with, so the phi reaches
-  /// the query point intact.
+  /// and a comparison have no effects to run a reflective promise body with, so the phi reaches the
+  /// query point intact.
   @Test
   void testLoopVariableResolvesToPhiOfSeedAndBackEdge() {
     var firText =
@@ -775,7 +992,7 @@ class OriginAnalysisTest {
     var module = parseModule(firText);
     var permute =
         Objects.requireNonNull(module.localFunction(Variable.named("permute"))).baseline();
-    var cfg = Objects.requireNonNull(permute.cfg());
+    var cfg = permute.body();
     var l1 = Objects.requireNonNull(cfg.bb("L1"));
     var l2 = Objects.requireNonNull(cfg.bb("L2"));
 
@@ -795,5 +1012,287 @@ class OriginAnalysisTest {
     assertEquals(
         Set.of(new Read(reg(permute, "list22"))),
         analysis.getPossible(l2, 5, Variable.named("list")));
+  }
+
+  /// `p` leaks into `g`. The definite force of `q` doesn't forget it, so `h` may still force `p`,
+  /// which stores 9 into `x`.
+  @Test
+  void testLeakedPromiseMaybeForcedAfterDefiniteForce() {
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv~;
+                st x = <int 1>;
+                p: p(v1(I) +) = prom<v1(I) +>{
+                  st x = <int 9>;
+                  return <int 9>;
+                };
+                g< p(v1(I) +) -+> V >(p);
+                st x = <int 2>;
+                q: p(v1(I) ~) = prom<v1(I) ~>{
+                  return <int 3>;
+                };
+                q1: v1(I) = force q;
+                h< -+> V >();
+                x1: * = ld x;
+                popenv;
+                return x1;
+              }
+            }
+
+            fun g(x) {
+              (x:p(v1(I) +)) -+> V { ... }
+            }
+
+            fun h() {
+              () -+> V { ... }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(2)), new Constant(SEXPs.integer(9))),
+        analysis.getPossible(main.body().entry(), 7, Variable.named("x")));
+  }
+
+  /// The second force of `pa` doesn't run its body again, so `x` keeps the 7 that `pb` stores.
+  @Test
+  void testSecondForceDoesntRepeatFirstForce() {
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv~;
+                st x = <int 1>;
+                pa: p(v1(I) ~) = prom<v1(I) ~>{
+                  st x = <int 5>;
+                  return <int 5>;
+                };
+                pb: p(v1(I) ~) = prom<v1(I) ~>{
+                  st x = <int 7>;
+                  return <int 7>;
+                };
+                a1: v1(I) = force pa;
+                b1: v1(I) = force pb;
+                a2: v1(I) = force pa;
+                x1: * = ld x;
+                popenv;
+                return x1;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertTrue(
+        analysis
+            .getPossible(main.body().entry(), 6, Variable.named("x"))
+            .contains(new Constant(SEXPs.integer(7))));
+  }
+
+  /// A query inside the promise body doesn't change a later query after the force.
+  @Test
+  void testQueryInPromiseBodyDoesntChangeLaterQuery() {
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -~> V {
+                mkenv~;
+                st x = <int 1>;
+                p: p(v1(I) ~) = prom<v1(I) ~>{
+                  st x = <int 5>;
+                  return <int 5>;
+                };
+                a: v1(I) = force p;
+                x1: * = ld x;
+                popenv;
+                return x1;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var entry = main.body().entry();
+    var body = ((Promise) entry.statements().get(2).expression()).code().entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    var five = Set.of(new Constant(SEXPs.integer(5)));
+    assertEquals(five, analysis.getPossible(body, 0, Variable.named("x")));
+    assertEquals(five, analysis.getPossible(entry, 3, Variable.named("x")));
+  }
+
+  /// Each iteration leaks a promise into `g`. In the body of the second one, `h` may force the
+  /// first one, whose body stores 2 into `board`, while the analysis of the same body is running.
+  /// (The branch before the call merges the promise with the leaked one.)
+  @Test
+  void testReentrantForceOfSamePromiseCode() {
+    var module =
+        parseModule(
+            """
+            fun main(n) {
+              (n:I) -+> V {
+                mkenv~;
+                st board = <int 0>;
+                goto L1(0);
+              L1(k: I):
+                k1: I = `+`< I,I --> I >(k, 1);
+                c: L = `<`< I,I --> L >(k1, n);
+                c1: B = naToFalse< L --> B >(c);
+                if c1 then L2() else L3();
+              L2():
+                st board = <int 1>;
+                p: p(V +) = prom<V +>{
+                  h1: V = h< -+> V >();
+                  b1: * = ld board;
+                  b2: V = force? b1;
+                  st board = <int 2>;
+                  return b2;
+                };
+                if c1 then L4() else L5();
+              L4():
+                goto L6();
+              L5():
+                goto L6();
+              L6():
+                r: V = g< p(V +) -+> V >(p);
+                goto L1(k1);
+              L3():
+                popenv;
+                return <int 0>;
+              }
+            }
+
+            fun g(x) {
+              (x:p(V +)) -+> V { ... }
+            }
+
+            fun h() {
+              () -+> V { ... }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var l2 = Objects.requireNonNull(main.body().bb("L2"));
+    var body = ((Promise) l2.statements().get(1).expression()).code().entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    var board = analysis.getPossible(body, 0, Variable.named("board"));
+    assertTrue(board.isEmpty() || board.contains(new Constant(SEXPs.integer(2))), board::toString);
+  }
+
+  /// Four promises leak, and each call in their bodies may force each of them, also one whose
+  /// body's analysis is running. Each such force applies the effects that the body may have,
+  /// which needs the statements of the body: the analysis scans each body only once.
+  @Test
+  void testEachPromiseBodyIsScannedOnce() {
+    var promise =
+        """
+            prom<V +>{
+              h1: V = h< -+> V >();
+              h2: V = h< -+> V >();
+              st x = <int 2>;
+              return h2;
+            }""";
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -+> V {
+                mkenv;
+                st x = <int 0>;
+                p1: p(V +) = %1$s;
+                p2: p(V +) = %1$s;
+                p3: p(V +) = %1$s;
+                p4: p(V +) = %1$s;
+                r: V = g< p(V +),p(V +),p(V +),p(V +) -+> V >(p1, p2, p3, p4);
+                r1: V = h< -+> V >();
+                popenv;
+                return r1;
+              }
+            }
+
+            fun g(a, b, c, d) {
+              (a:p(V +), b:p(V +), c:p(V +), d:p(V +)) -+> V { ... }
+            }
+
+            fun h() {
+              () -+> V { ... }
+            }
+            """
+                .formatted(promise));
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertTrue(analysis.bodyScans <= 4, () -> analysis.bodyScans + " scans");
+  }
+
+  /// A state's set of leaked promises still finds a promise after its forced status changes.
+  @Test
+  void testPromiseOriginStaysInSetWhenForcedChanges() {
+    var module =
+        parseModule(
+            """
+            fun main() {
+              () -~> V {
+                p: p(V ~) = prom<V ~>{ return <int 0>; };
+                return <int 0>;
+              }
+            }
+            """);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var promise = (Promise) main.body().entry().statements().getFirst().expression();
+
+    var po = new OriginAnalysis.PromiseOrigin(promise);
+    var set = new LinkedHashSet<>(List.of(po));
+    po.forced = Maybe.MAYBE;
+
+    assertTrue(set.contains(po));
+  }
+
+  /// The leaked promise's body also runs at the `popenv` of the early return, where `a` is absent.
+  /// The call may force the promise, but its body can't remove `a`, so `a` stays known after it.
+  @Test
+  void testMaybeForceKeepsPresentVariables() {
+    var firText =
+        """
+        fun main() {
+          (b:B) -+> V {
+            mkenv;
+            pr:p(V ~) = prom<V ~>{ return <int 0>; };
+            st-super gp = pr;
+            if b then L1() else L2();
+          L1():
+            popenv;
+            return <int 0>;
+          L2():
+            st a = <int 1>;
+            c:V = g< -~> V >();
+            r:V = ld a;
+            popenv;
+            return r;
+          }
+        }
+
+        fun g() {
+          () -~> V { return <int 0>; }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(Objects.requireNonNull(main.body().bb("L2")), 1, Variable.named("a")));
   }
 }

@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `quantile` <- function (x, ...) 
 UseMethod("quantile")
 

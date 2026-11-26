@@ -27,11 +27,20 @@ fun functionName(x, y) {
 
 Each function has a name and parameter names (R names) and one or more **versions**. The first version is the function's **baseline**; the rest are specializations. Every version has the same number of parameters as the function has parameter names. When a function is "dispatched", the version whose parameter types best match the argument types is selected.
 
+A parameter may carry the default expression of the GNU-R formal it came from, as an SEXP constant: `fun addNA(x, ifany = <lgl FALSE>)`. FIŘ code doesn't use it (the body computes the default itself, `missing(x)` tests the parameter), but the closures of the function (`clos`) get it as their formals, so `formals()`, `match.arg` and printing agree with GNU-R. Fir2C only reads which parameters have one: the entry store of such a parameter's default marks its binding as GNU-R's `applyClosure` does, so R code's `missing(x)` is TRUE until `x` is assigned.
+
 A version whose body is `{ ... }` is a **stub**: a declaration without code. Builtins and intrinsics (`src/main/resources/org/prlprg/fir/builtins.fir` and `intrinsics.fir`) are declared this way and are implicitly in scope in every module.
+
+A version may also be *unevaluated*: its body is computed when it's first accessed (see [lazy-versions](lazy-versions.md)). Such a version isn't printed at all, unless it's the baseline, which prints as `{ <unevaluated> }` and doesn't parse.
 
 A function may be preceded by user properties:
 - `@strict`
-- `@liteSpecial` - the function may be called with literal AST arguments, but a non-reflective version takes them evaluated, like a builtin
+- `@liteSpecial` - the function may be called with literal AST arguments, but a non-reflective version takes them evaluated, like a builtin. In a call of the baseline, a constant symbol or call is an expression to evaluate, and a register is a value (FIŘ→C passes a symbol or call value in an evaluated promise). `bc2fir` passes a symbol or call *value* constant quoted.
+- `@readsContext` - the function (a builtin) reads the GNU-R closure context of its caller, e.g. `UseMethod`, `Recall`, `sys.function`, `match.arg`. The compiled code calls it through its base binding (`Fir_call_base`), never its `.Internal` directly. So does a call of `stop` or `warning`, whose `builtins.fir` parameters are their base closures', not their `.Internal`s'. `bc2fir` doesn't support an `.Internal` call of any of these, because it would run the base closure instead
+- `@needsContext` - a call of the function must run inside a GNU-R closure context for the function's own frame. `bc2fir` sets it on a closure whose bytecode names a `@readsContext` function, also inside the AST arguments of a special call (`substitute(a, parent.frame())`). It also sets it on a closure that calls a function it can't know, which may be a reader (`h <- function(fn, y) fn(y)`, called as `h(on.exit, ...)`): a formal, a local (unless each store binds a closure literal, or the local has a builtin's name, like data in `c <- 1`), such a name of an enclosing function, a computed function (`x$f()`, `pkg::f()`), a `..1`, or `do.call`. It misses a global alias of a reader, a function that calls one in its caller's frame, and the names of the enclosing function of a closure compiled on its own; for a dynamic call of a primitive reader in a frame without a context, FIŘ→C raises an error instead (`Fir_call_dynamic_values`). FIŘ→C calls such a function through `Rf_applyClosure` (from every call shape: `dyn`, dispatch, and static), so the optimizer doesn't retarget its calls, and a static call of a version that a call from R can't select (an unboxed or owned parameter or return) is a compile error. Other calls run without a context. The vendored R's `sys.frame`, `parent.frame` and the like still count the frames of such calls (`Rsh_Frames`), and raise an error where the activation that they name has no context
+- `@readsPromise` - the function (a builtin) reads the promise bound to an argument symbol in its caller's frame, not only its value: its expression (`substitute`) or whether it's missing (`missing`)
+- `@needsPromises` - the function's parameters must stay the caller's GNU-R promises. `bc2fir` sets it on a closure whose bytecode names a `@readsPromise` function, with the same scan as `@needsContext`. Its from-R entry keeps a promise that R forced (`UseMethod` forces the dispatch argument of the method it calls). `StrictifyPromise` doesn't strictify calls of it (the version it makes wraps each value in a promise without the caller's expression). A function that only passes a parameter on to another function doesn't get it, because that function gets a normal promise
+- `@signals` - every version but the baseline is `@signals`. A version (a stub) may also be preceded by `@signals`: it can warn or raise an error, which its effects don't say (e.g. integer overflow, `NaNs produced`, or an `if` condition that is `NA`). The optimizer doesn't remove such a call when its result is unused, doesn't move it into a promise, and inlines a promise whose body can warn or raise an error only into a callee that forces it on every path to a `return` or an error, before anything else that can warn, raise an error, or write output (`InferEffects#maySignal`, `StrictifyPromise`)
 
 ### Function Signatures (`sig`)
 
@@ -102,9 +111,19 @@ Effects track potential side effects of expressions. There are 3 kinds of effect
 - `~` - Maybe effects, no reflection (impure)
 - `+` - Any effects (reflective)
 
-Environment operations (`mkenv`, `popenv`, `st`), casts, in-place subscript writes, and `[[` reads are impure. Reflective loads and stores (`r$x`), function lookups (`ldf`), dynamic calls, and forcing a maybe-typed value are reflective. A call has the effects of its signature, and a `force` has the effects of the promise's type.
+Environment operations (`mkenv`, `popenv`, `st`), casts, in-place subscript writes, and `[[` reads are impure. Reflective loads and stores (`r$x`), function lookups (`ldf`), dynamic calls, and forcing a maybe-typed value are reflective. A call has the effects of its signature, and a `force` has the effects of the promise's type. A load (`ld x`, `ldf-glob x`) has no effects, but it raises an error if `x` is unbound, so the optimizer keeps an unused one (`InferEffects#maySignal`), unless `OriginAnalysis` knows the value of `x` there.
 
 If an effectful or unknown function is called, the calling version must have effects. If an effectful or unknown promise is forced, the forcing version must have effects. Any version containing reflective operations must have effects.
+
+### Visibility
+
+GNU-R's flag `R_Visible` tells if a closure's result is visible (`withVisible`, the REPL). Only a closure's `return` reads it. A force leaves the last write of the promise body.
+- `bc2fir` writes it with the intrinsics `setVisible` and `setInvisible` where GNU-R's bytecode writes it last before a `return`: after the instruction that makes the value, before the force of a variable read, and before a dynamic call (which can become a builtin with inline code). A call, a builtin call through `Fir_call_builtin`, and a `force` write it at run time.
+- A promise's forcer sets the flag on before the force. So a promise body gets a write only if a statement before its result can set the flag off (`InferEffects#maySetInvisible`). For example, a constant promise, a symbol promise, and an arithmetic promise of values get no write.
+- Rule for the passes: keep each write that no later write or call of a module function (`InferEffects#overwritesVisibility`) in the same block replaces, and keep the order of the writes, the calls, and the forces. A module function call replaces the flag, because the flag at each `return` of a module function doesn't depend on its value at the call. `Cleanup` removes the other writes. `StrictifyPromise` doesn't move a promise that can set the flag off before the callee's writes.
+- The intrinsics are declared without effects: no pass reorders or removes a statement without an assignee except `Cleanup`, and `Cleanup` keeps the writes that the rule keeps. Deoptimization doesn't read the flag (in compiled code, a deoptimization is an error).
+
+Known difference: a call of an S3 method through `[` or `[[` (e.g. a `` `[.cls` `` that ends in an assignment) returns visibly. GNU-R's bytecode returns the method's flag, because `STARTSUBSET_N` jumps to its end without a write, but GNU-R's AST interpreter returns visibly. The compiler follows the AST interpreter, and its base already did.
 
 ## Variables (`v`)
 
@@ -123,6 +142,8 @@ BB(r: t):                  # a block parameter (phi)
 Registers are only accessible within the version body and inner promises; they can't be read across versions. A register's definition must dominate all of its uses.
 
 A register name must be a valid identifier: must start with a letter or `_`, be followed by letters, digits, or `_`, and cannot equal `_`. By convention a register name doesn't start with an uppercase letter, so registers are visibly distinct from block labels.
+
+A register or function whose name is a statement keyword (e.g. `v`, `force`, `st`, `goto`) is backquoted where it begins an expression, e.g. `` `v` ?: V `` or `` `v`[i] ``. A backquoted name there is never read as a keyword.
 
 ### Named Variables (`x`)
 
@@ -152,7 +173,7 @@ Boxed constants are written in the SEXP syntax, delimited by `<` and `>`: `<int 
 
 - Constants
 - Reads: `r`
-- Register consumes: `consume r`. `r` must be an owned vector; the argument has fresh ownership. `r` can't be read or used in any instruction reachable from the `consume`.
+- Register consumes: `consume r`. `r` must be an owned vector; the argument has fresh ownership. `r` can't be read or used in any instruction reachable from the `consume`, until `r` is assigned again (in a loop).
 
 Arguments are the only sub-expressions. e.g. `v(I)[v(I)[1]]` isn't allowed, but `r: v(I)o = v(I)[1]; r1: I = r[0]` is.
 
@@ -166,13 +187,43 @@ dyn r(a1, a2, ...)                   # Dynamic call of a closure only known at r
 dyn r[name1, , name3](a1, a2, a3)    # Dynamic call with (some) named arguments
 ```
 
-Every call to a known function carries a signature. For a static call, the function must have a version whose parameters are at least as permissive as the signature's and whose strictness, effects, and return type are at least as restrictive. A dispatch call additionally requires the function to be *dispatchable* (its baseline's parameter and return types are all SEXP kinds) and the signature to return an SEXP kind.
+A call can end with its **source call**: `log%< *@!,*@! -+> V >(x, <missing>) in <lang log(x)>`. This is the R call that `bc2fir` compiled the statement from (any statement can have one, but `bc2fir` sets it only on calls that are not intrinsics). The type checker, the optimizer, and the interpreter ignore it, and optimizations that replace a statement keep it. Fir2C passes it as the `call` argument of `Fir_call_builtin`, `Fir_call_base`, and `Fir_call_dynamic`, so GNU-R errors, `conditionCall`, `sys.call()`, `match.call()`, and group dispatch see the source call and not a call built from the matched arguments. A static builtin call also passes the tags of the source call's arguments (GNU-R doesn't tag `x[i]`'s subscript, which an S3 method sees). Without a source call, the runtime builds the call from the arguments.
+
+A **setter call** is the shape `bc2fir` gives `x[i] <- v`: `l = ld x`, then a call whose first argument is `l` (or an assumption, cast, or force of it) and whose source call's first argument is `` `*tmp*` ``, then `st x = r` of its result (after a checkpoint or goto at most). Fir2C runs it in GNU-R's assignment protocol (`Fir_Setter` in `client/rsh/src/fir2c/runtime.h`), as bytecode's `STARTASSIGN`/`SETTER_CALL`/`ENDASSIGN` do: it passes `x`'s binding without counting it, and counts the registers that outlive the call, so the callee modifies the vector in place when nothing else references it. A static call of a borrowing `[<-`/`[[<-` version calls its owning twin then. Outside a setter call, Fir2C also calls the owning twin when the first argument is `consume r`. If the optimizer keeps `x` in registers (no `ld x`/`st x`), the first argument is a register, and Fir2C copies its value first if anything counts a reference to it. Fir2C matches the shape only in a version's body CFG, not in a promise's. Likewise, `d = dup l'` followed by `st x = d` in the same block, with no R code or read of the old value between, copies only if GNU-R's `STARTASSIGN` would (`Fir_assign_dup`; `Fir_value_dup` if `x` is in registers). This covers a setter that the optimizer turned into a `dup` and a vector write.
+
+A register's value can also be bound in an environment without a count of its own, as on GNU-R's stack. R code can then write the binding in place (`x[1L] <<- 0`), and the register sees the change. So a statement that can run R code counts the registers that the frame reads after it, while it runs (`Fir_link`), as bytecode's `INCLNK_stack_commit`/`DECLNK_stack` do. The array holds only the SEXP registers of the CFG's C function. It doesn't hold a parameter that the frame doesn't read later: a caller that reads its argument later counts it at its own call. A promise's captures count in its data. The statements are:
+
+- a dynamic call, an in-context call, and a call through `Fir_call_base`;
+- a static call of a version that is not in the builtins or intrinsics modules, a dispatch call, and a fallback call (this includes a call of the bytecode baseline);
+- a builtin call: the runtime counts unless the builtin is an operator (`PP_BINARY`, `PP_BINARY2` or `PP_UNARY`), not a special, with no object, promise, or `...` argument (`Fir_builtin_runs_r`);
+- a force: the C code tests whether the value is an unevaluated promise, and counts only then.
+
+When a builtin forces a promise argument, in a static or a dynamic call, the runtime also counts the arguments.
+
+A static call of a builtin that isn't a special passes its arguments in cells that don't count them, as GNU-R's `CALLBUILTIN` does (`CONS_NR`; the cells of `...` elements still count). So the builtin reuses a dead operand: `x * 2 + 1` allocates one vector. The runtime counts an argument that is also another argument or a register that outlives the call (`linkedRegisters`, which also has the captures of live promises and the parameters), so the callee doesn't write into a value that is read later. For an operator on plain data, it counts such an argument only if the argument has no references, because the operator reuses only an operand with no references (`NO_REFERENCES`). As in GNU-R, R code that the builtin runs (a callback of `rapply`) can write in place an argument that nothing else references, and the builtin sees the change. A special gets counting cells.
+
+These cases are not covered, and a register can see the change there:
+
+- a function load (`ldf`) that forces a promise;
+- a warning's or an error's calling handler, and `options(error=)`, below an intrinsic or an operator on plain data (no wrong value is known from them);
+- an active binding, and a finalizer;
+- a call of a version in the builtins or intrinsics module that calls an R method (`length` of an S4 object, a subscript);
+- the forcing of a `...` element that a builtin's argument list builds (`Fir_build_arglist`);
+- `options(warning.expression=)`, and an interrupt handler that resumes.
+
+A jump out of a statement (an error, a deopt, `UseMethod`, a caught condition) leaves its counts raised, which costs only copies. A dynamic call of a builtin and a call of a lite special still build cells that count their arguments, and the count stays after the call, which also costs only copies.
+
+A setter call counts its own array (see above). When GNU-R's assignment protocol doesn't apply, a call through `Fir_call_setter` or `Fir_call_setter_builtin` still counts that array while it runs, but a static call of a builtins-module version counts nothing. A setter whose builtin Fir2C calls through `Fir_call_base` (`viaBase`) doesn't use the protocol: it counts the registers that the frame reads after the statement, as other calls do.
+
+Every call to a known function carries a signature. For a static call, the function must have a version whose parameters are at least as permissive as the signature's and whose strictness, effects, and return type are at least as restrictive. A dispatch call additionally requires the function to be *dispatchable* (its baseline's parameter and return types are all SEXP kinds) and the signature's parameter and return types to be SEXP kinds (the C dispatch passes each argument as an SEXP).
 
 ### Promise Creation
 
 ```fir
-prom<t fx>{ body }    # A promise
-prom-<t fx>{ body }   # A local promise
+prom<t fx>{ body }            # A promise
+prom-<t fx>{ body }           # A local promise
+prom<t fx>[<sexp>]{ body }    # A promise with a source expression
+prom-<t fx>[<sexp>]{ body }   # A local promise with a source expression
 ```
 
 Example:
@@ -181,7 +232,9 @@ Example:
 prom<v1(I) ->{ return <int 42>; }
 ```
 
-`t` must be a value type of SEXP kind with shared ownership. A promise body is a CFG in the enclosing version's register namespace. Registers defined inside a promise are only visible inside it. A promise may only read registers defined outside it if it is **local** (`prom-`): a local promise is speculated not to escape the stack frame it's created in, and crashes at run time if it escapes and is forced afterwards.
+`t` must be a value type of SEXP kind with shared ownership. A promise body is a CFG in the enclosing version's register namespace. Registers defined inside a promise are only visible inside it. A promise may read registers defined outside it (its captures): the promise keeps their values, so it can be forced after its frame is gone. A **local** promise (`prom-`) is speculated not to escape the stack frame it's created in, and raises an error at run time if it escapes and is forced afterwards.
+
+The optional constant in brackets is the R source expression of the promise (for example `[<lang f(x)>]`). `bc2fir` sets it from the promise bytecode, and the optimizations keep it. GNU-R code that reads a promise's expression (`substitute`, `missing`, `match.call`, `deparse`) sees it. Such a read of a promise without an expression raises the R error "the source expression of this promise is not available". One exception: a promise without an expression whose body only returns a register defined outside it or a SEXP constant (the wrapper that `StrictifyPromise` makes, also after an optimization replaced its register with a constant) is created already evaluated, with the value as its expression, like the argument promises of `do.call`. Unlike those, it keeps its environment, so a reflective access through it (`r$x`) works, unless the value is a symbol (`missing` looks that symbol up in the environment). So an optimization must keep the body of such a promise: `SchedulePure` and `DeferIntoPromise` move no statement (for example a `box`) into it, and `ElideUnforcedPromise` does not replace it.
 
 ### Closures
 
@@ -205,7 +258,7 @@ Subscripts are 0-based, unlike R's, which are 1-based, and must be unboxed integ
 
 ### Environment Operations
 
-- Create environment: `mkenv`. An environment must be created before any stores. `mkenv~` creates an environment that is assumed not to be observed by reflection. `mkenv-` is an *elided* environment: it isn't materialized (a deopt re-creates it), so it's free.
+- Create environment: `mkenv`. An environment must be created before any stores. `mkenv~` creates an environment that is assumed not to be observed by reflection. `mkenv-` is an *elided* environment: it isn't materialized, so it's free. Its deopt branches still store into it, so the backend materializes it at the entry of each deopt branch.
 - Pop environment: `popenv` destroys the innermost environment created by `mkenv` (e.g. after inlining a callee that has one).
 - Load from environment: `ld x`. `ld-super x` skips the innermost environment (R's `<<-` lookup).
 - Load function from environment: `ldf x` (R function lookup forces promises and ignores non-closure values, hence it's reflective). `ldf-glob x` and `ldf-base x` start the lookup in the global and base environment instead.
@@ -227,7 +280,7 @@ Assumptions are no-ops when evaluated, but are checked when a checkpoint (`check
 
 - `a ?: t` - assume `a` has type `t` (an SEXP kind). Yields `a` at type `t`.
 - `a ?= c` - assume `a` equals the constant `c`
-- `a ?- f` - assume `a` is a closure of the function `f` (with a global environment). Yields `a` as a `cls`.
+- `a ?- f` - assume `a` is a closure of the function `f`. Yields `a` as a `cls`.
 - `ld x ?= c` - assume that loading `x` yields `c`
 - `ldf x ?- f` - assume that looking up `x` as a function yields `f` without forcing promises. Yields the closure.
 
@@ -297,12 +350,11 @@ SUCCESS():
   # jump
   return r1;
 DEOPT():
-  mkenv;
   st x = r;
   deopt 5 [r];
 ```
 
-When a checkpoint is encountered, the assumptions at the beginning of the success block (its leading run of assumption statements) are checked. If all pass, control jumps to the success block. Otherwise, control jumps to the deopt block, which creates an environment (unless one exists) and stores the named variables the bytecode expects, then performs a deoptimization.
+When a checkpoint is encountered, the assumptions at the beginning of the success block (its leading run of assumption statements) are checked. If all pass, control jumps to the success block. Otherwise, control jumps to the deopt block, which stores the named variables the bytecode expects into the current environment, then performs a deoptimization. If that environment is elided, the backend materializes it first (`Fir_materialize_env` in C; the interpreter always creates a real environment). An assumption anywhere else is never checked, so FIŘ→C refuses to compile it: every predecessor of its block must be a checkpoint whose success block it is, and only assumptions may precede it.
 
 The success target of a `check` can't have arguments.
 
@@ -330,18 +382,20 @@ BB(r1: t, r2: t, ...):
 - **Named variable types**: Must be shared and maybe (`t?` or `*`).
 - **Assignment Compatibility**: Registers, named variables (via `st`), and return values must be assigned values whose kind and promisity subtype their declared type's, whose maybeness is at most as maybe, and with the following ownership rules:
   - An owned register must be assigned a fresh value
-  - A shared register or named variable must be assigned a fresh or shared value
+  - A shared register, named variable, or return type can be assigned any value except a borrowed one; an owned value is then shared (see **Sharing** below)
   - A borrowed register cannot be assigned (only parameters can be borrowed)
 - **Call compatibility**: Static and dispatch call arguments must subtype the signature's parameter types (as above), with the following ownership rules:
   - An owned parameter must be given a fresh argument
-  - A shared parameter must be given a fresh or shared argument
+  - A shared parameter can be given any argument except a borrowed one; an owned argument is then shared
   - A borrowed parameter can be given any argument
 - **Return type**: A version's return type must be a value type (not a promise or maybe-promise), and every returned value must be assignable to it.
 - **Versions**: A version's effects must be a subset of its function's baseline's effects. If a version's parameters are strictly narrower than another's, its effects must not be wider.
-- **Calls**: A static call's signature must select a version (see [Function Calls](#function-calls)). Dispatch calls, `clos`, `?- f`, and `ldf x ?- f` require dispatchable functions; a dispatch call's signature must return an SEXP kind. A `dyn` callee must be a `cls`.
+- **Calls**: A static call's signature must select a version (see [Function Calls](#function-calls)). Dispatch calls, `clos`, `?- f`, and `ldf x ?- f` require dispatchable functions; a dispatch call's signature must take and return SEXP kinds. A `dyn` callee must be a `cls`.
 - **Promises**: A promise's inner type must be a shared value type of SEXP kind; its body's return type and effects must match the declared ones.
 - **Expression-specific rules**: `force` requires a definite promise; `r$x` requires a definite promise; `dup`, subscript reads and writes, and `consume` require definite vectors, and `consume` an owned one; subscript writes require an owned or fresh target, an `I` index, and an unboxed scalar value of the vector's kind; `v(t)[...]` elements must be unboxed `t` and unnamed (`v1(t)[...]` is rejected: use `box`); `if` conditions must be `B`; `raise` arguments must be `S`; casts and type assumptions must target SEXP kinds; `st` can't store a `consume`.
-- **"Use" invariant** (provenance): A register must be written before it's read; `r` cannot be read or consumed in any instruction reachable from a `consume r` (including in the same expression), nor consumed after being captured by a promise.
+- **"Use" invariant** (provenance): A register must be written before it's read; `r` cannot be read or consumed in any instruction reachable from a `consume r` (including in the same expression), until `r` is assigned again (in a loop). A promise captures each register that its body (or a nested promise) reads or consumes. `r` cannot be consumed in any instruction reachable from a promise that captures it, also after `r` is assigned again.
+- **Sharing** (provenance): A read of an owned register `r` *shares* it unless it borrows (the target of a subscript read or write, the argument of `dup`, or a static call argument for a borrowed parameter) or moves it into an owned phi. A sharing use (e.g. a `dots` element, a `dyn` argument, a cast, or an argument of a shared phi) keeps a reference to the vector, so no instruction reachable from it (until `r` is assigned again) can write `r` in place, `consume` it, or move it into an owned phi. A borrowed register can't be shared at all, except as a `deopt` argument: the caller can write the vector in place after the call.
+- **Phi arguments**: An owned phi must be given an owned register (which moves into it) or a fresh value.
 - **Effects**: A non-effectful version or promise cannot contain an effectful expression:
   - A call to an effectful or unknown function
   - A force of an effectful or unknown promise
@@ -356,9 +410,8 @@ Full type-checks are implemented in `org.prlprg.fir.check.TypeAndEffectChecker` 
 - **Registers**: Each register is defined exactly once, in the innermost scope that uses it (a version or promise body). Parameters are never assigned. A definition must dominate all uses; a use inside a promise counts as occurring at the outermost promise containing it that lives in the definition's CFG.
 - **Phi Correctness**: A jump target must have the same number of arguments as the targeted block has parameters, and each argument's type must be a subtype of the parameter's. The entry block has no parameters, and in strict checking neither does a block with a single predecessor.
 - **Strictness**: Every `@!` parameter is forced on all paths from entry to every `return` or reflective operation.
-- **Captures**: Only local promises (`prom-`) read registers defined outside them.
 
-Full checks are described in the javadoc of, and implemented in, `org.prlprg.fir.check.CFGChecker`, `org.prlprg.fir.check.StrictnessChecker`, and `org.prlprg.fir.check.CaptureChecker`.
+Full checks are described in the javadoc of, and implemented in, `org.prlprg.fir.check.CFGChecker` and `org.prlprg.fir.check.StrictnessChecker`.
 
 ### Environment Constraints
 

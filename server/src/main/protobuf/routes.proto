@@ -11,6 +11,8 @@ service CompileService {
   rpc Compile(CompileRequest) returns (CompileResponse) {}
   rpc Init(InitRequest) returns (InitResponse) {}
   rpc ClearCache(ClearCacheRequest) returns (ClearCacheResponse) {}
+  rpc CompileFirVersion(FirVersionRequest) returns (FirVersionResponse) {}
+  rpc CompileFirClosure(FirClosureRequest) returns (FirClosureResponse) {}
 }
 
 // Used by the compile server to ask questions to R

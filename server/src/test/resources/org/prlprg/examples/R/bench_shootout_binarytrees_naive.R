@@ -1,3 +1,7 @@
+# https://github.com/reactorlabs/RBenchmarking/blob/a92447b37a03e96f8da1e18eb3cd8ab3b46fbf89/Benchmarks/shootout/binarytrees/binarytrees_naive.r
+# License: none stated, see server/doc/benchmark-licenses.md
+# Port: the `execute` wrapper is deleted, and `n =` is `n <-`; the benchmark calls
+# `binarytrees_naive`.
 # ------------------------------------------------------------------
 # The Computer Language Shootout
 # http://shootout.alioth.debian.org/

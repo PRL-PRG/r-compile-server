@@ -5,6 +5,7 @@ import static org.prlprg.util.ExceptionRaiser.raise;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterators;
 import java.util.List;
 import java.util.stream.Stream;
 import org.prlprg.util.Streams;
@@ -13,9 +14,10 @@ import org.prlprg.util.Streams;
 /// https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Argument-matching).
 public class ArgumentMatcher {
   /// Returns a list of arguments as they would be passed to a function with the given formal
-  /// parameters by a call with the given actual arguments.
+  /// parameters by a call with the given actual arguments. A parameter no argument matches gets
+  /// the missing argument, not its default (GNU-R binds the default when it applies the closure).
   ///
-  /// @param formalParameters The formal parameters of the function, including default values.
+  /// @param formalParameters The formal parameters of the function; the values are ignored.
   /// @param unmatchedArguments The actual arguments passed to the call.
   /// @throws MatchException if matching fails: if there are arguments that match the same
   /// parameter with the same priority, or too many arguments.
@@ -43,14 +45,13 @@ public class ArgumentMatcher {
         .map(
             param -> {
               var paramName = param.tag();
-              var paramValue = param.value();
               var paramMatch = nameMatches.arguments.get(paramName);
 
               return paramName.equals("...")
                   ? nameMatches.dddIndices.stream()
                       .map(unmatchedArguments1::get)
                       .collect(SEXPs.toDots())
-                  : paramMatch != null ? unmatchedArguments1.value(paramMatch) : paramValue;
+                  : paramMatch != null ? unmatchedArguments1.value(paramMatch) : SEXPs.MISSING_ARG;
             })
         .collect(ImmutableList.toImmutableList());
   }
@@ -122,18 +123,22 @@ public class ArgumentMatcher {
     // > **Positional matching.** Any unmatched formal arguments are bound to unnamed supplied
     //   arguments, in order. If there is a ... argument, it will take up the remaining arguments,
     //   tagged or not.
+    // A named argument that matched nothing goes to `...`, except that a positional-only formal
+    // (see [#isPositionalOnly(String)]) takes it like an unnamed one.
     var unmatchedFormals =
-        formalParameters.stream()
-            .limit(partialMatchEnd)
-            .filter(name -> !arguments.containsKey(name))
-            .iterator();
+        Iterators.peekingIterator(
+            formalParameters.stream()
+                .limit(partialMatchEnd)
+                .filter(name -> !arguments.containsKey(name))
+                .iterator());
     for (int i = 0; i < unmatchedArgumentNames.size(); i++) {
       var argName = unmatchedArgumentNames.get(i);
       if (arguments.containsValue(i)) {
         continue;
       }
 
-      if (unmatchedFormals.hasNext()) {
+      if (unmatchedFormals.hasNext()
+          && (argName.isEmpty() || isPositionalOnly(unmatchedFormals.peek()))) {
         var paramName = unmatchedFormals.next();
         arguments.put(paramName, i);
       } else if (dddIndex != -1) {
@@ -145,6 +150,20 @@ public class ArgumentMatcher {
     }
 
     return new MatchResults(dddNames.build(), dddIndices.build(), ImmutableMap.copyOf(arguments));
+  }
+
+  /// The name of the `index`th formal of a builtin whose formal names are unknown (only its
+  /// arity is, from `R_FunTab`).
+  public static String positionalOnlyName(int index) {
+    return "." + index;
+  }
+
+  /// Whether `formal` is a [#positionalOnlyName(int)]. GNU-R binds a builtin's arguments by
+  /// position, whatever their names, so such a formal takes the next argument even if it's named.
+  public static boolean isPositionalOnly(String formal) {
+    return formal.length() > 1
+        && formal.charAt(0) == '.'
+        && formal.chars().skip(1).allMatch(Character::isDigit);
   }
 
   public record MatchResults(

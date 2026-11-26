@@ -21,7 +21,7 @@ import org.prlprg.snapshot.SnapshotStoreParameterResolver;
 @Tag("examples")
 @ParameterizedTest(allowZeroInvocations = true)
 @ArgumentsSource(RExampleProvider.class)
-@ExtendWith(SnapshotStoreParameterResolver.class)
+@ExtendWith({SnapshotStoreParameterResolver.class, ExampleTimeout.class})
 public @interface RExampleTest {
   String option() default "";
 

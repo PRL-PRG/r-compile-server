@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `sunflowerplot` <- function (x, ...) 
 UseMethod("sunflowerplot")
 

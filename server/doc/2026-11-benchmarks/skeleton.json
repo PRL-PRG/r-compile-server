@@ -1,0 +1,1408 @@
+[
+ {
+  "id": "01-origins-rerun",
+  "campaignLabel": null,
+  "source": "old/monday-825a/report.md",
+  "pre": "c31aa14db",
+  "post": "8687b89ac",
+  "commits": [
+   {
+    "sha": "8687b89ac",
+    "subject": "OriginAnalysis: re-run a maybe-forced promise body with the current state, so a loop's promise doesn't keep the first iteration's origins (queens returned 7362 instead of 1902)"
+   }
+  ],
+  "files": [
+   {
+    "path": "repo-map.md",
+    "added": 3,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/analyze/resolve/OriginAnalysis.java",
+    "added": 173,
+    "deleted": 18
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/analyze/resolve/OriginAnalysisTest.java",
+    "added": 113,
+    "deleted": 3
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/CleanupTest.java",
+    "added": 58,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/closure_captures_promise_argument.R",
+    "added": 17,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/promise_reads_variable_stored_by_other_promise.R",
+    "added": 16,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/promise_store_read_by_other_instance.R",
+    "added": 39,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "02-phi-union-type",
+  "campaignLabel": null,
+  "source": "old/monday-825a/report.md",
+  "pre": "8687b89ac",
+  "post": "1fa230776",
+  "commits": [
+   {
+    "sha": "1fa230776",
+    "subject": "PromoteStaticallyKnownVariables: type a promoted phi as the union of its inputs instead of *"
+   }
+  ],
+  "files": [
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java",
+    "added": 4,
+    "deleted": 2
+   }
+  ]
+ },
+ {
+  "id": "03-r-entry",
+  "campaignLabel": null,
+  "source": "old/monday-825a/report.md",
+  "pre": "1fa230776",
+  "post": "823644050",
+  "commits": [
+   {
+    "sha": "823644050",
+    "subject": "Fir2C: the R entry doesn't test arguments against a * parameter, and blocks don't emit UNPROTECT(0)"
+   }
+  ],
+  "files": [
+   {
+    "path": "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java",
+    "added": 12,
+    "deleted": 4
+   }
+  ]
+ },
+ {
+  "id": "04-skip-set-enclos",
+  "campaignLabel": null,
+  "source": "old/monday-825a/report.md",
+  "pre": "823644050",
+  "post": "8badbdb2a",
+  "commits": [
+   {
+    "sha": "c2842945e",
+    "subject": "rsh runtime: skip the no-op SET_ENCLOS in the elided-frame push and pop, and look an R argument up once"
+   },
+   {
+    "sha": "622c41040",
+    "subject": "Snapshot tests: the eval of a benchmark example also runs and compares its benchmark call's value; the optimized FIŘ snapshot evaluates the baselines of inner closures so it parses"
+   },
+   {
+    "sha": "8badbdb2a",
+    "subject": "AGENTS.md: the eval tests compare a benchmark example's call value"
+   }
+  ],
+  "files": [
+   {
+    "path": "AGENTS.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 11,
+    "deleted": 3
+   },
+   {
+    "path": "server/doc/lazy-versions.md",
+    "added": 5,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/snapshot/bench/BenchmarkQuery.java",
+    "added": 1,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/snapshot/fir/opt/OptimizedFirQuery.java",
+    "added": 4,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/snapshot/gen2c/EvalOutput.java",
+    "added": 12,
+    "deleted": 3
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/snapshot/gen2c/EvalQuery.java",
+    "added": 46,
+    "deleted": 8
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/snapshot/gen2c/eval.R",
+    "added": 16,
+    "deleted": 12
+   }
+  ]
+ },
+ {
+  "id": "05-rsh-inline",
+  "campaignLabel": "B0",
+  "source": "proposals.md §1",
+  "pre": "8badbdb2a",
+  "post": "9c3efa48c",
+  "commits": [
+   {
+    "sha": "9c3efa48c",
+    "subject": "backend B0: define RSH in C units of rsh_utils.h, so R's inline functions and the inline PROTECT apply to the FIŘ runtime and modules"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/common2c/rsh_utils.h",
+    "added": 5,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "06-cold-builtin-callee",
+  "campaignLabel": "D1",
+  "source": "proposals.md §2",
+  "pre": "9c3efa48c",
+  "post": "95e889d25",
+  "commits": [
+   {
+    "sha": "95e889d25",
+    "subject": "promise P1: SpeculateAssume assumes the builtins.fir callee of a ldf that never ran in a warm version"
+   }
+  ],
+  "files": [
+   {
+    "path": "repo-map.md",
+    "added": 2,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/GlobalModules.java",
+    "added": 50,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/SpeculateAssume.java",
+    "added": 72,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/SpeculateAssumeTest.java",
+    "added": 147,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/cold_print_method_writes_caller.R",
+    "added": 21,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/cold_shadowed_builtin_guard.R",
+    "added": 19,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "07-forward-param-promise",
+  "campaignLabel": "D2",
+  "source": "proposals.md §3",
+  "pre": "95e889d25",
+  "post": "28d4584e3",
+  "commits": [
+   {
+    "sha": "28d4584e3",
+    "subject": "promise P2: StrictifyPromise passes the caller's own promise parameter in place of a stub or force-only promise of it"
+   }
+  ],
+  "files": [
+   {
+    "path": "repo-map.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/StrictifyPromise.java",
+    "added": 134,
+    "deleted": 5
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/StrictifyPromiseTest.java",
+    "added": 153,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/forwarded_promise_substitute_closure.R",
+    "added": 17,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "08-interpreter-mocks",
+  "campaignLabel": "M1",
+  "source": "proposals.md §4",
+  "pre": "28d4584e3",
+  "post": "65fc16a31",
+  "commits": [
+   {
+    "sha": "c8053ba76",
+    "subject": "mocks M1: Interpreter mocks: generic [[<- and [<- grow the vector past its end, like GNU-R"
+   },
+   {
+    "sha": "b80c4fcec",
+    "subject": "mocks M1: Interpreter mocks: name subscripts in generic [, [[, [<- and [[<-; generic arithmetic, comparison, abs and as.logical keep or drop names like GNU-R"
+   },
+   {
+    "sha": "ac3f0a8cf",
+    "subject": "mocks M1: Interpreter mocks: add matrix and matrix subscripts in generic [, [[, [<- and dynamic [[<- (InternalInterpreter#registerUnmatchedExternal); a coerced sub-assignment target keeps its attributes"
+   },
+   {
+    "sha": "9e82bb705",
+    "subject": "mocks M1: Interpreter mocks: add environment() and ls of a frame (with the vendored R's reflection marker)"
+   },
+   {
+    "sha": "23edfea1d",
+    "subject": "mocks M1: Interpreter mocks: [[ reads an absent name of a list as NULL, [ names an out-of-range list element NA"
+   },
+   {
+    "sha": "65fc16a31",
+    "subject": "mocks M1: Interpreter mocks: ls only accepts names that sort the same in the C and UTF-8 collations (_ before digits); test environment() in a promise"
+   }
+  ],
+  "files": [
+   {
+    "path": "repo-map.md",
+    "added": 9,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java",
+    "added": 433,
+    "deleted": 47
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java",
+    "added": 15,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/interpret/LogicalSubscriptMockTest.java",
+    "added": 28,
+    "deleted": 13
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/as_integer_real_range.R",
+    "added": 1,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/empty_name_subscript.R",
+    "added": 14,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/ls_unmarked_frame.R",
+    "added": 12,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/matrix_empty_data.R",
+    "added": 4,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/mod_arith_names.R",
+    "added": 16,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/mod_ls.R",
+    "added": 23,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/mod_matrix.R",
+    "added": 21,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/mod_subassign_grow.R",
+    "added": 21,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/mod_subscript_names.R",
+    "added": 26,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/subscript_exact_drop.R",
+    "added": 9,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "09-base-guard-assume",
+  "campaignLabel": "P1",
+  "source": "proposals.md §5-7",
+  "pre": "65fc16a31",
+  "post": "c090931e4",
+  "commits": [
+   {
+    "sha": "89aae9dd6",
+    "subject": "Interpreter: a failed assumption in the deopt-restore CFG errors instead of restoring into it again forever"
+   },
+   {
+    "sha": "88c464042",
+    "subject": "rsh runtime: the unboxed math1 builtins warn \"NaNs produced\" like GNU-R's math1 (inline_math1 lost its warnings once x was promoted)"
+   },
+   {
+    "sha": "c090931e4",
+    "subject": "promo P1: bc2fir compiles a base-function guard into an assumption that deoptimizes to the BASEGUARD, without the fallback call"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 11,
+    "deleted": 2
+   },
+   {
+    "path": "repo-map.md",
+    "added": 3,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/bc2fir/BC2FirCFGCompiler.java",
+    "added": 14,
+    "deleted": 34
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java",
+    "added": 1,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/bc2fir/BaseGuardTest.java",
+    "added": 58,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/interpret/BaseGuardInterpretTest.java",
+    "added": 108,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/unused_call_keeps_warning.R",
+    "added": 4,
+    "deleted": 5
+   }
+  ]
+ },
+ {
+  "id": "10-static-matrix-subassign",
+  "campaignLabel": "M2",
+  "source": "proposals.md §8-9",
+  "pre": "c090931e4",
+  "post": "eead3fab7",
+  "commits": [
+   {
+    "sha": "437894636",
+    "subject": "mocks M2: OriginAnalysis doesn't fold a subscript with a matrix column, or [ of a named vector (dropped the column and the name)"
+   },
+   {
+    "sha": "eead3fab7",
+    "subject": "mocks M2: [[<- is (x, i, value, ...) like [<-, so x[[i, j]] <- v and x[i, j] <- v are static builtin calls (fir2c passes value last)"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 48,
+    "deleted": 48
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.h",
+    "added": 32,
+    "deleted": 32
+   },
+   {
+    "path": "repo-map.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/bc2fir/BC2FirCFGCompiler.java",
+    "added": 11,
+    "deleted": 5
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/analyze/resolve/OriginAnalysis.java",
+    "added": 12,
+    "deleted": 54
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java",
+    "added": 19,
+    "deleted": 43
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java",
+    "added": 1,
+    "deleted": 15
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java",
+    "added": 18,
+    "deleted": 3
+   },
+   {
+    "path": "server/src/main/resources/org/prlprg/fir/builtins.fir",
+    "added": 38,
+    "deleted": 38
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/analyze/resolve/OriginAnalysisTest.java",
+    "added": 48,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir2c/Fir2CCompilerTest.java",
+    "added": 22,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/mod_matrix.R",
+    "added": 8,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/s3_matrix_subassign_untagged.R",
+    "added": 19,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "11-store-only-promotion",
+  "campaignLabel": "P2",
+  "source": "proposals.md §10,11,13",
+  "pre": "eead3fab7",
+  "post": "0d2d0812d",
+  "commits": [
+   {
+    "sha": "81e16cdef",
+    "subject": "Snapshot tests: the gcTorture example option runs main under gctorture"
+   },
+   {
+    "sha": "aef9f2a89",
+    "subject": "rsh runtime: Fir_push_env protects a new non-reflective frame before it binds the marker; four examples run under gcTorture"
+   },
+   {
+    "sha": "0d2d0812d",
+    "subject": "promo P2: PromoteStaticallyKnownVariables promotes a variable that is only stored, and leaves a variable that an ld-super or st-super names"
+   }
+  ],
+  "files": [
+   {
+    "path": "AGENTS.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 1,
+    "deleted": 2
+   },
+   {
+    "path": "repo-map.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java",
+    "added": 11,
+    "deleted": 19
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariablesTest.java",
+    "added": 154,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/snapshot/gen2c/EvalQuery.java",
+    "added": 8,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/bench_ai_awf_fibonacci.R",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/bench_simple_vector_for.R",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/deopt_elided_env_store.R",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/dots_read_only_by_ddnum.R",
+    "added": 15,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/elided_env_parent_promise.R",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/snapshot/gen2c/eval.R",
+    "added": 11,
+    "deleted": 2
+   }
+  ]
+ },
+ {
+  "id": "12-reuse-dominating-force",
+  "campaignLabel": "D3",
+  "source": "proposals.md §14",
+  "pre": "0d2d0812d",
+  "post": "fc4d4d3cf",
+  "commits": [
+   {
+    "sha": "fc4d4d3cf",
+    "subject": "promise P3: DefiniteForce reuses a dominating force of the same SEXP; ElideTrivialAssume drops an unused AssumeType"
+   }
+  ],
+  "files": [
+   {
+    "path": "repo-map.md",
+    "added": 4,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/specialize/DefiniteForce.java",
+    "added": 95,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/specialize/ElideTrivialAssume.java",
+    "added": 23,
+    "deleted": 5
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java",
+    "added": 102,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/specialize/ElideTrivialAssumeTest.java",
+    "added": 87,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/missing_arg_forced_in_branch.R",
+    "added": 16,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/unforced_promise_overflow.R",
+    "added": 28,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "13-elide-check-missing",
+  "campaignLabel": "D3b",
+  "source": "proposals.md §15",
+  "pre": "fc4d4d3cf",
+  "post": "a7f4f60a0",
+  "commits": [
+   {
+    "sha": "a7f4f60a0",
+    "subject": "promise P3b: ElideCheckMissing elides a checkMissing whose argument comes, through type assumptions and casts, from a value that can't be missing"
+   }
+  ],
+  "files": [
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/specialize/ElideCheckMissing.java",
+    "added": 19,
+    "deleted": 8
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/specialize/ElideCheckMissingTest.java",
+    "added": 54,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "14-inline-type-tests",
+  "campaignLabel": "B2",
+  "source": "proposals.md §16",
+  "pre": "a7f4f60a0",
+  "post": "544395514",
+  "commits": [
+   {
+    "sha": "544395514",
+    "subject": "backend B2: the type descriptors and value type tests are inline in runtime.h, so the C compiler folds a type assumption to its TYPEOF and length tests"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 1,
+    "deleted": 132
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.h",
+    "added": 95,
+    "deleted": 17
+   }
+  ]
+ },
+ {
+  "id": "15-sink-deopt-promises",
+  "campaignLabel": "P3",
+  "source": "proposals.md §17",
+  "pre": "544395514",
+  "post": "32c448f09",
+  "commits": [
+   {
+    "sha": "32c448f09",
+    "subject": "promo P3: SchedulePure defers a value promise used only in deopt branches into each of them, and defers nothing into a loop that does not contain it"
+   }
+  ],
+  "files": [
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java",
+    "added": 7,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/SchedulePure.java",
+    "added": 67,
+    "deleted": 6
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/SchedulePureTest.java",
+    "added": 169,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "16-inline-scalar-helpers",
+  "campaignLabel": "B3",
+  "source": "proposals.md §18",
+  "pre": "32c448f09",
+  "post": "91cc5ad6f",
+  "commits": [
+   {
+    "sha": "91cc5ad6f",
+    "subject": "backend B3: the scalar builtins and intrinsics and the subscript reads and writes are static inline in runtime_inline.h, so a module inlines them instead of calling the runtime"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 0,
+    "deleted": 881
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.h",
+    "added": 19,
+    "deleted": 225
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime_inline.h",
+    "added": 906,
+    "deleted": 0
+   },
+   {
+    "path": "repo-map.md",
+    "added": 1,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "17-maybe-unbound-promotion",
+  "campaignLabel": "P4",
+  "source": "proposals.md §20-21",
+  "pre": "91cc5ad6f",
+  "post": "cc70257ce",
+  "commits": [
+   {
+    "sha": "f9c4f5684",
+    "subject": "promo P4: PromoteStaticallyKnownVariables promotes a loaded variable that is maybe bound at a deopt where it is bound, and stores it back on each edge out of that region"
+   },
+   {
+    "sha": "cc70257ce",
+    "subject": "PromoteStaticallyKnownVariables: a merge of paths that stored the same value (no phi) takes that value, not its dominator's (fixes 'Missing promoted value')"
+   }
+  ],
+  "files": [
+   {
+    "path": "repo-map.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java",
+    "added": 94,
+    "deleted": 5
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariablesTest.java",
+    "added": 439,
+    "deleted": 7
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/maybe_bound_merge_of_equal_stores.R",
+    "added": 27,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "18-subscript-default-method",
+  "campaignLabel": "B4",
+  "source": "proposals.md §22-23",
+  "pre": "cc70257ce",
+  "post": "4c4f7119d",
+  "commits": [
+   {
+    "sha": "08b63276a",
+    "subject": "OriginAnalysis orders a variable's origins by a Read's register name instead of printing it, which halves the lazy eval build's optimization time (queens eval 72 s to 31 s)"
+   },
+   {
+    "sha": "4c4f7119d",
+    "subject": "backend B4: a call of the special `[`, `[[`, `[<-` or `[[<-` on a target that is not an object forces its arguments once and calls the default method, without the special's second argument list or the setter's promise"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 135,
+    "deleted": 24
+   },
+   {
+    "path": "repo-map.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/analyze/resolve/OriginAnalysis.java",
+    "added": 5,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/subassign_nonlocal_marked_call.R",
+    "added": 12,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/subscript_default_method.R",
+    "added": 39,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "19-store-only-store-back",
+  "campaignLabel": "P4b",
+  "source": "proposals.md §24-25",
+  "pre": "4c4f7119d",
+  "post": "0286e1d1a",
+  "commits": [
+   {
+    "sha": "7109263f9",
+    "subject": "PromoteStaticallyKnownVariables: in store-back mode, store the variable back where the origin analysis loses it inside a block (a call that may force a leaked promise), not only at block entries (fixes a binding lost at a later deopt)"
+   },
+   {
+    "sha": "0286e1d1a",
+    "subject": "promo P4b: PromoteStaticallyKnownVariables promotes a store-only variable that is maybe bound at a deopt when a store is in a loop that contains no end of its region (mandelbrot zr: one store per pixel, not per iteration)"
+   }
+  ],
+  "files": [
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariables.java",
+    "added": 74,
+    "deleted": 8
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/PromoteStaticallyKnownVariablesTest.java",
+    "added": 131,
+    "deleted": 9
+   }
+  ]
+ },
+ {
+  "id": "20-shared-stub-promise",
+  "campaignLabel": "D4",
+  "source": "proposals.md §19,27,28",
+  "pre": "0286e1d1a",
+  "post": "2ed617a66",
+  "commits": [
+   {
+    "sha": "ab714c171",
+    "subject": "fir2c: a pushed frame and each saved elided parent live in protect slots of the activation, which the env operations REPROTECT (a block's UNPROTECT released the frame instead of its own protects)"
+   },
+   {
+    "sha": "2ed617a66",
+    "subject": "promise P4: a deopt stub compiles to one promise for its site (Fir_mk_stub_promise), unless its expression is a symbol that missing can read in a regular environment"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 34,
+    "deleted": 20
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.h",
+    "added": 13,
+    "deleted": 5
+   },
+   {
+    "path": "repo-map.md",
+    "added": 3,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/ir/expression/Promise.java",
+    "added": 11,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/ElideUnforcedPromise.java",
+    "added": 5,
+    "deleted": 10
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java",
+    "added": 79,
+    "deleted": 4
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir2c/Fir2CCompilerTest.java",
+    "added": 107,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/promise_shared_stub.R",
+    "added": 20,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "21-shared-promise-code",
+  "campaignLabel": "D5",
+  "source": "proposals.md §30",
+  "pre": "2ed617a66",
+  "post": "2019b41a5",
+  "commits": [
+   {
+    "sha": "2019b41a5",
+    "subject": "promise P5: a promise without captures shares one code object for its site and allocates only its PROMSXP (Fir_mk_promise_shared); a local one is escaped when Fir_pop_env set FIR_FRAME_RETURNED on its frame"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 59,
+    "deleted": 11
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.h",
+    "added": 15,
+    "deleted": 2
+   },
+   {
+    "path": "repo-map.md",
+    "added": 2,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java",
+    "added": 82,
+    "deleted": 22
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir2c/Fir2CCompilerTest.java",
+    "added": 81,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/eval_compiled_body_in_live_frame.R",
+    "added": 19,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/promise_site_code.R",
+    "added": 20,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "22-scalar-subscript-paths",
+  "campaignLabel": "B5",
+  "source": "proposals.md §26,31,32",
+  "pre": "2019b41a5",
+  "post": "b6e8f7115",
+  "commits": [
+   {
+    "sha": "f74b65d8c",
+    "subject": "backend B5: `[`, `[[`, `[<-` and `[[<-` with 1 or 2 scalar indices on a vector or matrix that is not an object read and store the element without an argument list, as GNU-R bytecode's fast paths"
+   },
+   {
+    "sha": "b6e8f7115",
+    "subject": "SchedulePure: a deferred statement goes after a checkpoint's leading assumptions, never in front of them or to a use in them (fixes an unchecked `ldf` assumption whose register the GC marked uninitialized)"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 223,
+    "deleted": 78
+   },
+   {
+    "path": "repo-map.md",
+    "added": 2,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/SchedulePure.java",
+    "added": 10,
+    "deleted": 5
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/SchedulePureTest.java",
+    "added": 49,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/checkpoint_assume_after_box.R",
+    "added": 17,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/subscript_scalar_edges.R",
+    "added": 43,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "23-hoist-loop-assume",
+  "campaignLabel": "P6",
+  "source": "proposals.md §33",
+  "pre": "b6e8f7115",
+  "post": "bd3d0605e",
+  "commits": [
+   {
+    "sha": "bd3d0605e",
+    "subject": "HoistLoopAssume: move the loop-invariant assumptions of a loop header's checkpoint to a new checkpoint on the loop's entry edge"
+   }
+  ],
+  "files": [
+   {
+    "path": "repo-map.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/HoistLoopAssume.java",
+    "added": 167,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/Optimizations.java",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/HoistLoopAssumeTest.java",
+    "added": 187,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "24-inline-elided-push-pop",
+  "campaignLabel": "B6",
+  "source": "proposals.md §34",
+  "pre": "bd3d0605e",
+  "post": "83af0f8d8",
+  "commits": [
+   {
+    "sha": "83af0f8d8",
+    "subject": "backend B6: the push of an elided frame and the pop of any frame are inline in the module (runtime_inline.h), and the elided push REPROTECTs only a parent it replaces"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 2,
+    "deleted": 2
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.h",
+    "added": 4,
+    "deleted": 0
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime_inline.h",
+    "added": 42,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java",
+    "added": 16,
+    "deleted": 6
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir2c/Fir2CCompilerTest.java",
+    "added": 6,
+    "deleted": 5
+   }
+  ]
+ },
+ {
+  "id": "25-elide-range-read",
+  "campaignLabel": "P8",
+  "source": "proposals.md §35-37",
+  "pre": "83af0f8d8",
+  "post": "cca4b7b12",
+  "commits": [
+   {
+    "sha": "ce097ab46",
+    "subject": "bc2fir: a `for` loop ends when its index is `NA` (naToTrue), so after INT_MAX trips it stops as GNU-R's instead of entering the body with an `NA` index"
+   },
+   {
+    "sha": "14714cdcc",
+    "subject": "OptimizeCallee: an intrinsic call stays static when a better version could run (fir2c rejects a dispatched intrinsic; a `for` over a range that is integer or real made `toForSeq` dispatch)"
+   },
+   {
+    "sha": "cca4b7b12",
+    "subject": "promo P8: ElideRangeRead replaces the element read of a for loop over a scalar `:` range with rangeElement(from, k, step) (step 1 or -1, tested once on the entry edge)"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime_inline.h",
+    "added": 22,
+    "deleted": 1
+   },
+   {
+    "path": "repo-map.md",
+    "added": 4,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/bc2fir/BC2FirCFGCompiler.java",
+    "added": 6,
+    "deleted": 8
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java",
+    "added": 25,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/ElideRangeRead.java",
+    "added": 411,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/Optimizations.java",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/specialize/OptimizeCallee.java",
+    "added": 5,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/main/resources/org/prlprg/fir/intrinsics.fir",
+    "added": 11,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/bc2fir/ForLoopTest.java",
+    "added": 31,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/ElideRangeReadTest.java",
+    "added": 248,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/specialize/OptimizeCalleeTest.java",
+    "added": 38,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/for_colon_nan_error.R",
+    "added": 14,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/for_colon_ranges.R",
+    "added": 41,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "26-inline-logical-and-or",
+  "campaignLabel": "B7",
+  "source": "proposals.md §38",
+  "pre": "cca4b7b12",
+  "post": "f34f38bcd",
+  "commits": [
+   {
+    "sha": "f34f38bcd",
+    "subject": "backend B7: `&&` and `||` on two logical scalars and `as.logical` of one have typed versions that the module inlines (R's NA rules), so mandelbrot's loop calls no builtin"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime_inline.h",
+    "added": 12,
+    "deleted": 0
+   },
+   {
+    "path": "repo-map.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java",
+    "added": 23,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/resources/org/prlprg/fir/builtins.fir",
+    "added": 3,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/scalar_logical_and_or.R",
+    "added": 23,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "27-hot-path-bookkeeping",
+  "campaignLabel": "B8",
+  "source": "proposals.md §39",
+  "pre": "f34f38bcd",
+  "post": "c0efd7db2",
+  "commits": [
+   {
+    "sha": "c0efd7db2",
+    "subject": "backend B8: the pop of the outermost elided frame sets the singleton's parent to R_EmptyEnv (Rsh_ElidedDepth), a return tests the promise tracking list for empty inline, and Fir_assume_function is inline"
+   }
+  ],
+  "files": [
+   {
+    "path": "client/rsh/src/fir2c/runtime.c",
+    "added": 14,
+    "deleted": 31
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime.h",
+    "added": 8,
+    "deleted": 10
+   },
+   {
+    "path": "client/rsh/src/fir2c/runtime_inline.h",
+    "added": 22,
+    "deleted": 4
+   },
+   {
+    "path": "repo-map.md",
+    "added": 2,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java",
+    "added": 8,
+    "deleted": 3
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/elided_callee_env_collected.R",
+    "added": 26,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/elided_frame_after_error_caught_in_callee.R",
+    "added": 29,
+    "deleted": 0
+   }
+  ]
+ },
+ {
+  "id": "28-own-phi-web",
+  "campaignLabel": "P9",
+  "source": "proposals.md §40-43",
+  "pre": "c0efd7db2",
+  "post": "6f92533ec",
+  "commits": [
+   {
+    "sha": "eb33adc37",
+    "subject": "DeferIntoPromise: a pure statement that reads an owned vector is not deferred (a later in-place write of the vector would change what the promise reads)"
+   },
+   {
+    "sha": "774efce10",
+    "subject": "Phis are assigned in parallel in the interpreter and fir2c: an argument that is another phi of the target read its new value (`old <- v` in a loop saw the next write)"
+   },
+   {
+    "sha": "0fd76cc82",
+    "subject": "promo P9: OwnPhiWeb gives the owned type to a web of loop phis that only moves owned vectors, so the copy before an in-place write disappears (sieve)"
+   },
+   {
+    "sha": "7e282ba5c",
+    "subject": "OwnPhiWeb: a use in a block that deopts is exempt only as a hand-off (a st or a deopt argument), also when it follows an escaping use"
+   },
+   {
+    "sha": "5f378b6e2",
+    "subject": "TypeAndEffectChecker: a st of an owned register in a block that deopts is a hand-off to the interpreter, so it accepts it (the optimized sieve failed the check)"
+   },
+   {
+    "sha": "6f92533ec",
+    "subject": "DeferIntoPromise: a load is not deferred (a later st of its variable rebinds what the promise would read)"
+   }
+  ],
+  "files": [
+   {
+    "path": "AGENTS.md",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "repo-map.md",
+    "added": 2,
+    "deleted": 0
+   },
+   {
+    "path": "server/doc/FIR.md",
+    "added": 2,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/analyze/type/Provenance.java",
+    "added": 0,
+    "deleted": 4
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/check/TypeAndEffectChecker.java",
+    "added": 11,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java",
+    "added": 3,
+    "deleted": 1
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/ConsumeDeadDup.java",
+    "added": 11,
+    "deleted": 7
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/DeferIntoPromise.java",
+    "added": 21,
+    "deleted": 8
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/Optimizations.java",
+    "added": 1,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir/opt/OwnPhiWeb.java",
+    "added": 272,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java",
+    "added": 27,
+    "deleted": 2
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/check/ProvenanceCheckerTest.java",
+    "added": 22,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/check/TypeAndEffectCheckerTest.java",
+    "added": 63,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/interpret/SimpleInternalInterpretTest.java",
+    "added": 33,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/DeferIntoPromiseTest.java",
+    "added": 75,
+    "deleted": 35
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/fir/opt/OwnPhiWebTest.java",
+    "added": 269,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/snapshot/fir/interpret/InterpretAfterOptTest.java",
+    "added": 3,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/java/org/prlprg/snapshot/fir2c/FirAfterOpt2CTest.java",
+    "added": 1,
+    "deleted": 17
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/loop_owned_vector.R",
+    "added": 66,
+    "deleted": 0
+   },
+   {
+    "path": "server/src/test/resources/org/prlprg/examples/R/loop_owned_vector_capture.R",
+    "added": 27,
+    "deleted": 0
+   }
+  ]
+ }
+]

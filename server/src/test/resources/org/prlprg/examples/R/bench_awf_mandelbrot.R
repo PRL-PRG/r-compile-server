@@ -1,3 +1,7 @@
+# https://github.com/reactorlabs/RBenchmarking/blob/a92447b37a03e96f8da1e18eb3cd8ab3b46fbf89/Benchmarks/areWeFast/mandelbrot.r
+# License: none stated, see server/doc/benchmark-licenses.md
+# Port: `execute`, `verifyResult` and `innerBenchmarkLoop.mandelbrot` are deleted; the benchmark
+# calls `mandelbrot`.
 # ------------------------------------------------------------------
 # The Computer Language Shootout
 # http://shootout.alioth.debian.org/

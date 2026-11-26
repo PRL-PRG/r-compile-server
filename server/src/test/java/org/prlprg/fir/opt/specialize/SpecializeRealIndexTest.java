@@ -30,7 +30,7 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
 
     var printed = Printer.toString(abstraction);
     assertTrue(
-        printed.contains("idx: I = `as.integer`< R,miss --> I >(ri, <missing>)"),
+        printed.contains("idx: I = realToIndex< R --> I >(ri)"),
         "the subscript should be coerced; printed:\n" + printed);
     assertTrue(
         printed.contains("`[`< v(I)b,I,miss,miss --> I >(rv, idx, <missing>, <missing>)"),
@@ -51,7 +51,7 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "optimization should report a change");
 
     var printed = Printer.toString(abstraction);
-    assertFalse(printed.contains("as.integer"), "a constant needs no call; printed:\n" + printed);
+    assertFalse(printed.contains("realToIndex"), "a constant needs no call; printed:\n" + printed);
     assertTrue(
         printed.contains("`[`< v(I)b,I,miss,miss --> I >(rv, 2, <missing>, <missing>)"),
         "the constant should be coerced in place; printed:\n" + printed);
@@ -91,7 +91,7 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
 
     var printed = Printer.toString(abstraction);
     assertTrue(
-        printed.contains("`as.integer`< v1(R),miss --> v1(I) >(ri, <missing>)"),
+        printed.contains("realToIndex< v1(R) --> v1(I) >(ri)"),
         "the coercion should keep the subscript's representation; printed:\n" + printed);
     assertTrue(
         printed.contains("`[`< v(I)b,v1(I),miss,miss --> v1(I) >"),
@@ -112,6 +112,6 @@ class SpecializeRealIndexTest implements AbstractionOptimizationUnitTest {
     assertFalse(run(abstraction), "an integer subscript needs no coercion");
 
     var printed = Printer.toString(abstraction);
-    assertFalse(printed.contains("as.integer"), "nothing should be coerced; printed:\n" + printed);
+    assertFalse(printed.contains("realToIndex"), "nothing should be coerced; printed:\n" + printed);
   }
 }

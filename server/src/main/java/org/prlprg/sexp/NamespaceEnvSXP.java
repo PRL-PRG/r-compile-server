@@ -8,8 +8,10 @@ public final class NamespaceEnvSXP extends AbstractStaticEnvSXP implements Stati
 
   /// This check should return `true` for any character of a reasonable namespace version.
   /// It's necessary so that namespace environments can be parsed.
+  ///
+  /// R package versions separate their numbers with `.` or `-` (e.g. nlme's `3.1-168`).
   public static boolean isValidVersionChar(int c) {
-    return Character.isLetterOrDigit(c) || c == '.' || c == '_' || c == '+';
+    return Character.isLetterOrDigit(c) || c == '.' || c == '-' || c == '_' || c == '+';
   }
 
   public NamespaceEnvSXP(String name, String version, StaticEnvSXP parent) {

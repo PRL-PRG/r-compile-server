@@ -24,7 +24,7 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Pair;
 import org.prlprg.util.UnionFind;
 
-public class GlobalValueNumbering implements AbstractionOptimization {
+public class GlobalValueNumbering extends AbstractionOptimization {
   private final Supplier<UnionFind<Register>> UF;
 
   GlobalValueNumbering(Supplier<UnionFind<Register>> UF) {
@@ -33,10 +33,13 @@ public class GlobalValueNumbering implements AbstractionOptimization {
 
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
-    if (abstraction.cfg() == null) return false;
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
+    if (abstraction.isStub()) return false;
     if (function != null && abstraction == function.baseline()) return false;
-    return new OnAbstraction(abstraction, abstraction.cfg(), UF.get()).run();
+    return new OnAbstraction(abstraction, abstraction.body(), UF.get()).run();
   }
 
   private static final class OnAbstraction {

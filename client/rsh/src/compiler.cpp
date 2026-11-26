@@ -119,9 +119,10 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
   return opts;
 }
 
-std::string genSymbol(uint64_t hash, int index) {
-
-  return "gen_" + std::to_string(hash) + "_" + std::to_string(index);
+// The server's `BC2CCompiler` names the module's `Value`-returning function (the one GNU-R
+// calls as a closure body, see `Rsh_closure`) `gen_<hash>_raw`.
+std::string genSymbol(uint64_t hash) {
+  return "gen_" + std::to_string(hash) + "_raw";
 }
 
 SEXP compile(SEXP closure, SEXP options) {
@@ -152,7 +153,7 @@ SEXP compile(SEXP closure, SEXP options) {
   void *fun_ptr = nullptr;
   SEXP fun_ptr_sxp = nullptr;
 
-  std::string name = genSymbol(compiled_fun.hash(), 0);
+  std::string name = genSymbol(compiled_fun.hash());
   // Native or bytecode?
   if (opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
@@ -179,7 +180,6 @@ SEXP compile(SEXP closure, SEXP options) {
   // through the R JIT)
   if (opts.inplace) {
     SET_BODY(closure, body);
-    UNPROTECT(1); // For P1 or P2
     // FIXME: add logging primitives
     Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ", opts.name.c_str(),
             closure, body);
@@ -203,7 +203,7 @@ SEXP compile(SEXP closure, SEXP options) {
     }
   }
 
-  UNPROTECT(1); // P3
+  UNPROTECT(1); // P3, or P1/P2 in place
 
   return closure;
 }
@@ -213,26 +213,12 @@ SEXP is_compiled(SEXP closure) {
     Rf_error("Expected a closure");
   }
 
+  // TODO: check if the pointer is a valid function, i.e. ORC knows about it
+  // A bc2c body (`Rsh_ClosureBodyTag`) or a FIŘ one (`Rsh_CodeTag`).
   SEXP body = BODY(closure);
-  if (TYPEOF(body) != BCODESXP) {
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  SEXP cp = BCODE_CONSTS(body);
-  if (XLENGTH(cp) != 6) {
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  if (TYPEOF(VECTOR_ELT(cp, 3)) != EXTPTRSXP) {
-    // TODO: check if the pointer is a valid function, i.e. ORC knows about it
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  if (TYPEOF(VECTOR_ELT(cp, 4)) != VECSXP) {
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  return Rf_ScalarLogical(TRUE);
+  return Rf_ScalarLogical(
+      (RSH_IS_CLOSURE_BODY(body) && RSH_JIT_PTR(body) != NULL) || IS_RSH_CODE(body) ? TRUE
+                                                                                   : FALSE);
 }
 
 #define RSH_PACKAGE_NAME "rsh"

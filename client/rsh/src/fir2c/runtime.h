@@ -4,6 +4,7 @@
 // IT IS USED BY THE SERVER COMPILER
 
 #include "../common2c/rsh_utils.h"
+#include <stdarg.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -12,7 +13,8 @@ extern "C" {
 
 // FIXME: use the SCALAR_ macros
 #define Fir_const(env, idx) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)]
-#define Fir_set_const(env, idx, value) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)] = (value)
+// With the write barrier: a pool is written to after allocations that may have made it old.
+#define Fir_set_const(env, idx, value) SET_VECTOR_ELT((env), (idx), (value))
 
 typedef enum {
   FIR_MKENV_REGULAR,
@@ -98,14 +100,34 @@ typedef struct Fir_Signature {
 } Fir_Signature;
 
 typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
+typedef SEXP (*Fir_DispatchImplFn)(SEXP env, Fir_Signature signature, va_list args);
+typedef SEXP (*Fir_FromRFn)(SEXP env, SEXP constants);
 typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
 typedef SEXP (*Fir_PromiseFn)(SEXP env, void **captures);
 
 typedef struct Fir_FunctionData {
   const char* name;
+  /// Dispatches a call with runtime-typed arguments to the function's best version. Fixed for the
+  /// function's life, and its identity (see `Fir_assume_function`): forwards to `dispatch_impl`.
   Fir_DispatchFn dispatch;
+  /// What `dispatch` calls. It's compiled from the versions the function has, so whenever the
+  /// function gets more (compiled in a patch, see `Fir_stub_compiled`) it's regenerated and
+  /// replaced (`Fir_fun_set_entries`).
+  Fir_DispatchImplFn dispatch_impl;
+  /// What a call from R (the body of one of the function's closures, which forwards here) runs.
+  /// Regenerated and replaced like `dispatch_impl`.
+  Fir_FromRFn from_r;
   SEXP formal_names;
+  /// Whether a call must run in a closure context for the callee's frame (`@needsContext`), so
+  /// `Fir_call_dynamic` calls it through `Rf_applyClosure`, not `dispatch`.
+  bool needs_context;
+  /// The source expression of the function's body, or NULL if it's unknown. `body`, `deparse` and
+  /// `identical` of its closures read it (`Fir_closure_body_expr`).
+  SEXP body;
 } Fir_FunctionData;
+
+/// The `Fir_FunctionData` of the function whose constant pool is `constants`.
+#define Fir_fun_data(constants) ((Fir_FunctionData *)STDVEC_DATAPTR(Fir_const((constants), 0)))
 
 typedef struct Fir_PromiseGlobalData {
   Fir_PromiseFn eval;
@@ -114,28 +136,171 @@ typedef struct Fir_PromiseGlobalData {
   /// Whether promises created by this `prom` instruction have been observed to escape. Shared by
   /// all instances (it lives in the constant pool).
   Fir_GloballyEscaped escaped;
+#ifdef FIR_STATS
+  /// Whether the server's effect inference says the promise's code may reflect.
+  bool may_reflect;
+#endif
 } Fir_PromiseGlobalData;
 
+/// A copy of a captured register whose representation isn't SEXP (see `Fir_mk_promise`).
+typedef union Fir_Capture {
+  int i;
+  double f;
+  char *c;
+  Rboolean l;
+  bool b;
+} Fir_Capture;
+
 typedef struct Fir_PromiseLocalData {
+  /// Pointers to copies of the values of the captured registers (see `Fir_mk_promise`), so the
+  /// promise doesn't read the stack of the activation that created it, which can be gone.
   void **captures;
   /// Whether this specific promise instance has escaped, i.e. the stack frame that created it has
   /// exited. Set to `false` when created, then `true` when the creating frame exits.
   bool escaped;
+  /// Whether the instance also escaped when its environment has `FIR_FRAME_RETURNED`. Set in the
+  /// shared code of a local promise without captures (`Fir_promise_site_code`), which isn't
+  /// tracked, so `escaped` stays `false`.
+  bool frame_tested;
+  /// The number of runs of the promise's code that haven't returned (see `Fir_eval_promise`).
+  int evaluating;
+#ifdef FIR_STATS
+  /// Whether this instance was forced (at least started) before.
+  bool forced;
+  /// Whether this instance was observed to reflect.
+  bool reflected;
+  /// Whether this instance was created in an elided or non-reflective frame, so it can't reflect.
+  bool elided;
+#endif
 } Fir_PromiseLocalData;
 
-extern Fir_Kind Fir_kind_any_value;
-extern Fir_Kind Fir_kind_closure;
-extern Fir_Kind Fir_kind_dots;
-extern Fir_Kind Fir_kind_missing;
-extern Fir_Kind Fir_kind_boolean;
+/// `x` in a module compiled with `-DFIR_STATS` (the runtime statistics build), nothing otherwise.
+///
+/// The statistics build counts copies and promises for the benchmarks (see `Fir_stats_get`). The
+/// generated C is the same in both builds: it puts what only that build needs in this macro.
+#ifdef FIR_STATS
+#define FIR_STATS_ONLY(x) x
+#else
+#define FIR_STATS_ONLY(x)
+#endif
 
-/// Scalar string of a serialized `MockModuleFeedback` containing the feedback recorded by every
-/// bytecode baseline whose constant pool is reachable from `pool` (which is a module's
-/// constant pool, i.e. the one its main function was initialized with).
+/// `...` in a module compiled with `-DFIR_VERSION_STATS` or `-DFIR_STATS`, nothing otherwise.
+///
+/// The version statistics count each version's calls (see `Fir_stats_versions_get`). Unlike
+/// `FIR_STATS`, they don't change the runtime's layouts, so a module compiled with them runs on
+/// the `rsh` package's runtime, which has the counters in every build.
+#if defined(FIR_STATS) || defined(FIR_VERSION_STATS)
+#define FIR_VERSION_STATS_ONLY(...) __VA_ARGS__
+#else
+#define FIR_VERSION_STATS_ONLY(...)
+#endif
+
+/// The call counter named `name` (a version's, see `Fir2CCompiler#versionCounterName`), created
+/// at 0 by the first call with the name. It lives as long as the process, so a module's code can
+/// be unloaded and its counters still read.
+double *Fir_stats_version_counter(const char *name);
+/// Every counter of `Fir_stats_version_counter`, as a named numeric vector.
+SEXP Fir_stats_versions_get(void);
+
+/// A version the server hasn't compiled yet (see `server/doc/lazy-versions.md`).
+///
+/// The generated code defines one of these for the version, and a function with the version's
+/// name and signature that calls `Fir_stub_enter`, then either the compiled version it returns or
+/// (if it returns `NULL`) the version's fallback, which is compiled into the function.
+typedef struct Fir_Stub {
+  /// What the server calls the module this is in.
+  const char *module;
+  /// Which of the module's stubs this is.
+  int id;
+  /// The compiled version, or `NULL` until it's loaded. Its type is the stub function's.
+  void *compiled;
+  /// A `Fir_StubState`.
+  int state;
+  /// How many times the stub was entered before it requested its version.
+  int calls;
+} Fir_Stub;
+
+typedef enum {
+  /// Called fewer than `Fir_jit_threshold` times.
+  FIR_STUB_UNREQUESTED = 0,
+  /// The server was asked to compile the version, and the answer hasn't been loaded.
+  FIR_STUB_REQUESTED = 1,
+  /// `compiled` is set.
+  FIR_STUB_COMPILED = 2,
+  /// The server couldn't compile the version, so the fallback is all there will ever be.
+  FIR_STUB_FAILED = 3,
+  /// The version is the same as the fallback, so the stub runs the fallback and never requests.
+  /// The server can still replace it (`Fir_stub_compiled`) once the version changes.
+  FIR_STUB_FALLBACK = 4,
+} Fir_StubState;
+
+/// How stubs get their versions compiled. The runtime can't do it itself (it would need the
+/// connection to the server, and a way to load code), so whoever can registers one of these: the
+/// `rsh` package.
+typedef struct Fir_StubCompiler {
+  /// Ask for `stub`'s version to be compiled, and return without waiting for it.
+  void (*request)(Fir_Stub *stub);
+  /// If what `request(stub)` asked for has arrived, load it, which sets `stub->compiled` (and
+  /// that of every other stub it replaces) via `Fir_stub_compiled`, or the state to
+  /// `FIR_STUB_FAILED`. If `wait`, block until it has.
+  void (*poll)(Fir_Stub *stub, bool wait);
+  /// Whether the call after a stub's request waits for the answer, so that which calls run the
+  /// fallback doesn't depend on how long compiling takes: the first `Fir_jit_threshold` do, no
+  /// other. For tests.
+  bool deterministic;
+} Fir_StubCompiler;
+
+/// Register how stubs get their versions compiled, or unregister with `NULL` (the default),
+/// which leaves every stub on its fallback. `compiler` must stay valid.
+void Fir_set_stub_compiler(const Fir_StubCompiler *compiler);
+/// The compiled version to call in place of `stub`'s fallback, or `NULL` to run the fallback.
+///
+/// Call `Fir_jit_threshold` asks the server for the version, and later ones load it once it has
+/// arrived.
+void *Fir_stub_enter(Fir_Stub *stub);
+/// Make `stub` call `compiled` from now on. Called by the code the server sends, once loaded.
+void Fir_stub_compiled(Fir_Stub *stub, void *compiled);
+/// Make `stub` run its fallback from now on, without requesting (`FIR_STUB_FALLBACK`). Called by
+/// the code the server sends when the version it had compiled is the same as the fallback, and by
+/// the client when the server answers so.
+void Fir_stub_fallback(Fir_Stub *stub);
+
+/// How many calls a closure or a stub runs before the JIT moves it to the next tier. The rsh
+/// package sets it (`rsh_jit_enable`, `rsh_fir_connect`); the last setter wins.
+extern int Fir_jit_threshold;
+void Fir_set_jit_threshold(int threshold);
+
+/// Fixed slots of a bytecode baseline's constant pool (mirrored by
+/// `Fir2CCompiler#emitBytecodeBaseline` on the server). The rsh JIT's counting body uses the same
+/// layout for slots other than `FIR_BC_BASELINE_ID`.
+enum {
+  /// The GNU-R bytecode.
+  FIR_BC_BASELINE_CODE = 0,
+  /// The formals (with default-argument expressions).
+  FIR_BC_BASELINE_FORMALS = 1,
+  /// The code `Fir_bc_baseline_code` returns, or `NULL` until it's first called.
+  FIR_BC_BASELINE_JIT = 2,
+  /// `c("Fir_bc_baseline_feedback", "<FIŘ function name>")`, which identifies a baseline's pool.
+  FIR_BC_BASELINE_ID = 3,
+  /// The call counter, a scalar integer the baseline increments.
+  FIR_BC_BASELINE_CALLS = 4,
+  FIR_BC_BASELINE_SIZE = 5,
+};
+
+/// The code a bytecode baseline evaluates: a copy of the bytecode compiled by the copy-and-patch
+/// JIT (rcp) with feedback recording if rcp is available, the bytecode itself otherwise. Compiled
+/// on the first call and cached in the pool. The pool's bytecode stays unchanged.
+SEXP Fir_bc_baseline_code(SEXP pool);
+/// What the copy-and-patch JIT recorded for the code in `pool` (see `Fir_bc_baseline_code`),
+/// with `calls` as the number of calls: the list `server/doc/bytecode-baseline-feedback.md`
+/// describes. `R_NilValue` if rcp isn't available or the code wasn't compiled yet.
+SEXP Fir_bc_baseline_recording(SEXP pool, int calls);
+/// The recordings (`Fir_bc_baseline_recording`) of every bytecode baseline whose constant pool is
+/// reachable from `pool` (a module's constant pool, i.e. the one its main function was
+/// initialized with), as a list of `list(function = <FIŘ function name>, <recording...>)`.
 ///
 /// Baselines only record feedback when they're compiled by the copy-and-patch JIT, so this
-/// returns `R_NilValue` if it isn't available or no baseline ran. See
-/// `server/doc/bytecode-baseline-feedback.md`.
+/// returns `R_NilValue` if it isn't available or no baseline ran.
 SEXP Fir_serialized_feedback(SEXP pool);
 
 void Fir_print_signature(Fir_Signature signature);
@@ -152,36 +317,182 @@ bool Fir_is_subeffects(Fir_Effects a, Fir_Effects b);
 Fir_Effects Fir_effects_union(Fir_Effects a, Fir_Effects b);
 Fir_Effects Fir_effects_intersect(Fir_Effects a, Fir_Effects b);
 
-bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data);
 bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data,
                              Fir_PromiseLocalData **local_data);
 
-Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind);
-Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind);
-Fir_Kind Fir_kind_primitive_vector1(Fir_PrimitiveKind primitive_kind);
-
-extern Fir_Promisity Fir_promisity_value;
-Fir_Promisity Fir_promisity_maybe(Fir_Effects effects);
-Fir_Promisity Fir_promisity_promise(Fir_Effects effects);
-
-Fir_Type Fir_type(Fir_Kind kind, Fir_Promisity promisity, Fir_Ownership ownership, bool definite);
 bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type);
-bool Fir_value_matches(SEXP value, Fir_Type type);
+/// `Fir_value_matches` of a promise whose type isn't a value type: the slow path.
+bool Fir_promise_value_matches(SEXP promise, Fir_Type type);
 
-Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects);
+#ifndef __cplusplus
+// Inline, with constant arguments, so the C compiler reduces a type test to the `TYPEOF` and length
+// tests it needs.
+#define Fir_kind_any_value ((Fir_Kind){.tag = FIR_KIND_ANY_VALUE})
+#define Fir_kind_closure ((Fir_Kind){.tag = FIR_KIND_CLOSURE})
+#define Fir_kind_dots ((Fir_Kind){.tag = FIR_KIND_DOTS})
+#define Fir_kind_missing ((Fir_Kind){.tag = FIR_KIND_MISSING})
+#define Fir_kind_boolean ((Fir_Kind){.tag = FIR_KIND_BOOLEAN})
+#define Fir_promisity_value ((Fir_Promisity){.tag = FIR_PROMISITY_VALUE, .effects = FIR_EFFECTS_NONE})
+
+static ALWAYS_INLINE Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind) {
+  return (Fir_Kind){.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = primitive_kind}};
+}
+
+static ALWAYS_INLINE Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind) {
+  return (Fir_Kind){.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = primitive_kind}};
+}
+
+static ALWAYS_INLINE Fir_Kind Fir_kind_primitive_vector1(Fir_PrimitiveKind primitive_kind) {
+  return (Fir_Kind){.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = primitive_kind}};
+}
+
+static ALWAYS_INLINE Fir_Promisity Fir_promisity_maybe(Fir_Effects effects) {
+  return (Fir_Promisity){.tag = FIR_PROMISITY_MAYBE, .effects = effects};
+}
+
+static ALWAYS_INLINE Fir_Promisity Fir_promisity_promise(Fir_Effects effects) {
+  return (Fir_Promisity){.tag = FIR_PROMISITY_PROMISE, .effects = effects};
+}
+
+static ALWAYS_INLINE Fir_Type Fir_type(Fir_Kind kind, Fir_Promisity promisity, Fir_Ownership ownership, bool definite) {
+  return (Fir_Type){.kind = kind, .promisity = promisity, .ownership = ownership, .definite = definite};
+}
+
+static ALWAYS_INLINE Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects) {
+  return (Fir_Signature){.return_type = return_type, .param_count = param_count, .param_types = param_types, .effects = effects};
+}
+
+static ALWAYS_INLINE SEXPTYPE Fir_primitive_sexptype(int primitive) {
+  return primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+       : primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+       : primitive == FIR_PRIMITIVE_REAL ? REALSXP
+       : STRSXP;
+}
+
+/// Whether `value`, which isn't a promise, has kind `kind`. (A vector of 2^31 or more elements
+/// isn't a scalar.)
+static ALWAYS_INLINE bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
+  // A primitive kind means no attributes, as in the server's `Type.of`.
+  if ((kind.tag == FIR_KIND_PRIMITIVE_SCALAR || kind.tag == FIR_KIND_PRIMITIVE_VECTOR1 ||
+       kind.tag == FIR_KIND_PRIMITIVE_VECTOR || kind.tag == FIR_KIND_BOOLEAN) &&
+      ATTRIB(value) != R_NilValue)
+    return false;
+  switch (kind.tag) {
+  case FIR_KIND_ANY_VALUE:
+    return true;
+  // Unboxed scalars are represented as length-1 SEXP vectors at the C level (for now)
+  case FIR_KIND_PRIMITIVE_SCALAR:
+  case FIR_KIND_PRIMITIVE_VECTOR1:
+    return TYPEOF(value) == Fir_primitive_sexptype(kind.as.primitive.primitive) && XLENGTH(value) == 1;
+  case FIR_KIND_PRIMITIVE_VECTOR:
+    return TYPEOF(value) == Fir_primitive_sexptype(kind.as.primitive.primitive);
+  case FIR_KIND_BOOLEAN:
+    // A boolean is a logical scalar that is not NA
+    return TYPEOF(value) == LGLSXP && XLENGTH(value) == 1 && LOGICAL(value)[0] != NA_LOGICAL;
+  case FIR_KIND_CLOSURE:
+    return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP || TYPEOF(value) == SPECIALSXP;
+  case FIR_KIND_DOTS:
+    // `NULL` is the empty dots list, and it's what the server's `Type.of` calls `dots` (so a
+    // speculation from interpreter feedback on a `NULL` value is `?: dots`).
+    return TYPEOF(value) == DOTSXP || value == R_MissingArg || value == R_NilValue;
+  case FIR_KIND_MISSING:
+    return value == R_MissingArg;
+  }
+  return false;
+}
+
+static ALWAYS_INLINE bool Fir_value_matches(SEXP value, Fir_Type type) {
+  switch (type.promisity.tag) {
+  case FIR_PROMISITY_VALUE:
+    return TYPEOF(value) != PROMSXP && Fir_value_kind_matches(value, type.kind);
+  case FIR_PROMISITY_MAYBE:
+    return TYPEOF(value) != PROMSXP ? Fir_value_kind_matches(value, type.kind)
+                                    : Fir_promise_value_matches(value, type);
+  case FIR_PROMISITY_PROMISE:
+    return TYPEOF(value) == PROMSXP && Fir_promise_value_matches(value, type);
+  }
+  return false;
+}
+
+static ALWAYS_INLINE bool Fir_assume_type(SEXP value, Fir_Type type) {
+  return Fir_value_matches(value, type);
+}
+#endif
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
-SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env);
+/// The vendored R's `Rsh_ClosureBodyExpr`: the source expression of `body`, the body of a closure
+/// that `Fir_mk_closure` made, or NULL if it's unknown or `body` is other FIR code (a promise's).
+SEXP Fir_closure_body_expr(SEXP body);
+/// Replace the dispatch and from-R entries of the function whose constant pool is `constants`
+/// (see `Fir_FunctionData`).
+void Fir_fun_set_entries(SEXP constants, Fir_DispatchImplFn dispatch_impl, Fir_FromRFn from_r);
+/// A compiled promise is a `PROMSXP` whose `PRCODE` is an external pointer with tag `Rsh_CodeTag`,
+/// address `evalFromR`, and protected data `[expr, cp, local_data]` (a `VECSXP`):
+/// - `expr`: the source expression, or `R_UnboundValue` if unknown. GNU-R's `R_PromiseExpr`
+///   (`PREXPR`) returns it, and raises an error when it is `R_UnboundValue`. So read the code with
+///   `PRCODE`, never `PREXPR`.
+/// - `cp`: the constant pool of the `prom` instruction (slot 0 is the `Fir_PromiseGlobalData`).
+/// - `local_data`: a `RAWSXP` holding this instance's `Fir_PromiseLocalData`.
+///
+/// `captures` points to the captured registers, and `capture_reprs` has one character for each:
+/// its representation (`S`EXP, `I`nt, `F`loat, `C` string, `L`ogical or `B`oolean). The promise
+/// keeps copies of their values: a SEXP in `data` after its three elements, any other value in
+/// `local_data` after the `Fir_PromiseLocalData` and the pointers to the copies.
+SEXP Fir_mk_promise(
+    Rsh_code evalFromR, SEXP cp, void **captures, const char *capture_reprs, SEXP env, SEXP expr);
+/// The one compiled promise of a site whose code is only a deopt: it has no captures and
+/// `PRENV = Rsh_ElidedEnv`, so every execution of the site can give it. Not tracked, so never
+/// escaped, and not counted by the `FIR_STATS` counters.
+SEXP Fir_mk_stub_promise(Rsh_code evalFromR, SEXP cp, SEXP expr);
+/// The `PRCODE` of a compiled promise without captures, which every promise of its site shares
+/// (see `Fir_mk_promise_shared`). `frame_tested` is `Fir_PromiseLocalData.frame_tested`.
+SEXP Fir_promise_site_code(Rsh_code evalFromR, SEXP cp, SEXP expr, bool frame_tested);
+/// A compiled promise with the shared `site_code` (`Fir_promise_site_code`) in `env`: one
+/// allocation. Not tracked. With `FIR_STATS`, it gets its own code, so the counters are per instance.
+SEXP Fir_mk_promise_shared(SEXP site_code, SEXP env);
+/// The `gp` bit that `Fir_pop_env` sets in a real frame that it pops, so the frame's activation
+/// returned. GNU-R uses the bits 4, 12, 14 and 15 of an environment (and 11 of a value).
+#define FIR_FRAME_RETURNED (1 << 7)
+#define Fir_prom_expr(data) VECTOR_ELT((data), 0)
+#define Fir_prom_cp(data) VECTOR_ELT((data), 1)
+#define Fir_prom_local(data) ((Fir_PromiseLocalData *)STDVEC_DATAPTR(VECTOR_ELT((data), 2)))
+/// An evaluated (GNU-R) promise whose expression and value are `value`, like the promises
+/// `do.call` makes for its arguments. Unlike those, it keeps `env` (as `Fir_mk_promise`), which
+/// `Fir_reflective_load`/`_store` read, unless `value` is a symbol.
+SEXP Fir_mk_value_promise(SEXP value, SEXP env);
 /// Prepend `promise` to `tracked_list` (a pairlist of promises created in the current frame),
 /// re-protecting it at `idx`, and return `promise`. Used to remember which promises to mark
 /// escaped when the frame exits.
 SEXP Fir_track_promise(SEXP promise, SEXP *tracked_list, PROTECT_INDEX idx);
 /// Mark every promise in `tracked_list` as escaped (its creating frame has exited).
 void Fir_mark_promises_escaped(SEXP tracked_list);
-/// Given a compiled promise's data (the `cons(cp, local_data)` in its external pointer), if it
+/// Given a compiled promise's data (see `Fir_mk_promise`), if it
 /// escaped its creating frame, record the escape or crash (if it was speculated local). Called
-/// before forcing, including when R itself forces the promise.
-void Fir_check_promise_escaped(SEXP data);
+/// before forcing, including when R itself forces the promise. `env` is the promise's environment.
+void Fir_check_promise_escaped(SEXP data, SEXP env);
+/// Run a compiled promise's code `eval` in `env` (`data` as in `Fir_mk_promise`). Both force
+/// paths call it: `Fir_force`, and the from-R entry that R's `forcePromise` calls. When no other
+/// run of the code is active, it then releases the promise's SEXP captures, so they no longer
+/// count as references.
+SEXP Fir_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data);
+
+#ifdef FIR_STATS
+/// Run a compiled promise's code `eval` in `env`, and count the force and whether the code
+/// reflected (see `Fir_stats_get`). Both force paths call it: `Fir_force`, and (with `data`, see
+/// `Fir_mk_promise`) the from-R entry that R's `forcePromise` calls.
+SEXP Fir_stats_eval_promise(Fir_PromiseFn eval, SEXP env, SEXP data);
+/// The counters, as a named numeric vector:
+/// - `fir.dups`: copies the compiled code made (`Fir_dup`, and the borrowed subassign helpers'
+///   shallow copies); `fir.dups.shallow` is the latter alone.
+/// - `dups`: every copy GNU-R made (its `duplicate_counter`), or `NA` if R doesn't export it.
+/// - `created`, `forced`, `reflected`: compiled promises (`Fir_mk_promise`) that were created,
+///   forced (counted once per promise), and observed to reflect while forced.
+///   `<counter>.may.reflect` counts only promises whose site the server inferred may reflect.
+/// - `elided`: created promises whose frame is elided or non-reflective, so they can't reflect.
+SEXP Fir_stats_get(void);
+/// Set every counter (including GNU-R's `duplicate_counter`) to 0.
+SEXP Fir_stats_reset(void);
+#endif
 
 SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);
@@ -191,47 +502,164 @@ SEXP Fir_maybe_force(SEXP valueOrPromise);
 /// observe: the promise is already forced, or its body is one whose evaluation is invisible (see
 /// `Fir_code_is_pure_to_eval`). Returns the promise unchanged otherwise.
 SEXP Fir_safe_force(SEXP valueOrPromise);
+/// The argument of the parameter `symbol` in the frame `env` that `applyClosure` made for a
+/// from-R call: the missing argument if the parameter's argument was missing (even if
+/// `applyClosure` bound it to a promise of the parameter's default: FIŘ code computes the
+/// default itself), else the binding, safely forced unless `keep_promise` (a `@needsPromises`
+/// function: a promise that R forced, e.g. `UseMethod`'s dispatch argument, keeps its expression).
+SEXP Fir_from_r_arg(SEXP env, SEXP symbol, bool keep_promise);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_fun(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);
-void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
-void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
-void Fir_push_env(SEXP *env, Fir_MkEnvType type);
-void Fir_pop_env(SEXP *env);
+/// The frame R made for the current from-R call, and whether its version's first push already
+/// skipped it (`Fir_push_env`). Read by the inline push.
+extern SEXP Fir_env_pushed_from_r;
+extern bool Fir_env_push_suppressed;
+/// The from-R entry saves and restores them, `Rsh_ElidedDepth`, and the parent of `Rsh_ElidedEnv`
+/// (`outer_parent`, which the caller protects).
+void Fir_set_env_pushed_from_r(
+    SEXP env, SEXP* outer_env, bool* push_suppressed, int* outer_depth, SEXP* outer_parent);
+void Fir_unset_env_pushed_from_r(
+    SEXP outer_env, bool push_suppressed, int outer_depth, SEXP outer_parent);
+/// Returns whether it pushed a new environment. Returns false when the environment is the one R
+/// made for the current from-R call, which `Fir_pop_env` must not pop. An elided push saves the
+/// parent it replaces in `*saved`. A real frame in an elided one gets the elided one's parent, and
+/// its push saves `Rsh_ElidedEnv`. Other pushes save `R_NilValue`.
+///
+/// The push, the pop and `Fir_materialize_env` don't protect: the caller keeps `*env` and `*saved`
+/// in protect slots of its own (a version `REPROTECT`s them after each call). A protect here would
+/// outlive the caller's basic block, whose `UNPROTECT` would then release the frame instead.
+bool Fir_push_env(SEXP *env, Fir_MkEnvType type, SEXP *saved);
+/// A frame that a push makes has no context, so it's recorded for the vendored R's `sys.frame` and
+/// the like (`Rsh_Frames`), and the pop removes it.
+static inline void Fir_push_frame(SEXP env) {
+  if (Rsh_FrameCount == Rsh_FrameCapacity) {
+    Rsh_GrowFrames();
+  }
+  Rsh_Frames[Rsh_FrameCount++] = env;
+}
+/// `pushed` is what the matching `Fir_push_env` returned, and `saved` what it saved. Popping an
+/// elided frame restores the parent the push replaced, or `R_EmptyEnv` if it's the outermost one
+/// (`Rsh_ElidedDepth`). A non-local exit between them (a caught error) skips the restore, but the
+/// jump to the catching context restores both (the vendored R's `R_restore_globals`).
+void Fir_pop_env(SEXP *env, bool pushed, SEXP saved);
+/// If `*env` is the elided environment, replaces it with a new empty one whose
+/// parent is `closure_env`, the environment the version received. A deopt branch calls it:
+/// it stores into the frame, and the bytecode the deopt continues in needs a real one.
+void Fir_materialize_env(SEXP *env, SEXP closure_env);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names);
+/// `Fir_mk_vector` of a `...`, where bit `i` of `values` is set if `elems[i]` is a value, not an
+/// expression. A special evaluates the elements of its `...`, so such a symbol or call goes in an
+/// evaluated promise.
+SEXP Fir_mk_dots_values(int count, SEXP *elems, SEXP const *names, uint64_t values);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);
-int Fir_subscript_read_int(SEXP vector, int index);
-double Fir_subscript_read_real(SEXP vector, int index);
-Rboolean Fir_subscript_read_logical(SEXP vector, int index);
-char* Fir_subscript_read_string(SEXP vector, int index);
-/// `Fir_subscript_read_*` but an out-of-range index reads as `NA` instead of failing, which is how
-/// R's `[` differs from its `[[`.
-int Fir_subscript_read_na_int(SEXP vector, int index);
-double Fir_subscript_read_na_real(SEXP vector, int index);
-Rboolean Fir_subscript_read_na_logical(SEXP vector, int index);
-char* Fir_subscript_read_na_string(SEXP vector, int index);
-SEXP Fir_subscript_write_int(SEXP vector, int index, int value);
-SEXP Fir_subscript_write_real(SEXP vector, int index, double value);
-SEXP Fir_subscript_write_logical(SEXP vector, int index, Rboolean value);
-SEXP Fir_subscript_write_string(SEXP vector, int index, char* value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
-SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names);
+/// `Rf_defineVar` of a parameter at the closure's entry, where `value` is `parameter` or its
+/// default. If `parameter` is missing, the binding gets GNU-R's mark of a missing parameter with a
+/// default (`missing` is TRUE until it is assigned again).
+void Fir_store_parameter(SEXP symbol, SEXP value, SEXP env, SEXP parameter);
+/// `call` is the source call of the FIŘ statement, or `NULL`. The callee gets it as its `call` (for
+/// errors, `sys.call()`, and dispatch). If it is `NULL`, or it has a `...` that `env` does not bind,
+/// the callee gets a call built from the arguments.
+/// `args` has no unsupplied trailing parameters (`Fir2CCompiler` drops them). An argument whose value
+/// is the missing argument is passed through, as in GNU-R.
+/// `linked[0..nprotect)` are the caller's registers that it reads after the call; they count while
+/// the builtin can run R code (see `Fir_link`). `linked[nprotect..nlinked)` are its other registers
+/// that outlive the call (captures and parameters). A builtin that isn't a special gets its
+/// arguments in cells that don't count them, as GNU-R's `CALLBUILTIN` does (`CONS_NR`), so it can
+/// write into an argument that nothing else references (a dead temporary in `x * 2 + 1`). An
+/// argument that is also in `linked` or another argument counts; for an operator on plain data,
+/// only if it has no references. A special gets counting cells.
+SEXP Fir_call_builtin(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                      int nprotect, int nlinked, SEXP *linked);
+/// `Fir_call_builtin`, where bit `i` of `values` is set if `args[i]` is a value, not an expression
+/// for the callee to evaluate. A special evaluates its arguments, so it gets such a symbol or call
+/// in an evaluated promise. `linked` always count.
+SEXP Fir_call_builtin_values(int blt_idx, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                             uint64_t values, int nlinked, SEXP *linked);
+/// GNU-R's `INCLNK_stack_commit` (`delta` 1) and `DECLNK_stack` (`delta` -1) for registers: while
+/// R code runs, a register that outlives it counts, so the code can't write its value in place
+/// through a binding (`x[1L] <<- 0`). `NULL` entries are skipped. Inline, so that the C compiler
+/// unrolls the loop at a call with a constant `nlinked`.
+static inline void Fir_link(int nlinked, SEXP *linked, int delta) {
+  for (int i = 0; i < nlinked; i++) {
+    if (linked[i] != NULL) {
+      if (delta > 0) {
+        INCREMENT_REFCNT(linked[i]);
+      } else {
+        DECREMENT_REFCNT(linked[i]);
+      }
+    }
+  }
+}
 /// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
-SEXP Fir_call_base(SEXP symbol, SEXP env, int argc, SEXP *args, SEXP *names);
-SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names);
+SEXP Fir_call_base(SEXP symbol, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
+SEXP Fir_call_dynamic(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names);
+/// `Fir_call_dynamic` with `values` as in `Fir_call_builtin_values`.
+SEXP Fir_call_dynamic_values(SEXP callee, SEXP call, SEXP env, int argc, SEXP *args, SEXP *names,
+                             uint64_t values);
+
+/// A call of a replacement function in GNU-R's assignment protocol (bytecode's `STARTASSIGN`,
+/// `SETTER_CALL`, `ENDASSIGN`), for `l = ld x; r = f(l, ...) in <f(*tmp*, ...)>; st x = r`, or
+/// `r = f(l, ...) in <f(*tmp*, ...)>` where FIŘ keeps `x` in registers. The
+/// protocol lets the callee modify `x`'s value in place when nothing else references it.
+///
+/// `Fir_setter_begin` reads `x`'s binding. If the protocol applies (`active`), it counts the
+/// references in `linked` (every register that outlives the call), sets `x`'s binding as being
+/// assigned, and puts in `value` the binding's value, or a shallow copy if that's shared. The
+/// call then passes `value` without counting it, and `Fir_setter_end` undoes the rest and returns
+/// `result`. An error in between leaves the counts and the flag set, which only causes copies. If
+/// the protocol doesn't apply, `Fir_call_setter` and `Fir_call_setter_builtin` count `linked` while
+/// the call runs. A static call of a builtins-module version counts nothing then, and a setter that
+/// `Fir2CCompiler` calls through `Fir_call_base` doesn't use a `Fir_Setter`.
+typedef struct {
+  SEXP cell;
+  SEXP value;
+  int nlinked;
+  SEXP *linked;
+  bool active;
+} Fir_Setter;
+
+/// `lhs` is the value the `ld` read. The protocol only applies if `x`'s binding still holds it.
+void Fir_setter_begin(Fir_Setter *s, SEXP symbol, SEXP env, SEXP lhs, int nlinked, SEXP *linked);
+/// `Fir_setter_begin` for a variable that FIŘ keeps in a register instead of a binding: `lhs` is the
+/// call's first argument (a value, or a forced promise). `value` is a copy if anything counts a
+/// reference to it.
+void Fir_setter_begin_value(Fir_Setter *s, SEXP lhs, int nlinked, SEXP *linked);
+SEXP Fir_setter_end(Fir_Setter *s, SEXP result);
+/// `Fir_dup(value)` for `d = dup value; ...; st x = d`, where `value` is (an assumption of) `lhs =
+/// ld x`, and the code between reads neither `x` nor a register of the old value (see
+/// `Fir2CCompiler`). It returns `value` itself, as GNU-R's `STARTASSIGN` doesn't copy, if `x`'s
+/// binding still holds it, isn't in an assignment, and is its only reference once the `linked`
+/// registers count. Then everything that reads the value reads it through `d`, the same as if it
+/// were a copy.
+SEXP Fir_assign_dup(SEXP symbol, SEXP env, SEXP lhs, SEXP value, int nlinked, SEXP *linked);
+/// `Fir_assign_dup` for a variable that FIŘ keeps in a register: `value` itself if nothing counts
+/// a reference to it.
+SEXP Fir_value_dup(SEXP value, int nlinked, SEXP *linked);
+/// `Fir_call_dynamic_values` in the protocol `s` began; `args[0]` is replaced by `s->value`.
+SEXP Fir_call_setter(Fir_Setter *s, SEXP callee, SEXP call, SEXP env, int argc, SEXP *args,
+                     SEXP *names, uint64_t values);
+/// `Fir_call_builtin_values` in the protocol `s` began; `args[0]` is replaced by `s->value`.
+SEXP Fir_call_setter_builtin(Fir_Setter *s, int blt_idx, SEXP call, SEXP env, int argc, SEXP *args,
+                             SEXP *names, uint64_t values);
 /// Run a baseline version that is the function's original GNU-R bytecode.
 SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
-bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
 bool Fir_assume_builtin_function(SEXP value, int blt_idx);
 bool Fir_assume_base_function(SEXP value, SEXP symbol);
-bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* found_ref);
+/// Whether `value` is a closure with GNU-R bytecode that is identical to `origin`, the formals and
+/// bytecode body that a FIR function was compiled from (a list, with two slots for a cache). A bytecode baseline creates such
+/// closures, and calling the function's versions with one's environment does what it would do.
+bool Fir_is_bytecode_closure_of(SEXP value, SEXP origin);
+/// `origin` is as for `Fir_is_bytecode_closure_of`, or NULL.
+bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP origin,
+                         SEXP* found_ref);
 bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found_ref);
 bool Fir_assume_load_base_fun(SEXP symbol, SEXP env, SEXP base_symbol, SEXP* found_ref);
 bool Fir_assume_load_var(SEXP symbol, SEXP env, SEXP constant);
-bool Fir_assume_type(SEXP value, Fir_Type type);
 
 void Fir_dbg_comment(const char* comment);
 void Fir_dbg_sexp(const char* name, SEXP value);
@@ -254,101 +682,24 @@ void Fir_dbg_signature(Fir_Signature signature);
 
 #pragma clang diagnostic pop
 
-DEFINE_INTRINSIC(SEXP, checkFun, value_fx_impure_ret_value, SEXP value);
-DEFINE_INTRINSIC(SEXP, checkMissing, value_fx_impure_ret_value, SEXP value);
-DEFINE_INTRINSIC(SEXP, missing, any_fx_none_ret_vec1_logical, SEXP value);
-DEFINE_INTRINSIC(bool, missing, any_fx_none_ret_bool, SEXP value);
-DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_none_ret_value, SEXP value);
-DEFINE_INTRINSIC(SEXP, toForSeq, vec_logical_fx_none_ret_vec_logical, SEXP value);
-DEFINE_INTRINSIC(SEXP, toForSeq, vec_int_fx_none_ret_vec_int, SEXP value);
-DEFINE_INTRINSIC(SEXP, toForSeq, vec_real_fx_none_ret_vec_real, SEXP value);
-DEFINE_INTRINSIC(SEXP, toForSeq, vec_string_fx_none_ret_vec_string, SEXP value);
-DEFINE_INTRINSIC(SEXP, setInvisible, fx_none_ret_value);
-DEFINE_INTRINSIC(SEXP, setVisible, fx_none_ret_value);
-DEFINE_INTRINSIC(bool, naToFalse, vec1_logical_fx_none_ret_bool, SEXP value);
-DEFINE_INTRINSIC(bool, naToFalse, scalar_logical_fx_none_ret_bool, Rboolean value);
-DEFINE_INTRINSIC(bool, naToTrue, vec1_logical_fx_none_ret_bool, SEXP value);
-DEFINE_INTRINSIC(bool, naToTrue, scalar_logical_fx_none_ret_bool, Rboolean value);
 
-// box: scalar → vector (length-1 SEXP)
-DEFINE_INTRINSIC(SEXP, box, scalar_logical_fx_none_ret_vec1_logical, Rboolean value);
-DEFINE_INTRINSIC(SEXP, box, scalar_int_fx_none_ret_vec1_int, int value);
-DEFINE_INTRINSIC(SEXP, box, scalar_real_fx_none_ret_vec1_real, double value);
-DEFINE_INTRINSIC(SEXP, box, scalar_string_fx_none_ret_vec1_string, char* value);
 
-// unbox: vector (length-1 SEXP) → scalar
-DEFINE_INTRINSIC(Rboolean, unbox, vec1_logical_borrowed_fx_none_ret_scalar_logical, SEXP value);
-DEFINE_INTRINSIC(int, unbox, vec1_int_borrowed_fx_none_ret_scalar_int, SEXP value);
-DEFINE_INTRINSIC(double, unbox, vec1_real_borrowed_fx_none_ret_scalar_real, SEXP value);
-DEFINE_INTRINSIC(char*, unbox, vec1_string_borrowed_fx_none_ret_scalar_string, SEXP value);
 
-// +: I+I→I, R+R→R, I+R→R, R+I→R
-DEFINE_OVERRIDDEN_BUILTIN(int, _u2b, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b);
-// +: unary versions
-DEFINE_OVERRIDDEN_BUILTIN(int, _u2b, scalar_int_missing_fx_none_ret_scalar_int, int a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_missing_fx_none_ret_scalar_real, double a, SEXP b);
-// -: same layout as +
-DEFINE_OVERRIDDEN_BUILTIN(int, _u2d, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b);
-// -: unary versions
-DEFINE_OVERRIDDEN_BUILTIN(int, _u2d, scalar_int_missing_fx_none_ret_scalar_int, int a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_missing_fx_none_ret_scalar_real, double a, SEXP b);
-// *: same layout as + (no unary)
-DEFINE_OVERRIDDEN_BUILTIN(int, _u2a, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2a, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2a, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2a, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b);
-// /: I/I→R, R/R→R, I/R→R, R/I→R
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_int_scalar_int_fx_none_ret_scalar_real, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u2f, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b);
 // :: I:I→vI, I:R→vI, R:R→V
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u3a, scalar_int_scalar_int_fx_none_ret_vec_int, int a, int b);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u3a, scalar_int_scalar_real_fx_none_ret_vec_int, int a, double b);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u3a, scalar_real_scalar_real_fx_none_ret_value, double a, double b);
-// <: I<I→L, R<R→L, I<R→L, R<I→L,
-//    I<I→B, R<R→B, I<R→B, R<I→B
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c, scalar_int_scalar_int_fx_none_ret_bool, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c, scalar_real_scalar_real_fx_none_ret_bool, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c, scalar_int_scalar_real_fx_none_ret_bool, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c, scalar_real_scalar_int_fx_none_ret_bool, double a, int b);
-// <=: same layout as <
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c_u3d, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3c_u3d, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c_u3d, scalar_int_scalar_int_fx_none_ret_bool, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c_u3d, scalar_real_scalar_real_fx_none_ret_bool, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c_u3d, scalar_int_scalar_real_fx_none_ret_bool, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3c_u3d, scalar_real_scalar_int_fx_none_ret_bool, double a, int b);
-// ==: .->L, .->B
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, any_any_fx_none_ret_scalar_logical, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, scalar_logical_scalar_logical_fx_none_ret_scalar_logical, Rboolean a, Rboolean b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3d_u3d, scalar_string_scalar_string_fx_none_ret_scalar_logical, char* a, char* b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, any_any_fx_none_ret_bool, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_logical_scalar_logical_fx_none_ret_bool, Rboolean a, Rboolean b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_int_scalar_int_fx_none_ret_bool, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_real_scalar_real_fx_none_ret_bool, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u3d_u3d, scalar_string_scalar_string_fx_none_ret_bool, char* a, char* b);
 
-// log: I,R→R, R,R→R
-DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_int_scalar_real_fx_none_ret_scalar_real, int value, double base);
-DEFINE_OVERRIDDEN_BUILTIN(double, log, scalar_real_scalar_real_fx_none_ret_scalar_real, double value, double base);
-// abs: I→I, R→R
-DEFINE_OVERRIDDEN_BUILTIN(int, abs, scalar_int_fx_none_ret_scalar_int, int value);
-DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, double value);
+
+/// The offset `x[[i]]` reads for a 0-based `index` (`i - 1`, `NA` for `NA`) that isn't in
+/// `vector`: GNU-R's `integerOneIndex` (`subscript.c`), or its error.
+R_xlen_t Fir_subscript_offset_slow(SEXP vector, int index);
+/// The same for `x[i]`: -1 for `NA` and past the end. A nonpositive `i` selects one element only
+/// in a vector of 1 or 2 elements; otherwise `x[i]` isn't a scalar, and this deopts.
+R_xlen_t Fir_subscript_na_offset_slow(SEXP vector, int index);
+
+// R's own `lgamma` (`Rmath.h`, which can't be included: it renames `sign`)
+double Rf_lgammafn(double x);
 
 #define DEFINE_MATH1_BUILTINS(V)\
   V(sqrt, sqrt)\
@@ -370,7 +721,7 @@ DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, doub
   V(acosh, acosh)\
   V(asinh, asinh)\
   V(atanh, atanh)\
-  V(lgamma, lgamma)
+  V(lgamma, Rf_lgammafn)
 // TODO: import from Rmath.h
 //  V(gamma, gammaf)\
 //  V(digamma, digamma)\
@@ -379,91 +730,17 @@ DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, doub
 //  V(sinpi, sinpi)\
 //  V(tanpi, tanpi)
 
-// math1: I→R, R→R
-#define V(name, func)\
-  DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_int_fx_none_ret_scalar_real, int value);\
-  DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_real_fx_none_ret_scalar_real, double value);
-DEFINE_MATH1_BUILTINS(V)
-#undef V
 
-DEFINE_OVERRIDDEN_BUILTIN(int, length, value_fx_none_ret_scalar_int, SEXP value);
-// as.integer
-DEFINE_OVERRIDDEN_BUILTIN(int, as_u2einteger, value_missing_fx_none_ret_scalar_int, SEXP value, SEXP missing);
-// as.logical: V,miss→L
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, as_u2elogical, value_missing_fx_none_ret_scalar_logical, SEXP value, SEXP missing);
-// as.logical: V,miss→B
-DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, value_missing_fx_none_ret_bool, SEXP value, SEXP missing);
-// as.logical: L,miss→B
-DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, scalar_logical_missing_fx_none_ret_bool, Rboolean value, SEXP missing);
-// as.character
-DEFINE_OVERRIDDEN_BUILTIN(char*, as_u2echaracter, value_missing_fx_none_ret_scalar_string, SEXP value, SEXP missing);
 
-// inherits(x, what, which): V,S,B→B
-DEFINE_OVERRIDDEN_BUILTIN(bool, inherits, value_scalar_string_bool_fx_none_ret_bool, SEXP value, char* what, bool which);
 
-// ^: I^I→R, R^R→R, I^R→R, R^I→R
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_int_scalar_int_fx_none_ret_scalar_real, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b);
 
-// >: I>I→L, R>R→L, I>R→L, R>I→L
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b);
 
-// >=: same layout as >
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b);
 
-// !=: .->L, .->B
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, any_any_fx_none_ret_scalar_logical, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, scalar_logical_scalar_logical_fx_none_ret_scalar_logical, Rboolean a, Rboolean b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, scalar_string_scalar_string_fx_none_ret_scalar_logical, char* a, char* b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, any_any_fx_none_ret_bool, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_logical_scalar_logical_fx_none_ret_bool, Rboolean a, Rboolean b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_int_scalar_int_fx_none_ret_bool, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_real_scalar_real_fx_none_ret_bool, double a, double b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_string_scalar_string_fx_none_ret_bool, char* a, char* b);
 
-// &, &&, |, ||, xor: B,B→B
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u26, bool_bool_fx_none_ret_bool, bool a, bool b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u26_u26, bool_bool_fx_none_ret_bool, bool a, bool b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u7c, bool_bool_fx_none_ret_bool, bool a, bool b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u7c_u7c, bool_bool_fx_none_ret_bool, bool a, bool b);
-DEFINE_OVERRIDDEN_BUILTIN(bool, xor, bool_bool_fx_none_ret_bool, bool a, bool b);
 
-// !: B→B, I→L, R→L
-DEFINE_OVERRIDDEN_BUILTIN(bool, _u21, bool_fx_none_ret_bool, bool a);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21, scalar_int_fx_none_ret_scalar_logical, int a);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21, scalar_real_fx_none_ret_scalar_logical, double a);
 
-// bitwNot: I→I
-DEFINE_OVERRIDDEN_BUILTIN(int, bitwNot, scalar_int_fx_none_ret_scalar_int, int a);
-// bitwAnd, bitwOr, bitwXor: I,I→I
-DEFINE_OVERRIDDEN_BUILTIN(int, bitwAnd, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(int, bitwOr, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b);
-DEFINE_OVERRIDDEN_BUILTIN(int, bitwXor, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b);
-// bitwShiftL, bitwShiftR: I,I→I
-DEFINE_OVERRIDDEN_BUILTIN(int, bitwShiftL, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int n);
-DEFINE_OVERRIDDEN_BUILTIN(int, bitwShiftR, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int n);
 
-// [ (scalar index read): v(T),I,miss,miss → T
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b, vec_logical_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP drop);
-DEFINE_OVERRIDDEN_BUILTIN(int, _u5b, vec_int_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP drop);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5b, vec_real_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP drop);
-DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b, vec_string_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP drop);
 
-// [[ (scalar index read): same as [
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b_u5b, vec_logical_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP exact);
-DEFINE_OVERRIDDEN_BUILTIN(int, _u5b_u5b, vec_int_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP exact);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5b_u5b, vec_real_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP exact);
-DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b_u5b, vec_string_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP exact);
 
 // [<- (scalar index write): v(T)b,I,T,miss → v(T)f (copies `x`), v(T)o,… (writes in place)
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_borrowed_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value, SEXP ddd);
@@ -476,14 +753,14 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_borrowed_scalar_int_sca
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value, SEXP ddd);
 
 // [[<- (scalar index write): same as [<- without the trailing `…`
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value, SEXP ddd);
 
 // [<- (vector index write): v(T)b,v(I),v(T),miss → v(T)f (copies `x`), v(T)o,… (in place)
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_borrowed_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
@@ -496,24 +773,16 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_borrowed_vec_int_vec_st
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
 
 // [[<- (vector index write): same as [<- without the trailing `…`
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_int_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_int_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_int_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_int_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_int_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_int_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
 
 // Real subscripts: coerce to an integer position and forward, which is what GNU-R does.
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b, vec_logical_borrowed_scalar_real_missing_missing_fx_none_ret_scalar_logical, SEXP x, double i, SEXP ddd, SEXP drop);
-DEFINE_OVERRIDDEN_BUILTIN(int, _u5b, vec_int_borrowed_scalar_real_missing_missing_fx_none_ret_scalar_int, SEXP x, double i, SEXP ddd, SEXP drop);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5b, vec_real_borrowed_scalar_real_missing_missing_fx_none_ret_scalar_real, SEXP x, double i, SEXP ddd, SEXP drop);
-DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b, vec_string_borrowed_scalar_real_missing_missing_fx_none_ret_scalar_string, SEXP x, double i, SEXP ddd, SEXP drop);
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b_u5b, vec_logical_borrowed_scalar_real_missing_missing_fx_impure_ret_scalar_logical, SEXP x, double i, SEXP ddd, SEXP exact);
-DEFINE_OVERRIDDEN_BUILTIN(int, _u5b_u5b, vec_int_borrowed_scalar_real_missing_missing_fx_impure_ret_scalar_int, SEXP x, double i, SEXP ddd, SEXP exact);
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5b_u5b, vec_real_borrowed_scalar_real_missing_missing_fx_impure_ret_scalar_real, SEXP x, double i, SEXP ddd, SEXP exact);
-DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b_u5b, vec_string_borrowed_scalar_real_missing_missing_fx_impure_ret_scalar_string, SEXP x, double i, SEXP ddd, SEXP exact);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_borrowed_scalar_real_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value, SEXP ddd);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_borrowed_vec_real_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_owned_scalar_real_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value, SEXP ddd);
@@ -530,25 +799,24 @@ DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_borrowed_scalar_real_sc
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_borrowed_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_scalar_real_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value, SEXP ddd);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_real_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_real_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_real_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_real_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_real_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_real_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_real_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_real_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_real_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_real_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_real_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_real_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_real_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_real_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_real_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value);
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_real_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_real_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_real_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_real_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_real_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_real_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_real_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_real_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_real_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_real_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_real_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_real_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_real_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_real_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_real_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value, SEXP ddd);
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd);
 
 // as.integer(x): the overloads `SpecializeRealIndex` inserts to make a real subscript integral
-DEFINE_OVERRIDDEN_BUILTIN(int, as_u2einteger, scalar_real_missing_fx_none_ret_scalar_int, double x, SEXP ddd);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, as_u2einteger, vec1_real_missing_fx_none_ret_vec1_int, SEXP x, SEXP ddd);
 DEFINE_OVERRIDDEN_BUILTIN(SEXP, as_u2einteger, vec_real_missing_fx_none_ret_vec_int, SEXP x, SEXP ddd);
 
@@ -563,20 +831,11 @@ DEFINE_OVERRIDDEN_BUILTIN(int, sum, vec_logical_missing_fx_none_ret_scalar_int, 
 DEFINE_OVERRIDDEN_BUILTIN(int, sum, vec_int_missing_fx_none_ret_scalar_int, SEXP x, SEXP naRm);
 DEFINE_OVERRIDDEN_BUILTIN(double, sum, vec_real_missing_fx_none_ret_scalar_real, SEXP x, SEXP naRm);
 
-// is.X(x): V→B
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2enumeric, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2einteger, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2edouble, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2elogical, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2ecomplex, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2eraw, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2efunction, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2eenvironment, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2elist, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2echaracter, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2eobject, value_fx_none_ret_bool, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2esymbol, value_fx_none_ret_bool, SEXP value);
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifndef __cplusplus
+#include "runtime_inline.h"
 #endif

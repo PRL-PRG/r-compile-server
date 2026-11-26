@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `weighted.residuals` <- function (obj, drop0 = TRUE) 
 {
     w <- weights(obj)

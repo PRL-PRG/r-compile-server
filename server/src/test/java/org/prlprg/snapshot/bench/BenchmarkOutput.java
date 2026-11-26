@@ -13,6 +13,10 @@ public class BenchmarkOutput {
     this.print = print;
   }
 
+  String csv() {
+    return csv;
+  }
+
   public void writeCsv(File file) {
     Files.writeString(file.toPath(), csv);
   }

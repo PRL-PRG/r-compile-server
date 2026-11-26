@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("undefined columns selected")
 `merge` <- function (x, y, ...) 
 UseMethod("merge")
 

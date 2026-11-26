@@ -1,0 +1,17 @@
+{
+ "example": "bench_shootout_nbody_vectorized",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 331,
+ "load_start": 1.11,
+ "load_end": 1.4,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {},
+ "no_time": {
+  "elideBuiltinClosure": "nothing to benchmark (no compiled module)",
+  "elideTrivialAssume": "the benchmark call failed: FI\u0158 deoptimization triggered at pc=9 (unsupported) [message from a later run of the same variant; the log of this run has none]"
+ }
+}

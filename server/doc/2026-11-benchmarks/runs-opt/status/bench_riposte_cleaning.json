@@ -1,0 +1,16 @@
+{
+ "example": "bench_riposte_cleaning",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 145,
+ "load_start": 1.29,
+ "load_end": 1.42,
+ "csv_files": 1,
+ "optimizations": ".*",
+ "failures": {},
+ "no_time": {
+  "strictifyPromise": "the benchmark call failed: FI\u0158 deoptimization triggered at pc=1 (unsupported) [message from a later run of the same variant; the log of this run has none]"
+ }
+}

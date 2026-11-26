@@ -1,0 +1,50 @@
+# https://github.com/reactorlabs/RBenchmarking/blob/a92447b37a03e96f8da1e18eb3cd8ab3b46fbf89/Benchmarks/shootout/mandelbrot/mandelbrot_naive_ascii.r
+# License: none stated, see server/doc/benchmark-licenses.md
+# ------------------------------------------------------------------
+# The Computer Language Shootout
+# http://shootout.alioth.debian.org/
+#
+# Contributed by Leo Osvald
+# ------------------------------------------------------------------
+
+lim <- 2
+iter <- 50
+
+mandelbrot_naive_ascii <- function(args) {
+    n = if (length(args)) as.integer(args[[1]]) else 200L
+    cat("P4\n")
+    cat(n, n, "\n")
+    for (y in 0:(n-1)) {
+        bits <- 0L
+        x <- 0L
+        while (x < n) {
+            c <- 2 * x / n - 1.5 + 1i * (2 * y / n - 1)
+            z <- 0+0i
+            i <- 0L
+            while (i < iter && abs(z) <= lim) {
+                z <- z * z + c
+                i <- i + 1L
+            }
+            bits <- 2L * bits + as.integer(abs(z) <= lim)
+            if ((x <- x + 1L) %% 8L == 0) {
+                cat(as.raw(bits), "\n")
+                bits <- 0L
+            }
+        }
+        xmod <- x %% 8L
+        if (xmod)
+            cat(as.raw(bits * as.integer(2^(8L - xmod))), "\n")
+    }
+}
+
+
+execute <- function(n) {
+    mandelbrot_naive_ascii(n)
+}
+
+#? benchmark: capture.output(execute(64L))
+
+# warmup
+for (i in 1:12) {
+  capture.output(execute(8L))
+}

@@ -1,9 +1,12 @@
 package org.prlprg.fir;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.ir.module.Function;
@@ -13,6 +16,7 @@ import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.FunTabEntry;
 import org.prlprg.session.GNURSession;
+import org.prlprg.sexp.ArgumentMatcher;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SpecialSXP;
@@ -36,6 +40,19 @@ public final class GlobalModules {
   public static final Module INTRINSICS =
       Parser.fromResource(Path.of("../../intrinsics.fir"), Module.class);
 
+  /// The [#BASE] functions of GNU-R's base closures (e.g. `lapply`), which `builtins.fir` doesn't
+  /// define. A [#BUILTINS] function with the same name, if any, is a different function (the
+  /// `.Internal` the closure calls).
+  private static final Set<Function> BASE_CLOSURES = new HashSet<>();
+
+  /// The [#BUILTINS] functions that `builtins.fir` defines, without the FUNTAB entries added below.
+  private static final @Unmodifiable Set<Function> DEFINED_BUILTINS =
+      ImmutableSet.copyOf(BUILTINS.localFunctions());
+
+  /// Builtins that take more arguments than FUNTAB says (`crossprod(x, y)`).
+  private static final @Unmodifiable Set<String> ARITY_IN_C =
+      ImmutableSet.of("crossprod", "tcrossprod");
+
   static {
     // Add GNU-R builtins that we don't have explicit versions for to BUILTINS and BASE
     var funTab = GNURSession.readFunTab();
@@ -48,7 +65,7 @@ public final class GlobalModules {
       }
 
       // Builtin that we haven't manually defined.
-      var parameterNames = funTabEntryParamNames(funTabEntry);
+      var parameterNames = funTabEntryParamNames(entry.getKey(), funTabEntry);
       BUILTINS.addFunction(name, parameterNames, true);
     }
 
@@ -73,14 +90,17 @@ public final class GlobalModules {
             case BuiltinSXP _, SpecialSXP _ -> {
               var funTabEntry = funTab.get(entry.getKey());
               assert funTabEntry != null : "builtin or special not in FUNTAB: " + entry.getKey();
-              yield funTabEntryParamNames(funTabEntry);
+              yield funTabEntryParamNames(entry.getKey(), funTabEntry);
             }
             default ->
                 throw new UnreachableError(
                     "Unexpected class whose `SEXP#isFunction` returned true: "
                         + value.getClass().getSimpleName());
           };
-      BASE.addFunction(name, parameterNames, true);
+      var function = BASE.addFunction(name, parameterNames, true);
+      if (value instanceof CloSXP) {
+        BASE_CLOSURES.add(function);
+      }
     }
 
     // Ensure intrinsic names don't conflict with builtins.
@@ -90,19 +110,87 @@ public final class GlobalModules {
     }
   }
 
+  /// Whether `function` is the [#BASE] function of a GNU-R base closure (see [#BASE_CLOSURES]).
+  public static boolean isBaseClosure(Function function) {
+    return BASE_CLOSURES.contains(function);
+  }
+
+  /// The `builtins.fir` functions that run no R code: no method they dispatch to, no condition
+  /// handler, and no expression they evaluate. Checked against GNU-R: primitives that aren't
+  /// generic, and closures that only call such an `.Internal`. `print` (`UseMethod`), `stop`,
+  /// `warning` and `stopifnot` (handlers, `eval`), `xor` (`|` dispatches), the subscripts and `$`
+  /// (internal dispatch), `seq_along` (dispatches `length`), and `.Call` aren't.
+  private static final @Unmodifiable Set<String> RUN_NO_R_CODE =
+      ImmutableSet.of(
+          ":",
+          "&&",
+          "||",
+          "attr",
+          "bitwAnd",
+          "bitwNot",
+          "bitwOr",
+          "bitwShiftL",
+          "bitwShiftR",
+          "bitwXor",
+          "inherits",
+          "is.character",
+          "is.complex",
+          "is.double",
+          "is.environment",
+          "is.function",
+          "is.integer",
+          "is.list",
+          "is.logical",
+          "is.null",
+          "is.object",
+          "is.raw",
+          "is.symbol",
+          "is.vector",
+          "seq_len",
+          "unclass");
+
+  /// Whether `function` is a `builtins.fir` function that runs no R code (see [#RUN_NO_R_CODE]),
+  /// so a call of it can't read its caller's frame or the expression of a promise it gets.
+  public static boolean runsNoRCode(Function function) {
+    return isDefinedBuiltin(function) && RUN_NO_R_CODE.contains(function.name().name());
+  }
+
+  /// Whether `function` is a [#BUILTINS] function that `builtins.fir` defines (not a FUNTAB entry
+  /// without a definition, e.g. the `.Internal` of a base closure).
+  public static boolean isDefinedBuiltin(Function function) {
+    return DEFINED_BUILTINS.contains(function);
+  }
+
   public static final Function BOX_FUN =
       Objects.requireNonNull(INTRINSICS.localFunction(Variable.named("box")));
   public static final Function UNBOX_FUN =
       Objects.requireNonNull(INTRINSICS.localFunction(Variable.named("unbox")));
 
-  private static @Unmodifiable List<NamedVariable> funTabEntryParamNames(FunTabEntry entry) {
+  /// The names of the [#BUILTINS] that read the closure context of their caller
+  /// (`@readsContext`).
+  public static final @Unmodifiable Set<String> CONTEXT_READERS =
+      BUILTINS.localFunctions().stream()
+          .filter(f -> f.userProperties().readsContext())
+          .map(f -> f.name().name())
+          .collect(ImmutableSet.toImmutableSet());
+
+  /// The names of the [#BUILTINS] that read the promise bound to an argument symbol
+  /// (`@readsPromise`).
+  public static final @Unmodifiable Set<String> PROMISE_READERS =
+      BUILTINS.localFunctions().stream()
+          .filter(f -> f.userProperties().readsPromise())
+          .map(f -> f.name().name())
+          .collect(ImmutableSet.toImmutableSet());
+
+  private static @Unmodifiable List<NamedVariable> funTabEntryParamNames(
+      String name, FunTabEntry entry) {
     // The formal names aren't always specified,
     // but the amount (and whether they're variadic) are in `FUNTAB`
     var numArgs = entry.arity();
-    return numArgs == -1
+    return numArgs == -1 || ARITY_IN_C.contains(name)
         ? List.of(NamedVariable.DOTS)
         : IntStream.range(0, numArgs)
-            .mapToObj(i -> Variable.named("." + i))
+            .mapToObj(i -> Variable.named(ArgumentMatcher.positionalOnlyName(i)))
             .collect(ImmutableList.toImmutableList());
   }
 

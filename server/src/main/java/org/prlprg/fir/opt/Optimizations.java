@@ -1,11 +1,20 @@
 package org.prlprg.fir.opt;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-import org.jspecify.annotations.Nullable;
+import java.util.stream.Stream;
+import org.jetbrains.annotations.Unmodifiable;
+import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
@@ -19,6 +28,7 @@ import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
 import org.prlprg.fir.opt.specialize.ImproveSignatures;
+import org.prlprg.fir.opt.specialize.InlineInternalWrapper;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
@@ -34,16 +44,159 @@ import org.prlprg.util.Strings;
 
 public class Optimizations {
   /// An optimization that never changes anything
-  private static final Optimization NOOP = (_, _) -> false;
+  private static final Optimization NOOP =
+      new Optimization() {
+        @Override
+        public String name() {
+          return "noop";
+        }
+
+        @Override
+        public boolean runWithoutRecording(
+            Optimization topLevel, ModuleFeedback feedback, org.prlprg.fir.ir.module.Function f) {
+          return false;
+        }
+      };
 
   private static final int DEFAULT_THRESHOLD = 10;
+
+  /// The `versionLimit` of the default pipeline, which limits nothing: only [#PASS_VERSION_LIMIT]
+  /// applies.
+  private static final int NO_VERSION_LIMIT = Integer.MAX_VALUE;
+
+  /// The own version limit of [SpeculateDispatch], [CreateBestVersion],
+  /// [CreateOwnedParameterVersion] and [CreateBorrowedParameterVersion].
+  private static final int PASS_VERSION_LIMIT = 9;
+
+  /// For each individual optimization, groups of other ones: when every optimization of one group
+  /// is removed from [#defaultOptimizations()], it changes nothing. So removing it too produces
+  /// the same code (see [#canonicalRemoval(Collection)]).
+  ///
+  /// It only has the entries that the optimizations' code guarantees, for modules that bc2fir
+  /// creates (a FIŘ text module may have non-baseline versions already).
+  public static final @Unmodifiable Map<String, @Unmodifiable List<@Unmodifiable Set<String>>>
+      REQUIRES = requires();
+
+  private static Map<String, List<Set<String>>> requires() {
+    var requires = new LinkedHashMap<String, List<Set<String>>>();
+    BiConsumer<String, Set<String>> require =
+        (name, group) -> requires.computeIfAbsent(name, _ -> new ArrayList<>()).add(group);
+
+    var names = individualOptimizationNames();
+
+    // bc2fir only creates baselines. Only `copyBaseline` creates the first non-baseline version
+    // (the others copy non-baselines), and no optimization changes a baseline.
+    names.stream()
+        .filter(name -> !name.equals("copyBaseline"))
+        .forEach(name -> require.accept(name, Set.of("copyBaseline")));
+    // Only `callOwnedVersion` inserts `dup`, which they need.
+    require.accept("consumeDeadDup", Set.of("callOwnedVersion"));
+    require.accept("elideConsumedDup", Set.of("callOwnedVersion"));
+    require.accept("createOwnedParameterVersion", Set.of("callOwnedVersion"));
+    // Only `specializeNonReflectiveEnv` makes the non-reflective environments it needs.
+    require.accept("elideDeadStore", Set.of("specializeNonReflectiveEnv"));
+    // Only `speculateAssume` inserts `assume`, which they need.
+    require.accept("mergeAssumeLoadVar", Set.of("speculateAssume"));
+    require.accept("elideTrivialAssume", Set.of("speculateAssume"));
+    // Only `mergeAssumeLoadVar` makes the `AssumeLoadFun`/`AssumeLoadVar` it needs.
+    require.accept("elideRedundantAssumeLoad", Set.of("mergeAssumeLoadVar"));
+
+    // Not entries, although they hold on most examples:
+    // - `elideConsumedDup` -> `consumeDeadDup`: `inline` can substitute `consume d` into a `dup`.
+    // - `createBorrowedParameterVersion` -> `createOwnedParameterVersion`: `createBestVersion` can
+    //   create a version with an owned parameter.
+    // - `strictifyPhi` -> `strictifyPromise`: `inline` makes the `prom { return v }` it needs.
+    // - `elideRedundantBoxUnbox`, `schedulePure` -> `unbox` or `unboxPhi`: bc2fir boxes in a
+    //   `switch` on a string.
+
+    var unknown =
+        Stream.concat(
+                requires.keySet().stream(),
+                requires.values().stream().flatMap(List::stream).flatMap(Set::stream))
+            .filter(name -> !names.contains(name))
+            .toList();
+    if (!unknown.isEmpty()) {
+      throw new AssertionError("`REQUIRES` has unknown optimizations: " + unknown);
+    }
+    requires.replaceAll((_, groups) -> List.copyOf(groups));
+    return Collections.unmodifiableMap(requires);
+  }
+
+  /// `removed` without every optimization that the others make change nothing (see [#REQUIRES]),
+  /// in pipeline order.
+  ///
+  /// Two removal sets with the same canonical removal produce the same code.
+  /// [#defaultOptimizationsWithout(Collection)] of the canonical removal is the same as of
+  /// `removed`, so benchmark only one of them.
+  ///
+  /// @throws IllegalArgumentException if a name isn't in [#individualOptimizationNames()].
+  public static List<String> canonicalRemoval(Collection<String> removed) {
+    var ordered = inPipelineOrder(removed);
+    return ordered.stream()
+        .filter(
+            name ->
+                !removalClosure(ordered.stream().filter(other -> !other.equals(name)).toList())
+                    .contains(name))
+        .toList();
+  }
+
+  /// `removed` and every optimization that it makes change nothing, transitively (see
+  /// [#REQUIRES]).
+  public static Set<String> removalClosure(Collection<String> removed) {
+    var closure = new LinkedHashSet<>(removed);
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var entry : REQUIRES.entrySet()) {
+        if (!closure.contains(entry.getKey())
+            && entry.getValue().stream().anyMatch(closure::containsAll)) {
+          closure.add(entry.getKey());
+          changed = true;
+        }
+      }
+    }
+    return closure;
+  }
 
   public static Optimization defaultOptimizations() {
     return defaultOptimizations(DEFAULT_THRESHOLD, true);
   }
 
   public static Optimization defaultOptimizations(int threshold, boolean modifyCheckpoints) {
-    return defaultOptimizations(threshold, modifyCheckpoints, (String) null);
+    return defaultOptimizations(threshold, modifyCheckpoints, NO_VERSION_LIMIT, List.of());
+  }
+
+  /// The pipeline of the rsh JIT (`CompileService#compileFirClosure`):
+  /// [#defaultOptimizations(int,boolean)] without two optimizations.
+  /// - [SpeculateAssume]: FIŘ→C code can't deoptimize, so its assumptions can't fail safely.
+  /// - [SpecializeNonReflectiveEnv]: the JIT's recording has no reflection evidence, so it would
+  ///   trust absent evidence.
+  ///
+  /// The recording has no subscript evidence either, so the JIT's feedback is
+  /// [marked without it][org.prlprg.fir.feedback.MockModuleFeedback#markWithoutSubscripts()].
+  public static Optimization jitOptimizations(int threshold) {
+    return defaultOptimizations(
+        threshold,
+        true,
+        NO_VERSION_LIMIT,
+        inPipelineOrder(List.of("speculateAssume", "specializeNonReflectiveEnv")));
+  }
+
+  /// [#defaultOptimizations()], but no optimization creates a version of a function that has
+  /// `versionLimit` versions (the baseline included).
+  ///
+  /// With `versionLimit` 2, each function has one version besides the baseline: the copy of the
+  /// baseline that [CopyBaseline] creates first. It has the baseline's parameters, so every call
+  /// can use it, and nothing dispatches on the arguments' types. Optimizations still refine its
+  /// body, return type, effects and parameter strictness.
+  ///
+  /// @throws IllegalArgumentException if `versionLimit` is less than 2, which [CopyBaseline]
+  ///     doesn't obey.
+  public static Optimization defaultOptimizationsWithVersionLimit(int versionLimit) {
+    if (versionLimit < 2) {
+      throw new IllegalArgumentException("A version limit must be at least 2: " + versionLimit);
+    }
+    return defaultOptimizations(DEFAULT_THRESHOLD, true, versionLimit, List.of());
   }
 
   /// [#defaultOptimizations()] with the individual optimization named `without` removed, e.g. to
@@ -52,38 +205,65 @@ public class Optimizations {
   ///
   /// @throws IllegalArgumentException if `without` isn't in [#individualOptimizationNames()].
   public static Optimization defaultOptimizationsWithout(String without) {
-    return defaultOptimizations(DEFAULT_THRESHOLD, true, without);
+    return defaultOptimizationsWithout(List.of(without));
+  }
+
+  /// [#defaultOptimizations()] with every individual optimization in `without` removed.
+  ///
+  /// The name lists the removed optimizations in pipeline order, so it doesn't depend on the
+  /// order of `without`, and with one name it's the name of
+  /// [#defaultOptimizationsWithout(String)].
+  ///
+  /// @throws IllegalArgumentException if a name in `without` isn't in
+  ///     [#individualOptimizationNames()].
+  public static Optimization defaultOptimizationsWithout(Collection<String> without) {
+    return defaultOptimizations(
+        DEFAULT_THRESHOLD, true, NO_VERSION_LIMIT, inPipelineOrder(without));
+  }
+
+  /// `names` in pipeline order, without duplicates.
+  ///
+  /// @throws IllegalArgumentException if a name isn't in [#individualOptimizationNames()].
+  private static List<String> inPipelineOrder(Collection<String> names) {
+    var all = individualOptimizationNames();
+    var unknown = names.stream().filter(name -> !all.contains(name)).toList();
+    if (!unknown.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Not an individual optimization in the default pipeline: "
+              + Strings.join(", ", unknown)
+              + "\nExpected one of: "
+              + Strings.join(", ", all));
+    }
+    return all.stream().filter(names::contains).toList();
   }
 
   /// The [name][Optimization#name()] of every optimization in [#defaultOptimizations()] that isn't
   /// a sequence, in the (deterministic) order the pipeline is constructed in, which groups each
   /// sequence's optimizations together but is otherwise unrelated to the order they run in.
   ///
-  /// These are exactly the names [#defaultOptimizationsWithout(String)] accepts: removing a
+  /// These are exactly the names [#defaultOptimizationsWithout(Collection)] accepts: removing a
   /// sequence would remove everything inside it, so sequences aren't included.
   public static List<String> individualOptimizationNames() {
-    var filter = new Filter(null);
-    var _ = defaultOptimizations(DEFAULT_THRESHOLD, true, filter);
+    var filter = new Filter(List.of());
+    var _ = defaultOptimizations(DEFAULT_THRESHOLD, true, NO_VERSION_LIMIT, filter);
     return List.copyOf(filter.encountered);
   }
 
+  /// @param without Individual optimization names, in pipeline order.
   private static Optimization defaultOptimizations(
-      int threshold, boolean modifyCheckpoints, @Nullable String without) {
-    var filter = new Filter(without);
-    var optimizations = defaultOptimizations(threshold, modifyCheckpoints, filter);
-    filter.checkRemovedSomething();
-    return optimizations;
+      int threshold, boolean modifyCheckpoints, int versionLimit, List<String> without) {
+    return defaultOptimizations(threshold, modifyCheckpoints, versionLimit, new Filter(without));
   }
 
   private static Optimization defaultOptimizations(
-      int threshold, boolean modifyCheckpoints, Filter filter) {
+      int threshold, boolean modifyCheckpoints, int versionLimit, Filter filter) {
+    var passVersionLimit = Math.min(PASS_VERSION_LIMIT, versionLimit);
     return new Sequence(
-        defaultName(threshold, modifyCheckpoints, filter.without),
+        defaultName(threshold, modifyCheckpoints, versionLimit, filter.without),
         filter.keep(
-            new ElideUnusedVersions(threshold),
             new CopyBaseline(),
             new ElideUnforcedPromise(threshold),
-            new SpeculateDispatch(threshold, 3, 9),
+            new SpeculateDispatch(threshold, 3, passVersionLimit),
             new SpeculateAssume(threshold),
             new ModuleFixpointSequence(
                 "mainThenElideCheckpoints",
@@ -114,6 +294,7 @@ public class Optimizations {
                                             new SpecializeSubscript(),
                                             new SpecializeRealIndex(),
                                             new SpecializeLiteSpecial(),
+                                            new InlineInternalWrapper(),
                                             new ImproveSignatures())),
                                     new Specialize(
                                         "specializeEnv",
@@ -123,21 +304,24 @@ public class Optimizations {
                                             // must be in a pass after `ElideDeadStore`
                                             new ElideEnv())),
                                     new PromoteStaticallyKnownVariables(),
-                                    new Unbox(),
+                                    new Unbox(versionLimit),
                                     new StrictifyPhi(),
                                     new UnboxPhi(),
                                     new ElideRedundantBoxUnbox(),
+                                    new ElideRangeRead(),
                                     new SchedulePure(),
                                     new Inline(1000),
                                     new DeferIntoPromise(),
-                                    new StrictifyPromise(),
+                                    new StrictifyPromise(versionLimit),
                                     new CallOwnedVersion(),
+                                    new OwnPhiWeb(),
                                     new ConsumeDeadDup(),
                                     new ElideConsumedDup(),
                                     new Cleanup(false))),
-                            new CreateBestVersion(9),
-                            new CreateOwnedParameterVersion(9),
-                            new CreateBorrowedParameterVersion(9))),
+                            new CreateBestVersion(passVersionLimit),
+                            new CreateOwnedParameterVersion(passVersionLimit),
+                            new CreateBorrowedParameterVersion(passVersionLimit))),
+                    modifyCheckpoints ? new HoistLoopAssume() : NOOP,
                     modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
                     modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP))));
   }
@@ -149,9 +333,9 @@ public class Optimizations {
   /// the snapshot it produces (see `org.prlprg.snapshot.fir.opt.OptimizedFirQuery`), and these
   /// arguments select pipelines whose output differs a lot: without `modifyCheckpoints`, the
   /// checkpoints that stay put block promise strictification, so far fewer versions get
-  /// specialized; `without` removes an optimization outright.
+  /// specialized; `versionLimit` removes versions; `without` removes optimizations outright.
   private static String defaultName(
-      int threshold, boolean modifyCheckpoints, @Nullable String without) {
+      int threshold, boolean modifyCheckpoints, int versionLimit, List<String> without) {
     var name = new StringBuilder("default");
     if (threshold != DEFAULT_THRESHOLD) {
       name.append("Threshold").append(threshold);
@@ -159,8 +343,11 @@ public class Optimizations {
     if (!modifyCheckpoints) {
       name.append("KeepCheckpoints");
     }
-    if (without != null) {
-      name.append("Without").append(Strings.camelCaseToPascalCase(without));
+    if (versionLimit != NO_VERSION_LIMIT) {
+      name.append("VersionLimit").append(versionLimit);
+    }
+    if (!without.isEmpty()) {
+      name.append("Without").append(Strings.join("And", Strings::camelCaseToPascalCase, without));
     }
     return name.toString();
   }
@@ -174,7 +361,7 @@ public class Optimizations {
         || optimization instanceof Specialize;
   }
 
-  /// Removes the optimization named `without` (if any) from the pipeline as it's constructed, and
+  /// Removes the optimizations named in `without` from the pipeline as it's constructed, and
   /// records the names of every optimization it could have removed.
   ///
   /// Sequences and [#NOOP] are passed through unrecorded: removing a sequence would remove
@@ -183,11 +370,10 @@ public class Optimizations {
   /// [#individualOptimizationNames()] the pipeline's own definition instead of a list that has to
   /// be kept in sync.
   private static final class Filter {
-    private final @Nullable String without;
+    private final List<String> without;
     private final LinkedHashSet<String> encountered = new LinkedHashSet<>();
-    private boolean removedSomething = false;
 
-    private Filter(@Nullable String without) {
+    private Filter(List<String> without) {
       this.without = without;
     }
 
@@ -211,21 +397,7 @@ public class Optimizations {
 
     private boolean keep(String name) {
       encountered.add(name);
-      if (!name.equals(without)) {
-        return true;
-      }
-      removedSomething = true;
-      return false;
-    }
-
-    private void checkRemovedSomething() {
-      if (without != null && !removedSomething) {
-        throw new IllegalArgumentException(
-            "Not an individual optimization in the default pipeline: "
-                + without
-                + "\nExpected one of: "
-                + Strings.join(", ", encountered));
-      }
+      return !without.contains(name);
     }
   }
 

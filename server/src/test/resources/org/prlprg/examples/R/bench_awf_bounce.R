@@ -1,3 +1,7 @@
+# https://github.com/reactorlabs/RBenchmarking/blob/a92447b37a03e96f8da1e18eb3cd8ab3b46fbf89/Benchmarks/areWeFast/bounce.r
+# License: none stated, see server/doc/benchmark-licenses.md
+# Port: `random.r` is inlined after the functions. The ball count is the parameter `ballCount`
+# of `execute`, in place of the fixed 100 (`verifyResult` holds only for 100).
 execute <- function (ballCount) {
     bounces   <- 0
     balls     = vector("list", length = ballCount)

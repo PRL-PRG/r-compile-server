@@ -30,8 +30,10 @@ rcp lives inside the r-compile-server repository. Clone it with its
 submodules (the bundled GNU-R sources):
 
 ```sh
-git clone --recurse-submodules https://github.com/PRL-PRG/r-compile-server.git
-cd r-compile-server/client/rcp
+git clone https://github.com/PRL-PRG/r-compile-server.git
+cd r-compile-server
+git submodule update --init --depth 1  # --depth 1 skips GNU-R's ~400 MiB history
+cd client/rcp
 ```
 
 Build R from source and install R package dependencies:

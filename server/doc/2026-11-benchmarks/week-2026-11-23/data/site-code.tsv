@@ -1,0 +1,20 @@
+# Hand-written: one R line per copy site of report.txt (example, R function, line of the example source). Not refreshed by copy-data.sh.
+example	function	code
+ati_att3_3	gcd2	y[y == 0] <- x[y == 0]
+shootout_knucleotide_brute	gen_freq	attr(freqs, subseq) <- cnt + 1L
+shootout_mandelbrot_noout_naive	mandelbrot_noout_naive	X[,,k] <- exp(-abs(Z))
+shootout_nbody_naive_2	offset_momentum	body_v[, 1] <<- -(body_v %*% body_mass) / solar_mass
+shootout_nbody_naive	advance	body_vx[[i]] <<- body_vx[[i]] - dx * body_mass[[j]] * mag
+shootout_fannkuchredux	fannkuch	perm[k_range] <- rev.default(perm[k_range])
+shootout_revcomp	exchange	substr(data[i],j,j)<<-complement[[substr(data[k],l,l)]]
+shootout_nbody_naive_2	advance	body_v[, i] <<- body_v[, i] - dr * body_mass[[j]] * mag
+shootout_spectralnorm_alt_4	eval_A	eval_A_cache[[i, j]] <<- 1 / ((i + j - 2) * (i + j - 1) / 2 + i)
+ati_att3_5	run_f72465c	vr[j] <- vrt
+shootout_fannkuchredux_naive	fannkuch	t <- perm[[lo]]; perm[[lo]] <- perm[[hi]]; perm[[hi]] <- t
+misc_lr_ols_lapply	FUN	x <- yx; x[1] <- 1
+misc_lr_ols_lapply	b.func	x <- yx; x[1] <-1
+misc_lr_ols_lapply	A.func	x <- yx; x[1] <- 1
+awf_bounce_nonames_simple	bounce	ball[1] <- ball[1] + ball[3]
+shootout_knucleotide_brute_3	gen_freq	cnt <- freqs[subseq]
+shootout_nbody	as.vector	body_vx <<- body_vx - as.vector((dxx * mag) %*% body_mass)
+riposte_raysphere	intersect	t0 <- (-b - m)/2

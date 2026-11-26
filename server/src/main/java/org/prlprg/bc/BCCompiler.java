@@ -132,6 +132,7 @@ import org.prlprg.bc.BcInstr.VecSubset;
 import org.prlprg.bc.BcInstr.VecSubset2;
 import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.bc2fir.BC2FirCFGCompiler;
+import org.prlprg.primitive.Complex;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -317,7 +318,8 @@ public class BCCompiler {
   private static final Set<String> ALLOWED_FOLDABLE_FUNS =
       Set.of(
           "c", "+", "*", "/", ":", "-", "^", "(", "cos", "exp", "log", "log10", "log2", "seq.int",
-          "seq_len", "sin", "sqrt", "rep", "tan");
+          "seq_len", "sin", "sqrt", "rep", "tan", "==", "!=", "<", "<=", ">", ">=", "atan",
+          "choose", "round", "Re", "Im");
 
   /**
    * The set of functions that if encounted in loop body allow us to stop the search whether loop
@@ -525,6 +527,9 @@ public class BCCompiler {
                       // >> break() and next() calls
                       compile(fun),
                   () -> compileCallExprFun(call, fun, args));
+      // E.g. a closure, as in `as.call(list(f, x))`: GNU-R's `cmpCall` compiles any non-symbol
+      // function like a call.
+      default -> compileCallExprFun(call, call.fun(), args);
     }
 
     cb.setCurrentLoc(loc);
@@ -538,7 +543,7 @@ public class BCCompiler {
     tailCallReturn();
   }
 
-  private void compileCallExprFun(LangSXP call, LangSXP fun, ListSXP args) {
+  private void compileCallExprFun(LangSXP call, SEXP fun, ListSXP args) {
     usingCtx(ctx.nonTailContext(), () -> compile(fun));
     cb.addInstr(new CheckFun());
     compileArgs(args, false);
@@ -894,7 +899,7 @@ public class BCCompiler {
 
     var ct = constantFold(test).orElse(null);
 
-    if (ct instanceof LglSXP lgl && lgl.isScalar()) {
+    if (ct instanceof LglSXP lgl && lgl.isScalar() && !lgl.hasNaOrNaN()) {
       if (lgl == SEXPs.TRUE) {
         compile(thenBranch);
       } else if (elseBranch.isPresent()) {
@@ -1952,9 +1957,6 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarSubset(LangSXP call) {
-    // We can't skip if `optimizationLevel == BcOptLevel.FIR`,
-    // because the `GetterCall` compiles a symbol index into a load.
-
     if (anyDots(call.args()) || call.args().size() != 2) {
       return false;
     }
@@ -1978,10 +1980,6 @@ public class BCCompiler {
   }
 
   private boolean inlineSquareBracketSubSet(boolean doubleBracket, LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR) {
-      return false;
-    }
-
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
       // inline cmpGetterDispatch from the R compiler
 
@@ -2030,9 +2028,6 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarAssign(FlattenLHS flhs, LangSXP call) {
-    // We can't skip if `optimizationLevel == BcOptLevel.FIR`,
-    // because the `GetterCall` compiles a symbol index into a load.
-
     var place = flhs.temp();
     if (anyDots(place.args()) || place.args().size() != 2) {
       return false;
@@ -2053,10 +2048,6 @@ public class BCCompiler {
   }
 
   private boolean inlineSquareBracketAssign(boolean doubleSquare, FlattenLHS flhs, LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR) {
-      return false;
-    }
-
     var place = flhs.temp();
 
     if (dotsOrMissing(place.args()) || place.args().hasTags() || place.args().size() < 2) {
@@ -2108,10 +2099,6 @@ public class BCCompiler {
   }
 
   private boolean inlineSubset(boolean doubleSquare, LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR) {
-      return inlineSpecial(call);
-    }
-
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
       if (anyDots(call.args()) || call.args().isEmpty()) {
         return inlineSpecial(call);
@@ -2247,20 +2234,31 @@ public class BCCompiler {
   private Optional<SEXP> constantFoldCall(LangSXP call) {
     return call.funName()
         .filter(this::isFoldableFun)
-        .flatMap(name -> buildArgs(call).flatMap(args -> doConstantFoldCall(name, args)))
+        .flatMap(
+            name ->
+                buildArgs(call)
+                    .flatMap(
+                        args ->
+                            switch (name) {
+                              // These depend on argument names.
+                              case "c" -> ConstantFolding.c(args);
+                              case "rep" -> ConstantFolding.rep(args);
+                              default ->
+                                  doConstantFoldCall(
+                                      name, args.stream().map(TaggedElem::value).toList());
+                            }))
         .flatMap(this::checkConst);
   }
 
-  private Optional<List<SEXP>> buildArgs(LangSXP call) {
-    var argsBuilder = new ImmutableList.Builder<SEXP>();
+  private Optional<List<TaggedElem>> buildArgs(LangSXP call) {
+    var argsBuilder = new ImmutableList.Builder<TaggedElem>();
 
     for (var arg : call.args()) {
       if (missing(arg.value())) {
         return Optional.empty();
       }
 
-      var namedArg = arg.value().attributes() != null ? arg.namedValue() : arg.value();
-      var val = constantFold(namedArg);
+      var val = constantFold(arg.value());
 
       if (val.isPresent()) {
         var v = val.get();
@@ -2268,7 +2266,7 @@ public class BCCompiler {
           return Optional.empty();
         }
 
-        argsBuilder.add(v);
+        argsBuilder.add(new TaggedElem(arg.tag(), v));
       } else {
         return Optional.empty();
       }
@@ -2280,7 +2278,6 @@ public class BCCompiler {
   private Optional<SEXP> doConstantFoldCall(String funName, List<SEXP> args) {
     return switch (funName) {
       case "(" -> constantFoldParen(args);
-      case "c" -> ConstantFolding.c(args);
       case "+" -> {
         if (args.size() == 1) {
           yield ConstantFolding.plus(args);
@@ -2307,7 +2304,12 @@ public class BCCompiler {
       case "sin" -> ConstantFolding.sin(args);
       case "sqrt" -> ConstantFolding.sqrt(args);
       case "tan" -> ConstantFolding.tan(args);
-      case "rep" -> ConstantFolding.rep(args);
+      case "==", "!=", "<", "<=", ">", ">=" -> ConstantFolding.relop(funName, args);
+      case "atan" -> ConstantFolding.atan(args);
+      case "choose" -> ConstantFolding.choose(args);
+      case "round" -> ConstantFolding.round(args);
+      case "Re" -> ConstantFolding.complexPart(args, Complex::real);
+      case "Im" -> ConstantFolding.complexPart(args, Complex::imag);
       case "seq.int" -> ConstantFolding.seqInt(args);
       case "seq_len" -> ConstantFolding.seqLen(args);
       default -> Optional.empty();

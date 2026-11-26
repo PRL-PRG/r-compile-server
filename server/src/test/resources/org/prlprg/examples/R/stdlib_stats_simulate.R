@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `simulate` <- function (object, nsim = 1, seed = NULL, ...) 
 UseMethod("simulate")
 

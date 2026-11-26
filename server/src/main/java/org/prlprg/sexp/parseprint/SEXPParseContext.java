@@ -9,6 +9,7 @@ import org.prlprg.bc.Bc;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Scanner;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
@@ -84,6 +85,57 @@ public class SEXPParseContext {
     refs.put(ref, sexp);
   }
 
+  /// The bits of `+NaN` and `-NaN` (the canonical `NaN`, and it with the sign bit set).
+  static final long NAN_BITS = 0x7FF8000000000000L;
+
+  static final long NEGATIVE_NAN_BITS = 0xFFF8000000000000L;
+
+  /// Parse an integer, real, or complex literal.
+  private static SEXP parseNumber(Scanner s) {
+    var decimal = s.readDecimalString();
+    if (!decimal.contains(".")
+        && !decimal.contains("Infinity")
+        && !decimal.contains("NaN")
+        && !s.nextCharSatisfies(c -> c == '+' || c == '-' || c == 'i' || c == 'e' || c == 'E')) {
+      try {
+        return SEXPs.integer(Integer.parseInt(decimal));
+      } catch (NumberFormatException e) {
+        throw s.fail("integer is too large to parse: " + decimal);
+      }
+    }
+    var dbl = decimal.endsWith("NaN") ? finishParsingNaN(decimal, s) : Double.parseDouble(decimal);
+    if (s.trySkip('+') || s.nextCharIs('-')) {
+      var imag = s.readDouble();
+      s.assertAndSkip('i');
+      return SEXPs.complex(dbl, imag);
+    }
+    return s.trySkip('i') ? SEXPs.complex(0, dbl) : SEXPs.real(dbl);
+  }
+
+  /// Parse the optional `(0x<bits>)` after `+NaN` or `-NaN` (`decimal`).
+  private static double finishParsingNaN(String decimal, Scanner s) {
+    long bits =
+        s.runWithWhitespacePolicy(
+            SkipWhitespace.NONE,
+            () -> {
+              if (!s.trySkip("(0x")) {
+                return decimal.startsWith("-") ? NEGATIVE_NAN_BITS : NAN_BITS;
+              }
+              var hex = s.readWhile(c -> Character.digit(c, 16) >= 0);
+              s.assertAndSkip(')');
+              try {
+                return Long.parseUnsignedLong(hex, 16);
+              } catch (NumberFormatException e) {
+                throw s.fail("64-bit hex NaN bits", hex);
+              }
+            });
+    var dbl = Double.longBitsToDouble(bits);
+    if (!Double.isNaN(dbl) || (bits < 0) != decimal.startsWith("-")) {
+      throw s.fail("NaN bits with the printed sign", Long.toHexString(bits));
+    }
+    return dbl;
+  }
+
   @ParseMethod
   private SEXP parseSEXP(Parser p) {
     var s = p.scanner();
@@ -115,29 +167,8 @@ public class SEXPParseContext {
     } else if (s.trySkip("<unbound>")) {
       return SEXPs.UNBOUND_VALUE;
     } else if (s.nextCharSatisfies(Character::isDigit) || s.nextCharIs('+') || s.nextCharIs('-')) {
-      var decimal = s.readDecimalString();
-      if (!decimal.contains(".")
-          && !decimal.contains("Infinity")
-          && !decimal.contains("NaN")
-          && !s.nextCharSatisfies(c -> c == '+' || c == '-' || c == 'i' || c == 'e' || c == 'E')) {
-        try {
-          return SEXPs.integer(Integer.parseInt(decimal));
-        } catch (NumberFormatException e) {
-          throw s.fail("integer is too large to parse: " + decimal);
-        }
-      } else {
-        var dbl = Double.parseDouble(decimal);
-        if (s.trySkip('+') || s.nextCharIs('-')) {
-          var imag = s.readDouble();
-          s.assertAndSkip('i');
-          return SEXPs.complex(dbl, imag);
-        }
-        if (s.trySkip('i')) {
-          return SEXPs.complex(0, dbl);
-        } else {
-          return SEXPs.real(dbl);
-        }
-      }
+      // A number's suffix follows it directly: `2.0 in` is a real, not a complex `2.0i`.
+      return s.runWithWhitespacePolicy(SkipWhitespace.NONE, () -> parseNumber(s));
     } else if (s.nextCharIs('"')) {
       var str = s.readQuoted('"');
       if (s.nextCharsAre("...")) {
@@ -435,9 +466,17 @@ public class SEXPParseContext {
 
   @ParseMethod
   private SymOrLangSXP parseSymOrLangSXP(Parser p) {
-    return p.scanner().nextCharIs('{')
-        ? parseBlockLangSXP(p)
-        : finishParsingSymOrNotBlockLangSXP(SEXPs.symbol(Names.read(p.scanner(), true)), p);
+    var s = p.scanner();
+    if (s.nextCharIs('{')) {
+      return parseBlockLangSXP(p);
+    } else if (s.nextCharIs('<')) {
+      // A call of a function that isn't a symbol or call, e.g. `<clo ...>(x)`.
+      var fun = p.parse(SEXP.class);
+      s.assertAndSkip('(');
+      return finishParsingSymOrNotBlockLangSXP(SEXPs.lang(fun, parseCallArgs(p)), p);
+    } else {
+      return finishParsingSymOrNotBlockLangSXP(SEXPs.symbol(Names.read(s, true)), p);
+    }
   }
 
   @ParseMethod
@@ -470,20 +509,25 @@ public class SEXPParseContext {
     var s = p.scanner();
 
     while (s.trySkip('(')) {
-      var args = new ArrayList<TaggedElem>();
-      if (!s.trySkip(')')) {
-        while (true) {
-          var arg = p.parse(TaggedElem.class);
-          args.add(arg);
-          if (s.trySkip(')')) {
-            break;
-          }
-          s.assertAndSkip(',');
-        }
-      }
-      result = SEXPs.lang(result, SEXPs.list(args));
+      result = SEXPs.lang(result, parseCallArgs(p));
     }
     return result;
+  }
+
+  /// Parse a call's arguments, after the opening parenthesis.
+  private ListSXP parseCallArgs(Parser p) {
+    var s = p.scanner();
+    var args = new ArrayList<TaggedElem>();
+    if (!s.trySkip(')')) {
+      while (true) {
+        args.add(p.parse(TaggedElem.class));
+        if (s.trySkip(')')) {
+          break;
+        }
+        s.assertAndSkip(',');
+      }
+    }
+    return SEXPs.list(args);
   }
 
   /**

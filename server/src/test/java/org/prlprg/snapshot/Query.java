@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.nio.file.Path;
 import java.util.Arrays;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.examples.Example;
 import org.prlprg.util.Streams;
 
@@ -72,13 +73,41 @@ public interface Query<T> {
   /// Compute the actual data from the example for verification.
   T compute(Example example, SnapshotStore store);
 
-  /// Compute the expected data from the example.
+  /// Whether the data stops being what this query computes once it's used, and can't be restored
+  /// from its snapshot.
   ///
-  /// We check that actual data equals this. By default, this means we check for non-determinism
-  /// (the oracle's determinism isn't checked). For example, this is overridden by
-  /// [BCQuery] to use R's built-in bytecode compiler instead of ours.
-  default T oracle(Example example, SnapshotStore store) {
-    return compute(example, store);
+  /// E.g. a module with unevaluated versions: using it evaluates some of them, and its snapshot
+  /// doesn't say how to evaluate the others.
+  ///
+  /// Such data is computed every time it's loaded, instead of being cached in memory or on disk.
+  /// Its snapshot is only compared against.
+  ///
+  /// By default, `false`.
+  default boolean isTransient() {
+    return false;
+  }
+
+  /// What's verified and saved for `data`: every `verify` method and
+  /// [#serialize(Object, Path, Example, SnapshotStore)] is given this instead.
+  ///
+  /// If [#isTransient()], this must not change `data`, which is still going to be used.
+  ///
+  /// By default, `data` itself.
+  default T snapshot(T data, Example example, SnapshotStore store) {
+    return data;
+  }
+
+  /// Compute the expected data from the example, independently of
+  /// [#compute(Example, SnapshotStore)].
+  ///
+  /// We check that actual data equals this. For example, this is overridden by [BCQuery] to use
+  /// R's built-in bytecode compiler instead of ours.
+  ///
+  /// By default, `null`: there's no independent oracle, so only
+  /// [#verifyNoRegression(Object, Object, Example, SnapshotStore)] compares the actual data
+  /// against a previous run.
+  default @Nullable T oracle(Example example, SnapshotStore store) {
+    return null;
   }
 
   /// Assert the queries are equal.
@@ -106,6 +135,15 @@ public interface Query<T> {
   /// By default, is empty (for directories or binaries).
   default String snapshotExtension() {
     return "";
+  }
+
+  /// Whether the snapshot at `path`, which exists, has everything a later run needs to skip
+  /// recomputing. The committed snapshots omit build products (see `server/.gitignore`), so a
+  /// query whose snapshot has some must override this to check for them.
+  ///
+  /// By default, `true`.
+  default boolean isComplete(Path path) {
+    return true;
   }
 
   /// Deserialize the snapshot data from `path`.

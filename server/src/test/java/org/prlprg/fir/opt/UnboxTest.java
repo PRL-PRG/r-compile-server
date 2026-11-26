@@ -237,6 +237,8 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
 
     assertTrue(run(module), "optimization should report a change");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     // Callee new version should have unbox before return
     assertTrue(
@@ -308,6 +310,8 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
 
     assertTrue(run(module), "optimization should report a change");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     // Should create callee version with unbox before return
     assertTrue(
@@ -337,5 +341,30 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """);
 
     assertFalse(run(module), "optimization should report no change for non-v1 return");
+  }
+
+  @Test
+  void dispatchCall_v1Param_notUnboxed() {
+    // A dispatch call passes its arguments as SEXPs, so its parameters stay boxed.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (x:v1(I)) --> V { ... }
+              (x:v1(I)) --> V {
+                r: V = f%< v1(I) --> V >(x);
+                return r;
+              }
+            }
+
+            fun f(a) {
+              (a:v1(I)) --> V {
+                return a;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(module), "optimization should report no change; got:\n" + Printer.toString(module));
   }
 }

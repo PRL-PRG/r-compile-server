@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `PP.test` <- function (x, lshort = TRUE) 
 {
     if (NCOL(x) > 1) 

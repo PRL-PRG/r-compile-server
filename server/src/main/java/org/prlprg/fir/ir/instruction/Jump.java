@@ -10,6 +10,7 @@ import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -80,6 +81,25 @@ public final class Jump extends Instruction {
   @UnmodifiableView
   public List<Target> targets() {
     return expression.targets(args());
+  }
+
+  /// The phi that the argument at `index` is passed to, or `null` if it isn't a phi argument (the
+  /// phi arguments are the last arguments, in target order).
+  public @Nullable BlockParameter phiAt(int index) {
+    var phiIndex = index - argCount();
+    for (var target : targets()) {
+      phiIndex += target.phiArgs().size();
+    }
+    for (var target : targets()) {
+      if (phiIndex < 0) {
+        return null;
+      }
+      if (phiIndex < target.phiArgs().size()) {
+        return target.bb().phiParameters().get(phiIndex);
+      }
+      phiIndex -= target.phiArgs().size();
+    }
+    return null;
   }
 
   @UnmodifiableView

@@ -1,0 +1,16 @@
+{
+ "example": "bench_mathkernel_double_na_vec_add_t1",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 944,
+ "load_start": 2.59,
+ "load_end": 3.87,
+ "csv_files": 5,
+ "optimizations": "$^",
+ "failures": {},
+ "no_time": {
+  "scalarUnboxing": "R REPL timed out after 600 s"
+ }
+}

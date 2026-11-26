@@ -12,8 +12,10 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     return new DeferIntoPromise();
   }
 
+  /// The backends create a promise that wraps a value already evaluated, so its body must stay
+  /// `return <register>`.
   @Test
-  void pureInstructionUsedOnlyInPromise_deferred() {
+  void boxIsntMovedIntoAWrappedValuePromise() {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
@@ -27,17 +29,69 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             }
             """);
 
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("prom<v1(R) ->{\n    return nb;"), printed);
+    assertTrue(printed.indexOf("box<") < printed.indexOf("prom<"), printed);
+  }
+
+  @Test
+  void pureInstructionUsedOnlyInPromise_deferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
+                return nb;
+              };
+              st p = p;
+              return n;
+            }
+            """);
+
     assertTrue(run(abstraction), "optimization should report a change");
 
     var printed = Printer.toString(abstraction);
     // nb should be inside the promise now
     assertTrue(
-        printed.contains("prom<v1(R) ->{\n") || printed.indexOf("box") > printed.indexOf("prom"),
+        printed.contains("prom<v1(R) ->[<sym x>]{\n")
+            || printed.indexOf("box") > printed.indexOf("prom"),
         "box should be inside the promise; printed:\n" + printed);
     // The box should not appear before the promise
     var promIdx = printed.indexOf("prom<");
     var boxIdx = printed.indexOf("box<");
     assertTrue(boxIdx > promIdx, "box should appear after prom (inside it); printed:\n" + printed);
+  }
+
+  /// The checkpoint only checks the assumptions at the start of its success block, so one moved
+  /// into the promise is never checked.
+  @Test
+  void unusedAssumption_notDeferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:*) -~> I {
+              check L1() else D1();
+            L1():
+              x1: v1(I) = x ?: v1(I);
+              p: p(v1(I) -) = prom<v1(I) ->{
+                return <int 1>;
+              };
+              st p = p;
+              return 1;
+            D1():
+              deopt 0 [];
+            }
+            """);
+
+    run(abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(
+        printed.indexOf("x ?: v1(I)") < printed.indexOf("prom<"),
+        "the assumption should stay in front of the promise; printed:\n" + printed);
   }
 
   @Test
@@ -59,6 +113,74 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     assertDoesNotThrow(() -> run(abstraction));
   }
 
+  /// `y[0] = 5` writes `y` in place, so the read before it must stay before it.
+  @Test
+  void readOfAnOwnedVector_notDeferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:v(I)) -~> I {
+              y: v(I)o = dup x;
+              a: I = y[0];
+              y[0] = 5;
+              p: p(v1(I) -) = prom<v1(I) ->{
+                ab: v1(I) = box< I --> v1(I) >(a);
+                return ab;
+              };
+              st p = p;
+              return 0;
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// `dup x` can reuse `x`'s vector if nothing else counts it, so `y[0] = 5` can change what a
+  /// deferred `x[0]` reads.
+  @Test
+  void readOfASharedVector_notDeferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (x:v(I)) -~> I {
+              a: I = x[0];
+              y: v(I)o = dup x;
+              y[0] = 5;
+              p: p(v1(I) -) = prom<v1(I) ->{
+                ab: v1(I) = box< I --> v1(I) >(a);
+                return ab;
+              };
+              st p = p;
+              return 0;
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
+  /// `st x` rebinds `x` after the load, so the promise must read the old binding.
+  @Test
+  void loadBeforeAStoreOfItsVariable_notDeferred() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (a:v1(I), b:v1(I)) -+> v1(I) {
+              mkenv;
+              st x = a;
+              l: * = ld x;
+              st x = b;
+              p: p(v1(I) -) = prom<v1(I) ->[<sym x>]{
+                return l;
+              };
+              st p = p;
+              popenv;
+              return a;
+            }
+            """);
+
+    assertFalse(run(abstraction), Printer.toString(abstraction));
+  }
+
   @Test
   void impureInstruction_notDeferred() {
     var abstraction =
@@ -66,7 +188,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:p(R +)) -+> R {
               nb: R = force n;
-              p: p(R +) = prom<R +>{
+              p: p(R +) = prom<R +>[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -84,7 +206,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -103,11 +225,11 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p1: p(v1(R) -) = prom<v1(R) ->{
+              p1: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p1 = p1;
-              p2: p(v1(R) -) = prom<v1(R) ->{
+              p2: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p2 = p2;
@@ -126,7 +248,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
               nc: v1(R) = dup nb;
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nc;
               };
               st p = p;
@@ -145,43 +267,13 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
-  void chainBrokenByOutsideUse_partialDefer() {
-    // nb is used by both nc (movable) and outside (st nb = nb). nc is used only in the promise.
-    // nb can't move, but nc can still move because its dependency (nb) is in the outer scope
-    // which is readable from within the promise.
-    var abstraction =
-        ParseUtil.parseAbstraction(
-            """
-            (n:R) -~> R {
-              nb: v1(R) = box< R --> v1(R) >(n);
-              nc: v1(R) = dup nb;
-              p: p(v1(R) -) = prom<v1(R) ->{
-                return nc;
-              };
-              st nb = nb;
-              st p = p;
-              return n;
-            }
-            """);
-
-    assertTrue(run(abstraction), "nc should still be deferred even if nb can't be");
-
-    var printed = Printer.toString(abstraction);
-    var promIdx = printed.indexOf("prom<");
-    var boxIdx = printed.indexOf("box<");
-    var dupIdx = printed.indexOf("dup ");
-    assertTrue(boxIdx < promIdx, "box should remain outside the promise; printed:\n" + printed);
-    assertTrue(dupIdx > promIdx, "dup should be inside the promise; printed:\n" + printed);
-  }
-
-  @Test
   void noAssignee_notDeferred() {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
             (n:R) -~> R {
               noop;
-              p: p(R -) = prom<R ->{
+              p: p(R -) = prom<R ->[<sym x>]{
                 return n;
               };
               return p;
@@ -201,7 +293,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             (n:R) -~> R {
               p: p(V -) = prom<V ->{
                 nb: v1(R) = box< R --> v1(R) >(n);
-                q: p(v1(R) -) = prom<v1(R) ->{
+                q: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                   return nb;
                 };
                 return q;
@@ -227,12 +319,12 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p1: p(v1(R) -) = prom<v1(R) ->{
+              p1: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p1 = p1;
               nc: v1(R) = dup n;
-              p2: p(v1(R) -) = prom<v1(R) ->{
+              p2: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nc;
               };
               st p2 = p2;
@@ -265,7 +357,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseAbstraction(
             """
             (n:R) -~> R {
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return n;
               };
               st p = p;
@@ -288,7 +380,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -+> R {
               mkenv;
-              p: p(R +) = prom<R +>{
+              p: p(R +) = prom<R +>[<sym x>]{
                 return n;
               };
               popenv;
@@ -307,7 +399,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -328,7 +420,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
               nb: v1(R) = box< R --> v1(R) >(n);
               goto L0();
             L0():
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -356,7 +448,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
               return n;
             D0():
               mkenv;
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -379,14 +471,14 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R) -~> R {
               na: v1(R) = box< R --> v1(R) >(n);
-              nb: v1(R) = dup na;
+              nb: v1(R) = box< R --> v1(R) >(n);
               check L0() else D0();
             L0():
               x: R = unbox< v1(R) --> R >(na);
               return x;
             D0():
               mkenv;
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;
@@ -398,10 +490,12 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
 
     var printed = Printer.toString(abstraction);
     var promIdx = printed.indexOf("prom<");
-    var boxIdx = printed.indexOf("box<");
-    var dupIdx = printed.indexOf("dup ");
-    assertTrue(boxIdx < promIdx, "box should remain outside the promise; printed:\n" + printed);
-    assertTrue(dupIdx > promIdx, "dup should be inside the promise; printed:\n" + printed);
+    assertTrue(
+        printed.indexOf("na: v1(R) = box") < promIdx,
+        "na should remain outside the promise; printed:\n" + printed);
+    assertTrue(
+        printed.indexOf("nb: v1(R) = box") > promIdx,
+        "nb should be inside the promise; printed:\n" + printed);
   }
 
   @Test
@@ -410,7 +504,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseAbstraction(
             """
             (n:R) -~> R {
-              p: p(R -) = prom<R ->{
+              p: p(R -) = prom<R ->[<sym x>]{
                 return n;
               };
               st p = p;
@@ -432,7 +526,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
             """
             (n:R, c:B) -~> R {
               nb: v1(R) = box< R --> v1(R) >(n);
-              p: p(v1(R) -) = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->[<sym x>]{
                 return nb;
               };
               st p = p;

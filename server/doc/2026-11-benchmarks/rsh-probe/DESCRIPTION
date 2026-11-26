@@ -1,0 +1,6 @@
+Package: rsh
+Version: 0.0.0.9999
+Title: Probe that records any load of the rsh package
+Description: Installed in the private library of chain.sh, so that a load of rsh during a
+    measurement is recorded and fails instead of silently using the main tree's rsh.
+License: GPL-2

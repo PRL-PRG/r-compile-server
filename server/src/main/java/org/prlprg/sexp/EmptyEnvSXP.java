@@ -49,6 +49,9 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   }
 
   @Override
+  public void remove(String name) {}
+
+  @Override
   public Optional<SEXP> getLocal(String name) {
     return Optional.empty();
   }

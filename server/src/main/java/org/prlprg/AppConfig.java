@@ -131,6 +131,11 @@ abstract class Config {
     return value != null ? Integer.parseInt(value) : defaultValue;
   }
 
+  protected double get(String name, double defaultValue) {
+    var value = get(name);
+    return value != null ? Double.parseDouble(value) : defaultValue;
+  }
+
   protected boolean get(String name, boolean defaultValue) {
     var value = get(name);
     return value != null ? Boolean.parseBoolean(value) : defaultValue;

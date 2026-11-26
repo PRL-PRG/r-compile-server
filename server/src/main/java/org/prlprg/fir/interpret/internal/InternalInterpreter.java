@@ -6,12 +6,18 @@ import static org.prlprg.fir.ir.cfg.iterator.BbDfs.bbDfs;
 import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.Stack;
+import java.util.concurrent.CancellationException;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
@@ -31,6 +37,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -66,6 +73,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
@@ -121,6 +129,13 @@ public final class InternalInterpreter implements Interpreter {
   // Input
   private final Module module;
   private final Map<Abstraction, ExternalVersion> externalVersions = new HashMap<>();
+  /// Functions of attached packages other than base (see [#registerAttached]).
+  private final Module attached = new Module();
+  /// Unevaluated versions whose fallback ran during the current top-level call. They're
+  /// evaluated once it returns (see [#call(String, Value...)]), like the compiler compiles a
+  /// version while the client runs its stub's fallback.
+  private final Set<Abstraction> ranFallback = new LinkedHashSet<>();
+  private @Nullable Fallback fallback;
 
   // State
   private final GlobalEnvSXP globalEnv;
@@ -130,8 +145,12 @@ public final class InternalInterpreter implements Interpreter {
   /// org.prlprg.sexp.BCodeSXP]'s
   /// constant pool. The bytecode calls into our code with the pool entry.
   ///
-  /// Here, it's easier to create stub [SEXP]s and map them with this.
-  private final Map<SEXP, PromiseCode> promises = new HashMap<>();
+  /// Here, it's easier to create stub [SEXP]s and map them with this. Keyed by identity, because
+  /// [PromSXP] equality is structural, and two promises with the same expression and environment
+  /// are different promises.
+  private final Map<SEXP, PromiseCode> promises = new IdentityHashMap<>();
+  /// Promises from [#foreignArgument].
+  private final Set<PromSXP> foreignArguments = Collections.newSetFromMap(new IdentityHashMap<>());
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
   /// Maps each user-created environment (from [MkEnv]) to the `mkenv` [Statement] that created it.
@@ -141,30 +160,54 @@ public final class InternalInterpreter implements Interpreter {
   /// compiler assumed weren't reflectively accessed ([MkEnvType#NON_REFLECTIVE]) or were
   /// [elided][MkEnvType#ELIDED].
   private final Map<EnvSXP, Statement> userEnvPositions = new HashMap<>();
+  /// GNU-R's `MISSING` mark of a binding of an unsupplied parameter with a default: each
+  /// environment's marked variables, with the value they were bound to (another binding clears
+  /// the mark).
+  private final Map<EnvSXP, Map<String, SEXP>> missingMarks = new IdentityHashMap<>();
 
-  /// Whether the most-recently-returned [#run(StackFrame, CFG, CFG)] deopt-restored at
+  /// Whether the most-recently-returned [#run(StackFrame, CFG, Abstraction)] deopt-restored at
   /// some point. Set right before `run` returns and consumed (reset) by [#call]; used to check
   /// the result against the deopt-restore CFG's return type instead of the version's, since a
   /// version's return type only describes its normal returns.
   private boolean lastRunDeopted = false;
+  /// The stack size at which [#failUnsupported(String)] makes an exception without a printed
+  /// stack: that of the innermost running [ExternalVersion] that has a [#fallback] (which prints
+  /// the stack if the fallback doesn't run the call either), or -1.
+  private int lazyUnsupportedDepth = -1;
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
   private final MockModuleFeedback feedback;
-  private final CheckpointTrace checkpointTrace = new CheckpointTrace(this);
+  private final CheckpointTrace checkpointTrace = new CheckpointTrace();
 
   /// Interpret the module in a global environment containing only its functions.
   ///
   /// New functions added to the module are automatically added to the interpreter's environment
   /// thanks to [org.prlprg.fir.ir.observer.Observer].
   public InternalInterpreter(Module module) {
+    this(module, new MockModuleFeedback(module));
+  }
+
+  /// [#InternalInterpreter(Module)], but records feedback in `feedback` (which must be for
+  /// `module`) instead of starting with none.
+  ///
+  /// This is for a module with unevaluated versions that optimize themselves when evaluated: pass
+  /// the feedback those optimizations read, so they see what was recorded since.
+  public InternalInterpreter(Module module, MockModuleFeedback feedback) {
+    if (feedback.module() != module) {
+      throw new IllegalArgumentException("Feedback is for a different module");
+    }
     this.module = module;
-    feedback = new MockModuleFeedback(module);
+    this.feedback = feedback;
 
     var baseEnv = new BaseEnvSXP();
     globalEnv = new GlobalEnvSXP(baseEnv);
     // Add module functions, including those in parents to the environment.
     addModuleToEnv(module, globalEnv);
-    addModuleToEnv(GlobalModules.BASE, baseEnv);
+    // Not the `.Internal`s that `builtins.fir` declares (`bitwiseXor`): GNU-R's base doesn't bind
+    // them, so only a static call reaches them.
+    GlobalModules.BASE.localFunctions().stream()
+        .filter(f -> BASE_ENV.getLocal(f.name().name()).isPresent())
+        .forEach(f -> addFunctionToEnv(f, baseEnv));
     // `GlobalModules.INTRINSICS` are only directly called, so we don't add them
     // because environments only store stub SEXPs that may be looked up by dynamic calls.
 
@@ -276,6 +319,30 @@ public final class InternalInterpreter implements Interpreter {
     }
   }
 
+  /// Bind `name` in the base environment to a closure `function(...)` whose calls run
+  /// `javaClosure`, like a function of an attached package (e.g. `utils::capture.output`).
+  public void registerAttached(String name, ExternalVersion javaClosure) {
+    var function = attach(name);
+    registerExternal(function, function.baseline(), javaClosure);
+  }
+
+  /// Bind `name` in the base environment to a closure `function(...)` that is a stub.
+  private Function attach(String name) {
+    var function = attached.addFunction(Variable.named(name), List.of(NamedVariable.DOTS), true);
+    addFunctionToEnv(function, baseEnv());
+    return function;
+  }
+
+  /// Whether `function` is one that [#registerAttached] or a [Fallback] lookup bound.
+  public boolean isAttached(Function function) {
+    return function.owner() == attached;
+  }
+
+  /// Run what this doesn't support in `fallback`.
+  public void setFallback(Fallback fallback) {
+    this.fallback = fallback;
+  }
+
   private void registerExternal(
       Function function, Abstraction version, ExternalVersion javaClosure) {
     if (!version.isStub()) {
@@ -314,17 +381,44 @@ public final class InternalInterpreter implements Interpreter {
 
   @Override
   public Value call(String functionName, Value... arguments) {
-    try {
+    // Pinned, because evaluating a version optimizes the module, including the code this is in
+    // the middle of interpreting. The optimizations run once this returns.
+    try (var _ = module.pin()) {
       var function = module.lookupFunction(Variable.named(functionName));
       if (function == null) {
         throw fail("Unknown function: " + functionName);
       }
 
       return call(function, null, globalEnv, List.of(arguments));
-    } catch (InternalInterpretException e) {
+    } catch (InternalInterpretException | CancellationException e) {
       throw e;
     } catch (Throwable e) {
       throw fail("Unhandled interpreter crash", e);
+    } finally {
+      evaluateRanFallbacks();
+    }
+  }
+
+  /// Evaluate every unevaluated version whose fallback ran during the top-level call that just
+  /// returned, so that its next call runs its body, optimized.
+  ///
+  /// This is when compiled code would have the version too: its stub's first call asked the
+  /// compiler for it, which evaluated and optimized it while the fallback ran, and (in the
+  /// deterministic mode the tests use) its next call runs it. The interpreter can't evaluate a
+  /// version in the middle of a top-level call, since optimizing it optimizes the module, so a
+  /// version dispatched to during a top-level call is never evaluated by that call: it runs its
+  /// fallback, however many times it's called.
+  private void evaluateRanFallbacks() {
+    // Pinned so that the optimization runs that evaluating triggers wait until every version is
+    // evaluated, and run once each.
+    try (var _ = module.pin()) {
+      for (var version : ranFallback) {
+        if (!version.isEvaluated()) {
+          version.body();
+        }
+      }
+    } finally {
+      ranFallback.clear();
     }
   }
 
@@ -356,31 +450,47 @@ public final class InternalInterpreter implements Interpreter {
               + "]");
     }
 
-    var result = call(function, best, closureEnv, arguments, function.baseline().cfg());
+    var result = call(function, best, closureEnv, arguments, function.baseline());
 
     checkType(result, function.baseline().returnType(), "return");
     return result;
   }
 
   /// Calls the function version with the arguments in the nested-closure and stack environment
+  ///
+  /// An unevaluated version with a fallback runs the fallback, and is evaluated once the top-level
+  /// call returns (see [#evaluateRanFallbacks()]), so its next top-level call runs its body. This
+  /// is the same order of events as in compiled code, where a stub's calls run the fallback while
+  /// the version is being compiled. An unevaluated version without one (a baseline) is evaluated
+  /// right away, like compiled code has the baseline's bytecode to run.
   private Value call(
       Function function,
       Abstraction abstraction,
       EnvSXP closureEnv,
       List<Value> arguments,
-      @Nullable CFG deoptRestoreCfg) {
+      @Nullable Abstraction deoptRestore) {
     // Hijack if we registered external code for this version
     var hijacker = externalVersions.get(abstraction);
     if (hijacker != null) {
-      return callExternal(hijacker, abstraction, arguments, closureEnv);
+      return callExternal(hijacker, function, abstraction, arguments, closureEnv);
     }
 
-    var cfg = abstraction.cfg();
-    if (cfg == null) {
-      throw failUnsupported("Can't call unregistered stub");
+    if (abstraction.isStub()) {
+      var result = callFallback(function, abstraction, arguments);
+      if (result == null) {
+        throw failUnsupported("Can't call unregistered stub: " + function.name());
+      }
+      return result;
     }
 
-    var frame = mkFrame(function, closureEnv);
+    var fallback = abstraction.isEvaluated() ? null : abstraction.fallback();
+    var isFallback = fallback != null;
+    if (isFallback) {
+      ranFallback.add(abstraction);
+    }
+    var cfg = isFallback ? fallback : abstraction.body();
+
+    var frame = new StackFrame(function, closureEnv, userEnvPositions, isFallback);
     var feedback = feedback().get(abstraction);
     feedback.recordCall();
 
@@ -405,7 +515,7 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     // Execute CFG (a function body, so it has no enclosing promises)
-    var result = run(frame, cfg, deoptRestoreCfg);
+    var result = run(frame, cfg, deoptRestore);
 
     // The frame has exited: any promise it created has now escaped (outlived its frame). Forcing
     // one afterwards is detected in `force`.
@@ -418,72 +528,98 @@ public final class InternalInterpreter implements Interpreter {
       // baseline's, then adapt the representation to the version's, since the caller relies on
       // the version's (possibly without a checkpoint).
       checkType(result, function.baseline().returnType(), "return (after deopt)");
-      result = adaptDeoptResult(result, abstraction.returnType());
+      var adapted = adaptResult(result, abstraction.returnType());
+      if (adapted == null) {
+        throw fail(
+            "Deopt result can't be adapted to the version's return type (cascading the deopt to"
+                + " the caller is unimplemented): "
+                + result
+                + " isn't a(n) "
+                + abstraction.returnType());
+      }
+      result = adapted;
     } else {
       checkType(result, abstraction.returnType(), "return");
     }
+    frame.runOnExit();
     return result;
   }
 
-  /// Adapt a deopt-restored result to the version's declared return type: unbox if the declared
-  /// type is an unboxed scalar and the result is a corresponding boxed scalar.
-  ///
-  /// @throws InternalInterpretException if the result can't be adapted; the caller may rely on
-  ///   the declared type without a checkpoint, and cascading the deopt to the caller is
-  ///   unimplemented.
-  private Value adaptDeoptResult(Value result, Type returnType) {
-    var actual = inferType(result, returnType.ownership());
-    if (actual.isSubtypeOf(returnType)) {
+  /// Run `action` when the current call returns, like GNU-R's `on.exit` (but not when it fails).
+  public void onExit(Runnable action) {
+    topFrame().addOnExit(action);
+  }
+
+  /// `result` in the representation of `returnType`: unboxed if that's an unboxed scalar and
+  /// `result` is the corresponding boxed scalar. `null` if `result` isn't a `returnType`.
+  private @Nullable Value adaptResult(Value result, Type returnType) {
+    if (inferType(result, returnType.ownership()).isSubtypeOf(returnType)) {
       return result;
     }
 
     if (returnType.kind() instanceof Kind.PrimitiveScalar(var primitive)
         && result instanceof Value.Sexp(var sexp)) {
-      var adapted =
-          switch (primitive) {
-            case LOGICAL -> sexp.asScalarLogical().<Value>map(Value.Lgl::new);
-            case INTEGER -> sexp.asScalarInteger().<Value>map(Value.Int::new);
-            case REAL -> sexp.asScalarReal().<Value>map(Value.Real::new);
-            case STRING -> sexp.asScalarString().<Value>map(Value.Str::new);
-          };
-      if (adapted.isPresent()) {
-        return adapted.get();
-      }
+      return switch (primitive) {
+        case LOGICAL -> sexp.asScalarLogical().<Value>map(Value.Lgl::new).orElse(null);
+        case INTEGER -> sexp.asScalarInteger().<Value>map(Value.Int::new).orElse(null);
+        case REAL -> sexp.asScalarReal().<Value>map(Value.Real::new).orElse(null);
+        case STRING -> sexp.asScalarString().<Value>map(Value.Str::new).orElse(null);
+      };
     }
+    return null;
+  }
 
-    throw fail(
-        "Deopt result can't be adapted to the version's return type (cascading the deopt to the"
-            + " caller is unimplemented): "
-            + result
-            + " isn't a(n) "
-            + returnType);
+  /// The result of `version` of `function` in the [#fallback], or `null` if it doesn't run this
+  /// call or its result isn't of the version's return type.
+  private @Nullable Value callFallback(
+      Function function, Abstraction version, List<Value> arguments) {
+    var result = fallback == null ? null : fallback.call(this, function, version, arguments);
+    return result == null ? null : adaptResult(result, version.returnType());
   }
 
   private Value callExternal(
-      ExternalVersion hijacker, Abstraction hijacked, List<Value> arguments, EnvSXP environment) {
+      ExternalVersion hijacker,
+      Function function,
+      Abstraction hijacked,
+      List<Value> arguments,
+      EnvSXP environment) {
     checkStack();
 
+    var outerLazyUnsupportedDepth = lazyUnsupportedDepth;
+    lazyUnsupportedDepth = fallback == null ? -1 : stack.size();
     try {
-      var result = hijacker.call(this, hijacked, arguments, environment);
+      Value result;
+      try {
+        result = hijacker.call(this, hijacked, arguments, environment);
+      } catch (InternalInterpretUnsupportedException e) {
+        if (e.hasStack()) {
+          throw e;
+        }
+        // Thrown by `hijacker` itself, so no frame was left on the stack.
+        lazyUnsupportedDepth = outerLazyUnsupportedDepth;
+        result = callFallback(function, hijacked, arguments);
+        if (result == null) {
+          e.printStack(stack, globalEnv);
+          throw e;
+        }
+      } finally {
+        lazyUnsupportedDepth = outerLazyUnsupportedDepth;
+      }
 
       checkType(result, hijacked.returnType(), "return (from external)");
       return result;
-    } catch (InternalInterpretException e) {
+    } catch (InternalInterpretException | CancellationException e) {
       throw e;
     } catch (Throwable e) {
       throw fail("External call failed", e);
     }
   }
 
-  private StackFrame mkFrame(Function function, EnvSXP parentEnv) {
-    return new StackFrame(function, parentEnv, userEnvPositions);
-  }
-
   /// Interprets the control flow graph starting from the entry block.
   ///
   /// Also pushes/pops `frame`; every [CFG] runs at its own stack frame index (the frame itself
   /// is reused across all CFGs in the [Abstraction]).
-  private Value run(StackFrame frame, CFG cfg, @Nullable CFG deoptRestoreCfg) {
+  private Value run(StackFrame frame, CFG cfg, @Nullable Abstraction deoptRestore) {
     checkStack();
 
     var cursor = new CFGCursor(cfg);
@@ -492,6 +628,10 @@ public final class InternalInterpreter implements Interpreter {
 
     var deopted = false;
     while (true) {
+      // So an interrupt (e.g. a test timeout) stops a program that loops forever.
+      if (Thread.currentThread().isInterrupted()) {
+        throw new CancellationException("Interpreter thread interrupted");
+      }
       var nextControl = cursor.iterateCurrentBb1(this::run, this::run);
 
       switch (nextControl) {
@@ -509,7 +649,11 @@ public final class InternalInterpreter implements Interpreter {
           return value;
         }
         case ControlFlow.Deopt(var pc, var deoptStack) -> {
-          if (cfg == deoptRestoreCfg) {
+          // Only evaluated here, so a version that never deoptimizes doesn't evaluate the
+          // baseline.
+          var deoptRestoreCfg =
+              deoptRestore == null || deoptRestore.isStub() ? null : deoptRestore.body();
+          if (cursor.cfg() == deoptRestoreCfg) {
             throw fail("Can't restore from the same CFG we deoptimized from");
           }
 
@@ -614,9 +758,11 @@ public final class InternalInterpreter implements Interpreter {
               + arguments.size());
     }
 
+    // Phis are assigned in parallel: an argument can read another phi of the target.
+    var values = arguments.stream().map(this::run).toList();
     for (int i = 0; i < parameters.size(); i++) {
       var phiVar = parameters.get(i);
-      var phiValue = run(arguments.get(i));
+      var phiValue = values.get(i);
 
       topFrame().put(phiVar, phiValue);
 
@@ -714,10 +860,19 @@ public final class InternalInterpreter implements Interpreter {
               case BASE_FUN -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
             };
 
+        var isFunLoad =
+            loadType == LoadType.LOCAL_FUN
+                || loadType == LoadType.GLOBAL_FUN
+                || loadType == LoadType.BASE_FUN;
+        if (valueSxp == null
+            && isFunLoad
+            && fallback != null
+            && fallback.isAttachedFunction(variable.name())) {
+          attach(variable.name());
+          valueSxp = baseEnv().getFunction(variable.name(), this::force).orElse(null);
+        }
         if (valueSxp == null) {
-          if (loadType == LoadType.LOCAL_FUN
-              || loadType == LoadType.GLOBAL_FUN
-              || loadType == LoadType.BASE_FUN) {
+          if (isFunLoad) {
             throw failUnsupported(
                 "Unbound function: "
                     + variable.name()
@@ -782,6 +937,7 @@ public final class InternalInterpreter implements Interpreter {
             case LOCAL_VAR -> {
               var value = run(statement.arg(0));
               topFrame().put(variable, value);
+              markMissing(statement, variable, value);
               yield null;
             }
             case SUPER_VAR -> {
@@ -817,6 +973,10 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't subscript with non-integer index: " + indexValue);
         }
 
+        // As the mock `[`: GNU-R's subscript below 1 isn't one element (the C runtime deopts).
+        if (index < 0 && index != Constants.NA_INT) {
+          throw failUnsupported("Subscript read below 1");
+        }
         yield outOfRangeIsNa && (index < 0 || index >= vector.size())
             ? naElement(vector)
             : subscriptLoad(vector, index);
@@ -872,18 +1032,22 @@ public final class InternalInterpreter implements Interpreter {
             Objects.requireNonNull(exactVersion),
             closureEnv,
             arguments,
-            function.baseline().cfg());
+            function.baseline());
+      }
+      case FallbackCallee(var signature) -> {
+        var frame = topFrame();
+        var function = frame.function();
+        var version = function.guess(signature, frame.scope());
+        if (version == null) {
+          throw fail("No other versions of " + function.name() + " match signature: " + signature);
+        }
+        yield call(function, version, frame.closureEnv(), arguments, function.baseline());
       }
       case DynamicCallee(var argumentNames) -> {
         var calleeValue = run(calleeArg);
         if (!(calleeValue instanceof Value.Sexp(var calleeSexp)
             && calleeSexp instanceof CloSXP cloSXP)) {
           throw fail("Not a function: " + calleeValue);
-        }
-
-        var function = extractClosure(cloSXP);
-        if (function == null) {
-          throw fail("Can't call function not in this interpreter: " + cloSXP);
         }
 
         var argumentSexps =
@@ -895,32 +1059,51 @@ public final class InternalInterpreter implements Interpreter {
                       }
                       return argSexp;
                     });
+        var namedArguments =
+            Streams.zip(
+                    Stream.concat(
+                        argumentNames.stream(), Stream.generate(OptionalNamedVariable::empty)),
+                    argumentSexps,
+                    OptionalNamedVariable::taggedElem)
+                .collect(SEXPs.toList());
 
-        List<SEXP> matchedArgumentSexps;
-        try {
-          var namedArguments =
-              Streams.zip(
-                      Stream.concat(
-                          argumentNames.stream(), Stream.generate(OptionalNamedVariable::empty)),
-                      argumentSexps,
-                      OptionalNamedVariable::taggedElem)
-                  .collect(SEXPs.toList());
-          matchedArgumentSexps = matchArguments(cloSXP.parameters(), namedArguments);
-        } catch (MatchException e) {
-          throw fail(e.getMessage());
-        }
-        List<Value> matchedArguments = Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new);
+        var result = callClosure(cloSXP, namedArguments);
 
-        var result = call(function, null, cloSXP.env(), matchedArguments);
-
-        // Only record after the call, in case the function is an unregistered stub
+        // Only record after the call, in case the function is an unregistered stub. Feedback names
+        // a callee, and a base closure's name resolves to `BUILTINS`' `.Internal` instead, and an
+        // attached function's to nothing.
         if (calleeArg instanceof Read(var calleeReg)) {
-          topFrame().scopeFeedback().recordCallee(calleeReg, function);
+          var calleeFunction = Objects.requireNonNull(extractClosure(cloSXP));
+          var scopeFeedback = topFrame().scopeFeedback();
+          if (GlobalModules.isBaseClosure(calleeFunction) || calleeFunction.owner() == attached) {
+            scopeFeedback.recordUnknownCallee(calleeReg);
+          } else {
+            scopeFeedback.recordCallee(calleeReg, calleeFunction);
+          }
         }
 
         yield result;
       }
     };
+  }
+
+  /// Calls `closure` (one of this interpreter's [stubs][#closureStub(Function, EnvSXP)]) like a
+  /// dynamic call does: matches `arguments` (where `...` elements are expanded) to its parameters,
+  /// then calls its best version, which records the callee's feedback.
+  public Value callClosure(CloSXP closure, ListSXP arguments) {
+    var function = extractClosure(closure);
+    if (function == null) {
+      throw fail("Can't call function not in this interpreter: " + closure);
+    }
+
+    List<SEXP> matchedArgumentSexps;
+    try {
+      matchedArgumentSexps = matchArguments(closure.parameters(), arguments);
+    } catch (MatchException e) {
+      throw fail(e.getMessage());
+    }
+    return call(
+        function, null, closure.env(), Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new));
   }
 
   /// Evaluates an [Argument] and returns its value, e.g. [#read(Register)] if it's a [Register].
@@ -946,6 +1129,34 @@ public final class InternalInterpreter implements Interpreter {
       throw fail("Uninitialized register: " + register);
     }
     return value;
+  }
+
+  /// Mark the binding of `st variable = value` missing if it binds an unsupplied parameter's
+  /// default at the closure's entry ([Function#defaultedParameter]), and clear the mark otherwise.
+  private void markMissing(Statement statement, NamedVariable variable, Value value) {
+    var frame = topFrame();
+    var cfg = Objects.requireNonNull(statement.parentBB()).owner();
+    var version = cfg.scope();
+    var parameter =
+        cfg == version.body() || cfg == version.fallback()
+            ? frame.function().defaultedParameter(version, cfg, variable, statement.arg(0))
+            : null;
+    var marks = missingMarks.computeIfAbsent(frame.environment(), _ -> new HashMap<>());
+    if (parameter != null
+        && new Value.Sexp(SEXPs.MISSING_ARG).equals(frame.get(parameter))
+        && value instanceof Value.Sexp(var sexp)
+        && sexp != SEXPs.MISSING_ARG) {
+      marks.put(variable.name(), sexp);
+    } else {
+      marks.remove(variable.name());
+    }
+  }
+
+  /// Whether `binding`, the value of `name` in the current environment, has GNU-R's `MISSING`
+  /// mark (see [#markMissing]).
+  boolean isMarkedMissing(String name, SEXP binding) {
+    var marks = missingMarks.get(topFrame().environment());
+    return marks != null && marks.get(name) == binding;
   }
 
   /// Lookup the named variable (in the environment hierarchy) and crash if it's not defined.
@@ -979,10 +1190,14 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     var value = topFrame().get(nv);
-    if (value == null) {
+    if (value != null) {
+      return ((Value.Sexp) value).value();
+    }
+    var attachedValue = fallback == null ? null : fallback.attachedVariable(nv.name());
+    if (attachedValue == null) {
       throw fail("Unbound variable: " + nv.name());
     }
-    return ((Value.Sexp) value).value();
+    return attachedValue;
   }
 
   /// Function lookup
@@ -1232,7 +1447,18 @@ public final class InternalInterpreter implements Interpreter {
     return valueSexp;
   }
 
-  /// Force if promise, load if variable, and evaluate children.
+  /// A forced promise of `value`, for an argument of a closure that code outside the interpreter
+  /// calls and that the caller may not have forced. Its type is that of an unforced promise. In
+  /// GNU-R, `outer` passes unforced promises, and the callers that force (`lapply`, `vapply`,
+  /// `mapply`, `apply`, `Reduce`) don't force the arguments from their `...`.
+  public PromSXP foreignArgument(SEXP value) {
+    var promise = SEXPs.promise(value, value, globalEnv);
+    foreignArguments.add(promise);
+    return promise;
+  }
+
+  /// Force if promise, and evaluate children. A symbol is a value (e.g. from `substitute` or
+  /// `quote`), so it isn't looked up.
   ///
   /// @throws UnsupportedOperationException if given `LangSXP`; evaluation of those isn't
   /// implemented.
@@ -1247,7 +1473,6 @@ public final class InternalInterpreter implements Interpreter {
   private SEXP eval(SEXP valueSexp) {
     return switch (valueSexp) {
       case PromSXP promSxp -> eval(force(promSxp));
-      case RegSymSXP symSxp -> eval(load(Variable.named(symSxp.name())));
       case ListSXP listSxp ->
           listSxp.stream()
               .map(te -> new TaggedElem(te.tag(), eval(te.value())))
@@ -1483,7 +1708,19 @@ public final class InternalInterpreter implements Interpreter {
       throw fail("Deopt target has phi arguments: " + deopt);
     }
 
-    var env = topFrame().environment().deepCopyUserEnvs();
+    // Instead of copying the environment, run the deopt branch's stores in it, print the
+    // snapshot, and then undo them.
+    var undoStores = new ArrayDeque<Runnable>();
+    try {
+      return snapshotAtCheckpoint(deopt, topFrame().environment(), undoStores);
+    } finally {
+      undoStores.forEach(Runnable::run);
+    }
+  }
+
+  private DeoptSnapshot snapshotAtCheckpoint(
+      Target deopt, EnvSXP checkpointEnv, ArrayDeque<Runnable> undoStores) {
+    var env = checkpointEnv;
     var localRegs = new LinkedHashMap<Register, Value>();
     for (var i = 0; i < deopt.bb().statements().size(); i++) {
       var stmt = deopt.bb().statements().get(i);
@@ -1513,8 +1750,23 @@ public final class InternalInterpreter implements Interpreter {
           if (!(value instanceof Value.Sexp(var valueSexp))) {
             throw fail("Can't store non-SEXP in environment: " + value);
           }
-          env.set(variable.name(), valueSexp);
+          var name = variable.name();
+          if (env == checkpointEnv) {
+            var previous = env.getLocal(name);
+            undoStores.push(
+                () ->
+                    previous.ifPresentOrElse(
+                        v -> checkpointEnv.set(name, v), () -> checkpointEnv.remove(name)));
+          }
+          env.set(name, valueSexp);
         }
+        // Only the snapshot's printing sees this promise, and it doesn't print an unforced
+        // promise's code.
+        case Promise promise when stmt.assignee() != null ->
+            localRegs.put(
+                stmt.assignee(),
+                new Value.Sexp(
+                    SEXPs.promise(Objects.requireNonNullElse(promise.expr(), SEXPs.NULL), env)));
         default ->
             throw fail(
                 "Unsupported expression in deopt branch at index " + i + ": " + stmt.expression());
@@ -1535,7 +1787,7 @@ public final class InternalInterpreter implements Interpreter {
                 })
             .collect(ImmutableList.toImmutableList());
 
-    return new DeoptSnapshot(topFrame().function(), pc, bcStack, env, stackToString());
+    return new DeoptSnapshot(topFrame().function(), pc, bcStack, env);
   }
 
   private Value runInSnapshotDeopt(Argument arg, LinkedHashMap<Register, Value> localRegs) {
@@ -1637,6 +1889,9 @@ public final class InternalInterpreter implements Interpreter {
     // We can do better than `Type.of` for promises,
     // since we create promises with stub code.
     if (value instanceof Value.Sexp(var sexp) && sexp instanceof PromSXP promSxp) {
+      if (foreignArguments.contains(promSxp)) {
+        return Type.promise(Type.ANY_VALUE_SEXP, Effects.REFLECT);
+      }
       var promise = promises.get(promSxp);
       if (promise != null) {
         return Type.promise(promise.expression.valueType(), promise.expression.effects());
@@ -1663,23 +1918,28 @@ public final class InternalInterpreter implements Interpreter {
 
   /// The environment of the current (innermost) call frame, e.g. where a reflective builtin like
   /// `substitute` is being evaluated (builtins don't push their own frame).
-  EnvSXP currentEnvironment() {
+  public EnvSXP currentEnvironment() {
     return topFrame().environment();
   }
 
   /// The environment of the call frame `which` frames relative to the current one, for
   /// `sys.frame(which)` where `which <= 0` (`0` = current frame, `-1` = caller, ...).
   ///
+  /// Like GNU-R, this counts the calls below the one whose frame is current: forcing a promise
+  /// pushes the frame that created it again, and a fallback pushes a frame before the version it
+  /// calls, neither of which is a call.
+  ///
   /// @throws InterpretException If `which > 0` (unsupported), or there's no such frame.
   EnvSXP relativeFrameEnvironment(int which) {
     if (which > 0) {
       throw failUnsupported("`sys.frame` with a positive frame number: " + which);
     }
-    var index = stack.size() - 1 + which;
-    if (index < 0 || index >= stack.size()) {
+    var calls = stack.stream().filter(f -> !f.isFallback()).distinct().toList();
+    var index = calls.indexOf(topFrame()) + which;
+    if (index < 0) {
       throw fail("`sys.frame(" + which + ")`: no such frame");
     }
-    return stack.get(index).environment();
+    return calls.get(index).environment();
   }
 
   /// Records that `env` was reflectively accessed: if it's a tracked user environment (created by
@@ -1707,6 +1967,16 @@ public final class InternalInterpreter implements Interpreter {
         .get(Objects.requireNonNull(position.parentBB()).owner().scope())
         .reflectiveEnvs
         .add(position);
+  }
+
+  /// Records that the current statement, a `[<-` or `[[<-` call, grew its vector
+  /// ([AbstractionFeedback#growingSubAssigns]).
+  public void recordGrowingSubAssign() {
+    var call = topFrame().currentStatement();
+    feedback()
+        .get(Objects.requireNonNull(call.parentBB()).owner().scope())
+        .growingSubAssigns
+        .add(call);
   }
 
   /// The [type][MkEnvType] of the [MkEnv] `mkenv` statement.
@@ -1768,7 +2038,8 @@ public final class InternalInterpreter implements Interpreter {
     // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
     if (module.localFunction(function.name()) != function
         && GlobalModules.BASE.localFunction(function.name()) != function
-        && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
+        && GlobalModules.BUILTINS.localFunction(function.name()) != function
+        && attached.localFunction(function.name()) != function) {
       // Closure was removed or is from another interpreter.
       return null;
     }
@@ -1779,23 +2050,28 @@ public final class InternalInterpreter implements Interpreter {
   /// called by the interpreter.
   public CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
     var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.symbol(function.name().name()));
-    // All FIŘ functions explicitly compute parameter defaults, so their formal parameters
-    // never have default values.
-    var rParams =
-        function.parameterNames().stream()
-            .map(paramName -> new TaggedElem(paramName.name(), SEXPs.MISSING_ARG))
-            .collect(SEXPs.toList());
-    var sexp = SEXPs.closure(rParams, codeStub, enclosingEnv);
+    var sexp = SEXPs.closure(function.formals(), codeStub, enclosingEnv);
     closures.put(sexp, function);
     return sexp;
   }
 
   /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
+  ///
+  /// The [PromSXP]'s code is the promise's source expression, or the wrapped value (see
+  /// [Promise#wrappedValue()]), or else a stub that [#isPromiseCodeStub(SEXP)] recognizes.
   public PromSXP promiseStub(@Nullable Register assignee, Promise promExpr) {
-    var codeStub =
-        SEXPs.lang(
-            SEXPs.symbol(".Interpret"),
-            SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
+    var wrapped = promExpr.wrappedValue();
+    SEXP codeStub;
+    if (promExpr.expr() != null) {
+      codeStub = promExpr.expr();
+    } else if (wrapped != null && run(wrapped) instanceof Value.Sexp(var value)) {
+      codeStub = value;
+    } else {
+      codeStub =
+          SEXPs.lang(
+              SEXPs.symbol(".Interpret"),
+              SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
+    }
     var frame = topFrame();
     var sexp = SEXPs.promise(codeStub, frame.environment());
     var promCode =
@@ -1803,6 +2079,16 @@ public final class InternalInterpreter implements Interpreter {
     promises.put(sexp, promCode);
     frame.addPromise(promCode);
     return sexp;
+  }
+
+  /// Whether `code` is the code of a [PromSXP] that [#promiseStub] made for a promise without a
+  /// source expression.
+  public static boolean isPromiseCodeStub(SEXP code) {
+    return code instanceof LangSXP lang
+        && lang.fun() instanceof RegSymSXP fun
+        && fun.name().equals(".Interpret")
+        && lang.args().size() == 1
+        && lang.args().get(0).value() instanceof LangSXP;
   }
 
   /// Records that the promise created at `promCode`'s position escaped, in its version's feedback
@@ -1839,7 +2125,8 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   public InterpretException failUnsupported(String message) {
-    return new InternalInterpretUnsupportedException(message, null, stack, globalEnv);
+    return new InternalInterpretUnsupportedException(
+        message, null, stack.size() == lazyUnsupportedDepth ? null : stack, globalEnv);
   }
 
   public String stackToString() {

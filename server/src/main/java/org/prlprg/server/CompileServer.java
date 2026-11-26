@@ -13,8 +13,8 @@ import java.util.logging.Logger;
 public class CompileServer {
   private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
 
-  private final int port;
   private final Server server;
+  private final CompileService service;
   private HealthStatusManager health;
 
   static {
@@ -25,12 +25,13 @@ public class CompileServer {
     }
   }
 
+  /// Serve on `port`, or on any free port if it's 0 (see [#port()]).
   public CompileServer(int port) {
-    this.port = port;
     this.health = new HealthStatusManager();
+    this.service = new CompileService();
     this.server =
         ServerBuilder.forPort(port)
-            .addService(new CompileService())
+            .addService(service)
             .addService(health.getHealthService())
             .addService(
                 ProtoReflectionService
@@ -38,9 +39,19 @@ public class CompileServer {
             .build();
   }
 
+  /// The port this serves on. Only known once started, if it was constructed with port 0.
+  public int port() {
+    return server.getPort();
+  }
+
+  /// The FIŘ modules whose stubs' requests this serves.
+  public FirModules firModules() {
+    return service.firModules();
+  }
+
   public void start() throws Exception {
     server.start();
-    logger.info("Server started, listening on " + port);
+    logger.info("Server started, listening on " + port());
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread() {

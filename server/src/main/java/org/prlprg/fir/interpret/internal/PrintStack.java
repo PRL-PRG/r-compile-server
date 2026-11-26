@@ -18,7 +18,24 @@ import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions.PrintEnvironmentDetails;
 
 final class PrintStack {
+  /// Full detail, except that a vector or list (also a nested one, or an attribute) is cut off
+  /// after its first elements: a stack with the data of a benchmark otherwise prints gigabytes.
+  private static final SEXPPrintOptions STACK_PRINT_OPTIONS =
+      SEXPPrintOptions.FULL.withMaxElements(20);
+
+  /// The most characters of a printed stack (deep recursion, many registers).
+  private static final int MAX_LENGTH = 200_000;
+
   public static void printStack(Printer p, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
+    var printed = Printer.use(p1 -> printWholeStack(p1, stack, globalEnv));
+    p.writer()
+        .write(
+            printed.length() <= MAX_LENGTH
+                ? printed
+                : printed.substring(0, MAX_LENGTH) + "\n... (stack truncated)");
+  }
+
+  private static void printWholeStack(Printer p, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
     var w = p.writer();
     var f = w.formatter();
 
@@ -28,7 +45,7 @@ final class PrintStack {
     @Nullable FrameContext[] currentCtx = {null};
     var forSexp =
         new SEXPPrintContext(
-            SEXPPrintOptions.FULL
+            STACK_PRINT_OPTIONS
                 .withEnvironmentDetails(PrintEnvironmentDetails.BELOW_GLOBAL)
                 .withEnvironmentDetailPrinter(
                     (env, p3) ->
@@ -69,6 +86,10 @@ final class PrintStack {
         () -> {
           var first = true;
           for (var entry : globalEnv.bindings()) {
+            // The RNG state: 626 integers that say nothing about the crash.
+            if (entry.getKey().equals(".Random.seed")) {
+              continue;
+            }
             if (first) {
               first = false;
             } else {
@@ -100,8 +121,7 @@ final class PrintStack {
             Map.of(),
             null,
             new SEXPPrintContext(
-                SEXPPrintOptions.FULL.withEnvironmentDetails(
-                    PrintEnvironmentDetails.BELOW_GLOBAL)));
+                STACK_PRINT_OPTIONS.withEnvironmentDetails(PrintEnvironmentDetails.BELOW_GLOBAL)));
   }
 
   static void printFrame(StackFrame frame, Printer p) {

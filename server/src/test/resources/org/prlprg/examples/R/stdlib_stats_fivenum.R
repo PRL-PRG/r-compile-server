@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `fivenum` <- function (x, na.rm = TRUE) 
 {
     xna <- is.na(x)

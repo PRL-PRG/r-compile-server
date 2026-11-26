@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `jitter` <- function (x, factor = 1, amount = NULL) 
 {
     if (length(x) == 0L) 

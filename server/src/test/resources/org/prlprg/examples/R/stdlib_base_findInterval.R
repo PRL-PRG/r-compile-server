@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("5 arguments passed to .Internal(findInterval) which requires 6")
 `findInterval` <- function (x, vec, rightmost.closed = FALSE, all.inside = FALSE, 
     left.open = FALSE) 
 {

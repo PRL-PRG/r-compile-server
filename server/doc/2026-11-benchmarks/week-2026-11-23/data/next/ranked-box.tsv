@@ -1,0 +1,61 @@
+blocker	static.sites	sites.in.called.versions	version.call.weight	dyn.share	dyn.pct	top.examples
+env variable: env non-reflective, store not promoted	271	87	56871	8986787	36.5	scalar_fib 5984K, mathkernel_int_vec_add_t1 762K, mathkernel_int_na_vec_add_t1 624K
+env variable: env regular (symbol promise to opaque callee)	673	265	54883	4381476	17.8	mathkernel_mmm_t1 1714K, shootout_fannkuchredux_naive 1321K, real_convolution_slow 798K
+no type speculation in the version (partial feedback)	259	202	160631	3591889	14.6	shootout_mandelbrot_orbit 3356K, shootout_mandelbrot_naive 107K, misc_pi_lapply 45K
+builtin without unboxed version: [<-	71	10	32517	1873501	7.6	mathkernel_int_vec_add_t1 762K, mathkernel_int_na_vec_add_t1 624K, ati_att3_4 480K
+builtin without unboxed version: [	59	27	32070	1854972	7.5	mathkernel_mmm_t1 1715K, real_volcano 128K, shootout_nbody_orbit 12K
+builtin without unboxed version: %%	331	101	1078741	1420649	5.8	scalar_prime 811K, scalar_crt 125K, shootout_fasta_c 99K
+builtin without unboxed version: ==	80	35	1156651	547939	2.2	shootout_binarytrees_naive 496K, shootout_binarytrees_2 46K, scalar_gcd_rec 6K
+builtin without unboxed version: [[	90	47	446177	479706	2.0	shootout_spectralnorm_alt_3 195K, shootout_spectralnorm_alt_4 130K, mathkernel_int_vec_add_t1 76K
+call boundary (param, return, dyn/module call)	415	190	107060	291401	1.2	shootout_binarytrees_naive 129K, real_volcano 44K, ati_att3_4 28K
+builtin without unboxed version: +	131	61	7667	228001	0.9	scalar_crt 114K, shootout_fannkuch_redux 60K, shootout_mandelbrot_naive_ascii 32K
+env variable: other (elided)	10	5	100	154696	0.6	shootout_spectralnorm_naive 98K, shootout_spectral_norm 57K
+dots argument	332	132	450975	124424	0.5	real_volcano 84K, shootout_binarytrees_naive 24K, shootout_fasta_c 12K
+builtin without unboxed version: !=	28	14	1652	101450	0.4	scalar_crt 92K, shootout_fannkuch_redux 9K, shootout_pidigits 0K
+builtin without unboxed version: [[<-	37	16	103053	95399	0.4	shootout_spectralnorm_alt_4 65K, shootout_nbody_naive 17K, shootout_spectralnorm_alt_3 8K
+promise value (force)	133	18	83171	74297	0.3	shootout_spectral_norm_vectorized 60K, shootout_binarytrees_naive 12K, shootout_binarytrees_2 1K
+builtin without unboxed version: %/%	93	16	3446	71965	0.3	shootout_fannkuchredux_naive 58K, shootout_pidigits 10K, shootout_fasta_naive_2 4K
+builtin without unboxed version: *	168	64	257057	71763	0.3	shootout_mandelbrot_naive_ascii 32K, shootout_pidigits 12K, ati_att3_4 7K
+env variable: env regular (feedback)	309	37	172045	48005	0.2	shootout_fasta_2 24K, shootout_fasta_3 24K, shootout_nbody_naive_2 0K
+builtin without unboxed version: -	161	64	20330	45429	0.2	shootout_fannkuch_redux 43K, shootout_pidigits 2K, shootout_nbody_vectorized 1K
+builtin without unboxed version: :	126	39	4402	43919	0.2	shootout_nbody_orbit 23K, real_convolution 11K, shootout_fannkuchredux 7K
+phi	13	5	5	37918	0.2	shootout_fannkuch_redux 34K, shootout_fannkuchredux_naive 3K, shootout_fannkuchredux 1K
+builtin without unboxed version: as.logical	87	29	154	37073	0.2	shootout_fannkuchredux_naive 29K, shootout_fannkuchredux 7K, shootout_binarytrees_naive 1K
+builtin without unboxed version: sum	183	69	338523	14064	0.1	shootout_nbody_orbit 6K, ati_att3_4 5K, misc_rw2d1 2K
+builtin without unboxed version: max	21	7	10665	5719	0.0	shootout_fannkuchredux_naive 3K, real_volcano 2K, shootout_fannkuchredux 1K
+builtin without unboxed version: bitwAnd	8	4	6796	3610	0.0	awf_bounce_nonames_simple 3K, awf_storage 0K, awf_bounce_nonames 0K
+builtin without unboxed version: as.integer	130	30	30	3388	0.0	shootout_mandelbrot_naive_ascii 3K, shootout_spectralnorm 0K, shootout_binarytrees_2 0K
+builtin without unboxed version: min	33	18	3939	2683	0.0	ati_att3_5 2K, shootout_nbody_naive 1K, shootout_nbody_naive_2 0K
+builtin without unboxed version: $	66	38	940	2267	0.0	shootout_nbody_orbit 1K, shootout_nbody_vectorized 0K, shootout_fasta_c 0K
+builtin without unboxed version: print	2	1	1	1684	0.0	shootout_fannkuch_redux 2K
+builtin without unboxed version: is.null	7	6	18	1026	0.0	shootout_knucleotide_brute 1K, shootout_knucleotide_brute_2 1K, real_flexclust_no_s4 0K
+builtin without unboxed version: !	22	12	145	1025	0.0	shootout_knucleotide_brute 1K, shootout_knucleotide_brute_2 1K, real_flexclust 0K
+builtin without unboxed version: c	7	2	5461	819	0.0	awf_storage 1K
+builtin without unboxed version: /	44	26	4234	501	0.0	shootout_nbody 0K, riposte_black_scholes 0K, misc_lr_1var_lms_vec 0K
+builtin without unboxed version: bitwiseShiftL	15	5	5	189	0.0	awf_mandelbrot 0K
+builtin without unboxed version: bitwiseXor	6	2	2	63	0.0	awf_mandelbrot 0K
+builtin without unboxed version: names	1	1	200	25	0.0	misc_k_nn_lapply 0K
+builtin without unboxed version: ^	12	7	13774	18	0.0	misc_ica_lapply 0K, real_volcano 0K
+builtin without unboxed version: <	259	42	481	15	0.0	real_flexclust 0K, real_flexclust_no_s4 0K
+builtin without unboxed version: log	6	2	160	11	0.0	shootout_pidigits 0K
+builtin without unboxed version: as.character	8	3	126	11	0.0	shootout_pidigits 0K
+builtin without unboxed version: $<-	1	1	2	10	0.0	shootout_fasta_c 0K
+builtin without unboxed version: as.double	10	4	128002	8	0.0	shootout_spectral_norm_vectorized 0K, shootout_fastaredux_naive 0K
+builtin without unboxed version: nchar	17	7	257	5	0.0	shootout_pidigits 0K, shootout_fastaredux 0K, shootout_fasta_naive 0K
+builtin without unboxed version: any	2	2	2	2	0.0	real_flexclust_no_s4 0K
+builtin without unboxed version: logicalOperand	68	18	72	1	0.0	real_flexclust 0K
+builtin without unboxed version: abs	2	2	2	0	0.0	shootout_mandelbrot_naive_ascii 0K
+builtin without unboxed version: which.min	1	1	250	0	0.0	
+builtin without unboxed version: length<-	4	1	10	0	0.0	
+builtin without unboxed version: is.list	2	0	0	0	0.0	
+builtin without unboxed version: all	3	2	11	0	0.0	
+builtin without unboxed version: is.na	15	6	631288	0	0.0	
+builtin without unboxed version: length	1	0	0	0	0.0	
+builtin without unboxed version: *,/	2	2	2000	0	0.0	
+builtin without unboxed version: &	4	2	738	0	0.0	
+other source: other:dup _lhs2;	5	0	0	0	0.0	
+other source: other:dup _lhs3;	1	0	0	0	0.0	
+other source: other:dup _lhs6;	4	0	0	0	0.0	
+builtin without unboxed version: log10	6	0	0	0	0.0	
+other source: other:dup _lhs5;	1	0	0	0	0.0	
+other source: other:dup _lhs7;	1	0	0	0	0.0	

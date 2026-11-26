@@ -1,5 +1,6 @@
 package org.prlprg.fir.feedback;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -31,10 +32,12 @@ public class TypeFeedback {
     return union == null ? Type.ANY_SEXP : union;
   }
 
-  /// Types that were hit more than `threshold` times and are more specific than `existing`.
+  /// Types that were hit at least `threshold` times and are more specific than `existing`, most
+  /// hit first (ties in the order they were first recorded).
   public Stream<Type> streamHits(int threshold, Type existing) {
     return hits.entrySet().stream()
         .filter(e -> e.getValue() >= threshold && e.getKey().isSubtypeOf(existing))
+        .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
         .map(Map.Entry::getKey);
   }
 

@@ -3,6 +3,7 @@ package org.prlprg.fir.opt.specialize;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.opt.AbstractionOptimization;
 import org.prlprg.fir.opt.AbstractionOptimizationUnitTest;
@@ -56,6 +57,51 @@ class SpecializeSubscriptTest implements AbstractionOptimizationUnitTest {
         printed.contains("r: I = rv[idx]"),
         "`[` should be the subscript read that gives `NA` out of range; printed:\n" + printed);
     assertFalse(printed.contains("`[`<"), "call should be gone; printed:\n" + printed);
+  }
+
+  /// The decrement is only staged until the end of the pass, so a later specialization in the same
+  /// pass that first builds [org.prlprg.fir.analyze.resolve.OriginAnalysis] mustn't see it read.
+  @Test
+  void registerIndex_analysisBuiltLaterInPass() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (rv:v(I)o, ri:I, rval:I) -~> v(I)f {
+              r: v(I)o = `[<-`< v(I)o,I,I,miss -~> v(I)f >(consume rv, ri, rval, <missing>);
+              mkenv;
+              st y = rval;
+              y1: * = ld y;
+              popenv;
+              return consume r;
+            }
+            """);
+
+    assertTrue(
+        new Specialize("specialize", new SpecializeSubscript(), new ResolveLoad())
+            .run(null, AbstractionFeedback.standaloneForTesting(abstraction), abstraction),
+        "optimization should report a change");
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(
+        printed.contains("idx: I = `-`< I,I --> I >(ri, 1)"),
+        "the R index should be made 0-based; printed:\n" + printed);
+    assertTrue(
+        printed.contains("rv[idx] = rval"), "should be a subscript write; printed:\n" + printed);
+  }
+
+  /// What [SpecializeRealIndex] leaves until its staged coercion commits.
+  @Test
+  void indexNotFittingSignature_notSpecialized() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (rv:v(I)b, ri:R) -~> I {
+              r: I = `[[`< v(I)b,I,miss,miss -~> I >(rv, ri, <missing>, <missing>);
+              return r;
+            }
+            """);
+
+    assertFalse(run(abstraction), "the index isn't an integer yet");
   }
 
   @Test

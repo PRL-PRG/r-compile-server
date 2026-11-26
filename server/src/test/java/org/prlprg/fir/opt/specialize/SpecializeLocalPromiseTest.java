@@ -65,14 +65,46 @@ class SpecializeLocalPromiseTest {
         printed.contains("prom-<"), "promise should remain non-local; printed:\n" + printed);
   }
 
+  @Test
+  void notRunWhileRecorded_notMarked() {
+    // A promise that an optimization created after the feedback was recorded, such as the wrapper
+    // that `StrictifyPromise` gives a value parameter.
+    var abstraction = ParseUtil.parseAbstraction(SOURCE);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
+    feedback.recordCall();
+
+    assertFalse(
+        optimization.run(null, feedback, abstraction),
+        "a promise without recorded runs should not be marked");
+  }
+
+  @Test
+  void unassigned_notMarked() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            () -+> v1(I) {
+              prom<v1(I) ->{ return <int 1>; };
+              return <int 1>;
+            }
+            """);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
+    feedback.recordCall();
+
+    assertFalse(
+        optimization.run(null, feedback, abstraction),
+        "a promise without an assignee should not be marked");
+  }
+
   private static AbstractionFeedback recordedFeedback(Abstraction abstraction) {
     var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
     feedback.recordCall();
+    feedback.recordAssign(Objects.requireNonNull(promisePosition(abstraction).assignee()));
     return feedback;
   }
 
   private static Statement promisePosition(Abstraction abstraction) {
-    var cfg = Objects.requireNonNull(abstraction.cfg());
+    var cfg = abstraction.body();
     for (var bb : cfg.bbs()) {
       for (var statement : bb.statements()) {
         if (statement.expression() instanceof Promise) {

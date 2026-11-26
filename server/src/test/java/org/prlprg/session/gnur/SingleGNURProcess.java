@@ -3,36 +3,62 @@ package org.prlprg.session.gnur;
 import static java.lang.String.format;
 import static org.prlprg.AppConfig.R_BIN;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.time.Duration;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.concurrent.NotThreadSafe;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.RSession;
 import org.prlprg.session.TestRSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Pair;
 
 @NotThreadSafe
 class SingleGNURProcess implements GNUR {
   private static final Logger logger = Logger.getLogger(SingleGNURProcess.class.getName());
 
+  /// Kills processes whose evaluation exceeds its timeout (see [#waitForCommand]).
+  private static final ScheduledExecutorService WATCHDOG =
+      Executors.newSingleThreadScheduledExecutor(
+          Thread.ofPlatform().name("GNU-R watchdog").daemon().factory());
+
   private final TestRSession session;
+  private final Duration timeout;
   private final Process process;
   private final PrintStream in;
   private final BufferedReader out;
 
-  SingleGNURProcess(TestRSession session) {
+  /// `timeout` is how long each evaluation may take before the process is killed.
+  SingleGNURProcess(TestRSession session, Duration timeout) {
     this.session = session;
+    this.timeout = timeout;
 
     // Start process
     try {
@@ -102,6 +128,8 @@ class SingleGNURProcess implements GNUR {
 
     in = new PrintStream(process.getOutputStream());
     out = new BufferedReader(new InputStreamReader(process.getInputStream()));
+    // See [#capturingEval(String)].
+    in.println(".rcs_search <- search()");
   }
 
   /// [ProcessBuilder] for `R_BIN`, without `R_HOME` in the environment.
@@ -122,18 +150,149 @@ class SingleGNURProcess implements GNUR {
   }
 
   private String run(String code) {
+    return waitForCommand(start(code));
+  }
+
+  /// Sends `code` to R, and returns the request ID that R prints after it ran it.
+  private String start(String code) {
     var requestId = UUID.randomUUID().toString();
 
     if (!process.isAlive()) {
       throw new RuntimeException("R is not running");
+    }
+    if (evalDepth > 0) {
+      throw new IllegalStateException("R is in an evaluation with callbacks");
     }
 
     in.println(code);
     in.printf("cat('%s\n')", requestId);
     in.println();
     in.flush();
-    return waitForCommand(requestId);
+    return requestId;
   }
+
+  // region evaluation with callbacks
+
+  /// The R side of [#eval(String, SEXP, UnaryOperator)]: a socket to this process, over which
+  /// both sides send serialized lists (R sends the length first, because the reader reads to the
+  /// end of its input). `.rcs$serve()` evaluates one `list("eval", source, input)`
+  /// and sends `list("value", x)`. In between, `.rcs_callback(x)` sends `list("callback", x)`, and
+  /// evaluates the `"eval"`s it gets until it gets its `list("value", x)`, or a `list("abort")`,
+  /// at which the evaluation it's in sends `list("aborted")` in place of its value.
+  ///
+  /// R sends each message in one write, without Nagle's algorithm: on Linux, a second small write
+  /// waits for the delayed ACK of the first, which costs 40 ms per round trip.
+  private static final String CONNECT =
+      """
+      .rcs <- new.env()
+      .rcs$con <- socketConnection(
+        "127.0.0.1", %d, blocking = TRUE, open = "r+b", timeout = 86400, options = "no-delay")
+      .rcs$parsed <- new.env()
+      .rcs$send <- function(x) {
+        bytes <- serialize(x, NULL, version = 2)
+        writeBin(c(writeBin(length(bytes), raw(), endian = "big"), bytes), .rcs$con)
+        flush(.rcs$con)
+      }
+      .rcs$eval <- function(msg) {
+        code <- .rcs$parsed[[msg[[2]]]]
+        if (is.null(code)) .rcs$parsed[[msg[[2]]]] <- code <- parse(text = msg[[2]])
+        withRestarts(
+          list("value", eval(code, list(input = msg[[3]]), globalenv())),
+          rcs_abort = function() list("aborted"))
+      }
+      .rcs$serve <- function() .rcs$send(.rcs$eval(unserialize(.rcs$con)))
+      .rcs_callback <- function(x) {
+        .rcs$send(list("callback", x))
+        repeat {
+          msg <- unserialize(.rcs$con)
+          switch(msg[[1]],
+            value = return(msg[[2]]),
+            abort = invokeRestart("rcs_abort"),
+            eval = .rcs$send(.rcs$eval(msg)))
+        }
+      }
+      """;
+
+  private @Nullable InputStream fromR;
+  private @Nullable OutputStream toR;
+  /// How many [#eval(String, SEXP, UnaryOperator)] are running (nested in callbacks).
+  private int evalDepth = 0;
+
+  @Override
+  public SEXP eval(String source, SEXP input, UnaryOperator<SEXP> callback) {
+    try {
+      if (fromR == null) {
+        connect();
+      }
+      var requestId = evalDepth == 0 ? start(".rcs$serve()") : null;
+      evalDepth++;
+      try {
+        send(SEXPs.vec(SEXPs.string("eval"), SEXPs.string(source), input));
+        Throwable thrown = null;
+        while (true) {
+          var message = receive();
+          switch (((StrSXP) message.get(0)).get(0)) {
+            case "value" -> {
+              return message.get(1);
+            }
+            case "callback" -> {
+              try {
+                send(SEXPs.vec(SEXPs.string("value"), callback.apply(message.get(1))));
+              } catch (RuntimeException | Error e) {
+                thrown = e;
+                send(SEXPs.vec(SEXPs.string("abort")));
+              }
+            }
+            case "aborted" -> {
+              switch (Objects.requireNonNull(thrown)) {
+                case RuntimeException e -> throw e;
+                case Error e -> throw e;
+                default -> throw new AssertionError(thrown);
+              }
+            }
+            default -> throw new IOException("Unexpected message from R: " + message);
+          }
+        }
+      } finally {
+        evalDepth--;
+        if (requestId != null && process.isAlive()) {
+          waitForCommand(requestId);
+        }
+      }
+    } catch (IOException e) {
+      // R died (then say why), or it's killed because it didn't answer in time.
+      process.destroyForcibly();
+      throw new RuntimeException("I/O exception during R evaluation with callbacks", e);
+    }
+  }
+
+  private void connect() throws IOException {
+    try (var server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+      // R connects before `accept`, into the backlog.
+      run(CONNECT.formatted(server.getLocalPort()));
+      var socket = server.accept();
+      socket.setSoTimeout(Math.toIntExact(timeout.toMillis()));
+      socket.setTcpNoDelay(true);
+      fromR = new BufferedInputStream(socket.getInputStream());
+      toR = socket.getOutputStream();
+    }
+  }
+
+  private void send(SEXP message) throws IOException {
+    var bytes = new ByteArrayOutputStream();
+    RDSWriter.writeStream(bytes, message);
+    var out = Objects.requireNonNull(toR);
+    bytes.writeTo(out);
+    out.flush();
+  }
+
+  private VecSXP receive() throws IOException {
+    var in = new DataInputStream(Objects.requireNonNull(fromR));
+    var bytes = in.readNBytes(in.readInt());
+    return (VecSXP) RDSReader.readStream(session, new ByteArrayInputStream(bytes));
+  }
+
+  // endregion
 
   @Override
   public Pair<SEXP, String> capturingEval(String source) {
@@ -146,9 +305,14 @@ class SingleGNURProcess implements GNUR {
         w.println(source);
       }
 
+      // An error must kill R, which is how [EvalException] detects it, so clear any
+      // `options(error = ...)` an earlier eval in this process left behind (e.g. an example of
+      // `traceback`). With one set, R survives the error and `targetFile` stays empty.
+      // Also detach the packages that earlier evals attached, so that the output doesn't depend on
+      // them: `require` prints "Loading required package: ..." only if the package isn't attached.
       var code =
           format(
-              "saveRDS(eval(parse(file='%s'), envir=new.env(parent=globalenv())), '%s', version=2, compress=FALSE)",
+              "options(error=NULL); local(for (p in setdiff(search(), .rcs_search)) detach(p, character.only=TRUE, force=TRUE)); saveRDS(eval(parse(file='%s'), envir=new.env(parent=globalenv())), '%s', version=2, compress=FALSE)",
               sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
 
       output = run(code);
@@ -177,14 +341,19 @@ class SingleGNURProcess implements GNUR {
 
   @Override
   public SEXP eval(String source, SEXP input) {
+    File inputFile = null;
     try {
-      var inputFile = File.createTempFile("RCS-input", ".rds");
+      inputFile = File.createTempFile("RCS-input", ".rds");
       RDSWriter.writeFile(inputFile, input);
       String full_source = "input <- readRDS('" + inputFile.getAbsolutePath() + "')\n" + source;
 
       return eval(full_source);
     } catch (Exception e) {
       throw new RuntimeException("Unable to eval R source", e);
+    } finally {
+      if (inputFile != null) {
+        var _ = inputFile.delete();
+      }
     }
   }
 
@@ -193,32 +362,57 @@ class SingleGNURProcess implements GNUR {
     return (EnvSXP) eval(source + "\nenvironment()");
   }
 
+  /// Reads output until the line with `requestId`.
+  ///
+  /// If that takes longer than [#timeout] (e.g. the code reads stdin, which consumes the request
+  /// ID, or loops forever), the watchdog kills the process, so `readLine` reaches EOF and this
+  /// throws [EvalException].
   private String waitForCommand(String requestId) {
     var output = new StringBuilder();
 
+    var timedOut = new AtomicBoolean();
+    var watchdog =
+        WATCHDOG.schedule(
+            () -> {
+              timedOut.set(true);
+              // Descendants too, since they can hold the output pipe open.
+              process.descendants().forEach(ProcessHandle::destroyForcibly);
+              process.destroyForcibly();
+            },
+            timeout.toMillis(),
+            TimeUnit.MILLISECONDS);
+
     IOException exception = null;
-    while (true) {
-      String line = null;
-      try {
-        line = out.readLine();
-      } catch (IOException e) {
-        exception = e;
-      }
-      if (line == null) {
-        break;
-      }
+    try {
+      while (true) {
+        String line = null;
+        try {
+          line = out.readLine();
+        } catch (IOException e) {
+          exception = e;
+        }
+        if (line == null) {
+          break;
+        }
 
-      if (line.equals(requestId)) {
-        return output.toString();
-      }
+        // Output that doesn't end with a newline (e.g. `alarm()`'s "\a") shares the request ID's
+        // line.
+        if (line.endsWith(requestId)) {
+          return output.append(line, 0, line.length() - requestId.length()).toString();
+        }
 
-      output.append(line).append("\n");
+        output.append(line).append("\n");
+      }
+    } finally {
+      watchdog.cancel(false);
     }
 
     int exit;
     try {
       exit = process.waitFor();
-      if (exit == 0) {
+      if (timedOut.get()) {
+        throw EvalException.timedOut(timeout, exit, output.toString());
+      } else if (exit == 0) {
         throw new RuntimeException("R finished without printing request ID. Output:\n" + output);
       } else {
         throw new EvalException(exit, output.toString(), exception);

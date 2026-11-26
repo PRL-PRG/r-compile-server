@@ -1,14 +1,20 @@
 package org.prlprg.bc;
 
-import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.function.ToDoubleFunction;
+import java.util.regex.Pattern;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
+import org.prlprg.primitive.RMath;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Arithmetic;
 
@@ -23,10 +29,13 @@ import org.prlprg.util.Arithmetic;
  * place without making Compiler too big.
  */
 public final class ConstantFolding {
-  private static final double LN_2 = Math.log(2);
+  /// The longest `rep` result to compute. Longer ones are far too long to be constants anyway.
+  private static final int MAX_REP_LENGTH = 1 << 16;
 
-  /// Enough to scale any subnormal `double` into the normal range.
-  private static final int SUBNORMAL_SHIFT = 54;
+  /// Strings whose ordering is the same in every locale: ASCII digits and letters of one case.
+  private static final Pattern[] LOCALE_INDEPENDENT_STRINGS = {
+    Pattern.compile("[0-9a-z]*"), Pattern.compile("[0-9A-Z]*")
+  };
 
   private ConstantFolding() {}
 
@@ -38,11 +47,21 @@ public final class ConstantFolding {
     return math2(Arithmetic.Operation.DIV, args);
   }
 
+  public static Optional<SEXP> atan(List<SEXP> args) {
+    return doubleMath1(args, Math::atan);
+  }
+
   public static Optional<SEXP> cos(List<SEXP> args) {
     return doubleMath1(args, Math::cos);
   }
 
   public static Optional<SEXP> exp(List<SEXP> args) {
+    if (args.size() == 1 && args.getFirst() instanceof ComplexSXP z) {
+      // Where `exp(real)` overflows, `Complex#exp` doesn't match the C library's `cexp`.
+      return z.stream().anyMatch(x -> Double.isInfinite(Math.exp(x.real())))
+          ? Optional.empty()
+          : complexMath1(z, Complex::exp);
+    }
     return doubleMath1(args, Math::exp);
   }
 
@@ -52,24 +71,24 @@ public final class ConstantFolding {
   /// they're as accurate as `log10`/`log2` instead of a ratio of logarithms.
   public static Optional<SEXP> log(List<SEXP> args) {
     return switch (args.size()) {
-      case 1 -> doubleMath1(args, ConstantFolding::rLog);
+      case 1 -> doubleMath1(args, RMath::log);
       case 2 -> {
         if (!(args.get(1) instanceof NumericSXP<?> baseV) || baseV.size() != 1) {
           yield Optional.empty();
         }
         var base = baseV.asReal(0);
-        yield doubleMath1(args.subList(0, 1), x -> logBase(x, base));
+        yield doubleMath1(args.subList(0, 1), x -> RMath.logBase(x, base));
       }
       default -> Optional.empty();
     };
   }
 
   public static Optional<SEXP> log10(List<SEXP> args) {
-    return doubleMath1(args, x -> logBase(x, 10));
+    return doubleMath1(args, x -> RMath.logBase(x, 10));
   }
 
   public static Optional<SEXP> log2(List<SEXP> args) {
-    return doubleMath1(args, x -> logBase(x, 2));
+    return doubleMath1(args, x -> RMath.logBase(x, 2));
   }
 
   public static Optional<SEXP> sin(List<SEXP> args) {
@@ -103,40 +122,6 @@ public final class ConstantFolding {
     return Optional.of(SEXPs.integer(ans));
   }
 
-  /// GNU-R's `R_log`: negative arguments are `NaN` (with a warning) and zero is `-Inf`.
-  private static double rLog(double x) {
-    return x > 0 ? Math.log(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
-  }
-
-  /// GNU-R's `logbase`.
-  private static double logBase(double x, double base) {
-    if (base == 10) {
-      return x > 0 ? Math.log10(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
-    }
-    if (base == 2) {
-      return x > 0 ? log2(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
-    }
-    return rLog(x) / rLog(base);
-  }
-
-  /// Base-2 logarithm of a positive number, to the same precision as C's `log2`.
-  ///
-  /// [DoubleMath#log2(double)] is `log(x) / log(2)`, which is off by an ulp for e.g. `10`.
-  /// Splitting off the binary exponent first leaves [Math#log1p] a much smaller argument, and
-  /// makes exact powers of two exact.
-  private static double log2(double x) {
-    var normalized = x;
-    var normalizingExponent = 0;
-    if (Math.getExponent(x) < Double.MIN_EXPONENT) {
-      normalized = Math.scalb(x, SUBNORMAL_SHIFT);
-      normalizingExponent = -SUBNORMAL_SHIFT;
-    }
-
-    var exponent = Math.getExponent(normalized);
-    var mantissa = Math.scalb(normalized, -exponent);
-    return exponent + normalizingExponent + Math.log1p(mantissa - 1) / LN_2;
-  }
-
   public static Optional<SEXP> minus(List<SEXP> args) {
     return math1(Arithmetic.Operation.MINUS, args);
   }
@@ -161,26 +146,101 @@ public final class ConstantFolding {
     }
   }
 
-  public static Optional<SEXP> rep(List<SEXP> args) {
-    if (args.size() != 2) {
-      return Optional.empty();
+  /// `rep(x, times, length.out, each)` of a non-empty vector without attributes.
+  ///
+  /// It only matches arguments by position or by exact name.
+  public static Optional<SEXP> rep(List<TaggedElem> args) {
+    var formals = List.of("x", "times", "length.out", "each");
+    var matched = new SEXP[formals.size()];
+    for (var arg : args) {
+      if (arg.hasTag()) {
+        var i = formals.indexOf(arg.tag());
+        if (i < 0 || matched[i] != null) {
+          return Optional.empty();
+        }
+        matched[i] = arg.value();
+      }
+    }
+    var pos = 0;
+    for (var arg : args) {
+      if (!arg.hasTag()) {
+        while (pos < matched.length && matched[pos] != null) {
+          pos++;
+        }
+        if (pos == matched.length) {
+          return Optional.empty();
+        }
+        matched[pos] = arg.value();
+      }
     }
 
-    if (!(args.getFirst() instanceof VectorSXP<?> x)) {
+    if (!(matched[0] instanceof VectorSXP<?> x) || x.isEmpty() || hasAttributes(x)) {
       return Optional.empty();
     }
+    return rep(x, matched[1], matched[2], matched[3]);
+  }
 
-    if (!(args.getLast() instanceof NumericSXP<?> times)) {
+  private static <T> Optional<SEXP> rep(
+      VectorSXP<T> x, @Nullable SEXP times, @Nullable SEXP lengthOut, @Nullable SEXP each) {
+    var eachN = count(each, 1);
+    if (eachN == null) {
       return Optional.empty();
     }
+    var xs = x.stream().flatMap(e -> Collections.nCopies(eachN, e).stream()).toList();
 
-    if (times.size() == 1) {
-      return Optional.of(doRep1(x, times.asInt(0)));
-    } else if (times.size() == x.size()) {
-      return Optional.of(doRep2(x, times));
+    List<Integer> counts;
+    if (lengthOut != null) {
+      // `length.out` takes precedence over `times`.
+      var len = count(lengthOut, 0);
+      if (len == null || (xs.isEmpty() && len > 0) || len > MAX_REP_LENGTH) {
+        return Optional.empty();
+      }
+      return Optional.of(
+          SEXPs.primVector(
+              x.type(), IntStream.range(0, len).mapToObj(i -> xs.get(i % xs.size())).toList()));
+    } else if (times == null) {
+      counts = Collections.nCopies(xs.size(), 1);
+    } else if (times instanceof VectorSXP<?> t && t.size() == 1) {
+      var n = count(times, 0);
+      if (n == null || (long) n * xs.size() > MAX_REP_LENGTH) {
+        return Optional.empty();
+      }
+      return Optional.of(
+          SEXPs.primVector(
+              x.type(), IntStream.range(0, n).boxed().flatMap(_ -> xs.stream()).toList()));
+    } else if (times instanceof NumericSXP<?> t && t.size() == xs.size()) {
+      counts = t.stream().map(e -> count(SEXPs.real(e.doubleValue()), 0)).toList();
     } else {
       return Optional.empty();
     }
+
+    if (counts.contains(null)
+        || counts.stream().mapToLong(Integer::longValue).sum() > MAX_REP_LENGTH) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        SEXPs.primVector(
+            x.type(),
+            IntStream.range(0, xs.size())
+                .boxed()
+                .flatMap(i -> Collections.nCopies(counts.get(i), xs.get(i)).stream())
+                .toList()));
+  }
+
+  /// A `rep` count argument: a whole number from 0 up, or `dflt` if it's missing.
+  ///
+  /// Returns `null` for what GNU-R rejects or warns about, and for `NA`, which GNU-R
+  /// sometimes accepts.
+  private static @Nullable Integer count(@Nullable SEXP arg, int dflt) {
+    if (arg == null) {
+      return dflt;
+    }
+    if (!(arg.type() == SEXPType.LGL || arg instanceof NumericSXP<?>)
+        || ((VectorSXP<?>) arg).size() != 1) {
+      return null;
+    }
+    double d = ((VectorSXP<?>) arg).coerceToReals()[0];
+    return d >= 0 && d == Math.rint(d) && d <= MAX_REP_LENGTH ? (int) d : null;
   }
 
   public static Optional<SEXP> seqInt(List<SEXP> args) {
@@ -231,6 +291,146 @@ public final class ConstantFolding {
 
   public static Optional<SEXP> sqrt(List<SEXP> args) {
     return doubleMath1(args, Math::sqrt);
+  }
+
+  /// A relational operator: `==`, `!=`, `<`, `<=`, `>` or `>=`.
+  ///
+  /// It doesn't fold what GNU-R warns about, what keeps attributes, or what depends on the
+  /// locale: complex numbers, mixed strings and numbers, and string orderings outside of
+  /// [#LOCALE_INDEPENDENT_STRINGS].
+  public static Optional<SEXP> relop(String op, List<SEXP> args) {
+    if (args.size() != 2
+        || !(args.get(0) instanceof VectorSXP<?> a)
+        || !(args.get(1) instanceof VectorSXP<?> b)
+        || hasAttributes(a)
+        || hasAttributes(b)) {
+      return Optional.empty();
+    }
+
+    var la = a.size();
+    var lb = b.size();
+    var l = la == 0 || lb == 0 ? 0 : Math.max(la, lb);
+    if (l % Math.max(1, Math.min(la, lb)) != 0) {
+      return Optional.empty();
+    }
+
+    IntPredicate holds =
+        switch (op) {
+          case "==" -> c -> c == 0;
+          case "!=" -> c -> c != 0;
+          case "<" -> c -> c < 0;
+          case "<=" -> c -> c <= 0;
+          case ">" -> c -> c > 0;
+          case ">=" -> c -> c >= 0;
+          default -> throw new IllegalArgumentException("Not a relational operator: " + op);
+        };
+
+    // The sign of `a[i] <op> b[j]`, or `null` if it's `NA`.
+    BiFunction<Integer, Integer, @Nullable Integer> compare;
+    if (a.type() == SEXPType.STR && b.type() == SEXPType.STR) {
+      var x = a.coerceToStrings();
+      var y = b.coerceToStrings();
+      if (!op.equals("==")
+          && !op.equals("!=")
+          && !Stream.of(LOCALE_INDEPENDENT_STRINGS)
+              .anyMatch(
+                  p ->
+                      Stream.concat(Arrays.stream(x), Arrays.stream(y))
+                          .allMatch(s -> Coercions.isNA(s) || p.matcher(s).matches()))) {
+        return Optional.empty();
+      }
+      compare =
+          (i, j) -> Coercions.isNA(x[i]) || Coercions.isNA(y[j]) ? null : x[i].compareTo(y[j]);
+    } else if (Stream.of(a, b)
+        .allMatch(v -> v.type() == SEXPType.LGL || v instanceof NumericSXP<?>)) {
+      var x = a.coerceToReals();
+      var y = b.coerceToReals();
+      compare =
+          (i, j) ->
+              Double.isNaN(x[i]) || Double.isNaN(y[j])
+                  ? null
+                  : x[i] < y[j] ? -1 : x[i] > y[j] ? 1 : 0;
+    } else {
+      return Optional.empty();
+    }
+
+    var ans = new Logical[l];
+    for (var i = 0; i < l; i++) {
+      var c = compare.apply(i % la, i % lb);
+      ans[i] = c == null ? Logical.NA : holds.test(c) ? Logical.TRUE : Logical.FALSE;
+    }
+    return Optional.of(SEXPs.logical(ans));
+  }
+
+  /// `Re(z)` or `Im(z)` of a complex vector without attributes.
+  public static Optional<SEXP> complexPart(List<SEXP> args, ToDoubleFunction<Complex> part) {
+    if (args.size() != 1 || !(args.getFirst() instanceof ComplexSXP z) || hasAttributes(z)) {
+      return Optional.empty();
+    }
+    return Optional.of(SEXPs.real(z.stream().mapToDouble(part).toArray()));
+  }
+
+  /// `round(x)` and `round(x, 0)`, which round half to even like C's `nearbyint`.
+  public static Optional<SEXP> round(List<SEXP> args) {
+    if (args.isEmpty()
+        || args.size() > 2
+        || args.getFirst().type() != SEXPType.REAL
+        || hasAttributes(args.getFirst())) {
+      return Optional.empty();
+    }
+    if (args.size() == 2
+        && !(args.get(1) instanceof NumericSXP<?> digits
+            && digits.size() == 1
+            && digits.coerceToReals()[0] == 0)) {
+      return Optional.empty();
+    }
+    return doubleMath1(args.subList(0, 1), Math::rint);
+  }
+
+  /// `choose(n, k)` of two scalars, with GNU-R's algorithm for `k < 30`.
+  public static Optional<SEXP> choose(List<SEXP> args) {
+    if (args.size() != 2
+        || !args.stream()
+            .allMatch(
+                a ->
+                    (a.type() == SEXPType.LGL || a instanceof NumericSXP<?>)
+                        && ((VectorSXP<?>) a).size() == 1
+                        && !hasAttributes(a))) {
+      return Optional.empty();
+    }
+
+    var n = ((VectorSXP<?>) args.get(0)).coerceToReals()[0];
+    var k0 = ((VectorSXP<?>) args.get(1)).coerceToReals()[0];
+    var k = Math.rint(k0);
+    // GNU-R warns when it rounds `k`, and returns `NaN`s without folding them.
+    if (Double.isNaN(n) || Double.isNaN(k) || Math.abs(k - k0) > 1e-9 * Math.max(1, Math.abs(k0))) {
+      return Optional.empty();
+    }
+    if (k >= 30) {
+      return Optional.empty();
+    }
+
+    var nIsInt = Math.abs(n - Math.rint(n)) <= 1e-9 * Math.max(1, Math.abs(n));
+    if (n - k < k && n >= 0 && nIsInt) {
+      k = Math.rint(n - k);
+    }
+    double r;
+    if (k < 0) {
+      r = 0;
+    } else if (k == 0) {
+      r = 1;
+    } else {
+      r = n;
+      for (var j = 2; j <= k; j++) {
+        r *= (n - j + 1) / j;
+      }
+      r = nIsInt ? Math.rint(r) : r;
+    }
+    return Optional.of(SEXPs.real(r));
+  }
+
+  private static boolean hasAttributes(SEXP x) {
+    return x.attributes() != null && !x.attributes().isEmpty();
   }
 
   public static Optional<SEXP> sub(List<SEXP> args) {
@@ -292,30 +492,6 @@ public final class ConstantFolding {
     return ans;
   }
 
-  private static <T> SEXP doRep1(VectorSXP<T> x, int times) {
-    var res = new ImmutableList.Builder<T>();
-
-    for (int i = 0; i < times; i++) {
-      res.addAll(x);
-    }
-
-    return SEXPs.primVector(x.type(), res.build());
-  }
-
-  private static <T> SEXP doRep2(VectorSXP<T> xs, NumericSXP<?> times) {
-    var res = new ImmutableList.Builder<T>();
-
-    for (int j = 0; j < times.size(); j++) {
-      var n = times.asInt(j);
-      var x = xs.get(j);
-      for (int i = 0; i < n; i++) {
-        res.add(x);
-      }
-    }
-
-    return SEXPs.primVector(xs.type(), res.build());
-  }
-
   private static Optional<SEXP> doubleMath1(List<SEXP> args, Function<Double, Double> f) {
     if (args.size() != 1) {
       return Optional.empty();
@@ -342,6 +518,24 @@ public final class ConstantFolding {
     }
 
     return Optional.of(SEXPs.real(res));
+  }
+
+  /// GNU-R's `cmath1`.
+  private static Optional<SEXP> complexMath1(ComplexSXP z, Function<Complex, Complex> f) {
+    var res = new Complex[z.size()];
+    for (var i = 0; i < res.length; i++) {
+      var x = z.get(i);
+      if (x.isNaOrNaN()) {
+        // GNU-R maps `NA` to `NA` and `NaN` through `f`; skip both rather than tell them apart.
+        return Optional.empty();
+      }
+      res[i] = f.apply(x);
+      // Like in `doubleMath1`, a new `NaN` means a warning, so GNU-R doesn't fold.
+      if (res[i].isNaOrNaN()) {
+        return Optional.empty();
+      }
+    }
+    return Optional.of(SEXPs.complex(res));
   }
 
   private static Optional<SEXP> math1(Arithmetic.Operation op, List<SEXP> args) {
@@ -381,10 +575,12 @@ public final class ConstantFolding {
     return Optional.of(ans);
   }
 
-  public static Optional<SEXP> c(List<? extends SEXP> args) {
-    if (args.isEmpty()) {
+  public static Optional<SEXP> c(List<TaggedElem> elems) {
+    if (elems.isEmpty()) {
       return Optional.of(SEXPs.NULL);
     }
+
+    List<? extends SEXP> args = elems.stream().map(TaggedElem::value).toList();
 
     var type = args.getFirst().type();
 
@@ -434,19 +630,31 @@ public final class ConstantFolding {
           default -> Optional.empty();
         };
 
-    return vals.map(
-        x -> {
-          var names =
-              args.stream()
-                  .map(SEXP::names)
-                  .reduce(
-                      new ArrayList<>(),
-                      (acc, y) -> {
-                        acc.addAll(y);
-                        return acc;
-                      });
-          return x.withNames(names);
-        });
+    if (elems.stream().noneMatch(e -> e.hasTag() || !e.value().names().isEmpty())) {
+      return vals;
+    }
+    var names = elems.stream().flatMap(ConstantFolding::cNames).toList();
+    return vals.map(x -> x.withNames(names));
+  }
+
+  /// The names that `c` gives to the elements of one argument (GNU-R's `NewExtractNames`).
+  private static Stream<String> cNames(TaggedElem elem) {
+    var tag = elem.tag();
+    var value = (VectorSXP<?>) elem.value();
+    var names = value.names();
+    var n = value.size();
+    return IntStream.range(0, n)
+        .mapToObj(
+            i -> {
+              var name = names.isEmpty() ? "" : names.get(i);
+              if (tag.isEmpty()) {
+                return name;
+              } else if (!name.isEmpty()) {
+                return tag + "." + name;
+              } else {
+                return n == 1 ? tag : tag + (i + 1);
+              }
+            });
   }
 
   public static Optional<SEXP> colon(List<SEXP> args) {

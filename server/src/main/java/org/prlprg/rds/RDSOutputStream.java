@@ -25,8 +25,10 @@ public class RDSOutputStream implements Closeable {
     out.writeInt(v);
   }
 
+  /// Writes the raw bits, unlike [DataOutputStream#writeDouble], which makes every `NaN`
+  /// canonical and so loses `NA` and the sign of `-NaN`.
   public void writeDouble(double v) throws IOException {
-    out.writeDouble(v);
+    out.writeLong(Double.doubleToRawLongBits(v));
   }
 
   /**
@@ -48,7 +50,7 @@ public class RDSOutputStream implements Closeable {
 
   public void writeDoubles(double[] v) throws IOException {
     for (double e : v) {
-      out.writeDouble(e);
+      writeDouble(e);
     }
   }
 }

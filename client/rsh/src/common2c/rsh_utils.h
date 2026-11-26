@@ -11,6 +11,11 @@
 #ifndef USE_RINTERNALS
 #define USE_RINTERNALS
 #endif
+// Makes `Rinternals.h` include `Rinlinedfuns.h`, so `PROTECT`, `REAL`, `XLENGTH`, ... are inline
+// at -O1+ instead of calls into libR. Not in C++, where its names collide with LLVM's.
+#if !defined(__cplusplus) && !defined(RSH)
+#define RSH
+#endif
 #ifdef R_NO_REMAP
 #undef R_NO_REMAP
 #include <Rinternals.h>
@@ -333,7 +338,7 @@ static INLINE Rboolean Rsh_inherits(SEXP s, const char *name) {
   SEXP klass;
   R_xlen_t i, nclass;
   if (OBJECT(s)) {
-    klass = getAttrib(s, R_ClassSymbol);
+    klass = Rf_getAttrib(s, R_ClassSymbol);
     assert(TYPEOF(klass) == STRSXP);
     nclass = XLENGTH(klass);
     /* Scan from the last class: conventionally-built factors carry "factor"
@@ -351,7 +356,7 @@ static INLINE Rboolean Rsh_inherits(SEXP s, const char *name) {
   return FALSE;
 }
 static ALWAYS_INLINE Rboolean Rsh_isFactor(SEXP s) {
-  return (TYPEOF(s) == INTSXP && Rsh_inherits(s, "factor"));
+  return (TYPEOF(s) == INTSXP && Rsh_inherits(s, "factor")) ? TRUE : FALSE;
 }
 static ALWAYS_INLINE Rboolean Rsh_isNumber(SEXP s) {
   switch (TYPEOF(s)) {
@@ -403,7 +408,7 @@ static ALWAYS_INLINE SEXP Rsh_ScalarString(SEXP x) {
   return ans;
 }
 static ALWAYS_INLINE SEXP Rsh_ScalarRaw(Rbyte x) {
-  SEXP ans = allocVector(RAWSXP, 1);
+  SEXP ans = Rf_allocVector(RAWSXP, 1);
   SET_SCALAR_BVAL0(ans, x);
   return ans;
 }

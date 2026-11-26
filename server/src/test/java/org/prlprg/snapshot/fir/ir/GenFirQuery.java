@@ -22,6 +22,11 @@ public interface GenFirQuery extends Query<Module> {
     return example.text().contains("-error:");
   }
 
+  /// Evaluate every unevaluated version of `module`, which this query computed.
+  default void evaluateAll(Module module) {
+    module.evaluateAll();
+  }
+
   @Override
   default void verifyEqual(Module expected, Module actual, Example example, SnapshotStore store) {
     assertEquals(expected.toString(), actual.toString());

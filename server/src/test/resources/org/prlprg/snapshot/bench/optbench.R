@@ -1,4 +1,5 @@
-# Driver for `org.prlprg.snapshot.bench.OptimizationBenchmarkQuery`.
+# Driver for `org.prlprg.snapshot.bench.VariantBenchmark` (`OptimizationBenchmarkQuery` and the
+# other benchmarks of compiled variants).
 #
 # `bench.R` is prepended to this file, so `time`, `timeCall` and `cc` (load a compiled module, run
 # the example's warmup, then time `call` in it) are already defined.
@@ -90,7 +91,10 @@ benchOneBc <- function(call, path) {
 # `pct.none` and `pct.bc.opt` are each row's time as a percentage of the `<none>` baseline's and
 # of the `bc.opt` reference row's, so e.g. `pct.bc.opt` near 100 means an optimization (or its
 # absence) is worth about as much as `bc`'s own optimizer.
-report <- function(removed, loc, time) {
+#
+# `same.as` is the earlier row whose generated C the row's equals, so its time is that row's (see
+# `VariantBenchmark`). `...` are extra columns, appended as they are.
+report <- function(removed, loc, time, same.as, ...) {
   baseline <- time[1]
   bcOptTime <- time[match("bc.opt", removed)]
   res <- data.frame(
@@ -103,15 +107,20 @@ report <- function(removed, loc, time) {
     pct.none =
       if (is.na(baseline) || baseline == 0) NA else round(100 * time / baseline, 1),
     pct.bc.opt =
-      if (is.na(bcOptTime) || bcOptTime == 0) NA else round(100 * time / bcOptTime, 1)
+      if (is.na(bcOptTime) || bcOptTime == 0) NA else round(100 * time / bcOptTime, 1),
+    same.as = same.as,
+    ...
   )
 
   # Log to console, biggest slowdown first, so the optimizations that matter most are on top
   # (`NA`s, from variants that didn't compile or crashed, sort last)
   print(res[order(-res$slowdown), ])
 
-  # Return CSV in the order the optimizations were given in, which is stable between runs, so the
-  # snapshot stays comparable
+  toCsv(res)
+}
+
+# `res` as CSV, in its row order, which is stable between runs, so the snapshot stays comparable.
+toCsv <- function(res) {
   csvConn <- textConnection("csv", "w")
   write.csv(res, file=csvConn)
   close(csvConn)

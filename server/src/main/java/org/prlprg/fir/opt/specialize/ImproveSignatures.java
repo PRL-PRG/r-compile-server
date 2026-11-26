@@ -30,7 +30,8 @@ public record ImproveSignatures() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(statement.expression() instanceof Promise(var oldType, _, var code, var local))) {
+    if (!(statement.expression()
+        instanceof Promise(var oldType, _, var code, var local, var promExpr))) {
       return Result.UNCHANGED;
     }
 
@@ -39,17 +40,17 @@ public record ImproveSignatures() implements SpecializeOptimization {
     var newEffects = analyses.get(InferEffects.class).ofNonRecursive(code);
 
     return new Result.SetExpression(
-        new Promise(newType == null ? oldType : newType, newEffects, code, local));
+        new Promise(newType == null ? oldType : newType, newEffects, code, local, promExpr));
   }
 
   @Override
   public boolean finish(Abstraction scope, Analyses analyses) {
-    if (scope.cfg() == null) {
+    if (scope.isStub()) {
       return false;
     }
 
     var changed = false;
-    var newReturnType = analyses.get(InferType.class).of(scope.cfg());
+    var newReturnType = analyses.get(InferType.class).of(scope.body());
     // A return type can only be fresh or shared, but a `return` of an owned (or borrowed) register
     // infers as one, and declaring that leaves every call to this version unresolvable, because no
     // call signature's return type an owned one can be assigned to. Shared is the safe claim.
@@ -58,8 +59,8 @@ public record ImproveSignatures() implements SpecializeOptimization {
         && newReturnType.ownership() != Ownership.SHARED) {
       newReturnType = newReturnType.withOwnership(Ownership.SHARED);
     }
-    var newEffects = analyses.get(InferEffects.class).ofNonRecursive(scope.cfg());
-    var strictParams = analyses.get(scope.cfg(), StrictnessAnalysis.class).strictParameters();
+    var newEffects = analyses.get(InferEffects.class).ofNonRecursive(scope.body());
+    var strictParams = analyses.get(scope.body(), StrictnessAnalysis.class).strictParameters();
 
     if (newReturnType != null && !newReturnType.equals(scope.returnType())) {
       scope.setReturnType(newReturnType);

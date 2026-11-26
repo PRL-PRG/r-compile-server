@@ -29,10 +29,13 @@ import org.prlprg.fir.ir.variable.Register;
 /// - In each predecessor, for every [Target] pointing to this BB, inserts
 ///   `arg_to_i1 = unbox< v1(X) --> X >(arg_to_i)` immediately before the jump and replaces
 ///   the phi argument at the given position (formerly `arg_to_i`) with `arg_to_i1`.
-public final class UnboxPhi implements AbstractionOptimization {
+public final class UnboxPhi extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
     boolean[] changed = {false};
     scope
         .streamCfgs()

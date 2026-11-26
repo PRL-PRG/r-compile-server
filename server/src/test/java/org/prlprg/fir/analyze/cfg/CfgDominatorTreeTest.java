@@ -21,7 +21,7 @@ class CfgDominatorTreeTest {
   private static CFG cfgOf(@Language("FIR") String firText) {
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
-    return Objects.requireNonNull(main.cfg());
+    return main.body();
   }
 
   private static BB bb(CFG cfg, String label) {

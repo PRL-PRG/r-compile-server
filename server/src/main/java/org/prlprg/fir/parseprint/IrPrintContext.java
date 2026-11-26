@@ -6,6 +6,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.NamedArgument;
+import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
@@ -13,6 +14,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -44,6 +46,8 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -57,6 +61,10 @@ import org.prlprg.sexp.SEXPs;
 /// `toString` that forwards here, so they still print correctly on their own.
 public final class IrPrintContext {
   // region module, function, version
+
+  /// What's printed in place of the body of an unevaluated version. Deliberately not parseable:
+  /// the text doesn't say how to evaluate the body.
+  public static final String UNEVALUATED_BODY = "<unevaluated>";
 
   @PrintMethod
   private void printModule(Module module, Printer p) {
@@ -75,11 +83,35 @@ public final class IrPrintContext {
     if (function.userProperties().liteSpecial()) {
       w.write("@liteSpecial\n");
     }
+    if (function.userProperties().readsContext()) {
+      w.write("@readsContext\n");
+    }
+    if (function.userProperties().needsContext()) {
+      w.write("@needsContext\n");
+    }
+    if (function.userProperties().readsPromise()) {
+      w.write("@readsPromise\n");
+    }
+    if (function.userProperties().needsPromises()) {
+      w.write("@needsPromises\n");
+    }
 
     w.write("fun ");
     p.print(function.name());
 
-    p.printAsList("(", ")", function.parameterNames());
+    w.write('(');
+    var formals = function.formals();
+    for (var i = 0; i < formals.size(); i++) {
+      if (i > 0) {
+        w.write(", ");
+      }
+      p.print(function.parameterNames().get(i));
+      if (formals.value(i) != SEXPs.MISSING_ARG) {
+        w.write(" = ");
+        p.print(new Value.Sexp(formals.value(i)));
+      }
+    }
+    w.write(')');
 
     w.write(" {");
     w.runIndented(
@@ -88,7 +120,14 @@ public final class IrPrintContext {
           // textual form goes baseline first and then increasingly specific — which is also what
           // the parser assumes, since it takes the first version it reads as the baseline. So
           // print the reverse; otherwise print -> parse -> print moves the baseline every time.
+          //
+          // Unevaluated versions aren't printed, because the text couldn't say how to evaluate
+          // them. The exception is the baseline, which a function can't go without: it's printed
+          // with a body that doesn't parse.
           for (var version : function.versions().reversed()) {
+            if (version != function.baseline() && !version.isStub() && !version.isEvaluated()) {
+              continue;
+            }
             w.write('\n');
             p.print(version);
           }
@@ -101,6 +140,10 @@ public final class IrPrintContext {
     var w = p.writer();
 
     p.print(abstraction.comments());
+
+    if (abstraction.signals()) {
+      w.write("@signals ");
+    }
 
     // Parameters, e.g. `(n:*, m:I@!)`.
     w.write('(');
@@ -126,10 +169,14 @@ public final class IrPrintContext {
 
     w.write(" {");
 
-    var cfg = abstraction.cfg();
-    if (cfg == null) {
+    if (abstraction.isStub()) {
       w.write(" ... ");
+    } else if (!abstraction.isEvaluated()) {
+      w.write(' ');
+      w.write(UNEVALUATED_BODY);
+      w.write(' ');
     } else {
+      var cfg = abstraction.body();
       // Registers declare their type inline at their definition site (see [Statement] and the phi
       // parameters in a block header), so there is no separate declarations line — the body follows
       // the `{` directly.
@@ -206,6 +253,11 @@ public final class IrPrintContext {
       p.writer().write(" = ");
     }
     printExpression(p, statement);
+    var source = statement.source();
+    if (source != null) {
+      p.writer().write(" in ");
+      p.print(new Value.Sexp(source));
+    }
   }
 
   @PrintMethod
@@ -224,7 +276,7 @@ public final class IrPrintContext {
       case Call(var callee) -> {
         switch (callee) {
           case StaticFnCallee(var functionRef, var isDispatch, var signature) -> {
-            p.print(functionRef.get().name());
+            printHead(p, functionRef.get().name());
             if (isDispatch) {
               w.write('%');
             }
@@ -234,6 +286,14 @@ public final class IrPrintContext {
               p.print(closureWithEnv);
             }
             w.write("< ");
+            p.print(signature);
+            w.write(" >");
+            p.printAsList("(", ")", args.subList(1, args.size()));
+          }
+          case FallbackCallee(var signature) -> {
+            // For debugging only: fallbacks aren't printed with their version, so there's
+            // nothing to parse this back.
+            w.write("fallback< ");
             p.print(signature);
             w.write(" >");
             p.printAsList("(", ")", args.subList(1, args.size()));
@@ -274,7 +334,7 @@ public final class IrPrintContext {
         p.print(args.getFirst());
       }
       case Cast(var type) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(" as ");
         p.print(type);
       }
@@ -309,32 +369,32 @@ public final class IrPrintContext {
         p.print(args.getFirst());
       }
       case SubscriptRead(var outOfRangeIsNa) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(outOfRangeIsNa ? "[" : "[[");
         p.print(args.get(1));
         w.write(outOfRangeIsNa ? "]" : "]]");
       }
       case SubscriptWrite _ -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write("[");
         p.print(args.get(1));
         w.write("] = ");
         p.print(args.get(2));
       }
       case ReflectiveLoad(var variable) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write("$");
         p.print(variable);
       }
       case ReflectiveStore(var variable) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write("$");
         p.print(variable);
         w.write(" = ");
         p.print(args.get(1));
       }
       case Assume(var assumption) -> printAssume(p, assumption, args);
-      case Promise(var valueType, var effects, var code, var local) -> {
+      case Promise(var valueType, var effects, var code, var local, var expr) -> {
         w.write("prom");
         if (local) {
           w.write('-');
@@ -343,7 +403,13 @@ public final class IrPrintContext {
         p.print(valueType);
         w.write(' ');
         p.print(effects);
-        w.write(">{\n");
+        w.write('>');
+        if (expr != null) {
+          w.write('[');
+          p.print(new Value.Sexp(expr));
+          w.write(']');
+        }
+        w.write("{\n");
         p.print(code);
         w.write("\n}");
       }
@@ -359,17 +425,17 @@ public final class IrPrintContext {
     var w = p.writer();
     switch (assumption) {
       case AssumeType(var type) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(" ?: ");
         p.print(type);
       }
       case AssumeConstant(var constant) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(" ?= ");
         p.print(constant);
       }
       case AssumeFunction(var functionRef) -> {
-        p.print(args.getFirst());
+        printHead(p, args.getFirst());
         w.write(" ?- ");
         p.print(functionRef.get().name());
       }
@@ -385,6 +451,22 @@ public final class IrPrintContext {
         w.write(" ?= ");
         p.print(constant);
       }
+    }
+  }
+
+  /// Print `head`, the first word of a statement's expression, backquoted if it's a register or
+  /// function named like a keyword, because the parser reads an unquoted keyword as one.
+  private void printHead(Printer p, Object head) {
+    var name =
+        switch (head) {
+          case Read(var register) -> register.name();
+          case NamedVariable variable -> variable.name();
+          default -> null;
+        };
+    if (name != null && ModuleParseContext.STATEMENT_KEYWORDS.contains(name)) {
+      p.writer().writeQuoted('`', name);
+    } else {
+      p.print(head);
     }
   }
 

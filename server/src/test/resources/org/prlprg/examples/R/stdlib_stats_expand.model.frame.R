@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `expand.model.frame` <- function (model, extras, envir = environment(formula(model)), 
     na.expand = FALSE) 
 {

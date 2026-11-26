@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `layout` <- function (mat, widths = rep.int(1, ncol(mat)), heights = rep.int(1, 
     nrow(mat)), respect = FALSE) 
 {

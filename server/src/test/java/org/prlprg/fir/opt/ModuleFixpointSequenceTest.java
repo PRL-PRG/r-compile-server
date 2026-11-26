@@ -14,7 +14,7 @@ import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 class ModuleFixpointSequenceTest {
   /// Test optimization that tracks how many times it's called and can be configured to return
   /// different values.
-  private static class TestOptimization implements Optimization {
+  private static class TestOptimization extends Optimization {
     private final boolean[] changedReturns;
     private int callCount = 0;
 
@@ -23,7 +23,8 @@ class ModuleFixpointSequenceTest {
     }
 
     @Override
-    public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
+    public boolean runWithoutRecording(
+        Optimization topLevel, ModuleFeedback feedback, Function function) {
       return changedReturns[callCount++ % changedReturns.length];
     }
   }

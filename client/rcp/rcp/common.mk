@@ -136,5 +136,10 @@ STENCIL_DIFF = $(STENCIL_DIFF_DIR)/$(STENCIL_DIFF_BIN)
 STENCILS_DIR = stencils
 STENCILS_OBJ = $(STENCILS_DIR)/stencils.o
 
+# Link flags of the extractor and stencil-diff. They run inside `R CMD INSTALL`, whose
+# LD_LIBRARY_PATH (from R's etc/ldpaths) puts the system libstdc++ first, which is older than the
+# one of a compiler newer than the system's, so link the C++ runtime statically.
+BUILD_TOOL_LDFLAGS = -static-libstdc++ -static-libgcc
+
 SHARED_LIB_DIR = $(ROOT_DIR)/src/shared
 SHARED_LIB = $(SHARED_LIB_DIR)/libshared.a

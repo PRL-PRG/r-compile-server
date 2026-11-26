@@ -17,10 +17,13 @@ import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Defers pure instructions that only affect registers used inside a promise into that promise.
@@ -34,15 +37,23 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Not moved:
 /// - Instructions used outside the promise (in other not-moved instructions)
-/// - Impure or hoisted instructions
+/// - Impure or hoisted instructions, instructions that can warn or raise an error, assumptions,
+///   and instructions whose result is unused
+/// - Instructions that read a vector that a not-moved instruction makes, since a later write can
+///   change it in place (a `dup` of a shared vector can reuse it)
+/// - Loads, which read a binding that a later store can rebind
+/// - Anything into a promise that wraps a value ([Promise#wrappedValue()])
 ///
 /// Because the deferred instructions are pure, *moving* them into the promise body (rather than
 /// copying the control-flow subgraph) computes the same values, only lazily.
-public record DeferIntoPromise() implements AbstractionOptimization {
+public final class DeferIntoPromise extends AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
-    return scope.cfg() != null && run(scope, scope.cfg());
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction scope) {
+    return !scope.isStub() && run(scope, scope.body());
   }
 
   private boolean run(Abstraction scope, CFG cfg) {
@@ -50,23 +61,29 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     for (var bb : cfg.bbs()) {
       // Snapshot, since deferring mutates the block.
       for (var stmt : List.copyOf(bb.statements())) {
-        if (!(stmt.expression() instanceof Promise(_, _, var promiseBody, _))) {
+        if (!(stmt.expression() instanceof Promise promise)) {
           continue;
         }
-        changed |= deferInto(scope, stmt, promiseBody);
+        var promiseBody = promise.code();
+        if (promise.wrappedValue() == null) {
+          changed |= deferInto(scope, stmt, promiseBody);
+        }
         changed |= run(scope, promiseBody);
       }
     }
     return changed;
   }
 
-  /// Whether every register `stmt` reads is still readable once it's moved into the promise body.
+  /// Whether every register `stmt` reads is still readable, with the same value, once it's moved
+  /// into the promise body.
   ///
-  /// Either another kept instruction defines it -- and travels with this one -- or its definition
-  /// already reaches the promise. Being kept doesn't imply the instruction dominates the promise:
+  /// Either another kept instruction defines it -- and travels with this one -- or it isn't a
+  /// vector (which a later write can change in place) and its definition already reaches the
+  /// promise. Being kept doesn't imply the instruction dominates the promise:
   /// one whose only uses are *other* kept instructions is kept wherever it sits, so its own
   /// arguments can come from a block on a different path entirely.
   private static boolean argumentsReachPromise(
+      Abstraction scope,
       Statement stmt,
       Set<Statement> kept,
       Map<Register, Statement> defOf,
@@ -77,7 +94,10 @@ public record DeferIntoPromise() implements AbstractionOptimization {
       if (register == null || kept.contains(defOf.get(register))) {
         continue;
       }
-      if (register.definingBB() == null || !domTree.dominates(register, promiseStmt)) {
+      if (register.definingBB() == null
+          || !domTree.dominates(register, promiseStmt)
+          || scope.typeOf(register).kind() instanceof Kind.PrimitiveVector
+          || scope.typeOf(register).kind() instanceof Kind.AnySexp) {
         return false;
       }
     }
@@ -110,8 +130,14 @@ public record DeferIntoPromise() implements AbstractionOptimization {
           continue;
         }
 
+        // A load reads a binding, which a later store rebinds. The promise may never run, so a
+        // statement that can warn or raise an error can't move, and an assumption must stay
+        // where its checkpoint checks it. A statement whose result is unused has no reason to.
         if (stmt.assignee() != null
-            && inferEffects.of(stmt) == Effects.NONE
+            && stmt.assignee().isUsed()
+            && !(stmt.expression() instanceof Assume)
+            && !inferEffects.maySignal(stmt)
+            && !(stmt.expression() instanceof Load || stmt.expression() instanceof ReflectiveLoad)
             && HOIST_RULES.stream().noneMatch(rule -> rule.test(stmt))) {
           candidates.add(stmt);
           defOf.put(stmt.assignee(), stmt);
@@ -129,7 +155,7 @@ public record DeferIntoPromise() implements AbstractionOptimization {
         var stmt = it.next();
         assert stmt.assignee() != null;
 
-        if (!argumentsReachPromise(stmt, candidates, defOf, domTree, promiseStmt)) {
+        if (!argumentsReachPromise(scope, stmt, candidates, defOf, domTree, promiseStmt)) {
           it.remove();
           changedSet = true;
           continue;

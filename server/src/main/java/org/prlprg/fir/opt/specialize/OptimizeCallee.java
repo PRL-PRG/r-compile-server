@@ -1,11 +1,18 @@
 package org.prlprg.fir.opt.specialize;
 
+import static org.prlprg.fir.GlobalModules.BASE;
+import static org.prlprg.fir.GlobalModules.BUILTINS;
+import static org.prlprg.fir.GlobalModules.INTRINSICS;
+
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.check.DispatchSignatureChecker;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -14,15 +21,26 @@ import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.RealSXP;
 import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Streams;
 
@@ -57,7 +75,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
 
     // Call arguments follow the callee's own argument (index 0).
     var callArgs = statement.args().subList(1, statement.argCount());
-    var newCallee = run(scope, feedback, callee, callArgs);
+    var newCallee = run(scope, feedback, callee, callArgs, statement);
     if (newCallee == null) {
       return Result.UNCHANGED;
     }
@@ -66,9 +84,17 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
   }
 
   @Nullable Callee run(
-      Abstraction scope, AbstractionFeedback feedback, Callee calleeRaw, List<Argument> callArgs) {
+      Abstraction scope,
+      AbstractionFeedback feedback,
+      Callee calleeRaw,
+      List<Argument> callArgs,
+      @Nullable Statement statement) {
     if (!(calleeRaw instanceof StaticFnCallee callee)) {
       // We can't optimize dynamic calls
+      return null;
+    }
+    if (callee.function().userProperties().needsContext()) {
+      // The call goes through `Rf_applyClosure`, whose from-R entry selects the version.
       return null;
     }
     var calleeFun = callee.function();
@@ -79,7 +105,14 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
       return null;
     }
     @SuppressWarnings("RedundantCast")
-    var argumentTypes1 = (ImmutableList<Type>) argumentTypes;
+    var argumentTypes0 = (ImmutableList<Type>) argumentTypes;
+    var bestVersion0 = calleeFun.guess(bestSignature(callee, argumentTypes0));
+    var widenedTypes =
+        bestVersion0 == null || statement == null
+            ? null
+            : widenedIndexTypes(
+                calleeFun, bestVersion0, argumentTypes0, callArgs, feedback, statement);
+    var argumentTypes1 = widenedTypes == null ? argumentTypes0 : widenedTypes;
     var bestSignature = bestSignature(callee, argumentTypes1);
     var bestVersion = calleeFun.guess(bestSignature);
     if (bestVersion == null) {
@@ -109,7 +142,8 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
     // Check if we can dispatch (i.e. returns SEXP),
     // and there are better versions that can be called with recorded runtime types...
     var isBestAtRuntime =
-        newBestSignature.returnType().kind().repr() != Repr.SEXP
+        widenedTypes != null
+            || newBestSignature.returnType().kind().repr() != Repr.SEXP
             || calleeFun.versions().headSet(bestVersion).stream()
                 .noneMatch(
                     better -> {
@@ -135,8 +169,113 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                               .allMatch(b -> b);
                     });
 
-    // ...if so (`!isBestAtRuntime`), dispatch
-    return new StaticFnCallee(calleeFun, !isBestAtRuntime, newBestSignature);
+    // ...if so (`!isBestAtRuntime`), dispatch. An intrinsic has no dispatch, and a dispatch takes
+    // only SEXPs (fir2c rejects both).
+    return new StaticFnCallee(
+        calleeFun,
+        !isBestAtRuntime
+            && calleeFun.owner() != INTRINSICS
+            && DispatchSignatureChecker.isSexpSignature(newBestSignature),
+        newBestSignature);
+  }
+
+  /// `argumentTypes` with the index widened, if `version` is a typed subscript version that the
+  /// call doesn't fit (see `builtins.fir`):
+  /// - A scalar-index `[`, which returns one element and deopts where `x[i]` isn't one (an `i`
+  ///   below 1), where the index is a constant below 1 or the result was recorded as a longer or
+  ///   empty vector. The index becomes a vector.
+  /// - A typed `[<-` or `[[<-`, which only writes within the vector, where the call was recorded to
+  ///   grow it. The index becomes any value, which leaves the generic version.
+  ///
+  /// If `feedback` doesn't record subscripts
+  /// ([org.prlprg.fir.feedback.ModuleFeedback#recordsSubscripts()]), every non-constant `[` index
+  /// and every subassign is widened.
+  static @Nullable ImmutableList<Type> widenedIndexTypes(
+      Function function,
+      Abstraction version,
+      ImmutableList<Type> argumentTypes,
+      List<Argument> callArgs,
+      AbstractionFeedback feedback,
+      Statement statement) {
+    if ((function.owner() != BUILTINS && function.owner() != BASE) || argumentTypes.size() < 3) {
+      return null;
+    }
+    var indexType = argumentTypes.get(1);
+    var name = function.name();
+    Type widened = null;
+    if (name.equals(Variable.named("["))
+        && indexType.kind() instanceof Kind.PrimitiveVector(var isScalar, var indexKind)
+        && isScalar
+        && oneElementKind(version) instanceof PrimitiveKind elementKind
+        && !isOneElement(callArgs.get(1), elementKind, feedback, statement)) {
+      widened = Type.primitiveVector(indexKind, Ownership.SHARED);
+    } else if ((name.equals(Variable.named("[<-")) || name.equals(Variable.named("[[<-")))
+        && (!feedback.module().recordsSubscripts()
+            || feedback.growingSubAssigns.contains(statement))
+        && indexType.kind().repr() == Repr.SEXP
+        && !version.signature().returnType().equals(Type.ANY_VALUE_SEXP)) {
+      widened = Type.ANY_VALUE_SEXP;
+    }
+    if (widened == null) {
+      return null;
+    }
+    var types = new ArrayList<>(argumentTypes);
+    types.set(1, widened);
+    return ImmutableList.copyOf(types);
+  }
+
+  /// The element kind of `version`'s result if it's one element (`v1(X)` or `X`).
+  private static @Nullable PrimitiveKind oneElementKind(Abstraction version) {
+    return switch (version.signature().returnType().kind()) {
+      case Kind.PrimitiveVector(var isScalar, var kind) when isScalar -> kind;
+      case Kind.PrimitiveScalar(var kind) -> kind;
+      default -> null;
+    };
+  }
+
+  /// Whether `x[index]` is one element: `index` is a constant of at least 1, or `index` isn't a
+  /// constant, `feedback` records subscripts, and the result of `call` wasn't recorded as a vector
+  /// of another length (a vector of the element kind that isn't `v1`).
+  private static boolean isOneElement(
+      Argument index, PrimitiveKind elementKind, AbstractionFeedback feedback, Statement call) {
+    return switch (index) {
+      case Constant(Value.Sexp(IntSXP i)) -> i.get(0) >= 1;
+      case Constant(Value.Sexp(RealSXP r)) -> r.get(0) >= 1;
+      default ->
+          feedback.module().recordsSubscripts()
+              && recordedResults(feedback, call)
+                  .map(r -> feedback.type(r).union())
+                  .allMatch(
+                      t ->
+                          !t.isSubtypeOf(Type.primitiveVector(elementKind, Ownership.SHARED))
+                              || t.isSubtypeOf(
+                                  Type.primitiveVector1(elementKind, Ownership.SHARED)));
+    };
+  }
+
+  /// The registers that `feedback` recorded for the result of the `[` call `call`. A specialization
+  /// that replaces a statement gives it a new assignee with the same name, and a copy of the
+  /// abstraction renames it, so these are found by name and by the call's source too.
+  private static Stream<Register> recordedResults(AbstractionFeedback feedback, Statement call) {
+    var assignee = call.assignee();
+    var source = call.source();
+    return feedback.recordedRegisters().stream()
+        .filter(
+            r ->
+                r == assignee
+                    || (assignee != null && r.name().equals(assignee.name()))
+                    || (source != null
+                        && r instanceof AssigneeOf a
+                        && a.statement().source() == source
+                        && isExtract(a.statement())));
+  }
+
+  private static boolean isExtract(Statement statement) {
+    return switch (statement.expression()) {
+      case Call(StaticFnCallee c) -> c.function().name().equals(Variable.named("["));
+      case SubscriptRead _ -> true;
+      default -> false;
+    };
   }
 
   /// Returns the callee's signature with the types replaced by `argumentTypes`, i.e. the best
@@ -145,6 +284,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
     var oldSignature =
         switch (callee) {
           case StaticFnCallee(_, _, var signature) -> signature;
+          case FallbackCallee(var signature) -> signature;
           case DynamicCallee _ -> null;
         };
     return new Signature(

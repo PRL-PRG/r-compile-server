@@ -1,0 +1,13 @@
+blocker	static.sites	sites.in.called.versions	version.call.weight	dyn.share	dyn.pct	top.examples
+static call: body effects + (dispatching builtin), param not @!	27	17	2397040	1191502	45.2	shootout_binarytrees_naive 1043K, shootout_binarytrees_2 97K, shootout_binarytrees 51K
+static call: speculation (deopt) in promise body, param not @!	709	225	16779	560040	21.3	shootout_spectral_norm_vectorized 126K, shootout_spectralnorm 100K, shootout_spectralnorm_alt_3 99K
+static call: speculation (deopt) in promise body	126	51	68877	443844	16.8	shootout_spectralnorm_alt_3 99K, shootout_spectralnorm_alt_4 99K, shootout_spectralnorm 95K
+opaque callee (base or dynamically loaded closure)	3425	1332	123935	429971	16.3	shootout_knucleotide 56K, real_volcano 56K, shootout_knucleotide_brute_2 35K
+builtins.fir closure / builtin	50	32	8744	7928	0.3	awf_storage 4K, awf_bounce_nonames_simple 2K, shootout_pidigits 1K
+static call: force? in body	21	9	305	346	0.0	shootout_pidigits 0K, scalar_gcd_rec 0K, riposte_histogram 0K
+static call: body effects + (dispatching builtin)	8	4	433	258	0.0	shootout_pidigits 0K
+dyn call of unknown closure	102	84	92	174	0.0	real_flexclust 0K, real_flexclust_no_s4 0K
+dispatch call	23	9	47	78	0.0	riposte_cleaning 0K, real_flexclust_no_s4 0K, shootout_nbody_naive_2 0K
+phi	12	6	24	2	0.0	real_volcano 0K, real_flexclust 0K
+deopt block (cold)	14	2	300096	0	0.0	
+static: param not @!	4	0	0	0	0.0	

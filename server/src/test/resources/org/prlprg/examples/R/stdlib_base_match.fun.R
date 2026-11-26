@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("is not a function, character or symbol")
 `match.fun` <- function (FUN, descend = TRUE) 
 {
     if (is.function(FUN)) 

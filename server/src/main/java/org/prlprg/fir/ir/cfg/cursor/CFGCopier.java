@@ -40,8 +40,8 @@ public final class CFGCopier {
 
   // Old register -> the destination argument replacing it, for source registers with no copy.
   //
-  // Unlike `registerMap`, this replaces the whole argument, so a `consume r` may be replaced by
-  // a read or constant.
+  // Unlike `registerMap`, this replaces the whole argument (a `consume r` may be replaced by a
+  // `consume` or constant), except that a `consume r` replaced by a read of `r'` is `consume r'`.
   private final Map<Register, Argument> substitutions;
 
   // Every copied instruction, whose arguments are remapped in the second pass.
@@ -138,7 +138,7 @@ public final class CFGCopier {
   private Statement copyStatement(Statement oldStmt, Abstraction newScope) {
     var expr = oldStmt.expression();
     Statement newStmt;
-    if (expr instanceof Promise(var valueType, var effects, var code, var local)) {
+    if (expr instanceof Promise(var valueType, var effects, var code, var local, var promExpr)) {
       // Promises hold a mutable nested CFG, which references this abstraction's registers, so copy
       // it (sharing this copier's register map).
       var newCode = new CFG(newScope);
@@ -146,11 +146,12 @@ public final class CFGCopier {
       newStmt =
           new Statement(
               oldStmt.comments().copy(),
-              new Promise(valueType, effects, newCode, local),
+              new Promise(valueType, effects, newCode, local, promExpr),
               List.of());
     } else {
       newStmt = new Statement(oldStmt.comments().copy(), expr, List.copyOf(oldStmt.args()));
     }
+    newStmt.setSource(oldStmt.source());
     if (oldStmt.assignee() != null) {
       newStmt.setAssignee(newScope.freshName(oldStmt.assignee().name()), oldStmt.assignee().type());
     }
@@ -169,10 +170,13 @@ public final class CFGCopier {
         }
 
         var renamed = registerMap.get(oldRegister);
+        var substitution = substitutions.get(oldRegister);
         var mapped =
             renamed != null
                 ? (oldArg instanceof Consume ? new Consume(renamed) : new Read(renamed))
-                : substitutions.get(oldRegister);
+                : oldArg instanceof Consume && substitution instanceof Read(var r)
+                    ? new Consume(r)
+                    : substitution;
         if (mapped != null) {
           instr.setArg(i, mapped);
         }

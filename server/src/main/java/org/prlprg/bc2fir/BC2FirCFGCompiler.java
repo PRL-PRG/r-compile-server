@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
@@ -115,11 +116,13 @@ import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool.Idx;
 import org.prlprg.bc.LabelName;
+import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
@@ -127,6 +130,7 @@ import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.cfg.cursor.JumpInsertion;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
@@ -157,6 +161,7 @@ import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -164,6 +169,7 @@ import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.session.GNURSession;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.ArgumentMatcher;
 import org.prlprg.sexp.Attributes;
@@ -194,6 +200,7 @@ public final class BC2FirCFGCompiler {
   private final Bc bc;
   private final @Nullable ModuleBcOriginMap bytecodes;
   private final @Nullable FunctionBcOrigin origin;
+  private final Set<String> unknownCallees;
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
@@ -203,6 +210,8 @@ public final class BC2FirCFGCompiler {
   private final List<Loop> loopStack = new ArrayList<>();
   private final List<ComplexAssign> complexAssignStack = new ArrayList<>();
   private final List<Call> callStack = new ArrayList<>();
+  private final Map<NamedVariable, FunctionParameter> parameters = new HashMap<>();
+  private @Nullable Set<NamedVariable> storedVariables;
 
   // endregion compiler data
 
@@ -212,20 +221,26 @@ public final class BC2FirCFGCompiler {
   /// If `bytecodes` is non-`null`, the GNU-R bytecode of every inner closure is recorded in it.
   ///
   /// If `origin` is non-`null`, `bc` is the bytecode it was recorded for, and the registers of the
-  /// instructions the copy-and-patch JIT records feedback for are recorded in it. It's `null` for
-  /// promise bodies, whose feedback the JIT records separately (and which we don't read).
+  /// instructions the copy-and-patch JIT records feedback for, and the `GETVAR`s that push a
+  /// parameter's argument, are recorded in it. It's `null` for promise bodies, whose feedback the
+  /// JIT records separately (and which we don't read).
+  ///
+  /// `unknownCallees` are those of the function whose frame the code runs in (see
+  /// [BC2FirClosureCompiler]), which its inner closures get.
   BC2FirCFGCompiler(
       @Nullable RSession r,
       CFGCursor cursor,
       Bc bc,
       @Nullable ModuleBcOriginMap bytecodes,
-      @Nullable FunctionBcOrigin origin) {
+      @Nullable FunctionBcOrigin origin,
+      Set<String> unknownCallees) {
     this.r = r;
     cfg = cursor.cfg();
     inferType = new InferType(cfg.scope());
     this.bc = bc;
     this.bytecodes = bytecodes;
     this.origin = origin;
+    this.unknownCallees = unknownCallees;
     this.cursor = cursor;
   }
 
@@ -242,6 +257,7 @@ public final class BC2FirCFGCompiler {
       var parameter = scope().parameters().get(i);
       var parameterName = parameterNames.get(i);
       var parameterDefault = parameterValues.get(i);
+      parameters.put(parameterName, parameter);
       compileParameter(parameter, parameterName, parameterDefault);
     }
   }
@@ -385,6 +401,10 @@ public final class BC2FirCFGCompiler {
       }
       return;
     }
+    // A guard falls through to its label (the fallback deoptimizes).
+    if (instr instanceof BaseGuard) {
+      return;
+    }
 
     for (var component : instr.getClass().getRecordComponents()) {
       var clazz = component.getType();
@@ -419,6 +439,9 @@ public final class BC2FirCFGCompiler {
         var retVal = pop();
         assertStackForReturn();
 
+        if (returnSetsVisible(retVal)) {
+          insert(intrinsic("setVisible"));
+        }
         if (!cfg.isPromise()) {
           insert(new PopEnv());
         }
@@ -542,14 +565,11 @@ public final class BC2FirCFGCompiler {
         var index1 =
             insertAndReturn(
                 "_idx",
-                builtin(
-                    "+",
+                intrinsic(
+                    "forIndex",
                     new Signature(
-                        ImmutableList.of(Type.BOXED_INTEGER, Type.BOXED_INTEGER),
-                        Type.BOXED_INTEGER,
-                        Effects.NONE),
-                    index,
-                    new Constant(SEXPs.integer(1))));
+                        ImmutableList.of(Type.BOXED_INTEGER), Type.BOXED_INTEGER, Effects.NONE),
+                    index));
         push(index1);
         // Compare the index to the length
         var cond =
@@ -563,11 +583,12 @@ public final class BC2FirCFGCompiler {
                         Effects.NONE),
                     length,
                     index1));
+        // The index is `NA` after `INT_MAX` trips, and then the loop ends, as GNU-R's.
         var cond1 =
             insertAndReturn(
                 "_cond1",
                 intrinsic(
-                    "naToFalse",
+                    "naToTrue",
                     new Signature(ImmutableList.of(Type.BOXED_LOGICAL), Type.BOOLEAN, Effects.NONE),
                     cond));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
@@ -666,10 +687,14 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false, preStack);
 
+        // GNU-R's `getvar` rejects a binding that *is* the missing argument, then forces a promise
+        // binding and never checks the forced value (a promise may evaluate to the empty symbol).
+        insert(intrinsic("checkMissing", top()));
+        insertVisibleBeforeTail();
         pushInsert(getStr(name), new Force(true), pop());
         // The JIT records the type of the value `GETVAR` leaves on the stack, i.e. the forced one.
         recordFeedbackRegister(top());
-        insert(intrinsic("checkMissing", top()));
+        recordParameterRead(getVar(name));
         tryAddCheckpoint(true, stack);
       }
       case DdVal(var name) -> {
@@ -678,8 +703,9 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, ddIndex));
         tryAddCheckpoint(false, preStack);
 
-        pushInsert(getStr(name), new Force(true), pop());
         insert(intrinsic("checkMissing", top()));
+        insertVisibleBeforeTail();
+        pushInsert(getStr(name), new Force(true), pop());
         tryAddCheckpoint(true, stack);
       }
       case SetVar(var name) -> insert(new Store(StoreType.LOCAL_VAR, getVar(name)), top());
@@ -695,7 +721,18 @@ public final class BC2FirCFGCompiler {
         tryAddCheckpoint(true, stack);
       }
       case GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
-      case GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
+      case GetIntlBuiltin(var name) -> {
+        // `Fir2CCompiler` calls these builtins via their base closures, which aren't the
+        // `.Internal`: `stop` and `warning` have the closures' parameters in `builtins.fir`.
+        var builtin = new Builtin(get(name).name());
+        var function = builtin.function();
+        var arity = Objects.requireNonNull(GNURSession.readFunTab().get(builtin.name())).arity();
+        if (function.userProperties().readsContext()
+            || (arity != -1 && arity != function.parameterNames().size())) {
+          throw failUnsupported(".Internal(" + builtin.name() + "(...)) runs the base closure");
+        }
+        pushCall(builtin);
+      }
       case CheckFun() -> {
         var fun = pop();
         insert(checkFun(fun));
@@ -750,8 +787,12 @@ public final class BC2FirCFGCompiler {
         }
         var builtinName = builtinSymbol.name();
         // Note that some of these are constant symbols and language objects, they should be treated
-        // like `eval`. We also assume builtins never use names.
-        // GNU-R just passes `CDR(call)` to the builtin.
+        // like `eval`. GNU-R just passes `CDR(call)`, with its tags, to the builtin (`rep` reads
+        // `each`).
+        var argNames =
+            ast.args().names().stream()
+                .map(OptionalNamedVariable::ofString)
+                .collect(ImmutableList.toImmutableList());
         var args =
             ast.args().stream()
                 .map(arg -> new Constant(arg.value()))
@@ -760,9 +801,10 @@ public final class BC2FirCFGCompiler {
         // formal parameters of all specials, and some arguments may be `...`.
         var loadFun =
             insertAndReturn(builtinName, new Load(LoadType.BASE_FUN, Variable.named(builtinName)));
+        insertVisibleBeforeTail();
         pushInsertThenCp(
             new Built(
-                new org.prlprg.fir.ir.expression.Call(new DynamicCallee()),
+                new org.prlprg.fir.ir.expression.Call(new DynamicCallee(argNames)),
                 prependArg(loadFun, args)));
       }
       case MakeClosure(var arg) -> {
@@ -780,14 +822,9 @@ public final class BC2FirCFGCompiler {
         var cloHash = Printer.toString(cloSxp, SEXPPrintOptions.FULL).hashCode();
         var generatedName = "%s_%x".formatted(inferDescriptiveName(""), cloHash);
 
-        // Since we generate the name from a hash of the closure's body, we may have a name
-        // conflict, but it's only with an identical closure we've already compiled.
-        // Therefore, we can reuse it.
-        var alreadyGenerated = module().lookupFunction(Variable.named(generatedName));
         var code =
-            alreadyGenerated != null
-                ? alreadyGenerated
-                : BC2FirClosureCompiler.compile(r, module(), generatedName, cloSxp, bytecodes);
+            BC2FirClosureCompiler.compileInner(
+                r, module(), generatedName, cloSxp, bytecodes, unknownCallees);
 
         pushInsert(new Closure(false, code));
       }
@@ -806,8 +843,9 @@ public final class BC2FirCFGCompiler {
       case Le(var _) -> pushInsertThenCp(mkBinop("<="));
       case Ge(var _) -> pushInsertThenCp(mkBinop(">="));
       case Gt(var _) -> pushInsertThenCp(mkBinop(">"));
-      case And(var _) -> pushInsertThenCp(mkBinop("&&"));
-      case Or(var _) -> pushInsertThenCp(mkBinop("||"));
+      // Bytecode `AND`/`OR` are the vector operators; `AND1ST`/`OR1ST` etc. are the scalar ones.
+      case And(var _) -> pushInsertThenCp(mkBinop("&"));
+      case Or(var _) -> pushInsertThenCp(mkBinop("|"));
       case Not(var _) -> pushInsertThenCp(mkUnop("!"));
       case DotsErr() -> insert(stop("'...' used in an incorrect context"));
       case StartAssign(var name) -> {
@@ -830,7 +868,7 @@ public final class BC2FirCFGCompiler {
         var target = pop();
         pushInsertThenCp(builtin("$<-", target, memberArg, rhs));
       }
-      case IsNull() -> pushInsertCond(builtin("==", pop(), new Constant(SEXPs.NULL)));
+      case IsNull() -> pushInsertCond(builtin("is.null", pop()));
       case IsLogical() -> pushInsertCond(builtin("is.logical", pop()));
       case IsInteger() -> pushInsertCond(builtin("is.integer", pop()));
       case IsDouble() -> pushInsertCond(builtin("is.double", pop()));
@@ -841,15 +879,7 @@ public final class BC2FirCFGCompiler {
       case IsNumeric() -> pushInsertCond(builtin("is.numeric", pop()));
       case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsertCond(
-            builtin(
-                "as.logical",
-                new Signature(
-                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.BOXED_LOGICAL,
-                    Effects.NONE),
-                pop(),
-                new Constant(SEXPs.MISSING_ARG)));
+        pushInsertCond(logicalOperand("'x'", "&&"));
         var cond =
             insertAndReturn(
                 "_cond",
@@ -860,29 +890,13 @@ public final class BC2FirCFGCompiler {
         insert(next -> branch(cond, next, shortCircuitBb));
       }
       case And2nd(var _) -> {
-        pushInsertCond(
-            builtin(
-                "as.logical",
-                new Signature(
-                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.BOXED_LOGICAL,
-                    Effects.NONE),
-                pop(),
-                new Constant(SEXPs.MISSING_ARG)));
+        pushInsertCond(logicalOperand("'y'", "&&"));
         pushInsertCond(mkBinop("&&"));
         insert(this::goto_);
       }
       case Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsertCond(
-            builtin(
-                "as.logical",
-                new Signature(
-                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.BOXED_LOGICAL,
-                    Effects.NONE),
-                pop(),
-                new Constant(SEXPs.MISSING_ARG)));
+        pushInsertCond(logicalOperand("'x'", "||"));
         var cond =
             insertAndReturn(
                 "_cond",
@@ -893,15 +907,7 @@ public final class BC2FirCFGCompiler {
         insert(next -> branch(cond, shortCircuitBb, next));
       }
       case Or2nd(var _) -> {
-        pushInsertCond(
-            builtin(
-                "as.logical",
-                new Signature(
-                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.BOXED_LOGICAL,
-                    Effects.NONE),
-                pop(),
-                new Constant(SEXPs.MISSING_ARG)));
+        pushInsertCond(logicalOperand("'y'", "||"));
         pushInsertCond(mkBinop("||"));
         insert(this::goto_);
       }
@@ -910,6 +916,7 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false, preStack);
 
+        insertVisibleBeforeTail();
         pushInsertThenCp(getStr(name), new Force(true), pop());
       }
       case DdValMissOk(var name) -> {
@@ -918,6 +925,7 @@ public final class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, NamedVariable.ddNum(ddIndex)));
         tryAddCheckpoint(false, preStack);
 
+        insertVisibleBeforeTail();
         pushInsertThenCp(getStr(name), new Force(true), pop());
       }
       case Visible() -> insert(intrinsic("setVisible"));
@@ -1002,16 +1010,16 @@ public final class BC2FirCFGCompiler {
                     new Constant(new Value.Str("factor")),
                     new Constant(new Value.Bool(false))));
         var isFactorBb = cfg.addBB();
-        var isNotFactorBb = cfg.addBB();
-        setJump(branch(isFactor, isFactorBb, isNotFactorBb));
+        var afterFactorBb = cfg.addBB();
+        setJump(branch(isFactor, isFactorBb, afterFactorBb));
 
-        moveTo(isNotFactorBb);
+        moveTo(isFactorBb);
         insert(
             warning(
                 "EXPR is a \"factor\", treated as integer.\n Consider using 'switch(as.character( * ), ...)' instead."));
-        setJump(goto_(isFactorBb));
+        setJump(goto_(afterFactorBb));
 
-        moveTo(isFactorBb);
+        moveTo(afterFactorBb);
         var isString =
             insertAndReturn(
                 "_cond",
@@ -1118,7 +1126,8 @@ public final class BC2FirCFGCompiler {
         // In practice, there has always a label after this instruction,
         // but take note in case we get bytecode where this doesn't hold.
       }
-      case Log(var _) -> pushInsertThenCp(builtin("log", pop(), new Constant(SEXPs.real(Math.E))));
+      // GNU-R's group dispatch needs the argument count to match the source call `log(x)`.
+      case Log(var _) -> pushInsertThenCp(builtin("log", pop(), new Constant(SEXPs.MISSING_ARG)));
       case LogBase(var _) -> pushInsertThenCp(mkBinop("log"));
       case Math1(var _, var funId) -> pushInsertThenCp(mkUnop(MATH1_FUNS.get(funId)));
       case DotCall(var _, var numArgs) -> {
@@ -1144,10 +1153,10 @@ public final class BC2FirCFGCompiler {
       case Colon(var _) -> pushInsertThenCp(mkBinop(":"));
       case SeqAlong(var _) -> pushInsertThenCp(builtin("seq_along", pop()));
       case SeqLen(var _) -> pushInsertThenCp(builtin("seq_len", pop()));
-      case BaseGuard(var exprIdx, var after) -> {
-        // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
-        var expr = get(exprIdx);
-        var fun = Variable.named(((RegSymSXP) expr.fun()).name());
+      case BaseGuard(var exprIdx, var _) -> {
+        // The guard is an assumption: if the function isn't the base one, deoptimize to the
+        // `BASEGUARD`, which then evaluates the call. The two loads are safe to do again.
+        var fun = Variable.named(((RegSymSXP) get(exprIdx).fun()).name());
         var sym = insertAndReturn("_sym", new Load(LoadType.LOCAL_FUN, fun));
         var base = insertAndReturn("_base", new Load(LoadType.BASE_FUN, fun));
         var guard =
@@ -1159,35 +1168,99 @@ public final class BC2FirCFGCompiler {
                         ImmutableList.of(Type.CLOSURE, Type.CLOSURE), Type.BOOLEAN, Effects.NONE),
                     sym,
                     base));
-
-        var safeBb = cfg.addBB();
-        var fallbackBb = cfg.addBB();
-        var afterBb = bbAt(after);
-        setJump(branch(guard, safeBb, fallbackBb));
-
-        moveTo(fallbackBb);
-        // Compile a call.
-        // Also, pass `Constant`s containing symbols and language objects to arguments,
-        // expecting them to be `eval`ed, like in `CallSpecial`.
-        var argNames =
-            expr.args().names().stream()
-                .map(OptionalNamedVariable::ofString)
-                .collect(ImmutableList.toImmutableList());
-        var args =
-            expr.args().values().stream()
-                .map(v -> (Argument) new Constant(v))
-                .collect(ImmutableList.toImmutableList());
-        pushInsert(
-            new Built(
-                new org.prlprg.fir.ir.expression.Call(new DynamicCallee(argNames)),
-                prependArg(base, args)));
-        setJump(goto_(afterBb));
-
-        moveTo(safeBb);
+        tryAddCheckpoint(false, stack);
+        insert(new Assume(new AssumeConstant(new Value.Bool(true))), guard);
+      }
+      // Inlined subscripts. GNU-R dispatches on an object vector in the start instruction (and then
+      // jumps to its label), otherwise the next instruction runs the default subscript on the
+      // evaluated arguments. The builtin's baseline does both, so the start instruction is a no-op
+      // and the label is only reached by falling through.
+      case BcInstr.StartSubsetN _,
+          BcInstr.StartSubset2N _,
+          BcInstr.StartSubassignN _,
+          BcInstr.StartSubassign2N _ -> {}
+      case BcInstr.VecSubset _ -> compileSubset("[", 1);
+      case BcInstr.MatSubset _ -> compileSubset("[", 2);
+      case BcInstr.SubsetN(var _, var n) -> compileSubset("[", n);
+      case BcInstr.VecSubset2 _ -> compileSubset("[[", 1);
+      case BcInstr.MatSubset2 _ -> compileSubset("[[", 2);
+      case BcInstr.Subset2N(var _, var n) -> compileSubset("[[", n);
+      case BcInstr.VecSubassign _ -> compileSubassign("[<-", 1);
+      case BcInstr.MatSubassign _ -> compileSubassign("[<-", 2);
+      case BcInstr.SubassignN(var _, var n) -> compileSubassign("[<-", n);
+      case BcInstr.VecSubassign2 _ -> compileSubassign("[[<-", 1);
+      case BcInstr.MatSubassign2 _ -> compileSubassign("[[<-", 2);
+      case BcInstr.Subassign2N(var _, var n) -> compileSubassign("[[<-", n);
+      // The default-dispatch forms build the call's arguments with `PUSHARG`s etc., like a builtin
+      // call. The vector (and the value) stay on the stack until the call, like in GNU-R.
+      case BcInstr.StartSubset(var ast, var _) -> startDfltSubscript("[", ast, top());
+      case BcInstr.StartSubset2(var ast, var _) -> startDfltSubscript("[[", ast, top());
+      case BcInstr.StartSubassign(var ast, var _) ->
+          startDfltSubscript("[<-", ast, stack.get(stack.size() - 2));
+      case BcInstr.StartSubassign2(var ast, var _) ->
+          startDfltSubscript("[[<-", ast, stack.get(stack.size() - 2));
+      case BcInstr.DfltSubset(), BcInstr.DfltSubset2() -> {
+        var call = popCall();
+        pop();
+        compileCall(call);
+      }
+      case BcInstr.DfltSubassign(), BcInstr.DfltSubassign2() -> {
+        var rhs = pop();
+        pop();
+        pushCallArg(rhs);
+        setNameOfLastCallArg("value");
+        compileCall();
       }
       case IncLnk(), DecLnk(), DeclnkN(var _), IncLnkStk(), DecLnkStk() -> {}
       default -> throw failUnsupported(instr.getClass().getSimpleName());
     }
+  }
+
+  /// Compile `VECSUBSET`, `MATSUBSET`, or `SUBSET_N` (or their `[[` versions): pop `n` indices and
+  /// the vector, and push the subscript's result.
+  private void compileSubset(String builtinName, int n) {
+    var indices = popN(n);
+    var vector = pop();
+    pushCall(new Builtin(builtinName));
+    pushCallArg(vector);
+    indices.forEach(this::pushCallArg);
+    compileCall();
+  }
+
+  /// Compile `VECSUBASSIGN`, `MATSUBASSIGN`, or `SUBASSIGN_N` (or their `[[<-` versions): pop `n`
+  /// indices, the value, and the vector, and push the assigned vector.
+  private void compileSubassign(String builtinName, int n) {
+    var indices = popN(n);
+    var rhs = pop();
+    var vector = pop();
+    pushCall(new Builtin(builtinName));
+    pushCallArg(vector);
+    indices.forEach(this::pushCallArg);
+    pushCallArg(rhs);
+    setNameOfLastCallArg("value");
+    compileCall();
+  }
+
+  /// Compile `STARTSUBSET`, `STARTSUBASSIGN`, or their `[[` versions: begin a call of the builtin
+  /// whose first argument is `vector`, with the tag of the source's first argument.
+  private void startDfltSubscript(String builtinName, Idx<LangSXP> ast, Argument vector) {
+    var source = get(ast);
+    pushCall(new Builtin(builtinName));
+    topCall().source = source;
+    pushCallArg(vector);
+    var tag = source.args().names().getFirst();
+    if (!tag.isEmpty()) {
+      setNameOfLastCallArg(tag);
+    }
+  }
+
+  /// Pop the top `n` values, in the order they were pushed.
+  private List<Argument> popN(int n) {
+    var values = List.copyOf(stack.subList(stack.size() - n, stack.size()));
+    for (var i = 0; i < n; i++) {
+      pop();
+    }
+    return values;
   }
 
   private Built mkUnop(String builtinName) {
@@ -1202,9 +1275,13 @@ public final class BC2FirCFGCompiler {
 
   private Argument compilePromise(SEXP codeSexp) {
     Bc bc;
+    // The source expression: a promise bytecode's first constant (see `BCCompiler`), or the AST.
+    SEXP expr;
     if (codeSexp instanceof BCodeSXP bcSxp) {
       bc = bcSxp.bc();
+      expr = bc.consts().getFirst();
     } else {
+      expr = codeSexp;
       if (r == null) {
         throw failUnsupported("No RSession, and promise has non-bytecode body: " + codeSexp);
       }
@@ -1217,9 +1294,10 @@ public final class BC2FirCFGCompiler {
     }
 
     var cfg = new CFG(scope());
-    new BC2FirCFGCompiler(r, new CFGCursor(cfg), bc, bytecodes, null).compileBc();
+    new BC2FirCFGCompiler(r, new CFGCursor(cfg), bc, bytecodes, null, unknownCallees).compileBc();
 
-    return insertAndReturn("_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg));
+    return insertAndReturn(
+        "_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg, false, expr));
   }
 
   /// End the previously-compiled for loop instruction (the latest
@@ -1252,7 +1330,13 @@ public final class BC2FirCFGCompiler {
             .map(arg -> arg.name == null ? "" : arg.name)
             .map(OptionalNamedVariable::ofString)
             .collect(ImmutableList.toImmutableList());
-    var args = call.args.stream().map(arg -> arg.node).collect(ImmutableList.toImmutableList());
+    var quote =
+        call.fun instanceof Call.Fun.Builtin(var builtin)
+            && builtin.function().userProperties().liteSpecial();
+    var args =
+        call.args.stream()
+            .map(arg -> quote ? quoteLanguage(arg.node) : arg.node)
+            .collect(ImmutableList.toImmutableList());
     Built callInstr =
         switch (call.fun) {
           case Call.Fun.Dynamic(var fun) ->
@@ -1264,6 +1348,9 @@ public final class BC2FirCFGCompiler {
             var parameterNames = Lists.mapLazy(builtinFun.parameterNames(), NamedVariable::name);
             var argNames = Lists.mapLazy(names, OptionalNamedVariable::name);
             try {
+              if (quote && !isPositional(builtin.name, argNames)) {
+                throw new IllegalArgumentException("subscript arguments aren't positional");
+              }
               var matches = ArgumentMatcher.matchArgumentNames(parameterNames, argNames);
               var arguments =
                   parameterNames.stream()
@@ -1316,7 +1403,39 @@ public final class BC2FirCFGCompiler {
             }
           }
         };
+    // A dynamic callee sets `R_Visible`, unless it becomes a builtin with inline code.
+    if (callInstr.expression() instanceof org.prlprg.fir.ir.expression.Call(DynamicCallee _)) {
+      insertVisibleBeforeTail();
+    }
     pushInsertThenCp(callInstr);
+    if (call.source != null) {
+      ((AssigneeOf) ((Read) top()).variable()).statement().setSource(call.source);
+    }
+  }
+
+  /// Whether matching the arguments of a call of the subscript builtin `name` keeps their order.
+  /// The primitive takes its arguments by position, except `drop` and `exact`, and the value is the
+  /// last argument. `[<-` and `[[<-` match the subscripts after the first to their `...`, which
+  /// follows `value` (`fir2c` passes `value` last again), so `value` must be the last argument and
+  /// named, unless it's the third of three.
+  private static boolean isPositional(String name, List<String> argNames) {
+    if (name.endsWith("<-")) {
+      var unnamed = argNames.subList(0, Math.max(argNames.size() - 1, 0));
+      var last = argNames.isEmpty() ? "" : argNames.getLast();
+      return unnamed.stream().allMatch(String::isEmpty)
+          && (last.equals("value") || (last.isEmpty() && argNames.size() <= 3));
+    }
+    return argNames.stream().allMatch(n -> n.isEmpty() || n.equals("drop") || n.equals("exact"));
+  }
+
+  /// A lite special evaluates its arguments, so a constant whose evaluation isn't itself (a symbol
+  /// or a call) is passed quoted. The other arguments are values: registers, and constants that
+  /// evaluate to themselves.
+  private static Argument quoteLanguage(Argument argument) {
+    return argument instanceof Constant(Value.Sexp(var sexp))
+            && (sexp instanceof RegSymSXP || sexp instanceof LangSXP)
+        ? new Constant(SEXPs.lang(SEXPs.symbol("quote"), sexp))
+        : argument;
   }
 
   /// Record that the feedback the copy-and-patch JIT records for the bytecode instruction being
@@ -1333,6 +1452,39 @@ public final class BC2FirCFGCompiler {
     var read = (Read) argument;
     var register = read.variable();
     origin.recordFeedbackRegister(bcPos, register.name());
+  }
+
+  /// Record that the `GETVAR` being compiled pushes `variable`'s argument, if `variable` is a
+  /// parameter and the bytecode never stores to it (see [FunctionBcOrigin#parameterReads()]).
+  ///
+  /// Does nothing if we aren't recording bytecode origins.
+  private void recordParameterRead(NamedVariable variable) {
+    var parameter = parameters.get(variable);
+    if (origin == null || parameter == null || storedVariables().contains(variable)) {
+      return;
+    }
+    origin.recordParameterRead(bcPos, parameter.name());
+  }
+
+  /// The local variables the bytecode stores to: by assignment, complex assignment, or as a `for`
+  /// loop's element.
+  private Set<NamedVariable> storedVariables() {
+    if (storedVariables == null) {
+      storedVariables =
+          bc.code().stream()
+              .<Idx<RegSymSXP>>mapMulti(
+                  (instruction, out) -> {
+                    switch (instruction) {
+                      case SetVar(var name) -> out.accept(name);
+                      case EndAssign(var name) -> out.accept(name);
+                      case StartFor(_, var name, _) -> out.accept(name);
+                      default -> {}
+                    }
+                  })
+              .map(this::getVar)
+              .collect(Collectors.toSet());
+    }
+    return storedVariables;
   }
 
   // endregion compile instructions
@@ -1352,7 +1504,8 @@ public final class BC2FirCFGCompiler {
   /// position
   ///
   /// - If `afterBcInstr = false`, `stack` must be the stack before the bytecode was compiled,
-  ///   and every FIŘ instruction emitted for the bytecode so far must be pure.
+  ///   and every FIŘ instruction emitted for the bytecode so far must be pure or safe to do
+  ///   again.
   /// - If `afterBcInstr = true`, `stack` must be the current stack, and no more FIŘ
   ///   instructions can be emitted for this bytecode instruction.
   private void tryAddCheckpoint(boolean afterBcInstr, List<Argument> stack) {
@@ -1473,13 +1626,13 @@ public final class BC2FirCFGCompiler {
   /// Insert a statement that executes a built operation (expression + arguments) and discards the
   /// result.
   private void insert(Built built) {
-    cursor.insert(new Statement(built.expression(), built.args()));
+    cursor.insert(newStatement(built.expression(), built.args()));
   }
 
   /// Insert a statement that executes the expression with the given arguments and discards the
   /// result.
   private void insert(Expression expression, Argument... args) {
-    cursor.insert(new Statement(expression, List.of(args)));
+    cursor.insert(newStatement(expression, List.of(args)));
   }
 
   /// Insert a statement that executes a built operation (expression + arguments), assigns its
@@ -1495,12 +1648,26 @@ public final class BC2FirCFGCompiler {
   }
 
   private Argument insertAndReturn(String name, Expression expression, List<Argument> args) {
-    var statement = new Statement(expression, args);
+    var statement = newStatement(expression, args);
     cursor.insert(statement);
     var type = inferType.of(statement);
     var assignee =
         statement.setAssignee(scope().freshName(name), type == null ? Type.ANY_SEXP : type);
     return new Read(assignee);
+  }
+
+  /// A statement for the expression. A non-intrinsic call gets the current instruction's source
+  /// call, if it has one.
+  private Statement newStatement(Expression expression, List<Argument> args) {
+    var statement = new Statement(expression, args);
+    if (expression instanceof org.prlprg.fir.ir.expression.Call(var callee)
+        && !(callee instanceof StaticFnCallee s && s.function().owner() == INTRINSICS)
+        && bcPos < bc.code().size()
+        && bc.code().get(bcPos) instanceof BcInstr.HasAst h
+        && h.ast() != null) {
+      statement.setSource(get(h.ast()));
+    }
+    return statement;
   }
 
   /// Insert a jump, then move to the next block (given to `computeJump`).
@@ -1537,6 +1704,59 @@ public final class BC2FirCFGCompiler {
     cursor.replace(jump);
   }
 
+  /// Whether a `return` of `value` sets `R_Visible` on. In GNU-R's bytecode, the instruction that
+  /// makes the value sets it, except `INVISIBLE` and `VISIBLE`, a call (whose callee sets it), and
+  /// a variable read (which sets it before its force, [#insertVisibleBeforeTail]). A builtin that
+  /// sets it on gets the write here too, because a specialized call doesn't set it.
+  private boolean returnSetsVisible(Argument value) {
+    var def = value instanceof Read(AssigneeOf a) ? a.statement() : null;
+    if (!visibilityWriteNeeded(def)) {
+      return false;
+    }
+    if (bbByLabel.containsKey(bcPos)) {
+      return true;
+    }
+    switch (bc.code().get(bcPos - 1)) {
+      case Invisible _, Visible _, GetVar _, DdVal _, GetVarMissOk _, DdValMissOk _ -> {
+        return false;
+      }
+      default -> {}
+    }
+    if (def == null
+        || !(def.expression() instanceof org.prlprg.fir.ir.expression.Call(var callee))) {
+      return true;
+    }
+    if (!(callee instanceof StaticFnCallee s)) {
+      return false;
+    }
+    var function = s.function();
+    var entry = GNURSession.readFunTab().get(function.name().name());
+    return function.owner() == INTRINSICS
+        || (function.owner() == BUILTINS && entry != null && entry.visibility() == 0);
+  }
+
+  /// Sets `R_Visible` on before the force or the call that makes the result, if the next
+  /// instruction returns it.
+  private void insertVisibleBeforeTail() {
+    var next = bcPos + 1;
+    if (next < bc.code().size()
+        && bc.code().get(next) instanceof BcInstr.Return
+        && !bbByLabel.containsKey(next)
+        && visibilityWriteNeeded(null)) {
+      insert(intrinsic("setVisible"));
+    }
+  }
+
+  /// Whether the result needs its own write of `R_Visible`. A promise's forcer (a variable read)
+  /// sets it on before the force, so a promise body needs a write only if a statement before the
+  /// one that makes its result (`except`) can set it off.
+  private boolean visibilityWriteNeeded(@Nullable Statement except) {
+    return !cfg.isPromise()
+        || cfg.bbs().stream()
+            .flatMap(bb -> bb.statements().stream())
+            .anyMatch(s -> s != except && InferEffects.maySetInvisible(s));
+  }
+
   // endregion insertions
 
   // region stacks
@@ -1545,6 +1765,7 @@ public final class BC2FirCFGCompiler {
   //   stacks to keep track of data from previous instructions that affects future instructions
   //   (specifically, that data is what's "pushed", when the future instructions use the data it's
   //   read, and when the data no longer affects further future instructions it's popped).
+
   /// Assert that all stacks are empty, unless in a loop.
   ///
   /// If we return in a loop, the loop stack won't be empty. Additionally, if we return in a for
@@ -1832,6 +2053,12 @@ public final class BC2FirCFGCompiler {
         prependArg(Constant.ELIDED_CLOSURE, List.of(args)));
   }
 
+  /// Pop the operand of `&&` or `||` and cast it to one logical with GNU-R's checks.
+  private Built logicalOperand(String arg, String op) {
+    return intrinsic(
+        "logicalOperand", pop(), new Constant(new Value.Str(arg)), new Constant(new Value.Str(op)));
+  }
+
   /// An operation that raises an error with the given message.
   private Built stop(String message) {
     return builtin(
@@ -1952,6 +2179,8 @@ public final class BC2FirCFGCompiler {
   private static class Call {
     private final Fun fun;
     private final List<Arg> args = new ArrayList<>();
+    /// The call's source, if the instruction that compiles it doesn't have it.
+    private @Nullable LangSXP source;
 
     public Call(Fun fun) {
       this.fun = fun;

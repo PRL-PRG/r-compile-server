@@ -2,7 +2,6 @@ package org.prlprg.rds;
 
 import com.google.protobuf.ByteString;
 import java.io.*;
-import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.DoubleStream;
@@ -120,6 +119,7 @@ public class RDSWriter implements Closeable {
           case VectorSXP<?> vec -> writeVectorSXP(vec);
           case BCodeSXP bc -> writeByteCode(bc);
           case ExtptrSxp extptr -> writeExtptrSXP(extptr);
+          case S4SXP s4 -> writeAttributesIfPresent(s4);
           default -> throw new RDSException("Unsupported SEXP type: " + s.type());
         }
       }
@@ -206,7 +206,9 @@ public class RDSWriter implements Closeable {
     // Otherwise, write flags based on the RDSType of s
     // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
     //  representation of this in our environments
-    return new Flags(rdsType(s), new GPFlags(), s.isObject(), s.hasAttributes(), hasTag(s));
+    // Only `S4SXP` keeps its S4 bit: other SEXPs don't record it.
+    var levels = s instanceof S4SXP ? GPFlags.s4() : new GPFlags();
+    return new Flags(rdsType(s), levels, s.isObject(), s.hasAttributes(), hasTag(s));
   }
 
   /**
@@ -239,13 +241,9 @@ public class RDSWriter implements Closeable {
    * CHARSXP, we need to write metadata like flags.
    */
   private void writeChars(String s) throws IOException {
+    var encoded = CharsxpCodec.encode(s);
     var flags =
-        new Flags(
-            RDSItemType.valueOf(SEXPType.CHAR.i),
-            new GPFlags(Charset.defaultCharset(), false),
-            false,
-            false,
-            false);
+        new Flags(RDSItemType.valueOf(SEXPType.CHAR.i), encoded.levels(), false, false, false);
     out.writeInt(flags.encode());
 
     // If the string is NA, we write -1 for the length and exit
@@ -255,9 +253,8 @@ public class RDSWriter implements Closeable {
     }
 
     // Otherwise, do a standard string write (length in bytes, then bytes)
-    var bytes = s.getBytes(Charset.defaultCharset());
-    out.writeInt(bytes.length);
-    out.writeBytes(bytes);
+    out.writeInt(encoded.bytes().length);
+    out.writeBytes(encoded.bytes());
   }
 
   /**
@@ -610,6 +607,7 @@ public class RDSWriter implements Closeable {
     refAdd(extptr);
     writeItem(extptr.prot());
     writeItem(extptr.tag());
+    writeAttributesIfPresent(extptr);
   }
 
   @Override

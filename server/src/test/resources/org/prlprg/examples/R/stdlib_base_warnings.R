@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("length(uw) == 1 is not TRUE")
 `warnings` <- function (...) 
 {
     structure(baseenv()[["last.warning"]] %||% list(), dots = list(...), 

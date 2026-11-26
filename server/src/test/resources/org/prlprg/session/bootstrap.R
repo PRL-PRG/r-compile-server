@@ -23,11 +23,23 @@ base_env <- as.environment(base_env)
 base_env$pi <- pi
 base_env$T <- T
 base_env$F <- F
+base_env$letters <- letters
 
-# TODO: Fix RDS error in one of the symbols
-# for now we only add globals that we reference
-latest_base_env <- base_env
-latest_base_env$letters <- letters
+# The functions, plus every other base binding (constants like `LETTERS` and `.Machine`) except
+# environments, session state, and values with external pointers (native symbols), which the
+# server's SEXP parser can't read back when it prints the base environment (e.g. in feedback).
+has_extptr <- function(v) {
+  typeof(v) == "externalptr" || (is.list(v) && any(vapply(v, has_extptr, NA))) ||
+    any(vapply(attributes(v), has_extptr, NA))
+}
+session_state <- c(".Last.value", ".Options")
+latest_base_env <- as.environment(as.list(base_env, all.names = TRUE))
+for (x in setdiff(basevars, session_state)) {
+  value <- get(x)
+  if (!is.function(value) && !is.environment(value) && !has_extptr(value)) {
+    assign(x, value, latest_base_env)
+  }
+}
 
 cat("saving ", length(basevars), " base variables\n")
 saveRDS(basevars, "basevars.RDS", version = 2)

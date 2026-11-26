@@ -1,0 +1,21 @@
+The timings rank the candidates by the gap that they close, not only by the boxes or copies that they remove. Recommended order (proposals; nothing is implemented):
+
+1. First fix the feedback of the examples that stop at a connection. This is a fix of the benchmark harness, not an optimization. The feedback interpreter stops at the first call of `rawConnection` or `textConnection` (unregistered stubs). In the 8 such examples whose largest boxing blocker is "no type speculation", the source creates the connection directly before its hot loops (`mandelbrot_orbit`: line 24, loops from line 25). So these loops get no feedback, and their versions have no type speculation. `mandelbrot_orbit` is the slowest example (6.13× `bc.opt`), `mandelbrot_naive` is 1.54×; the others are the 4 `knucleotide` examples (1.04–1.16×), `mandelbrot` and `reversecomplement_2`. Until the fix, their timings measure code without speculation, and the rsh JIT, which records with rcp, has feedback there. Proposal: let the GNU-R fallback create a connection and keep it as an opaque value, then time these examples again. Size not estimated. In all, 43 of 134 examples stop early (26 at the cost budget of the GNU-R fallback); for a budget stop, the position against the hot loop was not checked.
+2. Then candidate 2, first half: in `SpecializeNonReflectiveEnv`, ignore a symbol promise whose symbol is not a parameter. Its blocker is the largest in `fannkuchredux_naive` (2.05×), `convolution_slow` (1.85×) and `fannkuchredux` (1.26×), and it is one of the two blockers in `mmm_t1` (4.71×; the other is the boxed `A[i, k]`). It is the smallest change for the largest measured gaps (about 10 lines). Soundness condition: `missing(a)` in the callee follows a symbol promise to the caller's binding, so it is TRUE when the variable holds the missing argument (`n <- quote(expr = )`). So the rule must also require that no store to the variable can store the missing argument (its type excludes `miss`).
+3. In parallel (other files): candidate 1, unboxed `%%`, `%/%` and mixed `==`, `!=`. Its blocker is the largest in `gcd` (1.72×), `crt` (1.35×), `fasta_naive_2` (1.27×), `fasta_c` (1.21×), `binarytrees_2` and `binarytrees_naive` (1.15×). Low risk, certain gain.
+4. Then candidate 2, second half, for `fib` (2.95×): first run `PromoteStaticallyKnownVariables` with debug output on `fib`, because the reject condition is not confirmed.
+5. After these: candidate 3 (the conditional `dup`). FIŘ makes 1.46× the copies of GNU-R, but the examples with the most copies that only FIŘ makes are not the slowest: `fannkuchredux` 1.26×, `nbody_naive_2` 1.13×, `revcomp` 1.10×, `nbody_naive` 0.70×, `spectralnorm_alt_4` 0.73×.
+6. Last: candidate 4 (promises). The `spectralnorm*` examples that it targets are already at 0.20–0.73× of `bc.opt`.
+
+Also check two slowdowns of this week's copy elision before more copy work. Each ratio below is outside the noise band of its example (at most 1.027):
+
+|       Example       | `CE1` / `CE0` (links) | `CE2` / `CE1` (cells) | `CE2` / `CE0` |
+|---------------------|-----------------------|-----------------------|---------------|
+| `scalar_prime`      | 1.019                 | 1.128                 | 1.150         |
+| `binarytrees`       | 1.061                 | 1.046                 | 1.110         |
+| `binarytrees_2`     | 1.058                 | 1.042                 | 1.102         |
+| `binarytrees_naive` | 1.050                 | 1.064                 | 1.117         |
+
+In the geometric mean, this week's copy elision is neutral (`CE2` / `CE0` 0.998). Both changes are inside the noise floor of one example (1.028), but they differ in kind. The register links cost 1.2 %, and the cost is consistent: 42 examples are slower outside their band and 1 is faster. The builtin cells save 1.4 %, but only in three examples (`knucleotide_brute_2` 0.49, `filter1d` 0.59, `knucleotide_brute` 0.60). Without these three, `CE2` / `CE1` is 0.999, with 22 examples faster and 30 slower outside their band.
+
+GVN: register it only after its rule for calls that read a vector argument is checked. Its gain is small: 0.990 over the 22 examples with changed C (`riposte_mandelbrot` 0.91, `double_vec_add_t1` 0.94; slower: `spectralnorm` 1.04, `lr_1var_ols_lapply` 1.03).

@@ -154,9 +154,10 @@ separates tokens.
     align: top,
     grammar(
       ($F$, $wseq(fn)$),
-      ($fn$, $#sem($wseq(prop, n: k)$) space kw("fun") f #sem($tt("(")seq(x)tt(")")$) tt("{")$,
+      ($fn$, $#sem($wseq(prop, n: k)$) space kw("fun") f #sem($tt("(")seq(frm)tt(")")$) tt("{")$,
              cont($wseq(ver, n: m) tt("}")$)),
-      semrule($prop$, $tt("@strict") alt tt("@liteSpecial")$),
+      semrule($prop$, $tt("@strict") alt tt("@liteSpecial") alt tt("@readsContext") alt tt("@needsContext") alt tt("@readsPromise") alt tt("@needsPromises")$),
+      semrule($frm$, $x alt x tt("=") tt("<")sexp#h(0pt)tt(">")$),
       ($ver$, $tt("(")seq(prm)tt(")") arrow t tt("{") body tt("}")$,
               sem($tt("(")seq(prm)tt(")") arrow t tt("{") tt("...") tt("}")$)),
       ($prm$, $r tt(":") t alt r tt(":") t #sem($tt("@!")$)$),
@@ -180,7 +181,9 @@ separates tokens.
 ) <syn-module>
 
 A function has $m >= 1$ versions; the first is its _baseline_ and the rest are specializations,
-each with the same number of parameters as the function has parameter names. A version with body
+each with the same number of parameters as the function has parameter names. A parameter name may
+carry the default expression of the GNU-R formal it came from ($x tt("=") tt("<")sexp#h(0pt)tt(">")$);
+only the function's closures use it, as their formals. A version with body
 $tt("...")$ is a _stub_ (a declaration without code, e.g. a builtin). The entry block has no
 header: a version body starts directly with the entry block's instructions, followed by the
 labeled blocks. Block parameters ($L tt("(")r tt(":") t tt(")")$) are MLIR-style phis, and jump
@@ -207,7 +210,8 @@ as _strict_: the version forces it on every path.
     column-gutter: 2em,
     align: top,
     grammar(
-      ($s$, $e alt #syn($r tt(":") t tt("=") e$)$),
+      ($s$, $e alt #syn($r tt(":") t tt("=") e$)$,
+            #sem($s kw("in") tt("<")sexp#h(0pt)tt(">")$)),
       semrule($j$, $kw("goto") tg$,
                    $kw("if") a kw("then") tg kw("else") tg$,
                    $kw("check") tg kw("else") tg$,
@@ -239,6 +243,8 @@ as _strict_: the version forces it on every path.
             $#sem($kw("clos") f$) alt #sem($kw("clos-static") f$)$,
             syn($kw("prom")tt("<")t space fx#h(0pt)tt(">")tt("{") body tt("}")$),
             sem($kw("prom-")tt("<")t space fx#h(0pt)tt(">")tt("{") body tt("}")$),
+            sem($kw("prom")tt("<")t space fx#h(0pt)tt(">")tt("[<")sexp#h(0pt)tt(">]")tt("{") body tt("}")$),
+            sem($kw("prom-")tt("<")t space fx#h(0pt)tt(">")tt("[<")sexp#h(0pt)tt(">]")tt("{") body tt("}")$),
             $kw("force") a alt #sem($kw("force?") a$)$,
             $kw("dup") a$,
             $a kw("as") t$,
@@ -250,7 +256,9 @@ as _strict_: the version forces it on every path.
 ) <syn-body>
 
 A statement is an expression, optionally assigned to a register that is defined and typed right
-there ($r tt(":") t tt("=") e$). Every block ends with exactly one jump $j$. Arguments $a$ are the
+there ($r tt(":") t tt("=") e$). A statement can end with its source call
+($kw("in") tt("<")sexp#h(0pt)tt(">")$, a `<lang ...>`): the R call that `bc2fir` compiled it from.
+The source does not change the meaning of the statement (see `FIR.md`). Every block ends with exactly one jump $j$. Arguments $a$ are the
 only sub-expressions: an expression can't nest another expression, only a constant, a register
 read, or $kw("consume") r$, which reads an owned vector for the last time and moves it out.
 Unboxed constants have unboxed types: $i$ is an $tt("I")$, $d$ an $tt("R")$, a string an

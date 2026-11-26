@@ -1,0 +1,4 @@
+# Don't download the snapshots on clone or pull: they're only needed to investigate a regression.
+# Fetch them with `git lfs pull --include="server/src/test/snapshots/**" --exclude=""`.
+[lfs]
+	fetchexclude = server/src/test/snapshots

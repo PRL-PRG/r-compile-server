@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Printer;
 
 class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
@@ -58,6 +59,38 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void needsPromisesCallee_notChanged() {
+    // `f` calls e.g. `substitute`, so the value-taking version would give it the value.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I {
+                rx: p(v(I) -) = prom<v(I) ->{
+                  ry: v(I) = v(I)[1];
+                  return ry;
+                };
+                rz: v(I) = f< p(v(I) -)@! --> v(I) >(rx);
+                return rz;
+              }
+            }
+
+            @needsPromises
+            fun f(r) {
+              (r:*@!) -+> V { ... }
+              (r:p(v(I) -)@!) --> v(I) { ... }
+              (r:v(I)) --> v(I) {
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "optimization should report no change");
+    assertTrue(Printer.toString(module).contains("prom<"), "promise should stay");
+  }
+
+  @Test
   void staticCallee_effectfulPromise_notChanged() {
     var module =
         ParseUtil.parseModule(
@@ -88,6 +121,7 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
 
   @Test
   void dispatchCallee_mixedArgs_onlyNonEffectfulInlined() {
+    // `abs` can't warn, unlike `+`, so this doesn't depend on what the callee runs first.
     var module =
         ParseUtil.parseModule(
             """
@@ -95,9 +129,8 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
               () --> I { ... }
               () --> I {
                 ra: v(I) = v(I)[1];
-                rb: v(I) = v(I)[2];
                 rx: p(v(I) -) = prom<v(I) ->{
-                  rc: v(I) = `+`< v(I),v(I) --> v(I) >(ra, rb);
+                  rc: v(I) = abs< v(I) --> v(I) >(ra);
                   return rc;
                 };
                 ry: p(v(I) +) = prom<v(I) +>{
@@ -128,7 +161,7 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
         "dispatch signature should reflect inlined param type");
     assertMatches(
         printed,
-        "rc\\d*: v\\(I\\) = `\\+`< v\\(I\\),v\\(I\\) --> v\\(I\\) >\\(ra, rb\\)",
+        "rc\\d*: v\\(I\\) = abs< v\\(I\\) --> v\\(I\\) >\\(ra\\)",
         "promise body should be inlined");
   }
 
@@ -372,6 +405,60 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void signallingPromise_calleeSignalsFirst_notInlined() {
+    // GNU-R warns for `f`'s own `n + n` before it forces `r`, whose body can warn too.
+    var module = signallingModule("m: v(I) = `+`< v(I),v(I) --> v(I) >(n, n);\nv: v(I) = force r;");
+    assertFalse(run(module), "the warnings would swap: optimization should report no change");
+  }
+
+  @Test
+  void signallingPromise_calleeRaisesFirst_notInlined() {
+    // On the path that raises the error, GNU-R never forces `r`, so it never warns.
+    var module =
+        signallingModule(
+            "if c then L1() else L2();\nL1():\n  raise e;\nL2():\n  v: v(I) = force r;");
+    assertFalse(run(module), "the error path would warn: optimization should report no change");
+  }
+
+  @Test
+  void signallingPromise_forcedFirst_isInlined() {
+    var module = signallingModule("mkenv;\nst y = n;\nv: v(I) = force r;");
+    assertTrue(run(module), "optimization should report a change");
+    assertFalse(Printer.toString(module).contains("prom<"), "promise should be inlined");
+  }
+
+  /// `main` passes a promise whose body can warn (an integer `+`) to `f`, whose version runs
+  /// `beforeForce`, which assigns `v` the forced promise, and then returns `v`.
+  private static Module signallingModule(String beforeForce) {
+    return ParseUtil.parseModule(
+        """
+        fun main(a) {
+          (a:*) -+> V { ... }
+          (a:v(I)) -~> v(I) {
+            rx: p(v(I) -) = prom<v(I) ->{
+              rc: v(I) = `+`< v(I),v(I) --> v(I) >(a, a);
+              return rc;
+            };
+            rz: v(I) = f< p(v(I) -)@!,v(I),B,S -~> v(I) >(rx, a, TRUE, "boom");
+            return rz;
+          }
+        }
+
+        fun f(r, n, c, e) {
+          (r:*@!, n:*, c:*, e:*) -+> V { ... }
+          (r:p(v(I) -)@!, n:v(I), c:B, e:S) -~> v(I) {
+            %s
+            return v;
+          }
+          (r:v(I), n:v(I), c:B, e:S) -~> v(I) {
+            return r;
+          }
+        }
+        """
+            .formatted(beforeForce.replace("\n", "\n    ")));
+  }
+
+  @Test
   void promiseUsedMultipleTimes_notInlined() {
     // The promise register rx is used twice: once in the call and once in force.
     // We skip it to avoid code duplication.
@@ -401,6 +488,160 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             """);
 
     assertFalse(run(module), "multiply-used promise: optimization should report no change");
+  }
+
+  @Test
+  void stubOfOwnPromiseParameter_forwarded() {
+    // The former example `bench_ai_awf_towers`: forcing the stub would load `x`, which is the
+    // parameter.
+    var module =
+        forwardModule("p(V +)", "mkenv-", "", "[<sym x>]{\n  deopt 0 [];\n}", "", "p(V +)");
+    assertTrue(run(module), "optimization should report a change");
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("f< p(V +) -+> V >(x)"), "x should be passed:\n" + printed);
+  }
+
+  @Test
+  void forceOfOwnPromiseParameter_forwarded() {
+    var module =
+        forwardModule("p(V +)", "mkenv~", "", "{\n  v: V = force x;\n  return v;\n}", "", "p(V +)");
+    assertTrue(run(module), "optimization should report a change");
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("f< p(V +) -+> V >(x)"), "x should be passed:\n" + printed);
+  }
+
+  @Test
+  void stub_parameterStoredAgain_notForwarded() {
+    var module =
+        forwardModule(
+            "p(V +)", "mkenv-", "st x = <int 1>;", "[<sym x>]{\n  deopt 0 [];\n}", "", "p(V +)");
+    assertFalse(run(module), "x may be rebound: optimization should report no change");
+  }
+
+  @Test
+  void stub_maybePromiseParameter_notForwarded() {
+    var module = forwardModule("*", "mkenv-", "", "[<sym x>]{\n  deopt 0 [];\n}", "", "p(V +)");
+    assertFalse(run(module), "x may be a value: optimization should report no change");
+  }
+
+  @Test
+  void stub_regularEnv_notForwarded() {
+    var module = forwardModule("p(V +)", "mkenv", "", "[<sym x>]{\n  deopt 0 [];\n}", "", "p(V +)");
+    assertFalse(run(module), "x may be rebound reflectively: optimization should report no change");
+  }
+
+  @Test
+  void stub_needsPromisesCallee_notForwarded() {
+    var module =
+        forwardModule(
+            "p(V +)", "mkenv-", "", "[<sym x>]{\n  deopt 0 [];\n}", "@needsPromises", "p(V +)");
+    assertFalse(run(module), "the callee reads the promise: optimization should report no change");
+  }
+
+  @Test
+  void stub_langExpression_notForwarded() {
+    var module =
+        forwardModule("p(V +)", "mkenv-", "", "[<lang g(x)>]{\n  deopt 0 [];\n}", "", "p(V +)");
+    assertFalse(run(module), "the stub isn't a load of x: optimization should report no change");
+  }
+
+  @Test
+  void stub_parameterTypeNotSubtype_notForwarded() {
+    var module =
+        forwardModule("p(V +)", "mkenv-", "", "[<sym x>]{\n  deopt 0 [];\n}", "", "p(v1(R) +)");
+    assertFalse(run(module), "x doesn't match the parameter: optimization should report no change");
+  }
+
+  @Test
+  void stub_readsPromiseCallee_notForwarded() {
+    var module =
+        forwardModule(
+            "p(V +)", "mkenv-", "", "[<sym x>]{\n  deopt 0 [];\n}", "@readsPromise", "p(V +)");
+    assertFalse(run(module), "the callee reads the promise: optimization should report no change");
+  }
+
+  @Test
+  void stub_secondFrame_notForwarded() {
+    // An inlined callee's frame can bind `x` to something else.
+    var module =
+        forwardModule(
+            "p(V +)", "mkenv-", "mkenv-;\npopenv;", "[<sym x>]{\n  deopt 0 [];\n}", "", "p(V +)");
+    assertFalse(run(module), "two frames: optimization should report no change");
+  }
+
+  @Test
+  void stub_reflectedOnInCallee_notForwarded() {
+    // The callee reads a variable in the promise's environment, which differs for `x`.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (x:*) -+> V { ... }
+              (x:p(V +)) -+> V {
+                mkenv-;
+                q: p(V +) = prom-<V +>[<sym x>]{
+                  deopt 0 [];
+                };
+                r: V = f< p(V +) -+> V >(q);
+                popenv;
+                return r;
+              }
+            }
+
+            fun f(a) {
+              (a:*) -+> V { ... }
+              (a:p(V +)) -+> V {
+                r: * = a$y;
+                return <int 1>;
+              }
+            }
+            """);
+    assertFalse(run(module), "the callee reflects on the promise: no change");
+  }
+
+  /// `main(x)` with `x` of type `xType` passes a promise `q` (of type `p(V +)`, or `p(v1(R) +)` if
+  /// `calleeType` is it) with `promiseBody` (its expression and code) to `f`, whose signature takes
+  /// `calleeType`.
+  private static Module forwardModule(
+      String xType,
+      String mkEnv,
+      String extraStatement,
+      String promiseBody,
+      String calleeAnnotation,
+      String calleeType) {
+    return ParseUtil.parseModule(
+        """
+        fun main(x) {
+          (x:*) -+> V { ... }
+          (x:%s) -+> V {
+            %s;
+            %s
+            q: %s = prom-<%s>%s;
+            r: V = f< %s -+> V >(q);
+            popenv;
+            return r;
+          }
+        }
+
+        %s
+        fun f(a) {
+          (a:*) -+> V { ... }
+          (a:%s) -+> V {
+            v: V = force a;
+            return v;
+          }
+        }
+        """
+            .formatted(
+                xType,
+                mkEnv,
+                extraStatement,
+                calleeType,
+                calleeType.substring(2, calleeType.length() - 1),
+                promiseBody,
+                calleeType,
+                calleeAnnotation,
+                calleeType));
   }
 
   private static void assertMatches(String printed, String regex, String message) {

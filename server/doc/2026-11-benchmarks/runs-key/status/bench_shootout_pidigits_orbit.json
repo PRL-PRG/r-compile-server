@@ -1,0 +1,20 @@
+{
+ "example": "bench_shootout_pidigits_orbit",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "failed",
+ "reason": "test failure: Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)",
+ "exit": 1,
+ "seconds": 393,
+ "load_start": 4.8,
+ "load_end": 6.49,
+ "csv_files": 0,
+ "optimizations": "$^",
+ "failures": {
+  "benchmarkPromiseInlining(Example, SnapshotStore)[1] bench_shootout_pidigits_orbit": "Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)",
+  "benchmarkContextualDispatch(Example, SnapshotStore)[1] bench_shootout_pidigits_orbit": "Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)",
+  "benchmarkScalarUnboxing(Example, SnapshotStore)[1] bench_shootout_pidigits_orbit": "Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)",
+  "benchmarkCopyElision(Example, SnapshotStore)[1] bench_shootout_pidigits_orbit": "Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)",
+  "benchmarkVariableElision(Example, SnapshotStore)[1] bench_shootout_pidigits_orbit": "Expected success, got crash. R REPL died (status: 1). Output: Error in run(40L) : FI\u0158 deoptimization triggered at pc=75 (unsupported)"
+ },
+ "no_time": {}
+}

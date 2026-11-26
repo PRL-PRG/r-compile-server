@@ -1,18 +1,23 @@
 package org.prlprg.fir2c;
 
+import static org.prlprg.fir.GlobalModules.BOX_FUN;
 import static org.prlprg.fir.GlobalModules.BUILTINS;
 import static org.prlprg.fir.GlobalModules.INTRINSICS;
+import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 import static org.prlprg.gen2c.EscapeForC.escapeForC;
 
 import com.google.common.collect.*;
+import com.google.common.hash.HashCode;
 import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.bc.BcLabel;
 import org.prlprg.bc2fir.FunctionBcOrigin;
 import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.analyze.cfg.Liveness;
+import org.prlprg.fir.analyze.type.InferEffects;
+import org.prlprg.fir.check.DispatchSignatureChecker;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -25,6 +30,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.FallbackCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -57,6 +63,7 @@ import org.prlprg.fir.ir.instruction.Raise;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
@@ -75,12 +82,16 @@ import org.prlprg.fir.ir.variable.*;
 import org.prlprg.gen2c.*;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Constants;
-import org.prlprg.rds.LabelMapping;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Lists;
 
 /// Compiles FIŘ modules into C translation units.
+///
+/// A module is compiled in pieces, tracked by a [Fir2CSession]: [#compile(Fir2CSession, Function)]
+/// gives the first, and [#compileStub(Fir2CSession, int)] a patch for each version the client
+/// asks for (see `server/doc/lazy-versions.md`). A [Fir2CSession] with no [id][Fir2CSession#id()]
+/// compiles a module in one piece whose stubs are never compiled (they run their fallbacks).
 public final class Fir2CCompiler {
   /// Return a C file and constant pools for `function` and its children.
   public static CompiledModule compile(Function function, RSession rSession, Option... options) {
@@ -97,35 +108,161 @@ public final class Fir2CCompiler {
       RSession rSession,
       @Nullable ModuleBcOriginMap bytecodes,
       Option... options) {
-    return new Fir2CCompiler(function.owner(), rSession, bytecodes, ImmutableSet.copyOf(options))
-        .run(function);
+    return compile(
+        new Fir2CSession("", function.owner(), rSession, bytecodes, ImmutableSet.copyOf(options)),
+        function);
   }
+
+  /// Return a C file and constant pools for `function` and its children: the first piece of the
+  /// module `session`'s client gets.
+  ///
+  /// An unevaluated version is compiled into a stub that runs its fallback, unless it's a baseline
+  /// with bytecode (which runs the bytecode) or without a fallback (which is evaluated).
+  public static CompiledModule compile(Fir2CSession session, Function function) {
+    if (function.owner() != session.module()) {
+      throw new IllegalArgumentException("Function isn't in the session's module");
+    }
+    return new Fir2CCompiler(session).run(function);
+  }
+
+  /// What the server answers the stub `stubId` in `session`'s client: a patch (a C file, constant
+  /// pool, and the name of the function to call with it) that replaces the stub with its version,
+  /// compiled (evaluating it first if necessary).
+  ///
+  /// The patch also defines whatever the version calls that the client doesn't have: new versions
+  /// (as stubs, if they're unevaluated), new functions, and the compiled versions of stubs whose
+  /// versions have been evaluated since. It doesn't redefine what the client has. It reverts the
+  /// versions the client has compiled that are [redundant][#isRedundant(Abstraction)] now.
+  ///
+  /// If the version is redundant, the patch doesn't define it, and the answer tells the stub to
+  /// keep running its fallback. There's no patch if there's nothing else to do, nor if the client
+  /// already got the version, with an earlier patch.
+  public static StubAnswer compileStub(Fir2CSession session, int stubId) {
+    var answer = answerStub(session, stubId);
+    session.recordRequest(stubId, answer.patch() != null);
+    return answer;
+  }
+
+  private static StubAnswer answerStub(Fir2CSession session, int stubId) {
+    var version = session.stub(stubId);
+    var state = Objects.requireNonNull(session.version(version));
+    if (!state.isStub()) {
+      return new StubAnswer(null, false);
+    }
+    // Evaluated explicitly (instead of by emitting it) so that the patch is planned around the
+    // evaluated version, whose signature may be narrower than the stub's.
+    version.body();
+    evaluateStaticCallees(session.functionOf(version), version);
+    var compiler = new Fir2CCompiler(session);
+    var fallback = compiler.isRedundant(version);
+    return new StubAnswer(compiler.runPatch(version), fallback);
+  }
+
+  /// Evaluate the versions of `function` that `version` calls statically (not by dispatch), the
+  /// versions of `function` that those call, and so on.
+  ///
+  /// Compiling a version compiles the versions it calls statically that the client lacks, as
+  /// stubs if they're unevaluated. Such a stub would soon request its version, whose evaluation
+  /// would retarget the caller, so that the caller is compiled again. Evaluating them first
+  /// compiles them all in one patch. Only versions of the same function, because that's where
+  /// the chains of specialized versions are (a recursive function calls its own versions).
+  private static void evaluateStaticCallees(Function function, Abstraction version) {
+    var closure = new LinkedHashSet<>(List.of(version));
+    var changed = true;
+    // Evaluating a version optimizes the module, which may retarget the calls already looked at.
+    while (changed) {
+      changed = false;
+      for (var caller : List.copyOf(closure)) {
+        if (!caller.isEvaluated() || !function.versions().contains(caller)) {
+          continue;
+        }
+        var callees =
+            caller
+                .streamCfgs()
+                .flatMap(cfg -> cfg.bbs().stream())
+                .flatMap(bb -> bb.statements().stream())
+                .<Abstraction>mapMulti(
+                    (statement, downstream) -> {
+                      if (statement.expression()
+                              instanceof
+                              Call(StaticFnCallee(var ref, var isDispatch, var signature))
+                          && !isDispatch
+                          && ref.get() == function) {
+                        var callee = function.guess(signature);
+                        if (callee != null && !callee.isStub()) {
+                          downstream.accept(callee);
+                        }
+                      }
+                    })
+                .toList();
+        for (var callee : callees) {
+          if (closure.add(callee)) {
+            callee.body();
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  /// See [#compileStub(Fir2CSession, int)].
+  ///
+  /// @param patch What the client loads, or `null` if there's nothing.
+  /// @param fallback Whether the stub keeps running its fallback, because its version is
+  ///     [redundant][#isRedundant(Abstraction)].
+  public record StubAnswer(@Nullable CompiledPatch patch, boolean fallback) {}
 
   private static final String VAR_ENV = "env";
   private static final String VAR_DATA = "data";
+  /// The slot of a promise's constant pool that holds its source expression.
+  private static final int PROMISE_EXPR_INDEX = 1;
+
+  /// The pool slot of a promise's [PromiseSharing#STUB] promise or [PromiseSharing#CODE] code.
+  private static final int PROMISE_SITE_INDEX = 2;
+
+  /// How a `Promise` statement creates its promise.
+  private enum PromiseSharing {
+    /// `Fir_mk_promise` for each execution, tracked so it's marked escaped when the frame returns.
+    NONE,
+    /// One promise for the site (`Fir_mk_stub_promise`), see `VersionEmitter#isSharedStub`.
+    STUB,
+    /// One `PRCODE` for the site (`Fir_promise_site_code`), and for each execution only the
+    /// `PROMSXP` (`Fir_mk_promise_shared`). For a promise without captures, which reads only its
+    /// environment. The promise isn't tracked: a local one escaped when its environment has
+    /// `FIR_FRAME_RETURNED`, which `Fir_pop_env` sets.
+    CODE
+  }
+
   private static final String VAR_CAPTURES = "captures";
   private static final String VAR_POOL = "pool";
   private static final String VAR_SIGNATURE = "signature";
   private static final String VAR_LOCAL_PROMISES = "local_promises";
   private static final String VAR_LOCAL_PROMISES_IDX = "local_promises_idx";
+  private static final String VAR_ENV_PUSHED = "env_pushed";
+  private static final String VAR_ENV_SAVED = "env_saved";
+  private static final String VAR_ENV_DEPTH = "env_depth";
+  private static final String VAR_ENV_IDX = "env_idx";
+  /// The environment a version's C function receives, before its `MkEnv` replaces [#VAR_ENV].
+  private static final String VAR_ENV_CLOSURE = "env_closure";
 
-  /// Constant pool slot of a bytecode baseline's feedback map (see
-  /// [FunctionEmitter#bcBaselineFeedbackMap(Abstraction, FunctionBcOrigin)()]).
+  /// Constant pool slot of what identifies a bytecode baseline's pool (see
+  /// [FunctionEmitter#bcBaselineId()]).
   ///
-  /// Mirrored by `FIR_BC_BASELINE_FEEDBACK` in `runtime.c`.
-  static final int FIR_BC_BASELINE_FEEDBACK = 3;
+  /// Mirrored by `FIR_BC_BASELINE_ID` in `runtime.h`.
+  static final int FIR_BC_BASELINE_ID = 3;
 
   /// Constant pool slot of a bytecode baseline's call counter (a scalar integer the baseline
   /// increments, which becomes the version's number of recorded calls).
   ///
-  /// Mirrored by `FIR_BC_BASELINE_CALLS` in `runtime.c`.
+  /// Mirrored by `FIR_BC_BASELINE_CALLS` in `runtime.h`.
   static final int FIR_BC_BASELINE_CALLS = 4;
 
-  /// First element of a bytecode baseline's feedback map, which is how `Fir_serialized_feedback`
+  /// First element of [#FIR_BC_BASELINE_ID], which is how `Fir_serialized_feedback`
   /// in `runtime.c` recognizes bytecode baseline pools while walking the module's constant pool.
-  static final String FIR_BC_BASELINE_FEEDBACK_MAGIC = "Fir_bc_baseline_feedback";
+  static final String FIR_BC_BASELINE_MAGIC = "Fir_bc_baseline_feedback";
 
   // Input
+  private final Fir2CSession session;
   private final Module module;
   private final RSession rSession;
   private final @Nullable ModuleBcOriginMap bytecodes;
@@ -133,20 +270,38 @@ public final class Fir2CCompiler {
 
   // Output
   private final CUnit cUnit = new CUnit();
+  /// Every function and version referred to (for what's `extern`, see
+  /// [#emitReferencedExternalDeclarations()]) ...
   private final LinkedHashSet<Function> referencedFunctions = new LinkedHashSet<>();
   private final LinkedHashMap<Abstraction, Function> referencedVersions = new LinkedHashMap<>();
-  private final Set<Function> compiledFunctions = new HashSet<>();
+  /// ...and the ones not yet looked at, to be defined in this unit if the client doesn't have
+  /// them.
+  private final LinkedHashSet<Function> functionWorklist = new LinkedHashSet<>();
+  private final LinkedHashMap<Abstraction, Function> versionWorklist = new LinkedHashMap<>();
+  /// Functions defined in this unit (the others the client has are `extern`).
+  private final Set<Function> unitFunctions = new HashSet<>();
+  /// Versions whose current implementation is defined in this unit (the others the client has
+  /// are `extern`).
+  private final Set<Abstraction> unitVersions = new HashSet<>();
+  /// Entries (see [Fir2CSession.Entry]) defined in this unit (the others are `extern`)...
+  private final Set<String> unitEntries = new HashSet<>();
+  /// ...and the ones declared `extern` so far.
+  private final Set<String> externEntries = new HashSet<>();
+  /// Versions the client has stubs for, that were evaluated since, and that this unit (a patch)
+  /// will define compiled: their compiled versions' names are assigned (so that calls emitted in
+  /// this unit are to those) but not yet defined.
+  private final Set<Abstraction> pendingReplacements = new HashSet<>();
+  private final Map<Abstraction, HashCode> fingerprints = new HashMap<>();
   private final Set<Promise> compiledPromises = new HashSet<>();
+  /// Whether this unit is a patch (see [#runPatch(Abstraction)]).
+  private boolean isPatch = false;
 
-  private Fir2CCompiler(
-      Module module,
-      RSession rSession,
-      @Nullable ModuleBcOriginMap bytecodes,
-      ImmutableSet<Option> options) {
-    this.module = module;
-    this.rSession = rSession;
-    this.bytecodes = bytecodes;
-    this.options = options;
+  private Fir2CCompiler(Fir2CSession session) {
+    this.session = session;
+    module = session.module();
+    rSession = session.rSession();
+    bytecodes = session.bytecodes();
+    options = session.options();
   }
 
   private CompiledModule run(Function mainFunction) {
@@ -156,12 +311,12 @@ public final class Fir2CCompiler {
     mainEmitter.run();
 
     if (options.contains(Option.COMPILE_REFERENCED_FUNCTIONS)) {
-      while (!referencedFunctions.isEmpty() || !referencedVersions.isEmpty()) {
+      while (!functionWorklist.isEmpty() || !versionWorklist.isEmpty()) {
         var next =
-            referencedFunctions.isEmpty()
-                ? referencedVersions.remove(referencedVersions.firstEntry().getKey())
-                : referencedFunctions.removeFirst();
-        if (compiledFunctions.contains(next)) {
+            functionWorklist.isEmpty()
+                ? versionWorklist.remove(versionWorklist.firstEntry().getKey())
+                : functionWorklist.removeFirst();
+        if (session.hasFunction(next)) {
           continue;
         }
         var nextCpSxp = new FunctionEmitter(next).run();
@@ -169,20 +324,343 @@ public final class Fir2CCompiler {
         // We must initialize `next`'s constant pools,
         // and we must do so *before* `main`'s initialization
         // (and before referenced functions encountered before).
-        var initCode = mainEmitter.initCFunction.addFirst();
+        var initCode = mainEmitter.initCFunction().addFirst();
         var nextInitCName = functionInitCName(next);
         initCode.stmt("%s(%s);", nextInitCName, nestedPoolRef(mainEmitter.fnPool, nextCpSxp));
       }
-    } else {
-      emitReferencedExternalDeclarations();
     }
+    emitReferencedExternalDeclarations();
 
     return new CompiledModule(cUnit, mainEmitter.fnPool.toSexp());
   }
 
+  /// See [#compileStub(Fir2CSession, int)]. `null` if the patch would do nothing.
+  private @Nullable CompiledPatch runPatch(Abstraction version) {
+    isPatch = true;
+    cUnit.addInclude("runtime.h");
+
+    var patch = new PatchEmitter();
+    if (!isRedundant(version)) {
+      referenceVersion(version, session.functionOf(version));
+    }
+
+    // The compiled version calls things the client may not have. Like `run`, but the client has
+    // most of the module. Every other version the client has that's out of date (a stub whose
+    // version is evaluated by now, or a compiled version that changed since) gets a new
+    // implementation too, and every function whose versions changed gets new entries.
+    while (true) {
+      while (!functionWorklist.isEmpty() || !versionWorklist.isEmpty()) {
+        if (!functionWorklist.isEmpty()) {
+          var next = functionWorklist.removeFirst();
+          if (!session.hasFunction(next)) {
+            patch.addFunction(next);
+          }
+          continue;
+        }
+
+        var next = versionWorklist.firstEntry();
+        versionWorklist.remove(next.getKey());
+        var nextVersion = next.getKey();
+        var nextFunction = next.getValue();
+        if (!session.hasFunction(nextFunction)) {
+          patch.addFunction(nextFunction);
+          continue;
+        }
+        if (session.version(nextVersion) == null) {
+          patch.addVersion(nextFunction, nextVersion);
+        } else if (pendingReplacements.contains(nextVersion)) {
+          patch.reimplement(nextVersion);
+        }
+      }
+      assert pendingReplacements.isEmpty() : "every referenced replacement is defined";
+
+      // Out-of-date implementations, in a fixed order (the session's versions aren't ordered).
+      var outOfDate =
+          session.versions().stream()
+              .filter(this::needsReimplementation)
+              .sorted(Comparator.comparing(v -> versionCallCName(session.functionOf(v), v)))
+              .toList();
+      for (var v : outOfDate) {
+        referenceVersion(v, session.functionOf(v));
+      }
+      session.versions().stream()
+          .filter(this::needsRevert)
+          .sorted(Comparator.comparing(v -> versionCallCName(session.functionOf(v), v)))
+          .forEach(patch::revert);
+
+      // Every function whose versions changed (in the module, or in what the client has of
+      // them) gets its entries regenerated, so that what it dispatches among is up to date. That
+      // refers to versions the client may not have (new ones, as stubs), so go around again.
+      var stale =
+          session.functions().stream()
+              .filter(f -> f.canDispatch() && !unitFunctions.contains(f))
+              .filter(f -> !currentEntryCallees(f).equals(session.entryCallees(f)))
+              .toList();
+      if (outOfDate.isEmpty() && stale.isEmpty()) {
+        break;
+      }
+      for (var function : stale) {
+        patch.regenerateEntries(function);
+      }
+    }
+    emitReferencedExternalDeclarations();
+
+    return patch.finish();
+  }
+
+  private void referenceFunction(Function function) {
+    referencedFunctions.add(function);
+    functionWorklist.add(function);
+  }
+
+  /// What `function`'s entries would dispatch among if they were regenerated now: its versions
+  /// in dispatch order, by the names its entries would call them by, with their signatures
+  /// (which the entries filter by). Compared to what they were generated from.
+  private List<String> currentEntryCallees(Function function) {
+    var callees = new ArrayList<String>();
+    for (var version : function.versions()) {
+      var state = session.version(version);
+      var name =
+          state != null && needsReimplementation(version)
+              ? null // Reimplemented by this patch once referred to, so its entry may change
+              : versionCallCName(function, version);
+      callees.add(name + " " + version.signature());
+    }
+    return callees;
+  }
+
+  /// After the client's current implementation of `version` is initialized: assign it to the
+  /// version's entries (see [#emitEntryAssignments(CCode, Function, Abstraction, String, Repr)]).
+  private void emitEntryAssignments(CCode code, Function function, Abstraction version) {
+    emitEntryAssignments(
+        code,
+        function,
+        version,
+        versionImplCName(function, version),
+        version.returnType().kind().repr());
+  }
+
+  /// Define the version's entries this unit introduces, and assign every entry `implCName`, an
+  /// implementation of the version that returns `implReturnRepr`, or an adapter of it for an
+  /// entry with a different return representation (see [Fir2CSession.Entry]).
+  private void emitEntryAssignments(
+      CCode code, Function function, Abstraction version, String implCName, Repr implReturnRepr) {
+    var state = Objects.requireNonNull(session.version(version));
+    var cParams = versionCallCParams(version);
+    for (var entry : session.takeUndefinedEntries(version)) {
+      var entryCName = versionEntryCName(function, entry.part());
+      cUnit.addGlobalFunctionPointer(reprCType(entry.returnRepr()), entryCName, cParams);
+      unitEntries.add(entryCName);
+    }
+
+    debugComment(code, "# Assign what calls of %s %s call", function.name(), version.signature());
+    var adapters = new HashSet<String>();
+    for (var entry : state.entries()) {
+      var entryCName = versionEntryCName(function, entry.part());
+      if (!unitEntries.contains(entryCName) && externEntries.add(entryCName)) {
+        // An older entry, from a piece the client has
+        cUnit.addExternGlobalFunctionPointer(reprCType(entry.returnRepr()), entryCName, cParams);
+      }
+      var target = implCName;
+      if (entry.returnRepr() != implReturnRepr) {
+        target = adapterCName(implCName, entry.returnRepr());
+        if (adapters.add(target)) {
+          emitReturnAdapter(
+              function, version, target, entry.returnRepr(), implCName, implReturnRepr);
+        }
+      }
+      code.stmt("%s = %s;", entryCName, target);
+    }
+  }
+
+  /// The adapter of the version implementation `implCName` that returns `returnRepr` (see
+  /// [#emitReturnAdapter(Function, Abstraction, String, Repr, String, Repr)]).
+  private static String adapterCName(String implCName, Repr returnRepr) {
+    return implCName + (returnRepr == Repr.SEXP ? "_boxed" : "_as_" + reprCType(returnRepr));
+  }
+
+  /// Define `adapterCName`, which calls `implCName` (an implementation of `version`) and converts
+  /// what it returns from `implReturnRepr` to `returnRepr`: boxes an unboxed scalar, or unboxes a
+  /// boxed one. It's `static`, since only this unit refers to it, and an implementation can be
+  /// adapted by more than one unit (a stub, each time the client goes back to it).
+  private void emitReturnAdapter(
+      Function function,
+      Abstraction version,
+      String adapterCName,
+      Repr returnRepr,
+      String implCName,
+      Repr implReturnRepr) {
+    var adapter =
+        cUnit.addFunction(
+            "static " + reprCType(returnRepr), adapterCName, versionCallCParams(version));
+    var adapterCode = adapter.add();
+    debugComment(
+        adapterCode,
+        "## Call %s version %s and convert the result (for an entry that returns %s)",
+        function.name().name(),
+        version.signature(),
+        reprCType(returnRepr));
+    var convert =
+        implReturnRepr == Repr.SEXP
+            ? unboxCName(scalarOf(returnRepr), Repr.SEXP)
+            : boxCName(scalarOf(implReturnRepr), returnRepr);
+    var arguments =
+        version.parameters().stream()
+            .map(p -> ", " + registerCName(p))
+            .collect(Collectors.joining());
+    adapterCode.stmt("return %s(R_EmptyEnv, %s(%s%s));", convert, implCName, VAR_ENV, arguments);
+  }
+
+  /// The unboxed scalar type whose representation is `repr`.
+  private static Type scalarOf(Repr repr) {
+    return Arrays.stream(PrimitiveKind.values())
+        .filter(k -> k.repr() == repr)
+        .findFirst()
+        .map(Type::primitiveScalar)
+        .orElseThrow(
+            () ->
+                new UnsupportedOperationException(
+                    "No unboxed scalar type whose C type is " + reprCType(repr)));
+  }
+
+  /// A call to `version` of `function`, which returns what the client's code for the version
+  /// returns, converted to what the version now returns if that's since narrowed (see
+  /// [Fir2CSession.VersionState#returnRepr()]).
+  private String emitVersionCall(
+      Function function, Abstraction version, String cEnv, String arguments) {
+    var call = "%s(%s%s)".formatted(versionCallCName(function, version), cEnv, arguments);
+    var state = session.version(version);
+    if (state == null || state.returnRepr() == version.returnType().kind().repr()) {
+      return call;
+    }
+    return "%s(R_EmptyEnv, %s)"
+        .formatted(unboxCName(version.returnType(), state.returnRepr()), call);
+  }
+
+  /// The `box` intrinsic from `unboxed` (a version's return type) to `boxedRepr` (what the
+  /// client's code for it returns).
+  private String boxCName(Type unboxed, Repr boxedRepr) {
+    var boxSignature =
+        new Signature(ImmutableList.of(unboxed), boxedOf(unboxed, boxedRepr), Effects.NONE);
+    var boxVersion = Objects.requireNonNull(BOX_FUN.guess(boxSignature), "no `box` intrinsic");
+    return versionCallCName(BOX_FUN, boxVersion);
+  }
+
+  /// The `unbox` intrinsic to `unboxed` (a version's return type) from `boxedRepr` (what the
+  /// client's code for it returns).
+  private String unboxCName(Type unboxed, Repr boxedRepr) {
+    var unboxSignature =
+        new Signature(ImmutableList.of(boxedOf(unboxed, boxedRepr)), unboxed, Effects.NONE);
+    var unboxVersion =
+        Objects.requireNonNull(UNBOX_FUN.guess(unboxSignature), "no `unbox` intrinsic");
+    return versionCallCName(UNBOX_FUN, unboxVersion);
+  }
+
+  private static Type boxedOf(Type unboxed, Repr boxedRepr) {
+    if (!(unboxed.kind() instanceof Kind.PrimitiveScalar(var primitive))
+        || boxedRepr != Repr.SEXP) {
+      throw new UnsupportedOperationException(
+          "Can't convert the version's return type "
+              + unboxed
+              + " to and from what its code returns, "
+              + reprCType(boxedRepr)
+              + " (only an unboxed scalar to and from a boxed one)");
+    }
+    return Type.primitiveVector1(primitive, Ownership.SHARED);
+  }
+
+  /// Whether a call to `version` must keep its constants alive from the caller's pool.
+  ///
+  /// Not when it's a version of the caller's function: they're in the function's pool, like the
+  /// caller's. Nor when this unit is a patch that defines it (the client doesn't have it, or has
+  /// its stub and it's been evaluated): its pool is nested in the patch's, which the client keeps.
+  /// In both cases it also can't be protected at init, because the callee's constants may not be
+  /// initialized yet (a version is initialized after the one that referred to it).
+  private boolean mustProtectConstants(
+      Function function, Function calleeFun, Abstraction calleeVersion) {
+    if (calleeFun.owner() == BUILTINS || calleeFun.owner() == INTRINSICS) {
+      // Builtins and intrinsics have no constants.
+      return false;
+    }
+    if (calleeFun == function) {
+      return false;
+    }
+    return !isPatch
+        || !(session.version(calleeVersion) == null
+            || pendingReplacements.contains(calleeVersion)
+            || unitVersions.contains(calleeVersion));
+  }
+
+  private void referenceVersion(Abstraction version, Function function) {
+    referencedVersions.put(version, function);
+    versionWorklist.put(version, function);
+
+    // If the client's implementation of the version is out of date (its stub, and the version's
+    // been evaluated since; or compiled, and the version's changed since), this unit defines a
+    // new one. Record that now, so that the reference (a call) is to the entry the new
+    // implementation will have: the version's return type may have narrowed, which gives it a
+    // new entry, with the new calling convention.
+    if (needsReimplementation(version) && !pendingReplacements.contains(version)) {
+      session.addCompiled(function, version, () -> defaultCNamePart(function, version));
+      pendingReplacements.add(version);
+    }
+  }
+
+  /// Whether the client's implementation of `version` is out of date (see
+  /// [#referenceVersion(Abstraction, Function)]), and this unit hasn't defined a new one.
+  private boolean needsReimplementation(Abstraction version) {
+    var state = session.version(version);
+    if (state == null || unitVersions.contains(version) || pendingReplacements.contains(version)) {
+      return false;
+    }
+    if (state.stubId() != null && isRedundant(version)) {
+      // Its stub is the implementation (see `needsRevert`).
+      return false;
+    }
+    if (state.isStub()) {
+      return version.isEvaluated();
+    }
+    if (version.isStub()
+        || (version == session.functionOf(version).baseline() && bytecodes != null)) {
+      // Runtime-provided, or the bytecode baseline: never changes.
+      return false;
+    }
+    return !fingerprint(version).equals(state.ir());
+  }
+
+  /// Whether the client has `version` compiled, and has a stub for it, which it should go back
+  /// to because the version is [redundant][#isRedundant(Abstraction)].
+  private boolean needsRevert(Abstraction version) {
+    var state = session.version(version);
+    return state != null
+        && state.compiled()
+        && state.stubId() != null
+        && !unitVersions.contains(version)
+        && !pendingReplacements.contains(version)
+        && isRedundant(version);
+  }
+
+  /// Whether `version` is the same as its fallback: it isn't a baseline, and the optimizations
+  /// didn't change it since it was evaluated (it's the version it was copied from, adapted, which
+  /// is what the fallback calls and how). Compiling it would only inline the fallback's call.
+  private boolean isRedundant(Abstraction version) {
+    var lazyBody = version.lazyBody();
+    var evaluated = lazyBody == null ? null : lazyBody.evaluatedFingerprint();
+    return evaluated != null
+        && version != session.functionOf(version).baseline()
+        && evaluated.equals(fingerprint(version));
+  }
+
+  /// [Abstraction#fingerprint()], computed once per unit (the IR doesn't change while a unit is
+  /// compiled).
+  private HashCode fingerprint(Abstraction version) {
+    return fingerprints.computeIfAbsent(version, Abstraction::fingerprint);
+  }
+
+  /// Declare everything referenced but not defined in this unit `extern`.
   private void emitReferencedExternalDeclarations() {
     for (var function : referencedFunctions) {
-      if (compiledFunctions.contains(function)) {
+      if (unitFunctions.contains(function)) {
         // Already declared non-extern
         continue;
       }
@@ -192,23 +670,155 @@ public final class Fir2CCompiler {
 
       var cName = functionDispatchCName(function);
       cUnit.addExternFunction(DISPATCH_C_RETURN, cName, DISPATCH_C_PARAMS);
+
+      if (function.canDispatch()) {
+        cUnit.addExternFunction(FROM_R_C_RETURN, functionFromRCName(function), FROM_R_C_PARAMS);
+      }
     }
     for (var entry : referencedVersions.entrySet()) {
       var version = entry.getKey();
       var function = entry.getValue();
 
-      if (compiledFunctions.contains(function)) {
-        // Already declared non-extern
-        continue;
-      }
-
-      var constantsCName = versionConstantsCName(function, version);
-      cUnit.addExternGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
-
       var cName = versionCallCName(function, version);
       var cParams = versionCallCParams(version);
       var cReturn = versionCallCReturn(version);
-      cUnit.addExternFunction(cReturn, cName, cParams);
+      if (version.isStub()) {
+        // A function the runtime provides (see `VersionEmitter.forwardDeclareStub`)
+        continue;
+      }
+      if (!unitVersions.contains(version)) {
+        var constantsCName = versionConstantsCName(function, version);
+        cUnit.addExternGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
+      }
+      if (!unitEntries.contains(cName) && externEntries.add(cName)) {
+        cUnit.addExternGlobalFunctionPointer(cReturn, cName, cParams);
+      }
+    }
+  }
+
+  /// Emits a patch: an initializer that, once the client calls it, replaces stubs with their
+  /// compiled versions (see [#compileStub(Fir2CSession, int)]).
+  private final class PatchEmitter {
+    private final int index = session.nextPatch();
+    private final CFunction initCFunction;
+    private final ConstantPool pool = new ConstantPool();
+    /// Run at the end of the initializer, once everything is initialized.
+    private final CCode replacements;
+    /// Whether the patch does anything.
+    private boolean changed = false;
+
+    PatchEmitter() {
+      initCFunction = cUnit.addFunction(INIT_C_RETURN, patchInitCName(index), INIT_C_PARAMS);
+      debugComment(initCFunction.add(), "## Init patch %d", index);
+      replacements = new CCode();
+    }
+
+    /// Define `function`, which the client doesn't have, and initialize it before anything else
+    /// (what's already in the initializer may refer to its constants).
+    void addFunction(Function function) {
+      changed = true;
+      var cpSxp = new FunctionEmitter(function).run();
+      var initCode = initCFunction.addFirst();
+      initCode.stmt("%s(%s);", functionInitCName(function), nestedPoolRef(pool, cpSxp));
+    }
+
+    /// Define `version` of `function`, which the client has but not this version of it.
+    void addVersion(Function function, Abstraction version) {
+      var cpSxp = new FunctionEmitter(function).emitVersion(version);
+      if (cpSxp == null) {
+        // A stub that's provided elsewhere (declared `extern`).
+        return;
+      }
+      changed = true;
+      var initCode = initCFunction.add();
+      initCode.stmt("%s(%s);", versionInitCName(function, version), nestedPoolRef(pool, cpSxp));
+      emitEntryAssignments(initCode, function, version);
+    }
+
+    /// Define a new implementation of `version` (recorded by
+    /// [#referenceVersion(Abstraction, Function)]), compiled from its IR now, and make the
+    /// version's entries call it: it replaces the stub the client has, or updates the compiled
+    /// implementation the client has, since the version changed.
+    void reimplement(Abstraction version) {
+      var function = session.functionOf(version);
+      var state = Objects.requireNonNull(session.version(version));
+      changed = true;
+
+      var cpSxp = new FunctionEmitter(function).emitCompiledVersion(version);
+      var initCode = initCFunction.add();
+      initCode.stmt("%s(%s);", versionInitCName(function, version), nestedPoolRef(pool, cpSxp));
+      emitEntryAssignments(initCode, function, version);
+
+      if (state.stubId() != null) {
+        // Tell the stub (and through it the client) the version arrived. Its entry is what its
+        // callers call, so the implementation itself is only for whoever still gets there through
+        // `Fir_stub_enter` (with the stub's convention).
+        var stubCName = versionStubCName(function, state);
+        cUnit.addExternGlobalVariable(STUB_C_TYPE, stubCName);
+        var compiledCName = versionImplCName(function, version);
+        var stubReturnRepr = state.entries().getFirst().returnRepr();
+        if (version.returnType().kind().repr() != stubReturnRepr) {
+          compiledCName = adapterCName(compiledCName, stubReturnRepr);
+        }
+        debugComment(
+            replacements, "# Replace stub of %s version %s", function.name(), version.signature());
+        replacements.stmt("Fir_stub_compiled(&%s, (void *)%s);", stubCName, compiledCName);
+      }
+    }
+
+    /// Make `version`'s entries call its stub again, and the stub run its fallback from then on,
+    /// since the version is [redundant][#isRedundant(Abstraction)].
+    void revert(Abstraction version) {
+      changed = true;
+      var function = session.functionOf(version);
+      var state = Objects.requireNonNull(session.version(version));
+      var stubEntry = state.entries().getFirst();
+      var stubImplCName = versionImplCName(function, stubEntry.part(), 0);
+      cUnit.addExternFunction(
+          reprCType(stubEntry.returnRepr()), stubImplCName, versionCallCParams(version));
+      var stubCName = versionStubCName(function, state);
+      cUnit.addExternGlobalVariable(STUB_C_TYPE, stubCName);
+
+      var initCode = initCFunction.add();
+      debugComment(
+          initCode, "# Revert %s version %s to its stub", function.name(), version.signature());
+      emitEntryAssignments(initCode, function, version, stubImplCName, stubEntry.returnRepr());
+      replacements.stmt("Fir_stub_fallback(&%s);", stubCName);
+      session.revert(version);
+    }
+
+    /// Regenerate `function`'s dispatch and from-R entries, since the versions they dispatch
+    /// among (or their names) changed: the client has more or fewer versions of it now, or a
+    /// stub was replaced by the compiled version.
+    void regenerateEntries(Function function) {
+      changed = true;
+      var entries = session.nextEntries(function);
+      var entriesPool = new ConstantPool();
+      var poolCName = entriesConstantsCName(function, entries);
+      cUnit.addGlobalVariable(CONSTANTS_C_TYPE, poolCName);
+      referenceFunction(function);
+
+      new FunctionEmitter(function).emitEntries(entries, entriesPool, poolCName);
+
+      var initCode = initCFunction.add();
+      debugComment(initCode, "# Regenerated entries (%d) of %s", entries, function.name().name());
+      initCode.stmt("%s = %s;", poolCName, nestedPoolRef(pool, entriesPool.toSexp()));
+      replacements.stmt(
+          "Fir_fun_set_entries(%s, %s, %s);",
+          functionConstantsCName(function),
+          dispatchImplCName(function, entries),
+          fromRImplCName(function, entries));
+    }
+
+    @Nullable CompiledPatch finish() {
+      if (!changed) {
+        return null;
+      }
+      var initCode = initCFunction.add();
+      debugComment(initCode, "# Replace stubs and entries");
+      initCode.stmt("%s", replacements.toString().stripTrailing());
+      initCFunction.add().stmt("return R_NilValue;");
+      return new CompiledPatch(cUnit, pool.toSexp(), initCFunction.name());
     }
   }
 
@@ -218,30 +828,38 @@ public final class Fir2CCompiler {
     private final Function function;
 
     // Output
-    final CFunction initCFunction;
+    /// Only exists once [#run()] is called, which is what defines the function. Emitting a
+    /// version of a function the client already has ([#emitVersion(Abstraction)]) doesn't.
+    private @Nullable CFunction initCFunction;
     private final ConstantPool fnPool = new ConstantPool();
 
     FunctionEmitter(Function function) {
       this.function = function;
+    }
 
-      var cName = functionInitCName(function);
-      initCFunction = cUnit.addFunction(INIT_C_RETURN, cName, INIT_C_PARAMS);
+    CFunction initCFunction() {
+      return Objects.requireNonNull(initCFunction, "function isn't being defined");
     }
 
     VecSXP run() {
-      if (!compiledFunctions.add(function)) {
+      if (!session.addFunction(function)) {
         throw new UnsupportedOperationException(
             "Already compiled: " + function.name() + "\n" + module);
       }
+      unitFunctions.add(function);
+
+      var cName = functionInitCName(function);
+      initCFunction = cUnit.addFunction(INIT_C_RETURN, cName, INIT_C_PARAMS);
 
       emitConstants();
 
-      beginEmitInit();
+      var entries = function.canDispatch() ? session.nextEntries(function) : -1;
+      beginEmitInit(entries);
 
       if (function.canDispatch()) {
-        emitDispatchFromR();
-
-        emitDispatch();
+        emitFromRTrampoline();
+        emitDispatchTrampoline();
+        emitEntries(entries, fnPool, functionConstantsCName(function));
       }
 
       emitVersions();
@@ -256,15 +874,17 @@ public final class Fir2CCompiler {
       cUnit.addGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
     }
 
-    private void beginEmitInit() {
-      debugComment(initCFunction.add(), "## Init %s", function.name());
+    /// @param entries The generation of the function's dispatch and from-R entries (see
+    ///     [#emitEntries(int, ConstantPool, String)]), or -1 if it can't dispatch.
+    private void beginEmitInit(int entries) {
+      debugComment(initCFunction().add(), "## Init %s", function.name());
 
-      var cCode = initCFunction.add();
+      var cCode = initCFunction().add();
       debugComment(cCode, "# Assign constant pool global variable");
       var constantsCName = functionConstantsCName(function);
       cCode.stmt("%s = %s;", constantsCName, VAR_POOL);
 
-      cCode = initCFunction.add();
+      cCode = initCFunction().add();
       debugComment(cCode, "# Add `Fir_FunctionData`");
       var idx = fnPool.internSpace();
       assert idx == 0;
@@ -275,36 +895,85 @@ public final class Fir2CCompiler {
               function.parameterNames().stream()
                   .map(nv -> SEXPs.symbol(nv.name()))
                   .collect(SEXPs.toVec()));
+      var bytecode = bytecodes == null ? null : bytecodes.get(function.name().name());
+      var body = bytecode == null ? "NULL" : constantRef(fnPool, bytecode.bc().consts().getFirst());
       cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_FunctionData));");
       cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
       cCode.stmt(
-          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .formal_names = %s};",
+          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .dispatch_impl = %s, .from_r = %s, .formal_names = %s, .needs_context = %s, .body = %s};",
           functionName,
           function.canDispatch() ? functionDispatchCName(function) : "NULL",
-          formalNames);
+          function.canDispatch() ? dispatchImplCName(function, entries) : "NULL",
+          function.canDispatch() ? fromRImplCName(function, entries) : "NULL",
+          formalNames,
+          function.userProperties().needsContext(),
+          body);
       cCode.stmt("Fir_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
     }
 
-    private void endEmitInit() {
-      initCFunction.add().stmt("return R_NilValue;");
+    /// The function's from-R entry: what its closures' bodies call. It forwards to the current
+    /// from-R implementation, since that's regenerated as the function gets versions (see
+    /// [#emitEntries(int, ConstantPool, String)]), while closures keep pointing here.
+    private void emitFromRTrampoline() {
+      var cFunction =
+          cUnit.addFunction(FROM_R_C_RETURN, functionFromRCName(function), FROM_R_C_PARAMS);
+      var cCode = cFunction.add();
+      debugComment(cCode, "## From-R %s", function.name());
+      cCode.stmt(
+          "return Fir_fun_data(%s)->from_r(%s, %s);",
+          functionConstantsCName(function), VAR_ENV, VAR_DATA);
     }
 
-    private void emitDispatchFromR() {
-      var cName = functionFromRCName(function);
+    /// The function's dispatch entry: what dispatch calls and `Fir_call_dynamic` call, and what
+    /// identifies the function to `Fir_assume_function`. Like the from-R entry, it forwards to
+    /// the current implementation.
+    private void emitDispatchTrampoline() {
+      var cFunction =
+          cUnit.addFunction(DISPATCH_C_RETURN, functionDispatchCName(function), DISPATCH_C_PARAMS);
+      var cCode = cFunction.add();
+      debugComment(cCode, "## Dispatch %s", function.name());
+      cCode.stmt("va_list args;");
+      cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
+      cCode.stmt(
+          "SEXP out = Fir_fun_data(%s)->dispatch_impl(%s, %s, args);",
+          functionConstantsCName(function), VAR_ENV, VAR_SIGNATURE);
+      cCode.stmt("va_end(args);");
+      cCode.stmt("return out;");
+    }
+
+    /// Emits generation `entries` of the function's from-R and dispatch implementations, which
+    /// dispatch among the versions the function has now (referring to each, so a patch defines
+    /// the ones the client doesn't have). The function's entries forward to them once
+    /// `Fir_fun_set_entries` is called (which a function's init does through its
+    /// `Fir_FunctionData`, and a patch does explicitly).
+    ///
+    /// @param pool Where the implementations' constants go, aliased as `pool` by `poolCName`
+    ///     (the function's own pool when the function is being defined, else a pool of the patch).
+    void emitEntries(int entries, ConstantPool pool, String poolCName) {
+      var callees = new ArrayList<String>();
+      for (var version : function.versions()) {
+        if (!version.isStub()) {
+          referenceVersion(version, function);
+        }
+        callees.add(versionCallCName(function, version) + " " + version.signature());
+      }
+      session.setEntryCallees(function, callees);
+
+      emitDispatchFromR(fromRImplCName(function, entries), pool, poolCName);
+      emitDispatch(dispatchImplCName(function, entries));
+    }
+
+    private void endEmitInit() {
+      initCFunction().add().stmt("return R_NilValue;");
+    }
+
+    private void emitDispatchFromR(String cName, ConstantPool pool, String poolCName) {
       var cFunction = cUnit.addFunction(FROM_R_C_RETURN, cName, FROM_R_C_PARAMS);
 
       int numParams = function.parameterNames().size();
       var versions =
           function.versions().stream()
-              .filter(
-                  v ->
-                      v.parameters().size() == numParams
-                          && v.parameters().stream()
-                              .allMatch(
-                                  p ->
-                                      p.type().kind().repr() == Repr.SEXP
-                                          && p.type().ownership() == Ownership.SHARED)
-                          && v.signature().returnType().kind().repr() == Repr.SEXP)
+              .filter(v -> v.parameters().size() == numParams && isFromRSignature(v.signature()))
               .toList();
 
       CCode cCode;
@@ -323,7 +992,7 @@ public final class Fir2CCompiler {
       }
 
       if (!function.parameterNames().isEmpty()) {
-        emitConstantPoolAlias(cFunction);
+        cFunction.add().stmt("SEXP %s = %s;", VAR_POOL, poolCName);
       }
 
       cCode = cFunction.add();
@@ -338,9 +1007,10 @@ public final class Fir2CCompiler {
           cCode.stmt("SEXP %s = Rf_findVarInFrame(%s, R_DotsSymbol);", argName, VAR_ENV);
           cCode.stmt("%s = %s == R_MissingArg ? R_NilValue : %s;", argName, argName, argName);
         } else {
-          var paramSym = nvSymbolRef(fnPool, paramName);
+          var paramSym = nvSymbolRef(pool, paramName);
           cCode.stmt(
-              "SEXP %s = Fir_safe_force(Rf_findVarInFrame(%s, %s));", argName, VAR_ENV, paramSym);
+              "SEXP %s = Fir_from_r_arg(%s, %s, %s);",
+              argName, VAR_ENV, paramSym, function.userProperties().needsPromises());
         }
 
         argsSplice.append(", ").append(argName);
@@ -350,7 +1020,12 @@ public final class Fir2CCompiler {
       debugComment(cCode, "# Suppress inner mkenv (if present) because R makes it");
       cCode.stmt("SEXP outer_env;");
       cCode.stmt("bool push_suppressed;");
-      cCode.stmt("Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed);", VAR_ENV);
+      cCode.stmt("int outer_depth;");
+      cCode.stmt("SEXP outer_parent;");
+      cCode.stmt(
+          "Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed, &outer_depth, &outer_parent);",
+          VAR_ENV);
+      cCode.stmt("PROTECT(outer_parent);");
 
       var baseline = function.baseline();
       var baselineCName = versionCallCName(function, baseline);
@@ -369,11 +1044,16 @@ public final class Fir2CCompiler {
           for (var i = 0; i < versions.size(); i++) {
             var version = versions.get(i);
 
-            var typeEmit = emitType(version.parameters().get(j).type());
+            var type = version.parameters().get(j).type();
+            if (type.equals(Type.ANY_SEXP)) {
+              // Every argument matches the top type.
+              continue;
+            }
+            var typeEmit = emitType(type);
 
-            var chain = j == 0 ? "" : "incompatible[%d] || ".formatted(i);
             cCode.stmt(
-                "incompatible[%d] = %s!Fir_value_matches(%s, %s);", i, chain, argName, typeEmit);
+                "incompatible[%d] = incompatible[%d] || !Fir_value_matches(%s, %s);",
+                i, i, argName, typeEmit);
           }
         }
 
@@ -399,15 +1079,16 @@ public final class Fir2CCompiler {
       }
 
       debugComment(cCode, "# Un-suppress inner mkenv");
-      cCode.stmt("Fir_unset_env_pushed_from_r(outer_env, push_suppressed);");
+      cCode.stmt(
+          "Fir_unset_env_pushed_from_r(outer_env, push_suppressed, outer_depth, outer_parent);");
+      cCode.stmt("UNPROTECT(1);");
 
       cCode = cFunction.add();
       cCode.stmt("return out;");
     }
 
-    private void emitDispatch() {
-      var cName = functionDispatchCName(function);
-      var cFunction = cUnit.addFunction(DISPATCH_C_RETURN, cName, DISPATCH_C_PARAMS);
+    private void emitDispatch(String cName) {
+      var cFunction = cUnit.addFunction(DISPATCH_C_RETURN, cName, DISPATCH_IMPL_C_PARAMS);
 
       var versions =
           function.versions().stream()
@@ -437,8 +1118,6 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       cCode.stmt("bool incompatible[%d];", versions.size());
-      cCode.stmt("va_list args;");
-      cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
       cCode.stmt("va_list args2;");
       cCode.stmt("va_copy(args2, args);");
 
@@ -507,6 +1186,7 @@ public final class Fir2CCompiler {
           for (var line : cases.get(j)) {
             cCode.stmt(3, "%s", line);
           }
+          cCode.stmt(3, "break;");
         }
         cCode.stmt(2, "default:");
         cCode.stmt(3, "break;");
@@ -544,32 +1224,65 @@ public final class Fir2CCompiler {
           sanitizeString(function.name().name()));
 
       cCode = cFunction.add();
-      cCode.stmt("va_end(args);");
       cCode.stmt("return out;");
     }
 
     private void emitVersions() {
-      var initCCode = initCFunction.add();
+      var initCCode = initCFunction().add();
       debugComment(initCCode, "# Init versions");
 
       for (var version : function.versions()) {
-        if (version.isStub()) {
-          VersionEmitter.forwardDeclareStub(cUnit, function, version);
-        } else {
-          var bytecode =
-              version == function.baseline() && bytecodes != null
-                  ? bytecodes.get(function.name().name())
-                  : null;
-          var cpSxp =
-              bytecode == null
-                  ? new VersionEmitter(version).run()
-                  : emitBytecodeBaseline(version, bytecode);
-          var cp = nestedPoolRef(fnPool, cpSxp);
-
-          var versionInitCName = versionInitCName(function, version);
-          initCCode.stmt("%s(%s);", versionInitCName, cp);
+        var cpSxp = emitVersion(version);
+        if (cpSxp == null) {
+          continue;
         }
+        var cp = nestedPoolRef(fnPool, cpSxp);
+
+        var versionInitCName = versionInitCName(function, version);
+        initCCode.stmt("%s(%s);", versionInitCName, cp);
+        emitEntryAssignments(initCCode, function, version);
       }
+    }
+
+    /// Emits `version`, and returns its constant pool (to pass to its initializer), or `null`
+    /// if it's a stub (which is only declared).
+    ///
+    /// An unevaluated version is compiled into a stub that runs its fallback, unless it's the
+    /// baseline: with bytecode it runs the bytecode (what a baseline runs instead of its FIŘ, as
+    /// does the fallback of every other version, ultimately), and without it's evaluated.
+    @Nullable VecSXP emitVersion(Abstraction version) {
+      if (version.isStub()) {
+        VersionEmitter.forwardDeclareStub(Fir2CCompiler.this, function, version);
+        return null;
+      }
+
+      var bytecode =
+          version == function.baseline() && bytecodes != null
+              ? bytecodes.get(function.name().name())
+              : null;
+      if (bytecode != null) {
+        session.addCompiled(function, version, () -> defaultCNamePart(function, version));
+        unitVersions.add(version);
+        return emitBytecodeBaseline(version, bytecode);
+      }
+
+      if (version.isEvaluated() || version.fallback() == null) {
+        return emitCompiledVersion(version);
+      }
+
+      var state = session.addStub(function, version, () -> defaultCNamePart(function, version));
+      unitVersions.add(version);
+      return new VersionEmitter(version, state).run();
+    }
+
+    /// Emits `version` compiled from its FIŘ (evaluating it if it isn't), and returns its
+    /// constant pool (to pass to its initializer).
+    VecSXP emitCompiledVersion(Abstraction version) {
+      if (!pendingReplacements.remove(version)) {
+        session.addCompiled(function, version, () -> defaultCNamePart(function, version));
+      }
+      unitVersions.add(version);
+      return new VersionEmitter(version, null).run();
     }
 
     /// Emits the baseline version as a shim that runs the function's original GNU-R bytecode
@@ -596,27 +1309,31 @@ public final class Fir2CCompiler {
           "Fir_set_const(%s, %d, Rf_ScalarInteger(0));", VAR_POOL, FIR_BC_BASELINE_CALLS);
       initCFunction.add().stmt("return R_NilValue;");
 
-      var cName = versionCallCName(function, baseline);
+      var cName = versionImplCName(function, baseline);
       var cParams = versionCallCParams(baseline);
       var cReturn = versionCallCReturn(baseline);
       var cFunction = cUnit.addFunction(cReturn, cName, cParams);
       var cCode = cFunction.add();
       debugComment(
           cCode, "## Call %s baseline (JIT-compiled GNU-R bytecode)", function.name().name());
+      emitCallCounter(cFunction, baseline, false);
 
       // Fixed pool layout, mirrored by `Fir_bc_baseline_call` in `runtime.c`:
       // 0 = the GNU-R bytecode, 1 = the formals (with default-argument expressions),
-      // 2 = space for the lazily JIT-compiled code, 3 = how to translate the feedback the JIT
-      // records into FIŘ feedback, 4 = space for the call counter.
+      // 2 = space for the lazily JIT-compiled code, 3 = what identifies the pool and its
+      // function's recording, 4 = space for the call counter.
       var bcIdx = pool.internUnique(SEXPs.bcode(bytecode.bc()));
       var formalsIdx = pool.internUnique(bytecode.formals());
       var jitIdx = pool.internSpace();
-      var feedbackIdx = pool.internUnique(bcBaselineFeedbackMap(baseline, bytecode));
+      // The translation of the baseline's recording refers to its registers and its inner
+      // closures' functions, which only exist once it's evaluated.
+      baseline.body();
+      var idIdx = pool.internUnique(bcBaselineId());
       var callsIdx = pool.internSpace();
       assert bcIdx == 0
           && formalsIdx == 1
           && jitIdx == 2
-          && feedbackIdx == FIR_BC_BASELINE_FEEDBACK
+          && idIdx == FIR_BC_BASELINE_ID
           && callsIdx == FIR_BC_BASELINE_CALLS;
 
       cCode.stmt("SEXP %s = %s;", VAR_POOL, constantsCName);
@@ -637,61 +1354,20 @@ public final class Fir2CCompiler {
       return pool.toSexp();
     }
 
-    /// The table `Fir_serialized_feedback` in `runtime.c` uses to translate the feedback the
-    /// copy-and-patch JIT records for `baseline`'s bytecode into FIŘ feedback (the format is
-    /// documented in `server/doc/bytecode-baseline-feedback.md`).
-    ///
-    /// It's a 3-element list:
-    /// - `[0]` = [#FIR_BC_BASELINE_FEEDBACK_MAGIC] (which is how the runtime recognizes a bytecode
-    ///   baseline's pool) followed by the prefix of this version's printed feedback (its function
-    ///   name and signature).
-    /// - `[1]` = the GNU-R bytecode offsets of the recorded instructions, ascending. Those are
-    ///   what the JIT keys its recording by, and they're offsets into the encoded bytecode array
-    ///   (which counts the version number and every instruction's arguments), not instruction
-    ///   indices.
-    /// - `[2]` = the name of the register each offset's feedback describes, parallel to `[1]`.
-    private VecSXP bcBaselineFeedbackMap(Abstraction baseline, FunctionBcOrigin bytecode) {
-      var labels = LabelMapping.toGNUR(bytecode.bc().code());
-      var baselineRegisters =
-          baseline.streamRegisters().map(Register::name).collect(Collectors.toSet());
-
-      var offsets = new ArrayList<Integer>();
-      var registers = new ArrayList<String>();
-      bytecode.feedbackRegisters().entrySet().stream()
-          // The runtime prints registers in the order it reads them, so ordering by bytecode
-          // position makes the printed feedback deterministic.
-          .sorted(Map.Entry.comparingByKey())
-          .forEach(
-              e -> {
-                // Only registers the baseline still has can be referred to (the feedback is parsed
-                // against it). They all are unless the bytecode was recorded from a different
-                // compile of the same closure, e.g. `Fir2CQuery` re-runs bc2fir to recover the
-                // bytecode the FIŘ snapshot was compiled from.
-                if (!baselineRegisters.contains(e.getValue())) {
-                  return;
-                }
-                offsets.add(labels.extract(new BcLabel(e.getKey())));
-                registers.add(e.getValue());
-              });
-
-      var prefix =
-          Printer.toString(function.name())
-              + "< "
-              + Printer.toString(baseline.signature())
-              + " > = ";
-      return SEXPs.vec(
-          SEXPs.string(FIR_BC_BASELINE_FEEDBACK_MAGIC, prefix),
-          SEXPs.integer(offsets),
-          SEXPs.string(registers));
-    }
-
-    private void emitConstantPoolAlias(CFunction cFunction) {
-      cFunction.add().stmt("SEXP %s = %s;", VAR_POOL, functionConstantsCName(function));
+    /// What identifies a bytecode baseline's pool to `Fir_serialized_feedback` in `runtime.c`:
+    /// [#FIR_BC_BASELINE_MAGIC] and the name of the baseline's function, which names its
+    /// recording. The server translates the recording ([org.prlprg.bc2fir.BcRecordingFeedback]).
+    private StrSXP bcBaselineId() {
+      return SEXPs.string(FIR_BC_BASELINE_MAGIC, function.name().name());
     }
 
     private final class VersionEmitter {
       // Input
       private final Abstraction version;
+      /// The stub this emits `version` as, or `null` to emit it compiled.
+      private final Fir2CSession.@Nullable VersionState stub;
+      /// The body, or the fallback if this emits a stub.
+      private final CFG root;
 
       // State
       private final Map<CFG, Set<Register>> locals = new LinkedHashMap<>();
@@ -700,39 +1376,123 @@ public final class Fir2CCompiler {
       /// Each promise CFG to the CFG whose frame creates it. The version's own body CFG isn't a
       /// key, so a lookup chain from any CFG terminates there.
       private final Map<CFG, CFG> enclosingCfgs = new LinkedHashMap<>();
+      /// Whether a frame of this version may be an environment that `missing` reads: the version
+      /// has a `MkEnv` of type `REGULAR`, or none (its code runs in an environment from R).
+      private final boolean mayHaveRegularEnv;
+      /// Whether every promise of this version is made in the frame of its real `MkEnv`: the
+      /// version has only that `MkEnv`, in the entry after no promise, and pops it only right
+      /// before a return. So its `FIR_FRAME_RETURNED` bit is set when the return marks the tracked
+      /// promises escaped.
+      private final boolean hasOneRealFrame;
 
-      static void forwardDeclareStub(CUnit cUnit, Function function, Abstraction version) {
+      /// Declares a stub version (a declaration without code, e.g. a builtin) as `extern`: it's
+      /// defined elsewhere (the runtime).
+      static void forwardDeclareStub(
+          Fir2CCompiler compiler, Function function, Abstraction version) {
         if (!version.isStub()) {
           throw new IllegalArgumentException(
-              "Call new FirVersionEmitter(...).run() for non-stub:\n" + version);
+              "Call new VersionEmitter(...).run() for a version that isn't a stub:\n" + version);
         }
 
-        var constantsCName = versionConstantsCName(function, version);
-        cUnit.addExternGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
+        var constantsCName = compiler.versionConstantsCName(function, version);
+        compiler.cUnit.addExternGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
 
-        var cName = versionCallCName(function, version);
+        var cName = compiler.versionCallCName(function, version);
         var cParams = versionCallCParams(version);
-        var cReturn = versionCallCReturn(version);
-        cUnit.addExternFunction(cReturn, cName, cParams);
+        var cReturn = compiler.versionCallCReturn(version);
+        compiler.cUnit.addExternFunction(cReturn, cName, cParams);
       }
 
-      VersionEmitter(Abstraction version) {
+      VersionEmitter(Abstraction version, Fir2CSession.@Nullable VersionState stub) {
         if (version.isStub()) {
           throw new IllegalArgumentException(
-              "Call FirVersionEmitter.stub(...) for stub:\n" + version);
+              "Call VersionEmitter.forwardDeclareStub(...) for a stub:\n" + version);
         }
 
         this.version = version;
+        this.stub = stub;
+        if (stub == null) {
+          root = version.body();
+        } else {
+          root =
+              Objects.requireNonNull(
+                  version.fallback(),
+                  "a stub is emitted for an unevaluated version with a fallback");
+        }
 
         prepare();
+
+        var mkEnvTypes =
+            streamCfgs()
+                .flatMap(cfg -> cfg.bbs().stream())
+                .flatMap(bb -> bb.statements().stream())
+                .<MkEnvType>mapMulti(
+                    (s, sink) -> {
+                      if (s.expression() instanceof MkEnv(var type)) {
+                        sink.accept(type);
+                      }
+                    })
+                .toList();
+        mayHaveRegularEnv = mkEnvTypes.isEmpty() || mkEnvTypes.contains(MkEnvType.REGULAR);
+        hasOneRealFrame =
+            mkEnvTypes.size() == 1
+                && mkEnvTypes.getFirst() != MkEnvType.ELIDED
+                && root.entry().statements().stream()
+                    .takeWhile(s -> !(s.expression() instanceof MkEnv))
+                    .noneMatch(s -> s.expression() instanceof Promise)
+                && root.entry().statements().stream().anyMatch(s -> s.expression() instanceof MkEnv)
+                && streamCfgs().flatMap(cfg -> cfg.bbs().stream()).allMatch(this::popsOnlyAtReturn);
+      }
+
+      private boolean popsOnlyAtReturn(BB bb) {
+        var statements = bb.statements();
+        for (var i = 0; i < statements.size(); i++) {
+          if (statements.get(i).expression() instanceof PopEnv
+              && !(bb.jump().expression() instanceof Return
+                  && statements.subList(i + 1, statements.size()).stream()
+                      .allMatch(s -> s.expression() instanceof Noop))) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      /// How `promise`, a statement of `cfg`, creates its promise. A local promise shares its code
+      /// only in [#root], since a nested one escapes when its promise body returns.
+      private PromiseSharing sharing(Promise promise, CFG cfg) {
+        if (isSharedStub(promise)) {
+          return PromiseSharing.STUB;
+        }
+        if (Objects.requireNonNull(captures.get(promise.code())).isEmpty()
+            && (!promise.local() || (cfg == root && hasOneRealFrame))) {
+          return PromiseSharing.CODE;
+        }
+        return PromiseSharing.NONE;
+      }
+
+      /// Whether `promise` compiles to one promise that every execution of its site gives
+      /// (`Fir_mk_stub_promise`, with `PRENV = Rsh_ElidedEnv`). The body of a deopt stub needs no
+      /// state of the activation. Only `missing` reads `PRENV` of an unforced promise, and only
+      /// when the expression is a symbol, so a symbol stub is shared only if `missing` can't read
+      /// a real environment through it.
+      private boolean isSharedStub(Promise promise) {
+        return promise.isDeoptStub()
+            && (!(promise.expr() instanceof RegSymSXP) || !mayHaveRegularEnv);
+      }
+
+      private Stream<CFG> streamCfgs() {
+        return Abstraction.streamCfgs(root);
+      }
+
+      private Stream<Register> streamRegisters() {
+        return version.streamRegisters(root);
       }
 
       private void prepare() {
         // Compute local and captured registers
-        version.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
-        version.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
-        version
-            .streamCfgs()
+        streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
+        streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
+        streamCfgs()
             .forEach(
                 cfg -> {
                   for (var bb : cfg.bbs()) {
@@ -743,15 +1503,14 @@ public final class Fir2CCompiler {
                     }
                   }
                 });
-        version
-            .streamRegisters()
+        streamRegisters()
             .forEach(
                 register -> {
                   registerTypes.put(register, register.type());
 
                   CFG defCfg;
                   switch (register) {
-                    case FunctionParameter _ -> defCfg = version.cfg();
+                    case FunctionParameter _ -> defCfg = root;
                     case AssigneeOf ao -> {
                       var defBb = ao.statement().parentBB();
                       if (defBb == null) {
@@ -778,8 +1537,8 @@ public final class Fir2CCompiler {
                     if (useBb == null) {
                       continue;
                     }
-                    // The register only has a slot in `defCfg`'s frame, and a promise's capture
-                    // array holds pointers into the frame that *creates* it. So a use nested more
+                    // The register only has a slot in `defCfg`'s frame, and a promise copies its
+                    // captures from the frame that *creates* it. So a use nested more
                     // than one promise deep has to be threaded through every frame in between,
                     // each of which captures it from its own enclosing frame.
                     for (var useCfg = useBb.owner();
@@ -797,21 +1556,24 @@ public final class Fir2CCompiler {
         var initCName = versionInitCName(function, version);
         var initCFunction = cUnit.addFunction(INIT_C_RETURN, initCName, INIT_C_PARAMS);
 
-        var cName = versionCallCName(function, version);
+        var cName = versionImplCName(function, version);
         var cParams = versionCallCParams(version);
         var cReturn = versionCallCReturn(version);
         var cFunction = cUnit.addFunction(cReturn, cName, cParams);
 
+        var what = stub == null ? "version" : "stub of version";
         if (options.contains(Option.EMIT_DEBUG_COMMENTS)
             || options.contains(Option.EMIT_DEBUG_PRINTS)) {
           debugComment(
               initCFunction.add(),
-              "## Init %s version %s",
+              "## Init %s %s %s",
               function.name().name(),
+              what,
               version.signature());
 
           var cCode = cFunction.add();
-          debugComment(cCode, "## Call %s version %s", function.name().name(), version.signature());
+          debugComment(
+              cCode, "## Call %s %s %s", function.name().name(), what, version.signature());
 
           // Debug-print SEXP parameters
           if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
@@ -821,8 +1583,13 @@ public final class Fir2CCompiler {
           }
         }
 
+        if (stub != null) {
+          emitStubEntry(cFunction, cReturn, cParams);
+        }
+        emitCallCounter(cFunction, version, stub != null);
+
         return new CfgEmitter(
-                Objects.requireNonNull(version.cfg()),
+                root,
                 version.returnType(),
                 constantsCName,
                 initCFunction,
@@ -831,9 +1598,42 @@ public final class Fir2CCompiler {
             .run();
       }
 
+      /// The `Fir_Stub` and, at the start of the call function, the call of the compiled version
+      /// once the stub has it. What follows is the fallback.
+      private void emitStubEntry(CFunction cFunction, String cReturn, List<String> cParams) {
+        assert stub != null;
+        var stubCName = versionStubCName(function, stub);
+        cUnit.addGlobalVariable(
+            STUB_C_TYPE,
+            stubCName,
+            "{.module = \"%s\", .id = %d, .compiled = NULL, .state = FIR_STUB_UNREQUESTED, .calls = 0}"
+                .formatted(sanitizeString(session.id()), stub.stubId()));
+
+        var cCode = cFunction.add();
+        debugComment(cCode, "# Call the compiled version if the server sent it, else the fallback");
+        var paramCTypes =
+            cParams.stream()
+                // Just the types: `SEXP env` -> `SEXP`.
+                .map(p -> p.substring(0, p.lastIndexOf(' ')))
+                .collect(Collectors.joining(", "));
+        cCode.stmt(
+            "%s (*compiled)(%s) = (%s (*)(%s))Fir_stub_enter(&%s);",
+            cReturn, paramCTypes, cReturn, paramCTypes, stubCName);
+        cCode.stmt("if (compiled != NULL) {");
+        cCode.stmt(
+            2,
+            "return compiled(%s%s);",
+            VAR_ENV,
+            version.parameters().stream()
+                .map(p -> ", " + registerCName(p))
+                .collect(Collectors.joining()));
+        cCode.stmt("}");
+      }
+
       private final class PromiseEmitter {
         // Input
         private final Promise promise;
+        private final PromiseSharing sharing;
 
         // Output
         private final String constantsCName;
@@ -844,10 +1644,12 @@ public final class Fir2CCompiler {
 
         PromiseEmitter(
             Promise promise,
+            PromiseSharing sharing,
             CFunction initCFunction,
             CFunction fromRCFunction,
             CFunction evalCFunction) {
           this.promise = promise;
+          this.sharing = sharing;
 
           constantsCName = promiseConstantsCName(promise);
           this.initCFunction = initCFunction;
@@ -895,17 +1697,34 @@ public final class Fir2CCompiler {
           cCode.stmt(
               "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s, .escaped = %s};",
               evalCName, valueType, reflect, escaped);
+          var mayReflect = new InferEffects(promise.code().scope()).of(promise.code()).reflect();
+          cCode.stmt("FIR_STATS_ONLY(data->may_reflect = %s;)", mayReflect);
+
+          // The source expression, which `Fir_mk_promise` puts in the promise.
+          var exprIdx =
+              pool.internUnique(promise.expr() != null ? promise.expr() : SEXPs.UNBOUND_VALUE);
+          assert exprIdx == PROMISE_EXPR_INDEX;
+
+          if (sharing != PromiseSharing.NONE) {
+            var siteIdx = pool.internSpace();
+            assert siteIdx == PROMISE_SITE_INDEX;
+            var fromR = promiseFromRCName(promise);
+            var expr = "Fir_const(%s, %d)".formatted(VAR_POOL, PROMISE_EXPR_INDEX);
+            var site =
+                sharing == PromiseSharing.STUB
+                    ? "Fir_mk_stub_promise(%s, %s, %s)".formatted(fromR, VAR_POOL, expr)
+                    : "Fir_promise_site_code(%s, %s, %s, %s)"
+                        .formatted(fromR, VAR_POOL, expr, promise.local());
+            cCode.stmt("Fir_set_const(%s, %d, %s);", VAR_POOL, siteIdx, site);
+          }
         }
 
         private void emitFromR() {
           var cCode = fromRCFunction.add();
           // If the promise escaped its creating frame, record the escape or crash (if local).
-          cCode.stmt("Fir_check_promise_escaped(%s);", VAR_DATA);
+          cCode.stmt("Fir_check_promise_escaped(%s, %s);", VAR_DATA, VAR_ENV);
           cCode.stmt(
-              "void **captures = ((Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(%s)))->captures;",
-              VAR_DATA);
-          var evalCName = promiseEvalCName(promise);
-          cCode.stmt("return %s(%s, captures);", evalCName, VAR_ENV);
+              "return Fir_eval_promise(%s, %s, %s);", promiseEvalCName(promise), VAR_ENV, VAR_DATA);
         }
 
         private void beginEmitEval() {
@@ -947,6 +1766,19 @@ public final class Fir2CCompiler {
         /// them escaped when the frame exits.
         private final boolean createsPromises;
 
+        /// Whether this CFG has any `MkEnv` or `PopEnv`, so it needs [#VAR_ENV_PUSHED],
+        /// [#VAR_ENV_SAVED], and [#VAR_ENV_DEPTH].
+        private final boolean hasEnvOps;
+
+        /// The number of `MkEnv`s in this CFG, which bounds how many are active at once. (Like
+        /// [#VAR_ENV_PUSHED], [#VAR_ENV_DEPTH] assumes each `PopEnv` follows its `MkEnv` in the
+        /// CFG.)
+        private final long numMkEnvs;
+
+        /// Whether this CFG's deopt branches materialize its environment (see
+        /// [BBEmitter#emitMaterializeEnv()]), so it needs [#VAR_ENV_CLOSURE].
+        private final boolean materializesEnv;
+
         CfgEmitter(
             CFG cfg,
             Type returnType,
@@ -966,7 +1798,23 @@ public final class Fir2CCompiler {
           createsPromises =
               cfg.bbs().stream()
                   .flatMap(bb -> bb.statements().stream())
-                  .anyMatch(s -> s.expression() instanceof Promise);
+                  .anyMatch(
+                      s ->
+                          s.expression() instanceof Promise p
+                              && sharing(p, cfg) == PromiseSharing.NONE);
+          hasEnvOps =
+              cfg.bbs().stream()
+                  .flatMap(bb -> bb.statements().stream())
+                  .anyMatch(
+                      s -> s.expression() instanceof MkEnv || s.expression() instanceof PopEnv);
+          numMkEnvs =
+              cfg.bbs().stream()
+                  .flatMap(bb -> bb.statements().stream())
+                  .filter(s -> s.expression() instanceof MkEnv)
+                  .count();
+          materializesEnv =
+              hasEnvOps
+                  && cfg.bbs().stream().anyMatch(bb -> bb.jump().expression() instanceof Deopt);
         }
 
         VecSXP run() {
@@ -979,6 +1827,8 @@ public final class Fir2CCompiler {
           emitLocalDeclarations();
 
           emitPromiseTrackingSetup();
+
+          emitEnvPushedDeclaration();
 
           for (var bb : cfg.bbs()) {
             new BBEmitter(bb, cFunction.add()).run();
@@ -1002,6 +1852,30 @@ public final class Fir2CCompiler {
           sec.stmt("SEXP %s = R_NilValue;", VAR_LOCAL_PROMISES);
           sec.stmt("PROTECT_INDEX %s;", VAR_LOCAL_PROMISES_IDX);
           sec.stmt("PROTECT_WITH_INDEX(%s, &%s);", VAR_LOCAL_PROMISES, VAR_LOCAL_PROMISES_IDX);
+        }
+
+        /// Declares the bit stack of what each active `MkEnv` returned (the top is bit 0), which
+        /// its `PopEnv` passes to `Fir_pop_env`, and the stack of slots where `Fir_push_env`
+        /// saves what `Fir_pop_env` restores. `MkEnv`s nest within a frame after inlining.
+        ///
+        /// Also protects the environment and each saved slot in a protect slot of its own, which
+        /// the env operations `REPROTECT`, since a pushed frame outlives the basic block that
+        /// pushes it. The slots are below every basic block's protects and released at `Return`.
+        private void emitEnvPushedDeclaration() {
+          if (hasEnvOps) {
+            var sec = cFunction.add();
+            sec.stmt("uint64_t %s = 0;", VAR_ENV_PUSHED);
+            sec.stmt("SEXP %s[%d];", VAR_ENV_SAVED, Math.max(numMkEnvs, 1));
+            sec.stmt("int %s = 0;", VAR_ENV_DEPTH);
+            sec.stmt("PROTECT_INDEX %s;", VAR_ENV_IDX);
+            sec.stmt("PROTECT_WITH_INDEX(%s, &%s);", VAR_ENV, VAR_ENV_IDX);
+            for (var i = 0; i < numMkEnvs; i++) {
+              sec.stmt("PROTECT(%s[%d] = R_NilValue);", VAR_ENV_SAVED, i);
+            }
+          }
+          if (materializesEnv) {
+            cFunction.add().stmt("SEXP %s = %s;", VAR_ENV_CLOSURE, VAR_ENV);
+          }
         }
 
         private void emitConstants() {
@@ -1047,6 +1921,10 @@ public final class Fir2CCompiler {
           // Output
           private final CCode cCode;
 
+          /// The registers that the statement `#emitStatement` emits counts while it runs R code
+          /// (see `#linkStatement`), or `null`.
+          private @Nullable Array statementLinks;
+
           BBEmitter(BB bb, CCode cCode) {
             this.bb = bb;
             this.cCode = cCode;
@@ -1062,6 +1940,9 @@ public final class Fir2CCompiler {
 
             int numLiveIn = emitProtect();
 
+            // After the protect: it allocates.
+            emitMaterializeEnv();
+
             for (var statement : bb.statements()) {
               emitStatement(statement);
             }
@@ -1072,6 +1953,16 @@ public final class Fir2CCompiler {
             emitJump(bb.jump());
           }
 
+          /// A deopt branch stores into an elided environment, and the bytecode it continues in
+          /// needs a real one, so make it real at the branch's entry. Only a CFG with a `MkEnv`
+          /// can have an elided environment: a promise's has none.
+          private void emitMaterializeEnv() {
+            if (materializesEnv && bb.jump().expression() instanceof Deopt) {
+              cCode.stmt("Fir_materialize_env(&%s, %s);", VAR_ENV, VAR_ENV_CLOSURE);
+              cCode.stmt("REPROTECT(%s, %s);", VAR_ENV, VAR_ENV_IDX);
+            }
+          }
+
           private void emitStatement(Statement statement) {
             debugInstr(cCode, statement);
 
@@ -1079,11 +1970,16 @@ public final class Fir2CCompiler {
               return;
             }
 
+            statementLinks = null;
             var expr = emitExpression(statement);
             if (expr == null) {
               return;
             }
 
+            var links = statementLinks;
+            if (links != null) {
+              cCode.stmt("Fir_link(%d, %s, 1);", links.size(), links.pointer());
+            }
             if (statement.assignee() == null) {
               cCode.stmt("(void)(%s);", expr);
             } else {
@@ -1098,6 +1994,19 @@ public final class Fir2CCompiler {
                   registerPlace(statement.assignee()),
                   registerRepr(statement.assignee()));
             }
+            if (links != null) {
+              cCode.stmt("Fir_link(%d, %s, -1);", links.size(), links.pointer());
+            }
+          }
+
+          /// Make `#emitStatement` count the registers that outlive `statement`, which runs R code:
+          /// R code can write in place a binding that holds a register's value (`x[1] <<- 0`).
+          private void linkStatement(Statement statement) {
+            var places = statementLinkPlaces(statement);
+            if (places.isEmpty()) {
+              debugCommentComptimeOnly(cCode, "# No links");
+            }
+            statementLinks = places.isEmpty() ? null : emitArray("linked", "SEXP", places);
           }
 
           private @Nullable String emitExpression(Statement statement) {
@@ -1111,14 +2020,12 @@ public final class Fir2CCompiler {
 
                 var fromRCName = functionFromRCName(function);
 
-                var formalsSxp =
-                    function.parameterNames().stream()
-                        .map(nv -> new TaggedElem(nv.name(), SEXPs.MISSING_ARG))
-                        .collect(SEXPs.toList());
-                var formals = constantRef(pool, formalsSxp);
+                var formals = constantRef(pool, function.formals());
 
                 String cp;
-                if (compiledFunctions.contains(function)) {
+                if (session.hasFunction(function)) {
+                  // Compiled in this unit or an earlier piece (then it's declared `extern`).
+                  referenceFunction(function);
                   var cpIdx =
                       pool.internPatched(
                           function,
@@ -1152,8 +2059,13 @@ public final class Fir2CCompiler {
                 var env = isStatic ? "R_GlobalEnv" : VAR_ENV;
                 yield "Fir_mk_closure(%s, %s, %s, %s)".formatted(fromRCName, formals, cp, env);
               }
+              case Promise promise when promise.wrappedValue() != null ->
+                  "Fir_mk_value_promise(%s, %s)"
+                      .formatted(
+                          emitArgument(Objects.requireNonNull(promise.wrappedValue())), VAR_ENV);
               case Promise promise -> {
                 // Compile the promise
+                var sharing = sharing(promise, cfg);
 
                 var initCName = promiseInitCName(promise);
                 var fromRCName = promiseFromRCName(promise);
@@ -1190,6 +2102,7 @@ public final class Fir2CCompiler {
                 var cpSxp =
                     new PromiseEmitter(
                             promise,
+                            sharing,
                             promiseInitCFunction,
                             promiseFromRCFunction,
                             promiseEvalCFunction)
@@ -1205,6 +2118,14 @@ public final class Fir2CCompiler {
                     bb.label());
                 initCCode.stmt("%s(%s);", initCName, cp);
 
+                var site = "Fir_const(%s, %d)".formatted(cp, PROMISE_SITE_INDEX);
+                if (sharing == PromiseSharing.STUB) {
+                  yield site;
+                }
+                if (sharing == PromiseSharing.CODE) {
+                  yield "Fir_mk_promise_shared(%s, %s)".formatted(site, VAR_ENV);
+                }
+
                 // Emit the runtime constructor
 
                 var captureSet = Objects.requireNonNull(captures.get(promise.code()));
@@ -1217,30 +2138,68 @@ public final class Fir2CCompiler {
                         "void *",
                         captureSet.stream().map(reg -> "(void *)&" + registerPlace(reg)).toList());
                 var captures = captureArray.pointer();
+                var captureReprs =
+                    captureSet.stream()
+                        .map(reg -> String.valueOf(captureReprCode(registerRepr(reg))))
+                        .collect(Collectors.joining());
 
                 // Track the created promise so it's marked escaped when this frame exits.
-                yield "Fir_track_promise(Fir_mk_promise(%s, %s, %s, %s), &%s, %s)"
+                yield "Fir_track_promise(Fir_mk_promise(%s, %s, %s, \"%s\", %s, Fir_const(%s, %d)), &%s, %s)"
                     .formatted(
                         fromRCName,
                         cp,
                         captures,
+                        captureReprs,
                         VAR_ENV,
+                        cp,
+                        PROMISE_EXPR_INDEX,
                         VAR_LOCAL_PROMISES,
                         VAR_LOCAL_PROMISES_IDX);
               }
-              case Assume(var assumption) ->
-                  emitAssumptionValue(
-                      assignee, assumption, args.isEmpty() ? null : args.getFirst());
+              case Assume(var assumption) -> {
+                // Only a checkpoint emits the guard (see `emitJump`).
+                if (!isCheckedAssumption(statement)) {
+                  throw new IllegalStateException(
+                      "Assumption isn't among the leading assumptions of a checkpoint's success"
+                          + " block, so it's never checked: "
+                          + statement
+                          + " in "
+                          + bb.label());
+                }
+                yield emitAssumptionValue(
+                    assignee, assumption, args.isEmpty() ? null : args.getFirst());
+              }
               case Call _ -> emitCall(statement);
               case Cast(var type) ->
                   "Fir_cast(%s, %s)".formatted(emitArgument(args.getFirst()), emitType(type));
               // A `consume` argument guarantees the vector isn't read again, so this can move it
               // instead of copying (see `org.prlprg.fir.opt.ConsumeDeadDup`).
               case Dup _ when args.getFirst() instanceof Consume -> emitArgument(args.getFirst());
+              case Dup _ when matchAssignDup(statement) instanceof SetterPattern dup ->
+                  emitAssignDup(statement, dup);
               case Dup _ -> "Fir_dup(%s)".formatted(emitArgument(args.getFirst()));
-              case Force(var isMaybe) ->
-                  (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)")
-                      .formatted(emitArgument(args.getFirst()));
+              case Force(var isMaybe) -> {
+                var value = emitArgument(args.getFirst());
+                var force = (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)").formatted(value);
+                var linked = statementLinkPlaces(statement);
+                if (linked.isEmpty()) {
+                  debugCommentComptimeOnly(cCode, "# No links");
+                  yield force;
+                }
+                // Only a promise's code runs R code (see `#linkStatement`).
+                var forced = freshTemp("forced");
+                cCode.stmt("SEXP %s;", forced);
+                cCode.stmt(
+                    "if (TYPEOF(%s) == PROMSXP && !PROMISE_IS_EVALUATED(%s)) {", value, value);
+                var array = emitArray("linked", "SEXP", linked);
+                cCode.stmt("Fir_link(%d, %s, 1);", array.size(), array.pointer());
+                cCode.stmt("%s = %s;", forced, force);
+                cCode.stmt("Fir_link(%d, %s, -1);", array.size(), array.pointer());
+                cCode.stmt("} else {");
+                cCode.stmt("%s = %s;", forced, force);
+                cCode.stmt("}");
+                yield forced;
+              }
               // This is an R special case.
               // There's no equivalent for `Store`, `LoadFun`, etc.
               // their behavior is inconsistent.
@@ -1260,8 +2219,32 @@ public final class Fir2CCompiler {
                     case BASE_FUN ->
                         "Rf_findFun(%s, R_BaseEnv)".formatted(nvSymbolRef(pool, variable));
                   };
+              case MkEnv(var type) when type == MkEnvType.ELIDED -> {
+                // Inline, and it `REPROTECT`s what it must itself.
+                cCode.stmt(
+                    "%s = (%s << 1) | Fir_push_env_elided(&%s, &%s[%s], %s + 1 + %s);",
+                    VAR_ENV_PUSHED,
+                    VAR_ENV_PUSHED,
+                    VAR_ENV,
+                    VAR_ENV_SAVED,
+                    VAR_ENV_DEPTH,
+                    VAR_ENV_IDX,
+                    VAR_ENV_DEPTH);
+                cCode.stmt("%s++;", VAR_ENV_DEPTH);
+                debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
+                yield null;
+              }
               case MkEnv(var type) -> {
-                cCode.stmt("Fir_push_env(&%s, %s);", VAR_ENV, emitMkEnvType(type));
+                cCode.stmt(
+                    "%s = (%s << 1) | Fir_push_env(&%s, %s, &%s[%s]);",
+                    VAR_ENV_PUSHED,
+                    VAR_ENV_PUSHED,
+                    VAR_ENV,
+                    emitMkEnvType(type),
+                    VAR_ENV_SAVED,
+                    VAR_ENV_DEPTH);
+                cCode.stmt("REPROTECT(%s, %s);", VAR_ENV, VAR_ENV_IDX);
+                cCode.stmt("%s++;", VAR_ENV_DEPTH);
                 debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
                 yield null;
               }
@@ -1275,6 +2258,15 @@ public final class Fir2CCompiler {
                               "Vector kind must be primitive or dots: " + kind);
                     };
                 var namedArrays = emitNamedArgumentArrays(scalarRepr, args, elementNames);
+                var values = kind instanceof Kind.Dots ? expressionValues(args) : 0;
+                if (values != 0) {
+                  yield "Fir_mk_dots_values(%d, %s, %s, 0x%xULL)"
+                      .formatted(
+                          namedArrays.values().size(),
+                          namedArrays.values().pointer(),
+                          namedArrays.names(),
+                          values);
+                }
                 yield "Fir_mk_vector(%s, %d, %s, %s)"
                     .formatted(
                         emitKind(kind),
@@ -1284,7 +2276,11 @@ public final class Fir2CCompiler {
               }
               case Noop() -> null;
               case PopEnv() -> {
-                cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
+                cCode.stmt(
+                    "Fir_pop_env_inline(&%s, %s & 1, %s[--%s]);",
+                    VAR_ENV, VAR_ENV_PUSHED, VAR_ENV_SAVED, VAR_ENV_DEPTH);
+                cCode.stmt("REPROTECT(%s, %s);", VAR_ENV, VAR_ENV_IDX);
+                cCode.stmt("%s >>= 1;", VAR_ENV_PUSHED);
                 yield null;
               }
               case ReflectiveLoad(var variable) ->
@@ -1300,10 +2296,21 @@ public final class Fir2CCompiler {
               }
               case Store(var storeType, var variable) -> {
                 var arg = emitArgument(args.getFirst());
+                var parameter = defaultedParameter(variable, args.getFirst());
                 switch (storeType) {
-                  case LOCAL_VAR ->
+                  case LOCAL_VAR -> {
+                    if (parameter == null) {
                       cCode.stmt(
                           "Rf_defineVar(%s, %s, %s);", nvSymbolRef(pool, variable), arg, VAR_ENV);
+                    } else {
+                      cCode.stmt(
+                          "Fir_store_parameter(%s, %s, %s, %s);",
+                          nvSymbolRef(pool, variable),
+                          arg,
+                          VAR_ENV,
+                          emitArgument(new Read(parameter)));
+                    }
+                  }
                   case SUPER_VAR ->
                       cCode.stmt(
                           "Fir_super_store(%s, %s, %s);",
@@ -1351,25 +2358,35 @@ public final class Fir2CCompiler {
             var call = (Call) statement.expression();
             var closureOrCalleeArg = statement.arg(0);
             var callArgs = statement.args().subList(1, statement.args().size());
+            var sourceCall = statement.source();
+            var source = sourceCall == null ? "NULL" : constantRef(pool, sourceCall);
+            var setter = matchSetter(statement);
             return switch (call.callee()) {
               case StaticFnCallee(var calleeFunRef, var isDispatch, var signature) -> {
                 var calleeFun = calleeFunRef.get();
                 var calleeModule = calleeFun.owner();
+                // Builtins and intrinsics have no closure environment, so their C code ignores
+                // the closure (which `elideBuiltinClosure` normally elides).
                 var closureEnv =
                     closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)
+                            || calleeModule == BUILTINS
+                            || calleeModule == INTRINSICS
                         ? "R_EmptyEnv"
                         : "CLOENV(%s)".formatted(emitArgument(closureOrCalleeArg));
 
-                if (calleeModule == INTRINSICS && isDispatch) {
+                if (calleeModule == INTRINSICS && calleeFun.name().name().equals("checkMissing")) {
+                  var value = callArgs.getFirst();
+                  yield "Fir_check_missing(%s, %s)"
+                      .formatted(emitArgument(value), checkedSymbolRef(value));
+                } else if (calleeModule == INTRINSICS && isDispatch) {
                   throw new IllegalArgumentException(
                       "Intrinsic should never be dispatched: " + call);
-                } else if ((calleeModule == BUILTINS || calleeModule == INTRINSICS)
-                    && !closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)) {
-                  throw new IllegalArgumentException(
-                      "Builtin with closure environment is unimplemented");
                 } else if (calleeModule == BUILTINS
                     && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
-                  yield emitBuiltinCall(callArgs, calleeFun);
+                  yield emitBuiltinCall(source, callArgs, calleeFun, statement, setter);
+                } else if (calleeFun.userProperties().needsContext()) {
+                  yield emitInContextCall(
+                      source, call, closureOrCalleeArg, callArgs, calleeFun, statement);
                 }
 
                 if (isDispatch) {
@@ -1378,9 +2395,9 @@ public final class Fir2CCompiler {
                         "Builtin dispatch calls can only be compiled if the signature is compatible with the baseline (so we can, and do, call the GNU-R builtin): "
                             + call);
                   }
-                  if (signature.returnType().kind().repr() != Repr.SEXP) {
+                  if (!DispatchSignatureChecker.isSexpSignature(signature)) {
                     throw new IllegalArgumentException(
-                        "Dispatch calls must always return `SEXP`, because the C definition does.\nEncountered: "
+                        "Dispatch calls must always take and return `SEXP`s, because the C definition does.\nEncountered: "
                             + call);
                   }
 
@@ -1397,11 +2414,12 @@ public final class Fir2CCompiler {
                       });
 
                   // Defer declare extern for referenced (previously-compiled) function
-                  referencedFunctions.add(calleeFun);
+                  referenceFunction(calleeFun);
 
                   var cName = functionDispatchCName(calleeFun);
                   var cSignature = emitSignature(signature);
                   var arguments = emitArgumentSplice(callArgs);
+                  linkStatement(statement);
                   yield "%s(%s, %s%s)".formatted(cName, closureEnv, cSignature, arguments);
                 } else {
                   var calleeVersion =
@@ -1413,8 +2431,11 @@ public final class Fir2CCompiler {
                         "In " + call + ", no version matches signature:\n" + calleeFun);
                   }
 
-                  // Builtins and intrinsics have no constants and are already declared
                   if (calleeFun.owner() != BUILTINS && calleeFun.owner() != INTRINSICS) {
+                    // Defer declare extern for referenced (previously-compiled) version
+                    referenceVersion(calleeVersion, calleeFun);
+                  }
+                  if (mustProtectConstants(function, calleeFun, calleeVersion)) {
                     // Protect constants
                     pool.internPatched(
                         calleeVersion,
@@ -1430,22 +2451,89 @@ public final class Fir2CCompiler {
                           initCCode.stmt(
                               "Fir_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
                         });
-
-                    // Defer declare extern for referenced (previously-compiled) version
-                    referencedVersions.put(calleeVersion, calleeFun);
                   }
 
-                  var cName = versionCallCName(calleeFun, calleeVersion);
                   var arguments = emitArgumentSplice(callArgs);
-                  yield "%s(%s%s)".formatted(cName, closureEnv, arguments);
+                  var ownedVersion =
+                      calleeModule != BUILTINS ? null : ownedTwin(calleeFun, calleeVersion);
+                  // `guessWorst` picks the borrowed version, which copies; a consumed argument is
+                  // fresh, so the owned version can modify it.
+                  if (ownedVersion != null && callArgs.getFirst() instanceof Consume) {
+                    yield emitVersionCall(calleeFun, ownedVersion, closureEnv, arguments);
+                  }
+                  var versionCall =
+                      emitVersionCall(calleeFun, calleeVersion, closureEnv, arguments);
+                  if (calleeModule != BUILTINS && calleeModule != INTRINSICS) {
+                    linkStatement(statement);
+                  }
+                  if (setter == null || ownedVersion == null) {
+                    yield versionCall;
+                  }
+                  // Nothing else references the protocol's value, so the owned version can
+                  // modify it.
+                  var state = emitSetterBegin(statement, Objects.requireNonNull(setter));
+                  var ownedArguments =
+                      ", %s.value%s"
+                          .formatted(
+                              state, emitArgumentSplice(callArgs.subList(1, callArgs.size())));
+                  yield "Fir_setter_end(&%s, %s.active ? %s : %s)"
+                      .formatted(
+                          state,
+                          state,
+                          emitVersionCall(calleeFun, ownedVersion, closureEnv, ownedArguments),
+                          versionCall);
                 }
+              }
+              case FallbackCallee(var signature) -> {
+                var calleeVersion = function.guess(signature, version);
+                if (calleeVersion == null) {
+                  throw new IllegalArgumentException(
+                      "In " + call + ", no other version matches signature:\n" + function);
+                }
+
+                // No need to protect the callee's constants: they're a version of this function,
+                // so they're in its pool, like this version's.
+                referenceVersion(calleeVersion, function);
+
+                // A fallback has no `mkenv`, so `env` is still the closure's environment.
+                var arguments = emitArgumentSplice(callArgs);
+                linkStatement(statement);
+                yield emitVersionCall(function, calleeVersion, VAR_ENV, arguments);
               }
               case DynamicCallee(var argumentNames) -> {
                 var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
                 var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
-                yield "Fir_call_dynamic(%s, %s, %d, %s, %s)"
+                var values = expressionValues(callArgs);
+                if (setter != null) {
+                  var state = emitSetterBegin(statement, setter);
+                  yield "Fir_setter_end(&%s, Fir_call_setter(&%s, %s, %s, %s, %d, %s, %s, 0x%xULL))"
+                      .formatted(
+                          state,
+                          state,
+                          emitArgument(closureOrCalleeArg),
+                          setterSourceRef(statement),
+                          VAR_ENV,
+                          arguments.size(),
+                          arguments.pointer(),
+                          names.pointer(),
+                          values);
+                }
+                linkStatement(statement);
+                if (values != 0) {
+                  yield "Fir_call_dynamic_values(%s, %s, %s, %d, %s, %s, 0x%xULL)"
+                      .formatted(
+                          emitArgument(closureOrCalleeArg),
+                          source,
+                          VAR_ENV,
+                          arguments.size(),
+                          arguments.pointer(),
+                          names.pointer(),
+                          values);
+                }
+                yield "Fir_call_dynamic(%s, %s, %s, %d, %s, %s)"
                     .formatted(
                         emitArgument(closureOrCalleeArg),
+                        source,
                         VAR_ENV,
                         arguments.size(),
                         arguments.pointer(),
@@ -1454,8 +2542,24 @@ public final class Fir2CCompiler {
             };
           }
 
-          private String emitBuiltinCall(List<Argument> callArgs, Function calleeFun) {
-            var builtinIndex = builtinIndex(calleeFun);
+          /// A call of a `@needsContext` function goes through `Rf_applyClosure` (which
+          /// `Fir_call_dynamic` does for such a callee), so it runs in a closure context. Its
+          /// from-R entry then selects the version, so the call must be one a call from R can
+          /// make.
+          private String emitInContextCall(
+              String source,
+              Call call,
+              Argument closure,
+              List<Argument> callArgs,
+              Function calleeFun,
+              Statement statement) {
+            if (!(call.callee() instanceof StaticFnCallee(var _, var isDispatch, var signature))
+                || closure.equals(Constant.ELIDED_CLOSURE)
+                || (!isDispatch && !isFromRSignature(signature))) {
+              throw new IllegalArgumentException(
+                  "A call of a function that needs a closure context must have the closure and be a dispatch or a call of a version that GNU-R can call: "
+                      + call);
+            }
 
             var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
             var names =
@@ -1463,27 +2567,446 @@ public final class Fir2CCompiler {
                     "arg_names",
                     "SEXP",
                     Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
-            if (arguments.size() != names.size()) {
+            linkStatement(statement);
+            return "Fir_call_dynamic(%s, %s, %s, %d, %s, %s)"
+                .formatted(
+                    emitArgument(closure),
+                    source,
+                    VAR_ENV,
+                    arguments.size(),
+                    arguments.pointer(),
+                    names.pointer());
+          }
+
+          /// The arguments (or parameters) of a static builtin call, in the order the primitive
+          // takes
+          /// them. `[<-` and `[[<-` are `(x, i, value, ...)`, where the `...` has the subscripts
+          /// after the first, but the primitive takes the last argument as the value.
+          private static <T> List<T> valueLast(Function calleeFun, List<T> passed) {
+            var name = calleeFun.name().name();
+            return passed.size() == 4 && (name.equals("[<-") || name.equals("[[<-"))
+                ? List.of(passed.get(0), passed.get(1), passed.get(3), passed.get(2))
+                : passed;
+          }
+
+          /// The tags of a static builtin call's first `present` arguments, in parameter order:
+          /// those of the source call, which GNU-R passes (an S3 method of `x[i]` sees `i`
+          /// untagged), or the parameter names if the source isn't a call of the builtin.
+          private List<String> builtinArgumentTags(
+              Function calleeFun, Statement statement, int present) {
+            var parameters = calleeFun.parameterNames().subList(0, present);
+            var source = statement.source();
+            ArgumentMatcher.MatchResults matches = null;
+            if (source != null
+                && source.funNameIs(calleeFun.name().name())
+                && source.args().stream().noneMatch(a -> a.value().equals(SEXPs.DOTS_SYMBOL))) {
+              try {
+                matches =
+                    ArgumentMatcher.matchArgumentNames(
+                        Lists.mapLazy(calleeFun.parameterNames(), NamedVariable::name),
+                        source.args().names());
+              } catch (IllegalArgumentException _) {
+                // The source doesn't match the parameters.
+              }
+            }
+            if (matches == null) {
+              return Lists.mapLazy(parameters, nv -> nvSymbolRef(pool, nv));
+            }
+            var tags = source.args().names();
+            var arguments = matches.arguments();
+            return Lists.mapLazy(
+                parameters,
+                nv -> {
+                  var index = arguments.get(nv.name());
+                  return nv == NamedVariable.DOTS
+                      ? "R_DotsSymbol"
+                      : index == null || tags.get(index).isEmpty()
+                          ? "R_MissingArg"
+                          : constantRef(pool, SEXPs.symbol(tags.get(index)));
+                });
+          }
+
+          /// `source` is the C expression of the call's source (`NULL` if it has none).
+          private String emitBuiltinCall(
+              String source,
+              List<Argument> callArgs,
+              Function calleeFun,
+              Statement statement,
+              @Nullable SetterPattern setter) {
+            var builtinIndex = builtinIndex(calleeFun);
+            if (callArgs.size() != calleeFun.parameterNames().size()) {
               throw new IllegalStateException(
                   "Dispatched builtin has different number of arguments than its signature:\nFull definition = "
                       + calleeFun);
             }
 
-            return builtinIndex == null
-                ? "Fir_call_base(%s, %s, %d, %s, %s)"
+            // A static call passes every parameter, so bc2fir pads the trailing parameters R code
+            // left out with `<missing>` constants. Drop them: the callee then gets the arguments
+            // of the R call. A missing-argument *value* (a forced promise can yield the empty
+            // symbol) is passed through, as GNU-R's `CALLBUILTIN` does.
+            var present = callArgs.size();
+            while (present > 0
+                && callArgs.get(present - 1) instanceof Constant(var c)
+                && c.equals(new Value.Sexp(SEXPs.MISSING_ARG))) {
+              present--;
+            }
+            var passedArgs = valueLast(calleeFun, callArgs.subList(0, present));
+            var arguments = emitArgumentArray("args", Repr.SEXP, passedArgs);
+            var names =
+                emitArray(
+                    "arg_names",
+                    "SEXP",
+                    valueLast(calleeFun, builtinArgumentTags(calleeFun, statement, present)));
+
+            // A `@readsContext` builtin's `.Internal` must run in the base closure's frame. An
+            // `.Internal` whose arity differs from the signature (`stop`, `warning`) needs its
+            // base closure to build the arguments. Decide this on the untrimmed count.
+            var entry = rSession.RFunTab().get(calleeFun.name().name());
+            // A lite special's constant symbols and calls are expressions, its registers values.
+            var values =
+                calleeFun.userProperties().liteSpecial() && present <= 64
+                    ? IntStream.range(0, present)
+                        .filter(i -> !(passedArgs.get(i) instanceof Constant))
+                        .mapToLong(i -> 1L << i)
+                        .sum()
+                    : 0;
+            var viaBase =
+                builtinIndex == null
+                    || calleeFun.userProperties().readsContext()
+                    || (entry.isInternal()
+                        && entry.arity() != -1
+                        && entry.arity() != callArgs.size());
+            if (setter != null && !viaBase) {
+              var state = emitSetterBegin(statement, setter);
+              return "Fir_setter_end(&%s, Fir_call_setter_builtin(&%s, %d, %s, %s, %d, %s, %s, 0x%xULL))"
+                  .formatted(
+                      state,
+                      state,
+                      builtinIndex,
+                      setterSourceRef(statement),
+                      VAR_ENV,
+                      arguments.size(),
+                      arguments.pointer(),
+                      names.pointer(),
+                      values);
+            }
+            if (viaBase && (builtinIndex == null || values == 0)) {
+              linkStatement(statement);
+              return "Fir_call_base(%s, %s, %s, %d, %s, %s)"
+                  .formatted(
+                      baseSymbolRef(pool, calleeFun),
+                      source,
+                      VAR_ENV,
+                      arguments.size(),
+                      arguments.pointer(),
+                      names.pointer());
+            }
+            var protect = statementLinkPlaces(statement);
+            if (values != 0) {
+              var linked = emitArray("linked", "SEXP", protect);
+              return "Fir_call_builtin_values(%d, %s, %s, %d, %s, %s, 0x%xULL, %d, %s)"
+                  .formatted(
+                      builtinIndex,
+                      source,
+                      VAR_ENV,
+                      arguments.size(),
+                      arguments.pointer(),
+                      names.pointer(),
+                      values,
+                      linked.size(),
+                      linked.pointer());
+            }
+            // The protected registers, then the other ones that the runtime compares the arguments
+            // with (see `Fir_call_builtin`).
+            var guarded = new LinkedHashSet<>(protect);
+            guarded.addAll(linkPlaces(linkedRegisters(statement)));
+            var linked = emitArray("linked", "SEXP", List.copyOf(guarded));
+            return "Fir_call_builtin(%d, %s, %s, %d, %s, %s, %d, %d, %s)"
+                .formatted(
+                    builtinIndex,
+                    source,
+                    VAR_ENV,
+                    arguments.size(),
+                    arguments.pointer(),
+                    names.pointer(),
+                    protect.size(),
+                    linked.size(),
+                    linked.pointer());
+          }
+
+          /// Whether `statement` is `r = f(l', ...) in <f(*tmp*, ...)>`, a call that GNU-R's
+          /// bytecode runs in its assignment protocol (see `Fir_Setter` in `runtime.h`). `l'` is a
+          /// register or an assumption, cast or force of one, `l`. If `l = ld x`, `st x = r` (or of
+          /// an assumption or cast of `r`) must follow the call, after a checkpoint or goto at
+          /// most. Otherwise FIŘ keeps `x` in registers.
+          private @Nullable SetterPattern matchSetter(Statement statement) {
+            var source = statement.source();
+            var result = statement.assignee();
+            if (cfg != root
+                || source == null
+                || result == null
+                || source.args().isEmpty()
+                || !source.arg(0).equals(SEXPs.ASSIGN_TMP)
+                || statement.args().size() < 2
+                || !(statement.arg(1) instanceof Read(var arg))
+                || result.uses().stream()
+                    .anyMatch(
+                        use -> use.instruction().args().get(use.index()) instanceof Consume)) {
+              return null;
+            }
+            var pattern = assignedValue(arg);
+            return pattern == null
+                    || pattern.variable() == null
+                    || storesNext(statement, result, pattern.variable())
+                ? pattern
+                : null;
+          }
+
+          /// The `l` and chain of an `l'` (see `#matchSetter`), or `null` if `l` is a load the
+          /// protocol doesn't handle (`<<-`, `...`).
+          private static @Nullable SetterPattern assignedValue(Register arg) {
+            var chain = new LinkedHashSet<Register>();
+            var lhs = arg;
+            chain.add(lhs);
+            while (lhs instanceof AssigneeOf ao
+                && (ao.statement().expression() instanceof Assume
+                    || ao.statement().expression() instanceof Cast
+                    || ao.statement().expression() instanceof Force)
+                && !ao.statement().args().isEmpty()
+                && ao.statement().arg(0) instanceof Read(var from)) {
+              lhs = from;
+              chain.add(lhs);
+            }
+            if (!(lhs instanceof AssigneeOf ao
+                && ao.statement().expression() instanceof Load load)) {
+              return new SetterPattern(null, arg, Collections.unmodifiableSet(chain));
+            }
+            return load.type() == LoadType.LOCAL_VAR
+                    && !load.variable().equals(NamedVariable.DOTS)
+                    && !load.variable().isDdNum()
+                ? new SetterPattern(load.variable(), lhs, Collections.unmodifiableSet(chain))
+                : null;
+          }
+
+          /// Whether `statement` is `d = dup l'` of a value GNU-R's assignment protocol wouldn't
+          /// copy (see `Fir_assign_dup` in `runtime.h`). `l'` is as in `#matchSetter`. If `l = ld
+          /// x`, `st x = d` must follow in the same block, and the statements between must
+          /// neither run R code, nor read `x`, nor use a register of the chain from `l'` to `l`.
+          private @Nullable SetterPattern matchAssignDup(Statement statement) {
+            if (cfg != root
+                || statement.assignee() == null
+                || !(statement.arg(0) instanceof Read(var arg))) {
+              return null;
+            }
+            var pattern = assignedValue(arg);
+            if (pattern == null || pattern.variable() == null) {
+              return pattern;
+            }
+            var statements = bb.statements();
+            for (var stmt :
+                statements.subList(statements.indexOf(statement) + 1, statements.size())) {
+              if (stmt.expression() instanceof Store(var storeType, var stored)
+                  && storeType == Store.StoreType.LOCAL_VAR
+                  && stored.equals(pattern.variable())) {
+                return stmt.arg(0) instanceof Read(var storedValue)
+                        && storedValue == statement.assignee()
+                    ? pattern
+                    : null;
+              }
+              var pure =
+                  switch (stmt.expression()) {
+                    case Assume _, Cast _, SubscriptRead _, SubscriptWrite _ -> true;
+                    case Load(var loadType, var loaded) ->
+                        loadType == LoadType.LOCAL_VAR && !loaded.equals(pattern.variable());
+                    case Call(StaticFnCallee(var _, var _, var signature)) ->
+                        signature.effects() == Effects.NONE;
+                    default -> false;
+                  };
+              if (!pure
+                  || stmt.args().stream()
+                      .map(Argument::variable)
+                      .anyMatch(pattern.chain()::contains)) {
+                return null;
+              }
+            }
+            return null;
+          }
+
+          private String emitAssignDup(Statement statement, SetterPattern dup) {
+            var linked = emitLinkedArray(linkedRegisters(statement));
+            var value = emitArgument(statement.arg(0));
+            return dup.variable() == null
+                ? "Fir_value_dup(%s, %d, %s)".formatted(value, linked.size(), linked.pointer())
+                : "Fir_assign_dup(%s, %s, %s, %s, %d, %s)"
                     .formatted(
-                        baseSymbolRef(pool, calleeFun),
+                        nvSymbolRef(pool, dup.variable()),
                         VAR_ENV,
-                        arguments.size(),
-                        arguments.pointer(),
-                        names.pointer())
-                : "Fir_call_builtin(%d, %s, %d, %s, %s)"
-                    .formatted(
-                        builtinIndex,
-                        VAR_ENV,
-                        arguments.size(),
-                        arguments.pointer(),
-                        names.pointer());
+                        registerPlace(dup.lhs()),
+                        value,
+                        linked.size(),
+                        linked.pointer());
+          }
+
+          /// The registers GNU-R would have on its stack after `statement`: the ones live after
+          /// it, the ones the promises live after it capture, and the version's parameters (a
+          /// caller may hold an argument in a register, which nothing counts).
+          private LinkedHashSet<Register> linkedRegisters(Statement statement) {
+            var linked = new LinkedHashSet<>(liveness.liveAfter(statement));
+            linked.remove(statement.assignee());
+            for (var register : List.copyOf(linked)) {
+              if (register instanceof AssigneeOf ao
+                  && ao.statement().expression() instanceof Promise p) {
+                linked.addAll(Objects.requireNonNull(captures.get(p.code())));
+              }
+            }
+            linked.addAll(version.parameters());
+            return linked;
+          }
+
+          private Array emitLinkedArray(Set<Register> linked) {
+            return emitArray("linked", "SEXP", linkPlaces(linked));
+          }
+
+          /// The C places of the SEXP registers that this CFG's C function reads after `statement`.
+          /// A caller counts a parameter that it reads later, and a promise's captures count in its
+          /// data (see `Fir_mk_promise`).
+          private List<String> statementLinkPlaces(Statement statement) {
+            var live = new LinkedHashSet<>(liveness.liveAfter(statement));
+            live.remove(statement.assignee());
+            return linkPlaces(live);
+          }
+
+          /// The C places of the SEXP registers in `registers` that this CFG's C function has.
+          private List<String> linkPlaces(Set<Register> registers) {
+            return registers.stream()
+                .filter(
+                    r ->
+                        registerRepr(r) == Repr.SEXP
+                            && (locals.contains(r) || (cfg == root && version.isParameter(r))))
+                .map(CfgEmitter.this::registerPlace)
+                .toList();
+          }
+
+          /// Whether `st variable = r`, where `r` is `result` or an assumption or cast of it,
+          /// follows `statement`, after a checkpoint or goto at most.
+          private boolean storesNext(Statement statement, Register result, NamedVariable variable) {
+            var next = new ArrayList<>(bb.statements());
+            next.subList(0, next.indexOf(statement) + 1).clear();
+            var nextBb =
+                switch (bb.jump().expression()) {
+                  case Checkpoint(var success, var _, var _) -> success.get();
+                  case Goto(var target) -> target.get();
+                  default -> null;
+                };
+            if (nextBb != null) {
+              next.addAll(nextBb.statements());
+            }
+            Register value = result;
+            for (var stmt : next) {
+              if ((stmt.expression() instanceof Assume || stmt.expression() instanceof Cast)
+                  && !stmt.args().isEmpty()
+                  && stmt.arg(0) instanceof Read(var from)
+                  && from == value
+                  && stmt.assignee() != null) {
+                value = stmt.assignee();
+                continue;
+              }
+              return stmt.expression() instanceof Store(var storeType, var stored)
+                  && storeType == Store.StoreType.LOCAL_VAR
+                  && stored.equals(variable)
+                  && stmt.arg(0) instanceof Read(var storedValue)
+                  && storedValue == value;
+            }
+            return false;
+          }
+
+          /// Emit the `Fir_setter_begin` for the call `statement` that matches `setter`, and return
+          /// the name of its `Fir_Setter`.
+          ///
+          /// The linked registers are `#linkedRegisters` and the call's other arguments. Except a
+          /// register of `l'` that isn't a parameter and that only deopt branches read after the
+          /// call: in C a deopt is an R error, so nothing continues with the old value.
+          private String emitSetterBegin(Statement statement, SetterPattern setter) {
+            var linked = linkedRegisters(statement);
+            linked.removeIf(
+                register ->
+                    setter.chain().contains(register)
+                        && !version.isParameter(register)
+                        && !usedAfter(statement, register));
+            statement.args().stream()
+                .skip(2)
+                .map(Argument::variable)
+                .filter(Objects::nonNull)
+                .forEach(linked::add);
+            var linkedArray = emitLinkedArray(linked);
+
+            var state = freshTemp("setter");
+            cCode.stmt("Fir_Setter %s;", state);
+            if (setter.variable() == null) {
+              cCode.stmt(
+                  "Fir_setter_begin_value(&%s, %s, %d, %s);",
+                  state, registerPlace(setter.lhs()), linkedArray.size(), linkedArray.pointer());
+            } else {
+              cCode.stmt(
+                  "Fir_setter_begin(&%s, %s, %s, %s, %d, %s);",
+                  state,
+                  nvSymbolRef(pool, setter.variable()),
+                  VAR_ENV,
+                  registerPlace(setter.lhs()),
+                  linkedArray.size(),
+                  linkedArray.pointer());
+            }
+            return state;
+          }
+
+          /// Whether an instruction outside deopt branches can read `register` after `statement`,
+          /// before `register` is defined again. A use in another CFG (a promise) counts.
+          private static boolean usedAfter(Statement statement, Register register) {
+            var uses =
+                register.uses().stream()
+                    .map(Use::instruction)
+                    .filter(
+                        instruction ->
+                            instruction.parentBB() == null
+                                || !(instruction.parentBB().jump().expression() instanceof Deopt))
+                    .collect(Collectors.toSet());
+            var bb = Objects.requireNonNull(statement.parentBB());
+            if (uses.stream()
+                .anyMatch(
+                    instruction ->
+                        instruction.parentBB() == null
+                            || instruction.parentBB().owner() != bb.owner())) {
+              return true;
+            }
+            var instructions = bb.instructions();
+            if (instructions
+                .subList(instructions.indexOf(statement) + 1, instructions.size())
+                .stream()
+                .anyMatch(uses::contains)) {
+              return true;
+            }
+            var seen = new HashSet<BB>();
+            var worklist = new ArrayDeque<>(bb.successors());
+            while (!worklist.isEmpty()) {
+              var next = worklist.pop();
+              if (!seen.add(next)
+                  || next.phiParameters().contains(register)
+                  || next.statements().stream().anyMatch(s -> s.assignee() == register)) {
+                continue;
+              }
+              if (next.instructions().stream().anyMatch(uses::contains)) {
+                return true;
+              }
+              worklist.addAll(next.successors());
+            }
+            return false;
+          }
+
+          /// The source of a setter call, in a pool slot of its own: the protocol marks it as an
+          /// assignment call, which must not affect a call outside the protocol.
+          private String setterSourceRef(Statement statement) {
+            return "Fir_const(%s, %d)"
+                .formatted(VAR_POOL, pool.internUnique(Objects.requireNonNull(statement.source())));
           }
 
           private void emitJump(Jump jump) {
@@ -1493,10 +3016,17 @@ public final class Fir2CCompiler {
               case Return _ -> {
                 var returnValue = emitArgument(jump.arg(0));
                 // The frame is exiting: mark all promises it created as escaped, and release the
-                // tracking list (its `PROTECT_WITH_INDEX` from `emitPromiseTrackingSetup`).
+                // tracking list and the env slots (from `emitPromiseTrackingSetup` and
+                // `emitEnvPushedDeclaration`).
                 if (createsPromises) {
-                  cCode.stmt("Fir_mark_promises_escaped(%s);", VAR_LOCAL_PROMISES);
-                  cCode.stmt("UNPROTECT(1);");
+                  cCode.stmt(
+                      "if (%s != R_NilValue) Fir_mark_promises_escaped(%s);",
+                      VAR_LOCAL_PROMISES, VAR_LOCAL_PROMISES);
+                }
+                var numFrameProtects =
+                    (createsPromises ? 1 : 0) + (hasEnvOps ? 1 + (int) numMkEnvs : 0);
+                if (numFrameProtects > 0) {
+                  cCode.stmt("UNPROTECT(%d);", numFrameProtects);
                 }
                 cCode.stmt("return %s;", returnValue);
               }
@@ -1544,6 +3074,19 @@ public final class Fir2CCompiler {
             }
           }
 
+          /// The formals and GNU-R bytecode body that `function` was compiled from, which a
+          /// closure guard also accepts (`Fir_is_bytecode_closure_of`, which caches its last match
+          // in the
+          /// two other slots), or `NULL`.
+          private String bytecodeOriginRef(Function function) {
+            var origin = bytecodes == null ? null : bytecodes.get(function.name().name());
+            return origin == null
+                ? "NULL"
+                : constantRef(
+                    pool,
+                    SEXPs.vec(origin.formals(), SEXPs.bcode(origin.bc()), SEXPs.NULL, SEXPs.NULL));
+          }
+
           private String emitAssumptionCondition(
               Statement statement, Assumption assumption, @Nullable Argument target) {
             assert statement.expression() instanceof Assume(var a) && a == assumption;
@@ -1577,12 +3120,13 @@ public final class Fir2CCompiler {
               case AssumeFunction a -> {
                 // Defer declare extern for referenced (previously-compiled) version
                 // (without duplicates, builtins, or intrinsics).
-                referencedFunctions.add(a.function());
+                referenceFunction(a.function());
 
-                yield "Fir_assume_function(%s, &%s)"
+                yield "Fir_assume_function(%s, &%s, %s)"
                     .formatted(
                         emitArgument(Objects.requireNonNull(target)),
-                        functionDispatchCName(a.function()));
+                        functionDispatchCName(a.function()),
+                        bytecodeOriginRef(a.function()));
               }
               case AssumeLoadFun a when a.function().owner() == BUILTINS -> {
                 var builtinIndex = builtinIndex(a.function());
@@ -1606,13 +3150,14 @@ public final class Fir2CCompiler {
               case AssumeLoadFun a -> {
                 // Defer declare extern for referenced (previously-compiled) version
                 // (without duplicates, builtins, or intrinsics).
-                referencedFunctions.add(a.function());
+                referenceFunction(a.function());
 
-                yield "Fir_assume_load_fun(%s, %s, &%s, %s)"
+                yield "Fir_assume_load_fun(%s, %s, &%s, %s, %s)"
                     .formatted(
                         nvSymbolRef(pool, a.variable()),
                         VAR_ENV,
                         functionDispatchCName(a.function()),
+                        bytecodeOriginRef(a.function()),
                         refAssigneePlace);
               }
               case AssumeLoadVar(var variable, var constant) ->
@@ -1623,6 +3168,19 @@ public final class Fir2CCompiler {
                   "Fir_assume_type(%s, %s)"
                       .formatted(emitArgument(Objects.requireNonNull(target)), emitType(type));
             };
+          }
+
+          /// Whether every predecessor of `statement`'s block checks it: the block is the success
+          /// target of each one's checkpoint, and only assumptions precede `statement`.
+          private boolean isCheckedAssumption(Statement statement) {
+            return !bb.predecessors().isEmpty()
+                && bb.predecessors().stream()
+                    .allMatch(
+                        pred ->
+                            pred.jump().expression() instanceof Checkpoint
+                                && pred.jump().targets().getFirst().bb() == bb)
+                && bb.statements().subList(0, statement.indexInBB()).stream()
+                    .allMatch(s -> s.expression() instanceof Assume);
           }
 
           private @Nullable String emitAssumptionValue(
@@ -1645,14 +3203,39 @@ public final class Fir2CCompiler {
 
             debugComment(cCode, "* - <%s>", target);
 
+            // Phis are assigned in parallel: if an argument reads another phi of the target, read
+            // every argument into a temporary first.
+            var isParallel =
+                IntStream.range(0, phiArgs.size())
+                    .anyMatch(
+                        i -> {
+                          var read = phiArgs.get(i).variable();
+                          return read != null
+                              && parameters.contains(read)
+                              && parameters.indexOf(read) != i;
+                        });
+            if (isParallel) {
+              cCode.stmt(indentLevel, "{");
+              for (var i = 0; i < parameters.size(); i++) {
+                cCode.stmt(
+                    indentLevel + 1,
+                    "%s _phi%d = %s;",
+                    reprCType(registerRepr(parameters.get(i))),
+                    i,
+                    emitArgument(phiArgs.get(i)));
+              }
+            }
             for (var i = 0; i < parameters.size(); i++) {
               var phi = parameters.get(i);
               var arg = phiArgs.get(i);
 
               var dest = registerPlace(phi);
-              var value = emitArgument(arg);
+              var value = isParallel ? "_phi" + i : emitArgument(arg);
 
-              cCode.stmt(indentLevel, "%s = %s;", dest, value);
+              cCode.stmt(indentLevel + (isParallel ? 1 : 0), "%s = %s;", dest, value);
+            }
+            if (isParallel) {
+              cCode.stmt(indentLevel, "}");
             }
 
             cCode.stmt(indentLevel, "goto %s;", labelCName(target.bb()));
@@ -1690,7 +3273,10 @@ public final class Fir2CCompiler {
                 bb.statements().stream()
                     .filter(s -> s.assignee() != null && registerRepr(s.assignee()) == Repr.SEXP)
                     .count();
-            cCode.stmt("UNPROTECT(%s);", numLiveIn + phiProtected + stmtProtected);
+            var count = numLiveIn + phiProtected + stmtProtected;
+            if (count > 0) {
+              cCode.stmt("UNPROTECT(%s);", count);
+            }
           }
 
           private String emitSignature(Signature signature) {
@@ -1759,15 +3345,19 @@ public final class Fir2CCompiler {
             return emitArray(baseName, "SEXP", arguments);
           }
 
+          /// A fresh name `t_<baseName>_<n>` for a C local.
+          private String freshTemp(String baseName) {
+            var disambiguator = tempArrayDisambiguators.getOrDefault(baseName, 0);
+            tempArrayDisambiguators.put(baseName, disambiguator + 1);
+            return "t_%s_%d".formatted(baseName, disambiguator);
+          }
+
           private Array emitArray(String baseName, String elemCType, List<String> arguments) {
             if (arguments.isEmpty()) {
               return new Array(0, "NULL");
             }
 
-            var disambiguator = tempArrayDisambiguators.getOrDefault(baseName, 0);
-            var arrayName = "t_%s_%d".formatted(baseName, disambiguator);
-            tempArrayDisambiguators.put(baseName, disambiguator + 1);
-
+            var arrayName = freshTemp(baseName);
             cCode.stmt("%s %s[%d];", elemCType, arrayName, arguments.size());
             for (var i = 0; i < arguments.size(); i++) {
               cCode.stmt("%s[%d] = %s;", arrayName, i, arguments.get(i));
@@ -1798,6 +3388,42 @@ public final class Fir2CCompiler {
             if (!(instr instanceof Statement s && s.expression() instanceof Promise)) {
               debugArgs(cCode, instr.args());
             }
+          }
+
+          /// The symbol of the variable that `checkMissing`'s argument was read from (a load or a
+          /// parameter), or `NULL`, for GNU-R's error message.
+          private String checkedSymbolRef(Argument value) {
+            var register = value.variable();
+            @Nullable NamedVariable variable = null;
+            if (register instanceof AssigneeOf a
+                && a.statement().expression() instanceof Load(_, var loaded)) {
+              variable = loaded;
+            } else if (register instanceof FunctionParameter p
+                && version.parameters().contains(p)) {
+              variable = function.parameterNames().get(version.parameters().indexOf(p));
+            }
+            return variable == null ? "NULL" : nvSymbolRef(pool, variable);
+          }
+
+          /// [Function#defaultedParameter] at the closure's entry, if the C code keeps it a SEXP.
+          private @Nullable Register defaultedParameter(NamedVariable variable, Argument value) {
+            var parameter =
+                cfg == root ? function.defaultedParameter(version, cfg, variable, value) : null;
+            return parameter != null && registerRepr(parameter) == Repr.SEXP ? parameter : null;
+          }
+
+          /// Bit `i` is set if `args[i]` is a register whose value may be a symbol or a call,
+          /// which a special would evaluate again (see `Fir_call_builtin_values` in `runtime.h`).
+          /// Constants are the expressions a special evaluates.
+          private long expressionValues(List<Argument> args) {
+            return IntStream.range(0, Math.min(args.size(), 64))
+                .filter(
+                    i ->
+                        !(args.get(i) instanceof Constant)
+                            && argumentType(args.get(i)).kind() instanceof AnySexp
+                            && !argumentType(args.get(i)).isPromise())
+                .mapToLong(i -> 1L << i)
+                .sum();
           }
 
           private void debugArgs(CCode cCode, Collection<Argument> arguments) {
@@ -1917,60 +3543,194 @@ public final class Fir2CCompiler {
   // endregion emit types
 
   // region C names
-  private static String functionConstantsCName(Function function) {
+  /// What every C name of this module's code starts with.
+  private String cNamePrefix() {
+    return "Fir_" + session.prefix();
+  }
+
+  private String functionConstantsCName(Function function) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no constants";
 
-    return "Fir_fun_constants_" + escapeForC(function.name().name());
+    return cNamePrefix() + "fun_constants_" + escapeForC(function.name().name());
   }
 
-  private static String functionInitCName(Function function) {
+  private String functionInitCName(Function function) {
+    return functionInitCName(session, function);
+  }
+
+  /// The C name of the initializer of `function`'s constants in `session`'s code: `(SEXP
+  /// constants) -> SEXP`, called once with the constant pool of the piece that defines it.
+  public static String functionInitCName(Fir2CSession session, Function function) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no initializer";
 
-    return "Fir_fun_init_" + escapeForC(function.name().name());
+    return "Fir_" + session.prefix() + "fun_init_" + escapeForC(function.name().name());
   }
 
-  private static String functionFromRCName(Function function) {
+  private String functionFromRCName(Function function) {
+    return functionFromRCName(session, function);
+  }
+
+  /// The C name of what `function`'s closures' bodies call in `session`'s code: `(SEXP env, SEXP
+  /// constants) -> SEXP`.
+  public static String functionFromRCName(Fir2CSession session, Function function) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no from-R dispatch";
 
-    return "Fir_fun_from_r_" + escapeForC(function.name().name());
+    return "Fir_" + session.prefix() + "fun_from_r_" + escapeForC(function.name().name());
   }
 
-  private static String functionDispatchCName(Function function) {
+  private String functionDispatchCName(Function function) {
     assert function.owner() != BUILTINS : "builtin dispatch is specially handled";
 
-    return "Fir_fun_dispatch_" + escapeForC(function.name().name());
+    return cNamePrefix() + "fun_dispatch_" + escapeForC(function.name().name());
   }
 
-  private static String versionConstantsCName(Function function, Abstraction version) {
-    assert function.owner() != BUILTINS && function.owner() != INTRINSICS
-        : "builtins and intrinsics have no constants";
-    return "Fir_ver_constants_"
+  /// Generation `entries` of the function's from-R implementation (see
+  /// [FunctionEmitter#emitEntries(int, ConstantPool, String)]).
+  private String fromRImplCName(Function function, int entries) {
+    return functionFromRCName(function) + "_" + entries;
+  }
+
+  /// Generation `entries` of the function's dispatch implementation.
+  private String dispatchImplCName(Function function, int entries) {
+    return functionDispatchCName(function) + "_" + entries;
+  }
+
+  /// The constant pool of generation `entries` of the function's entries, when a patch
+  /// regenerates them (the function's own pool is already full).
+  private String entriesConstantsCName(Function function, int entries) {
+    return cNamePrefix()
+        + "fun_entries_constants_"
         + escapeForC(function.name().name())
         + "_"
-        + versionCNamePart(function, version);
+        + entries;
   }
 
-  private static String versionInitCName(Function function, Abstraction version) {
+  /// The constants of the client's current implementation of `version` (each has its own).
+  private String versionConstantsCName(Function function, Abstraction version) {
+    assert function.owner() != BUILTINS && function.owner() != INTRINSICS
+        : "builtins and intrinsics have no constants";
+    return cNamePrefix()
+        + "ver_constants_"
+        + escapeForC(function.name().name())
+        + "_"
+        + versionImplCNamePart(function, version);
+  }
+
+  /// The initializer of the client's current implementation of `version`.
+  private String versionInitCName(Function function, Abstraction version) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no initializer";
 
-    return "Fir_ver_init_"
+    return cNamePrefix()
+        + "ver_init_"
         + escapeForC(function.name().name())
         + "_"
-        + versionCNamePart(function, version);
+        + versionImplCNamePart(function, version);
   }
 
-  private static String versionCallCName(Function function, Abstraction version) {
-    return "Fir_ver_call_"
+  /// The client's current implementation of `version`: the function its entry
+  /// ([#versionCallCName(Function, Abstraction)]) is assigned.
+  private String versionImplCName(Function function, Abstraction version) {
+    assert function.owner() != BUILTINS && function.owner() != INTRINSICS
+        : "builtins and intrinsics have no implementations of their own";
+    return cNamePrefix()
+        + "ver_impl_"
         + escapeForC(function.name().name())
         + "_"
-        + versionCNamePart(function, version);
+        + versionImplCNamePart(function, version);
   }
 
-  private static String versionCNamePart(Function function, Abstraction version) {
+  /// Implementation `index` of a version of `function` whose entry's part was `part` when it was
+  /// defined (a stub is implementation 0, with its version's first entry).
+  private String versionImplCName(Function function, String part, int index) {
+    return cNamePrefix()
+        + "ver_impl_"
+        + escapeForC(function.name().name())
+        + "_"
+        + part
+        + "_"
+        + index;
+  }
+
+  /// The version's part of its current implementation's C names: its current entry's part and
+  /// the implementation's index.
+  private String versionImplCNamePart(Function function, Abstraction version) {
+    var state = session.version(version);
+    var index = state == null ? 0 : state.implementation();
+    return versionCNamePart(function, version) + "_" + index;
+  }
+
+  /// What calls of `version` call: for a builtin or intrinsic, a function the runtime provides;
+  /// otherwise the version's current *entry*, a function pointer that the client's current
+  /// implementation of the version is assigned to (so a patch can replace the implementation).
+  private String versionCallCName(Function function, Abstraction version) {
+    if (function.owner() == BUILTINS || function.owner() == INTRINSICS) {
+      // Provided by the runtime, so never prefixed.
+      return "Fir_ver_call_"
+          + escapeForC(function.name().name())
+          + "_"
+          + signatureCName(version.signature());
+    }
+    return versionEntryCName(function, versionCNamePart(function, version));
+  }
+
+  /// The entry of a version of `function` whose part is `part` (see
+  /// [Fir2CSession.Entry#part()]).
+  private String versionEntryCName(Function function, String part) {
+    return cNamePrefix() + "ver_call_" + escapeForC(function.name().name()) + "_" + part;
+  }
+
+  /// The `Fir_Stub` of `stub`, which is a stub of a version of `function`.
+  private String versionStubCName(Function function, Fir2CSession.VersionState stub) {
+    Objects.requireNonNull(stub.stubId(), "not a stub");
+    return cNamePrefix()
+        + "ver_stub_"
+        + escapeForC(function.name().name())
+        + "_"
+        + stub.entries().getFirst().part();
+  }
+
+  /// In a statistics build (`FIR_VERSION_STATS_ONLY`), count the call in `version`'s counter, or
+  /// in its fallback's if `fallback`.
+  private void emitCallCounter(CFunction cFunction, Abstraction version, boolean fallback) {
+    var name = versionCounterName(session, version) + (fallback ? FALLBACK_COUNTER_SUFFIX : "");
+    cFunction
+        .add()
+        .stmt(
+            "FIR_VERSION_STATS_ONLY(static double *fir_calls = NULL; if (fir_calls == NULL)"
+                + " fir_calls = Fir_stats_version_counter(\"%s\"); (*fir_calls)++;)",
+            sanitizeString(name));
+  }
+
+  /// What a statistics build names the call counter of `version`, which `session`'s client has
+  /// (see `Fir_stats_version_counter` in `runtime.h`): the same for all its implementations.
+  public static String versionCounterName(Fir2CSession session, Abstraction version) {
+    var state = Objects.requireNonNull(session.version(version), "client doesn't have version");
+    return session.prefix()
+        + session.functionOf(version).name().name()
+        + "/"
+        + state.entries().getFirst().part();
+  }
+
+  /// Appended to [#versionCounterName(Fir2CSession, Abstraction)] for the counter of a stub's
+  /// fallback.
+  public static final String FALLBACK_COUNTER_SUFFIX = "/fallback";
+
+  private String patchInitCName(int index) {
+    return cNamePrefix() + "patch_init_" + index;
+  }
+
+  /// The version's part of its C names: assigned by the session when the version is first
+  /// referred to, so that it doesn't change with the version's signature (which it's made from)
+  /// once the client has it.
+  private String versionCNamePart(Function function, Abstraction version) {
+    return session.part(function, version, () -> defaultCNamePart(function, version));
+  }
+
+  private String defaultCNamePart(Function function, Abstraction version) {
     return version == function.baseline() && !version.isStub()
         ? "baseline"
         : signatureCName(version.signature());
@@ -2066,31 +3826,32 @@ public final class Fir2CCompiler {
   }
 
   private String promiseConstantsCName(Promise promise) {
-    return "Fir_prom_constants_" + promiseIndex(promise);
+    return cNamePrefix() + "prom_constants_" + promiseIndex(promise);
   }
 
   private String promiseInitCName(Promise promise) {
-    return "Fir_prom_init_" + promiseIndex(promise);
+    return cNamePrefix() + "prom_init_" + promiseIndex(promise);
   }
 
   private String promiseFromRCName(Promise promise) {
-    return "Fir_prom_from_r_" + promiseIndex(promise);
+    return cNamePrefix() + "prom_from_r_" + promiseIndex(promise);
   }
 
   private String promiseEvalCName(Promise promise) {
-    return "Fir_prom_eval_" + promiseIndex(promise);
+    return cNamePrefix() + "prom_eval_" + promiseIndex(promise);
   }
 
   private final HashMap<Promise, Integer> promiseIndices = new HashMap<>();
 
   private int promiseIndex(Promise promise) {
-    return promiseIndices.computeIfAbsent(promise, _ -> promiseIndices.size());
+    return promiseIndices.computeIfAbsent(promise, _ -> session.nextPromise());
   }
 
   // endregion C names
 
   // region params and return type
   private static final String CONSTANTS_C_TYPE = "SEXP";
+  private static final String STUB_C_TYPE = "Fir_Stub";
 
   private static final List<String> INIT_C_PARAMS = List.of("SEXP %s".formatted(VAR_POOL));
 
@@ -2100,6 +3861,12 @@ public final class Fir2CCompiler {
       List.of("SEXP %s".formatted(VAR_ENV), "SEXP %s".formatted(VAR_DATA));
 
   private static final String FROM_R_C_RETURN = "SEXP";
+
+  private static final List<String> DISPATCH_IMPL_C_PARAMS =
+      List.of(
+          "SEXP %s".formatted(VAR_ENV),
+          "Fir_Signature %s".formatted(VAR_SIGNATURE),
+          "va_list args");
 
   private static final List<String> DISPATCH_C_PARAMS =
       List.of("SEXP %s".formatted(VAR_ENV), "Fir_Signature %s".formatted(VAR_SIGNATURE), "...");
@@ -2125,6 +3892,18 @@ public final class Fir2CCompiler {
     };
   }
 
+  /// The character for a capture of `repr` in the `capture_reprs` of `Fir_mk_promise`.
+  private static char captureReprCode(Repr repr) {
+    return switch (repr) {
+      case SEXP -> 'S';
+      case INT -> 'I';
+      case FLOAT -> 'F';
+      case STRING -> 'C';
+      case LOGICAL -> 'L';
+      case BOOLEAN -> 'B';
+    };
+  }
+
   private static String reprDefaultValue(Repr repr) {
     return switch (repr) {
       case SEXP -> "R_NilValue";
@@ -2136,8 +3915,12 @@ public final class Fir2CCompiler {
     };
   }
 
-  private static String versionCallCReturn(Abstraction version) {
-    return reprCType(version.returnType().kind().repr());
+  /// What the client's code for `version` returns (`Fir_ver_call_...`): the version's return
+  /// type's representation when it was compiled, if it was (see
+  /// [Fir2CSession.VersionState#returnRepr()]), else now.
+  private String versionCallCReturn(Abstraction version) {
+    var state = session.version(version);
+    return reprCType(state != null ? state.returnRepr() : version.returnType().kind().repr());
   }
 
   private static final List<String> PROMISE_EVAL_C_PARAMS =
@@ -2165,6 +3948,14 @@ public final class Fir2CCompiler {
   /// `stopifnot` and `xor` are plain R. Those are base closures with no builtin index, so the
   /// generated code refers to them by symbol ([#baseSymbolRef(ConstantPool, Function)]) and
   /// resolves the base binding at runtime instead.
+  /// Whether a version with `signature` can be called from R (by the from-R entry): it takes and
+  /// returns shared `SEXP`s.
+  private static boolean isFromRSignature(Signature signature) {
+    return signature.parameterTypes().stream()
+            .allMatch(t -> t.kind().repr() == Repr.SEXP && t.ownership() == Ownership.SHARED)
+        && signature.returnType().kind().repr() == Repr.SEXP;
+  }
+
   private @Nullable Integer builtinIndex(Function builtin) {
     var entry = rSession.RFunTab().get(builtin.name().name());
     return entry == null ? null : entry.index();
@@ -2184,7 +3975,8 @@ public final class Fir2CCompiler {
     return switch (constant) {
       case Value.Sexp(var sexp) -> constantRef(pool, sexp);
       case Value.Int(var i) -> i == Constants.NA_INT ? "NA_INTEGER" : Integer.toString(i);
-      case Value.Real(var d) -> Double.isNaN(d) ? "NA_REAL" : Double.toString(d);
+      case Value.Real(var d) -> realRef(d);
+      case Value.Str(var s) when Constants.isNaString(s) -> "NULL";
       case Value.Str(var s) -> Printer.use(p -> p.writer().writeQuoted('"', s));
       case Value.Lgl(var l) ->
           switch (l) {
@@ -2194,6 +3986,22 @@ public final class Fir2CCompiler {
           };
       case Value.Bool(var b) -> Boolean.toString(b);
     };
+  }
+
+  /// A C expression with the exact bits of `d`.
+  private static String realRef(double d) {
+    var bits = Double.doubleToRawLongBits(d);
+    if (bits == Double.doubleToRawLongBits(Constants.NA_REAL)) {
+      return "NA_REAL";
+    } else if (Double.isNaN(d)) {
+      return bits == 0x7FF8000000000000L
+          ? "R_NaN"
+          : "((union { unsigned long long u; double d; }){.u = 0x%sULL}).d"
+              .formatted(Long.toHexString(bits));
+    } else if (Double.isInfinite(d)) {
+      return d > 0 ? "R_PosInf" : "R_NegInf";
+    }
+    return Double.toString(d);
   }
 
   private static String constantRef(ConstantPool pool, SEXP sexp) {
@@ -2246,6 +4054,27 @@ public final class Fir2CCompiler {
   }
 
   private record Array(int size, String pointer) {}
+
+  /// A setter call (see `BBEmitter#matchSetter`): its variable `x` and the register `l` of its
+  /// `l = ld x`, or `null` and its first argument if FIŘ keeps `x` in registers; and the registers
+  /// from its first argument to `l`.
+  private record SetterPattern(
+      @Nullable NamedVariable variable, Register lhs, @Unmodifiable Set<Register> chain) {}
+
+  /// The version of `function` that is `version` except that it owns its first argument (which
+  /// `version` borrows), or `null` if there's none.
+  private static @Nullable Abstraction ownedTwin(Function function, Abstraction version) {
+    var parameterTypes = version.signature().parameterTypes();
+    if (parameterTypes.isEmpty() || parameterTypes.getFirst().ownership() != Ownership.BORROWED) {
+      return null;
+    }
+    var ownedTypes = new ArrayList<>(parameterTypes);
+    ownedTypes.set(0, parameterTypes.getFirst().withOwnership(Ownership.OWNED));
+    return function.versions().stream()
+        .filter(v -> v.signature().parameterTypes().equals(ownedTypes))
+        .findFirst()
+        .orElse(null);
+  }
 
   private record ArrayAndNames(Array values, String names) {}
   // endregion misc

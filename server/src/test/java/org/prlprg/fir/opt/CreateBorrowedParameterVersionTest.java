@@ -18,6 +18,30 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
   }
 
   @Test
+  void scalarParameter_staysShared() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec, x) {
+              (vec:*, x:*) -+> V { ... }
+              (vec:v(R)o, x:R) -~> R {
+                r: R = vec[0];
+                return r;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    module.evaluateAll();
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("(vec:v(R)b, x:R) -~> R"),
+        "only the vector should become borrowed:\n" + printed);
+    assertTrue(Checker.checkAll(module), "the borrowed copy should type-check:\n" + printed);
+  }
+
+  @Test
   void readsOwnedParameter_createsBorrowedVersion() {
     var module =
         ParseUtil.parseModule(
@@ -33,6 +57,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     assertTrue(run(module), "optimization should report a change");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     assertTrue(
         printed.contains("(vec:v(I)b) -~> I"),
@@ -159,6 +185,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     assertTrue(run(module), "a local promise doesn't outlive the frame, so it can read a loan");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     assertTrue(
         printed.contains("(vec:v(I)b) -~> v1(I)"),
@@ -240,6 +268,8 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
 
     assertTrue(run(module), "a callee that only borrows can be handed a loan");
 
+    // The new version is only printed once it's evaluated.
+    module.evaluateAll();
     var printed = Printer.toString(module);
     assertTrue(
         printed.contains("(vec:v(I)b) -~> I"),
@@ -288,6 +318,24 @@ class CreateBorrowedParameterVersionTest implements OptimizationUnitTest {
             """);
 
     assertFalse(run(module), "nothing bounds what an unknown callee does with its arguments");
+  }
+
+  @Test
+  void dotsElement_unchanged() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(vec) {
+              (vec:*) -+> V { ... }
+              (vec:v(I)o) -+> V {
+                d: dots = dots[vec];
+                r: V = list< dots -+> V >(d);
+                return r;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "the list keeps the vector after the call");
   }
 
   @Test

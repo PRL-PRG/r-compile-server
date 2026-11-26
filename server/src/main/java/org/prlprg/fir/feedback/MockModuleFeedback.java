@@ -15,6 +15,11 @@ import org.prlprg.util.Pair;
 public class MockModuleFeedback implements ModuleFeedback {
   private final Module module;
   private final Map<Abstraction, AbstractionFeedback> feedbacks = new HashMap<>();
+  /// These two aren't printed, so [#copyFor(Module)] and [#deepCopy(Module, MockModuleFeedback)]
+  /// drop them.
+  private boolean partial = false;
+
+  private boolean recordsSubscripts = true;
 
   /// Deep copy the module and its feedback together
   public static Pair<Module, MockModuleFeedback> deepCopy(
@@ -30,6 +35,15 @@ public class MockModuleFeedback implements ModuleFeedback {
 
   public MockModuleFeedback(Module module) {
     this.module = module;
+  }
+
+  /// A copy of this feedback for `module`, which must have every function and version this has
+  /// feedback for, with the same registers.
+  ///
+  /// This evaluates those versions (unless the feedback is only for their parameters).
+  public MockModuleFeedback copyFor(Module module) {
+    return Parser.fromString(
+        toString(), MockModuleFeedback.class, new ModuleFeedbackParseContext(module));
   }
 
   public Module module() {
@@ -52,6 +66,27 @@ public class MockModuleFeedback implements ModuleFeedback {
       return;
     }
     feedbacks.put(dst, srcFeedback.copy(src, dst));
+  }
+
+  /// Record that the run that recorded this stopped early (see [#isPartial()]).
+  public void markPartial() {
+    partial = true;
+  }
+
+  @Override
+  public boolean isPartial() {
+    return partial;
+  }
+
+  /// Record that the run that recorded this didn't record subscripts (see
+  /// [#recordsSubscripts()]).
+  public void markWithoutSubscripts() {
+    recordsSubscripts = false;
+  }
+
+  @Override
+  public boolean recordsSubscripts() {
+    return recordsSubscripts;
   }
 
   @Override

@@ -20,7 +20,10 @@ if (!dir.exists(directory)) {
     full.names = TRUE,
     ignore.case = FALSE
   )
-  
+  # cran-harvest/ holds the tool that generates the cran/ group, not benchmarks
+  # (run-benchmarks.sh skips it too).
+  all_files <- all_files[!grepl("/cran-harvest/", all_files, fixed = TRUE)]
+
   # Filter to only include files at depth >= 2
   # Depth is calculated relative to the base directory
   base_path <- normalizePath(directory)

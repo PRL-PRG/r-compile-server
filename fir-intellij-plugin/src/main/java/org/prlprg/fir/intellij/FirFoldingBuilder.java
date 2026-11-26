@@ -8,6 +8,8 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,7 +32,35 @@ public final class FirFoldingBuilder extends FoldingBuilderEx {
       }
     }
 
+    for (var range : sexpFoldRanges(document.getCharsSequence())) {
+      var node = root.getNode().findLeafElementAt(range.getStartOffset());
+      if (node != null) {
+        descriptors.add(new FoldingDescriptor(node, range, null, " ...", true, Set.of()));
+      }
+    }
+
     return descriptors.toArray(FoldingDescriptor.EMPTY_ARRAY);
+  }
+
+  /**
+   * The fold of each multi-line SEXP literal: from after the type word of its `<` to before its
+   * `>`, so that a folded `<lang f(\n...)>` reads `<lang ...>`.
+   */
+  static List<TextRange> sexpFoldRanges(CharSequence text) {
+    var ranges = new ArrayList<TextRange>();
+    var lexer = new FirLexer();
+    for (lexer.start(text); lexer.getTokenType() != null; lexer.advance()) {
+      var start = lexer.getTokenStart() + 1;
+      var end = lexer.getTokenEnd() - 1;
+      if (lexer.getTokenType() != FirTokenTypes.SEXP
+          || text.charAt(end) != '>'
+          || text.subSequence(start, end).toString().indexOf('\n') < 0) {
+        continue;
+      }
+      while (Character.isLetter(text.charAt(start))) start++;
+      ranges.add(new TextRange(start, end));
+    }
+    return ranges;
   }
 
   private static void addBraceFold(

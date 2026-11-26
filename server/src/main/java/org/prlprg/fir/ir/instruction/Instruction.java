@@ -233,7 +233,7 @@ public abstract sealed class Instruction permits Statement, Jump {
       args.get(i).removeUse(new Use(this, i));
     }
 
-    if (this instanceof Statement s && s.expression() instanceof Promise(_, _, var code, _)) {
+    if (this instanceof Statement s && s.expression() instanceof Promise(_, _, var code, _, _)) {
       dropUsesIn(code);
     }
   }
@@ -243,7 +243,11 @@ public abstract sealed class Instruction permits Statement, Jump {
   ///
   /// Call this when a promise's body is discarded, so the reads it made of the enclosing frame's
   /// registers don't outlive it. See [#dropArgumentUses].
-  static void dropUsesIn(CFG code) {
+  ///
+  /// `code` itself is left as it is: this is also how a version's fallback is discarded, which
+  /// may be running (the version is evaluated by a later call, which an earlier call, which runs
+  /// the fallback, may still be making).
+  public static void dropUsesIn(CFG code) {
     for (var bb : code.bbs()) {
       for (var instruction : bb.instructions()) {
         instruction.dropArgumentUses();

@@ -1,3 +1,7 @@
+# https://github.com/reactorlabs/RBenchmarking/blob/a92447b37a03e96f8da1e18eb3cd8ab3b46fbf89/Benchmarks/areWeFast/storage.r
+# License: none stated, see server/doc/benchmark-licenses.md
+# Port: `random.r` is inlined after the functions. The tree depth is the parameter `n` of
+# `execute`, in place of the fixed 7.
 count <- 0
 
 execute <- function(n) {

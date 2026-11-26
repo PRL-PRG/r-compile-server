@@ -1,0 +1,14 @@
+{
+ "example": "bench_awf_mandelbrot",
+ "commit": "56121b617a2c63eac9407e6c091e9097b0726541",
+ "status": "ok",
+ "reason": "",
+ "exit": 0,
+ "seconds": 160,
+ "load_start": 1.96,
+ "load_end": 3.18,
+ "csv_files": 5,
+ "optimizations": "$^",
+ "failures": {},
+ "no_time": {}
+}

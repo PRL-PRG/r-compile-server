@@ -1,4 +1,5 @@
 #? stdlib
+#? crashes("namespace found within global environments")
 `identical` <- function (x, y, num.eq = TRUE, single.NA = TRUE, attrib.as.set = TRUE, 
     ignore.bytecode = TRUE, ignore.environment = FALSE, ignore.srcref = TRUE, 
     extptr.as.ref = FALSE) 

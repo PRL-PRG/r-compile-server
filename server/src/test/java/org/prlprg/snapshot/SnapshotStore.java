@@ -1,7 +1,12 @@
 package org.prlprg.snapshot;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import org.jspecify.annotations.Nullable;
 import org.opentest4j.TestAbortedException;
 import org.prlprg.TestConfig;
@@ -10,9 +15,17 @@ import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 
 /// Stores and manages snapshots for every [Example]/[Query] combination, in memory and on disk.
+///
+/// Memory only holds the snapshots of the last example used: tests use one example at a time, and
+/// the snapshots of every example don't fit. Other snapshots are loaded from disk.
 public class SnapshotStore {
   private final HashMap<Query<?>, HashMap<Example, SnapshotInMemory<?>>> snapshotsInMemory =
       new HashMap<>();
+  private @Nullable Example exampleInMemory = null;
+
+  /// The snapshots this run saved to disk. They are loaded even if [TestConfig#IGNORE_SNAPSHOTS]
+  /// matches their query, because it only ignores the snapshots of previous runs.
+  private final HashSet<Path> savedThisRun = new HashSet<>();
 
   public SnapshotStore() {}
 
@@ -21,8 +34,9 @@ public class SnapshotStore {
   /// `query` itself is always computed, but its dependencies are cached.
   ///
   /// `query` is then checked by:
-  /// - Asserting equality against [Query#oracle(Example, SnapshotStore)] (unless overridden,
-  ///   this compares against itself i.e. tests non-determinism).
+  /// - Asserting equality against [Query#oracle(Example, SnapshotStore)], if `query` has one.
+  ///   `query` isn't computed twice, so this doesn't test determinism; `DeterminismTest` does, for
+  ///   a few queries.
   /// - [Query#verifyExtra(Object, Example, SnapshotStore)].
   /// - If there's a snapshot from a previous run,
   ///   [Query#verifyNoRegression(Object, Object, Example, SnapshotStore)].
@@ -35,13 +49,17 @@ public class SnapshotStore {
   /// reported (this call raises an exception) but the snapshot is still saved for debugging.
   ///
   /// Returns the actual computed value (and only returns if it passes verification).
+  ///
+  /// What's checked and saved is the computed value's [snapshot][Query#snapshot(Object, Example,
+  /// SnapshotStore)].
   public <T> T verify(Example example, Query<T> query) {
     var actual = query.compute(example, this);
+    var snapshot = query.snapshot(actual, example, this);
 
     RegressionStatus[] regresses = {RegressionStatus.UNCHECKED};
     Throwable error = null;
     try {
-      verify(example, query, actual, null, regresses);
+      verifySnapshot(example, query, snapshot, true, null, regresses);
       return actual;
     } catch (Exception | Error e) {
       error = e;
@@ -51,7 +69,7 @@ public class SnapshotStore {
         assert error != null
             : "didn't get to set regression status but no prior exception was thrown, how did control-flow divert?";
         try {
-          verifyNoRegression(example, query, actual, regresses);
+          verifyNoRegression(example, query, snapshot, regresses);
         } catch (Exception | Error e) {
           error.addSuppressed(e);
         }
@@ -67,7 +85,7 @@ public class SnapshotStore {
               && (regresses[0] == RegressionStatus.NO
                   || TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches());
       if (shouldSaveToDisk) {
-        saveToDisk(actual, example, query);
+        saveToDisk(snapshot, example, query);
       }
     }
   }
@@ -82,31 +100,67 @@ public class SnapshotStore {
 
   /// Same as [#verify(Example, Query, Object)] but provides `context` in the error message.
   public <T> void verify(Example example, Query<T> query, T actual, @Nullable String context) {
-    verify(example, query, actual, context, new RegressionStatus[] {RegressionStatus.UNCHECKED});
+    verifySnapshot(
+        example,
+        query,
+        query.snapshot(actual, example, this),
+        false,
+        context,
+        new RegressionStatus[] {RegressionStatus.UNCHECKED});
   }
 
-  private <T> void verify(
+  /// @param isComputed Whether `actual` was just computed from `query`, as opposed to given by the
+  ///     caller.
+  private <T> void verifySnapshot(
       Example example,
       Query<T> query,
       T actual,
+      boolean isComputed,
       @Nullable String context,
       RegressionStatus[] regresses) {
     try {
-      T oracle = loadFromMemory(true, example, query);
-      if (oracle == null) {
-        oracle = query.oracle(example, this);
-        saveToMemory(oracle, true, example, query);
-      }
+      var oracle = oracle(example, query, isComputed ? actual : null);
 
       query.verifyExtra(actual, example, this);
       verifyNoRegression(example, query, actual, regresses);
-      query.verifyEqual(oracle, actual, example, this);
+      if (oracle != null) {
+        query.verifyEqual(oracle, actual, example, this);
+      }
     } catch (Exception | Error e) {
       if (context != null) {
         e.addSuppressed(new RuntimeException("Context: " + context));
       }
       throw e;
     }
+  }
+
+  /// What to compare `query`'s actual data against: [Query#oracle(Example, SnapshotStore)], or if
+  /// it has none, `query` computed.
+  ///
+  /// If `computed` (the actual data) was just computed, it isn't computed again: then this is
+  /// `null`, and `computed` is what later actual data is compared against.
+  ///
+  /// The oracle is only ever compared against, so it's its snapshot that's cached (which is what
+  /// makes it safe to cache even if the query is transient).
+  private <T> @Nullable T oracle(Example example, Query<T> query, @Nullable T computed) {
+    T oracle = loadFromMemory(true, example, query);
+    if (oracle != null) {
+      return oracle;
+    }
+
+    var independent = query.oracle(example, this);
+    if (independent != null) {
+      oracle = query.snapshot(independent, example, this);
+    }
+    if (oracle == null && computed != null) {
+      saveToMemory(computed, true, example, query);
+      return null;
+    }
+    if (oracle == null) {
+      oracle = query.snapshot(query.compute(example, this), example, this);
+    }
+    saveToMemory(oracle, true, example, query);
+    return oracle;
   }
 
   private <T> void verifyNoRegression(
@@ -157,6 +211,10 @@ public class SnapshotStore {
   ///
   /// @throws MissingSnapshotException if no snapshot exists and computation failed
   public <T> T load(Example example, Query<T> query) {
+    if (query.isTransient()) {
+      return compute(example, query);
+    }
+
     // Try to load from memory
     T inMemory = loadFromMemory(false, example, query);
     if (inMemory != null) {
@@ -201,7 +259,7 @@ public class SnapshotStore {
       Files.deleteRecursively(path);
     }
 
-    if (!Files.exists(path)) {
+    if (query.isTransient() || !isOnDisk(path) || !query.isComplete(path)) {
       computeAndSave(example, query);
     }
 
@@ -219,22 +277,29 @@ public class SnapshotStore {
   }
 
   private <T> T computeAndSave(Example example, Query<T> query) {
-    T computed;
+    var computed = compute(example, query);
+    if (!query.isTransient()) {
+      saveToMemory(computed, true, example, query);
+    }
+    if (!example.hasOption("", "dontSaveSnapshots")) {
+      saveToDisk(query.snapshot(computed, example, this), example, query);
+    }
+    return computed;
+  }
+
+  private <T> T compute(Example example, Query<T> query) {
     try {
-      computed = query.oracle(example, this);
+      var oracle = query.oracle(example, this);
+      return oracle != null ? oracle : query.compute(example, this);
     } catch (SkipQueryException e) {
       throw new SkipQueryException(query.name(), e);
     } catch (Exception | Error e) {
       throw new MissingSnapshotException(query.name(), e);
     }
-    saveToMemory(computed, true, example, query);
-    if (!example.hasOption("", "dontSaveSnapshots")) {
-      saveToDisk(computed, example, query);
-    }
-    return computed;
   }
 
   private <T> @Nullable T loadFromMemory(boolean isOracle, Example example, Query<T> query) {
+    useMemoryFor(example);
     var querySnapshots = snapshotsInMemory.get(query);
     if (querySnapshots == null) {
       return null;
@@ -253,18 +318,27 @@ public class SnapshotStore {
   }
 
   private <T> void saveToMemory(T snapshot, boolean isOracle, Example example, Query<T> query) {
+    useMemoryFor(example);
     snapshotsInMemory
         .computeIfAbsent(query, _ -> new HashMap<>())
         .put(example, new SnapshotInMemory<>(snapshot, isOracle));
   }
 
+  /// Forget the snapshots in memory if they aren't `example`'s.
+  private void useMemoryFor(Example example) {
+    if (!example.equals(exampleInMemory)) {
+      snapshotsInMemory.clear();
+      exampleInMemory = example;
+    }
+  }
+
   private <T> @Nullable T loadFromDisk(Example example, Query<T> query) {
-    if (TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches()) {
+    var path = snapshotPath(example, query);
+    if (TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches()
+        && !savedThisRun.contains(path)) {
       return null;
     }
-
-    var path = snapshotPath(example, query);
-    if (!Files.exists(path)) {
+    if (!isOnDisk(path)) {
       return null;
     }
 
@@ -278,6 +352,32 @@ public class SnapshotStore {
               + path
               + "\nYou may need to delete it or run with `IGNORE_SNAPSHOTS`",
           e);
+    }
+  }
+
+  /// Whether `path` holds a snapshot's content: it exists, and it isn't a git LFS pointer (or a
+  /// directory with one) that was checked out without being fetched (see `.lfsconfig`). An
+  /// un-fetched snapshot is recomputed like a missing one, and the recomputed one overwrites it;
+  /// `git status` then lists the snapshots whose content changed.
+  private static boolean isOnDisk(Path path) {
+    if (!Files.exists(path)) {
+      return false;
+    }
+    try (var files = java.nio.file.Files.walk(path)) {
+      return files.filter(Files::isRegularFile).noneMatch(SnapshotStore::isLfsPointer);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static final byte[] LFS_POINTER_HEADER =
+      "version https://git-lfs.github.com/spec/v1".getBytes(StandardCharsets.US_ASCII);
+
+  private static boolean isLfsPointer(Path file) {
+    try (var in = java.nio.file.Files.newInputStream(file)) {
+      return Arrays.equals(in.readNBytes(LFS_POINTER_HEADER.length), LFS_POINTER_HEADER);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -299,6 +399,7 @@ public class SnapshotStore {
 
     try {
       query.serialize(snapshot, path, example, this);
+      savedThisRun.add(path);
     } catch (Exception e) {
       // Ensure future loads don't fail because of partially-saved data
       if (Files.exists(path)) {

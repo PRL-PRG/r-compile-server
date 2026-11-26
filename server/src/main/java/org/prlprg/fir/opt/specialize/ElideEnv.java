@@ -20,8 +20,9 @@ import org.prlprg.fir.ir.instruction.iterator.InstructionDfs;
 /// Marks unnecessary environments as [MkEnvType#ELIDED]: those whose range contains no [Store]
 /// (nor super-store) nor reflective instructions (ignoring deopt branches).
 ///
-/// An elided environment isn't materialized; deopt branches re-create it on demand, so unlike a
-/// regular environment its [PopEnv][org.prlprg.fir.ir.expression.PopEnv] stays in place.
+/// An elided environment isn't materialized; the backend materializes it at the entry of a deopt
+/// branch (`Fir_materialize_env` in C; the interpreter always creates a real environment), so
+/// unlike a regular environment its [PopEnv][org.prlprg.fir.ir.expression.PopEnv] stays in place.
 public record ElideEnv() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
@@ -75,7 +76,7 @@ public record ElideEnv() implements SpecializeOptimization {
       var instruction = dfs.next();
       var bb = dfs.bb();
 
-      // Entered a deopt branch: the deopt re-creates the environment on demand, so prune and
+      // Entered a deopt branch: the backend materializes the environment there, so prune and
       // ignore (prune means we won't iterate another instruction in the branch, so checking that
       // we're *in* a deopt branch is equivalent).
       if (bb.jump().expression() instanceof Deopt) {
@@ -102,7 +103,7 @@ public record ElideEnv() implements SpecializeOptimization {
       // forced -- which the DFS doesn't walk into, and which may not even happen within the range.
       // So a promise that stores has to block elision just like a store here would.
       if (instruction instanceof Statement stmt
-          && stmt.expression() instanceof Promise(_, _, var code, _)
+          && stmt.expression() instanceof Promise(_, _, var code, _, _)
           && needsMaterializedEnv(code, inferEffects, ignoreReflection)) {
         return false;
       }
@@ -121,7 +122,7 @@ public record ElideEnv() implements SpecializeOptimization {
             stmt ->
                 switch (stmt.expression()) {
                   case Store _ -> true;
-                  case Promise(_, _, var nested, _) ->
+                  case Promise(_, _, var nested, _, _) ->
                       needsMaterializedEnv(nested, inferEffects, ignoreReflection);
                   // `MkEnv` shadows this environment for the rest of the promise, but stores
                   // before it (and super-stores after) still reach here, so don't try to be

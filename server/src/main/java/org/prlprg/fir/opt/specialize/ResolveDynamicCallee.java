@@ -87,12 +87,16 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
       return Result.UNCHANGED;
     }
     var staticFunction = staticFunctionAndClosureWithEnv.first();
-    var closureWithEnv = staticFunctionAndClosureWithEnv.second();
+    // The call of a function that needs a context goes through `Rf_applyClosure`, which needs the
+    // closure.
+    var closureWithEnv =
+        staticFunction.userProperties().needsContext()
+            ? calleeReg
+            : staticFunctionAndClosureWithEnv.second();
 
     var formalParameters = Lists.mapLazy(staticFunction.parameterNames(), NamedVariable::name);
     var realNames =
-        Stream.concat(
-                names.stream().map(OptionalNamedVariable::toString), Stream.generate(() -> ""))
+        Stream.concat(names.stream().map(OptionalNamedVariable::name), Stream.generate(() -> ""))
             .limit(callArguments.size())
             .toList();
     MatchResults staticArgumentPositions;
@@ -103,6 +107,31 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
       // Technically we can replace with the static error,
       // but in practice this is rare enough that not optimizing is OK
       return Result.UNCHANGED;
+    }
+    // A builtin binds the formals before `...` by its own rules, often by position whatever the
+    // names (`a[[x = 1]]` indexes `a`). Only resolve when those rules can't differ from name
+    // matching: every named argument bound to such a formal is at the formal's position.
+    if (GlobalModules.BUILTINS.localFunction(staticFunction.name()) == staticFunction) {
+      var dddIndex = formalParameters.indexOf("...");
+      var preDddEnd = dddIndex == -1 ? formalParameters.size() : dddIndex;
+      for (var i = 0; i < preDddEnd; i++) {
+        var argIndex = staticArgumentPositions.arguments().get(formalParameters.get(i));
+        if (argIndex != null && argIndex != i && !realNames.get(argIndex).isEmpty()) {
+          return Result.UNCHANGED;
+        }
+      }
+      // `fir2c` drops the trailing `<missing>` arguments of a static builtin call (the unsupplied
+      // formals), so the last supplied formal must not be an empty argument (`quote(expr = )`).
+      var supplied = staticArgumentPositions.arguments();
+      var lastSupplied =
+          formalParameters.reversed().stream().filter(supplied::containsKey).findFirst();
+      if (lastSupplied.isPresent()
+          && formalParameters.indexOf(lastSupplied.get()) > dddIndex
+          && callArguments
+              .get(supplied.get(lastSupplied.get()))
+              .equals(new Constant(SEXPs.MISSING_ARG))) {
+        return Result.UNCHANGED;
+      }
     }
     var staticArguments =
         formalParameters.stream()

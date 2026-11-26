@@ -24,9 +24,23 @@ public class TestConfig extends Config {
   public static final Pattern EXAMPLE_FILTER =
       Pattern.compile(INSTANCE.get("EXAMPLE_FILTER", ".*"));
 
+  /// Seconds that one evaluation in the test GNU-R process may take. After that, the process is
+  /// killed and the evaluation fails like an R crash, so one hung example doesn't hang the run.
+  ///
+  /// This is **120** by default.
+  public static final int R_EVAL_TIMEOUT = INSTANCE.get("R_EVAL_TIMEOUT", 120);
+
+  /// Seconds that one example test (except a benchmark) may take. After that, it fails and the run
+  /// continues (see [org.prlprg.examples.ExampleTimeout]). `0` disables the limit, e.g. to debug.
+  ///
+  /// This is **300** by default: above [#R_EVAL_TIMEOUT], so a hung R evaluation fails through
+  /// that timeout (which restarts R) instead of this one (which abandons the thread talking to R).
+  public static final int EXAMPLE_TIMEOUT = INSTANCE.get("EXAMPLE_TIMEOUT", 300);
+
   /// A regex, matched against
   /// [org.prlprg.fir.opt.Optimizations#individualOptimizationNames()]. Selects the optimizations
-  /// that `org.prlprg.snapshot.bench.OptimizationBenchmark` removes, one per benchmarked variant.
+  /// that `org.prlprg.snapshot.bench.OptimizationBenchmark` removes, one per benchmarked variant,
+  /// and that `org.prlprg.snapshot.bench.SynergyBenchmark` combines.
   ///
   /// This is **all of them** by default (`true` also means all). That benchmark re-optimizes,
   /// recompiles and reruns each example once per selected optimization, which takes minutes per
@@ -36,4 +50,48 @@ public class TestConfig extends Config {
           Objects.equals(INSTANCE.get("BENCHMARK_OPTIMIZATIONS"), "true")
               ? ".*"
               : INSTANCE.get("BENCHMARK_OPTIMIZATIONS", ".*"));
+
+  /// How many times `org.prlprg.snapshot.bench.VersionBenchmark` runs the benchmark call.
+  ///
+  /// This is **30** by default: more than twice the stub threshold (10), so the steady state and
+  /// every link of a version chain show.
+  public static final int BENCHMARK_VERSION_RUNS = INSTANCE.get("BENCHMARK_VERSION_RUNS", 30);
+
+  /// `org.prlprg.snapshot.bench.SynergyBenchmark` removes every pair among this many
+  /// optimizations, the ones whose single removal slows the example down the most.
+  ///
+  /// This is **8** by default.
+  public static final int BENCHMARK_SYNERGY_TOP = INSTANCE.get("BENCHMARK_SYNERGY_TOP", 8);
+
+  /// `org.prlprg.snapshot.bench.SynergyBenchmark` removes every subset of size 3 up to
+  /// [#BENCHMARK_SYNERGY_MAX_SIZE] among this many optimizations, the ones whose single removal
+  /// slows the example down the most.
+  ///
+  /// This is **5** by default.
+  public static final int BENCHMARK_SYNERGY_TOP_DEEP =
+      INSTANCE.get("BENCHMARK_SYNERGY_TOP_DEEP", 5);
+
+  /// The largest set of optimizations that `org.prlprg.snapshot.bench.SynergyBenchmark` removes,
+  /// except the sets in [#BENCHMARK_SYNERGY_SETS].
+  ///
+  /// This is **4** by default.
+  public static final int BENCHMARK_SYNERGY_MAX_SIZE =
+      INSTANCE.get("BENCHMARK_SYNERGY_MAX_SIZE", 4);
+
+  /// More sets of optimizations for `org.prlprg.snapshot.bench.SynergyBenchmark` to remove: sets
+  /// separated by `,`, names in a set separated by `+`, e.g.
+  // `unbox+unboxPhi,inline+optimizeCallee`.
+  ///
+  /// This is **empty** by default.
+  public static final String BENCHMARK_SYNERGY_SETS = INSTANCE.get("BENCHMARK_SYNERGY_SETS", "");
+
+  /// The least noise floor of `org.prlprg.snapshot.bench.SynergyBenchmark`: a `synergy` closer to 1
+  /// than this isn't `significant`, even if the two runs of the baseline differ by less.
+  ///
+  /// The measured floor comes from one pair of runs, which usually underestimates the noise: two
+  /// loads of the same shared object were observed to differ by 20-30% (see `optbench.R`).
+  ///
+  /// This is **0.1** by default.
+  public static final double BENCHMARK_NOISE_FLOOR_MIN =
+      INSTANCE.get("BENCHMARK_NOISE_FLOOR_MIN", 0.1);
 }

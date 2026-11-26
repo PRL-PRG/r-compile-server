@@ -2,7 +2,17 @@
 .config.properties
 
 ### Test artifacts
-src/test/snapshots
+# Only the `stdlib_*` examples' snapshots are committed (in git LFS, see `/.gitattributes`).
+# `**/` re-includes the directories, otherwise nothing inside could be re-included.
+src/test/snapshots/**
+!src/test/snapshots/**/
+!src/test/snapshots/**/stdlib_*
+!src/test/snapshots/**/stdlib_*/**
+# Build products, debug aids, and the per-run module id inside snapshots
+src/test/snapshots/**/*.so
+src/test/snapshots/**/*.dSYM/
+src/test/snapshots/**/*.optlog.html
+src/test/snapshots/**/id.txt
 !src/test/resources/**/*.log
 Rplots.pdf
 

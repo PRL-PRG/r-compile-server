@@ -1,6 +1,8 @@
 package org.prlprg.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
@@ -9,9 +11,12 @@ import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
+import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
@@ -60,7 +65,7 @@ class SimpleInternalInterpretTest {
     var version = function.baseline();
     version.setReturnType(Type.INTEGER);
 
-    var cfg = Objects.requireNonNull(version.cfg());
+    var cfg = version.body();
     var entry = cfg.entry();
 
     // Add return instruction: return 42
@@ -84,7 +89,7 @@ class SimpleInternalInterpretTest {
     var version = function.baseline();
     version.setReturnType(Type.INTEGER);
 
-    var cfg = Objects.requireNonNull(version.cfg());
+    var cfg = version.body();
     var entry = cfg.entry();
 
     // Add return instruction: return r
@@ -104,7 +109,7 @@ class SimpleInternalInterpretTest {
     var function = module.addFunction(Variable.named("test"), List.of(Variable.named("r")), false);
     var version = function.baseline();
 
-    var cfg = Objects.requireNonNull(version.cfg());
+    var cfg = version.body();
     var entry = cfg.entry();
     entry.setJump(new Jump(new Return(), List.of(new Constant(SEXPs.integer(0)))));
 
@@ -123,7 +128,7 @@ class SimpleInternalInterpretTest {
     var function = module.addFunction(Variable.named("test"), List.of(), false);
     var version = function.baseline();
 
-    var entry = Objects.requireNonNull(version.cfg()).entry();
+    var entry = version.body().entry();
     entry.appendStatement(new Statement(new MkEnv(MkEnvType.ELIDED)));
     entry.appendStatement(
         new Statement(
@@ -145,7 +150,7 @@ class SimpleInternalInterpretTest {
     var version = function.baseline();
     version.setReturnType(Type.ANY_VALUE_SEXP);
 
-    var entry = Objects.requireNonNull(version.cfg()).entry();
+    var entry = version.body().entry();
     entry.appendStatement(new Statement(new MkEnv(MkEnvType.ELIDED)));
     var loadStmt = new Statement(new Load(LoadType.LOCAL_VAR, Variable.named("x")));
     entry.appendStatement(loadStmt);
@@ -168,7 +173,7 @@ class SimpleInternalInterpretTest {
     var inner = module.addFunction(Variable.named("inner"), List.of(), false);
     var innerV = inner.baseline();
     innerV.setReturnType(Type.ANY_VALUE_SEXP);
-    var innerEntry = Objects.requireNonNull(innerV.cfg()).entry();
+    var innerEntry = innerV.body().entry();
     var vargsStmt =
         new Statement(
             new MkVector(new Kind.Dots(), Collections.<NamedVariable>singletonList(null)),
@@ -189,7 +194,7 @@ class SimpleInternalInterpretTest {
     var main = module.addFunction(Variable.named("main"), List.of(), false);
     var mainV = main.baseline();
     mainV.setReturnType(Type.ANY_VALUE_SEXP);
-    var mainEntry = Objects.requireNonNull(mainV.cfg()).entry();
+    var mainEntry = mainV.body().entry();
     mainEntry.appendStatement(new Statement(new MkEnv(MkEnvType.REGULAR)));
     var innerSig = new Signature(ImmutableList.of(), Type.ANY_VALUE_SEXP, Effects.REFLECT);
     var mainCallStmt =
@@ -212,7 +217,7 @@ class SimpleInternalInterpretTest {
     var function = module.addFunction(Variable.named("test"), List.of(), false);
     var version = function.baseline();
 
-    var cfg = Objects.requireNonNull(version.cfg());
+    var cfg = version.body();
     var entry = cfg.entry();
 
     // Define a register in an unreachable block, then return it from the entry: at runtime its
@@ -227,5 +232,72 @@ class SimpleInternalInterpretTest {
 
     // Should throw exception
     assertThrows(InterpretException.class, () -> interpreter.call("test"));
+  }
+
+  /// A test timeout interrupts the test thread, and an infinite loop must not ignore that.
+  @Test
+  void testInterruptStopsInfiniteLoop() throws InterruptedException {
+    var loop =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> v1(I) {
+                goto LOOP();
+              LOOP():
+                goto LOOP();
+              }
+            }
+            """);
+    var thrown = new AtomicReference<Throwable>();
+    var thread =
+        new Thread(
+            () -> {
+              try {
+                new InternalInterpreter(loop).call("main");
+              } catch (Throwable e) {
+                thrown.set(e);
+              }
+            });
+
+    thread.start();
+    Thread.sleep(100);
+    thread.interrupt();
+    thread.join(10_000);
+
+    assertFalse(thread.isAlive());
+    assertInstanceOf(CancellationException.class, thrown.get(), () -> String.valueOf(thrown.get()));
+  }
+
+  /// `goto H(b, a, k2)` swaps `a` and `b`: phis are assigned in parallel.
+  @Test
+  void phiArgumentThatIsAnotherPhiOfTheTarget_readsTheOldValue() {
+    var parsed =
+        ParseUtil.parseModule(
+            """
+            fun f(n) {
+              (n:*) -+> V { ... }
+              (n:I) -+> v1(I) {
+                goto H(1, 2, 0);
+              H(a: I, b: I, k: I):
+                c: L = `<`< I,I --> L >(k, n);
+                t: B = naToFalse< L --> B >(c);
+                if t then B1() else E();
+              B1():
+                k2: I = `+`< I,I --> I >(k, 1);
+                goto H(b, a, k2);
+              E():
+                d: I = `*`< I,I --> I >(a, 10);
+                e: I = `+`< I,I --> I >(d, b);
+                r: v1(I) = box< I --> v1(I) >(e);
+                return r;
+              }
+            }
+            """);
+    var swapper = new InternalInterpreter(parsed);
+    registerBuiltins(swapper);
+    assertEquals(
+        new Value.Sexp(SEXPs.integer(21)), swapper.call("f", new Value.Int(1)), "one swap");
+    assertEquals(
+        new Value.Sexp(SEXPs.integer(12)), swapper.call("f", new Value.Int(2)), "two swaps");
   }
 }

@@ -1,4 +1,5 @@
 #? stdlib
+#? seed(42)
 `legend` <- function (x, y = NULL, legend, fill = NULL, col = par("col"), 
     border = "black", lty, lwd, pch, angle = 45, density = NULL, 
     bty = "o", bg = par("bg"), box.lwd = par("lwd"), box.lty = par("lty"), 

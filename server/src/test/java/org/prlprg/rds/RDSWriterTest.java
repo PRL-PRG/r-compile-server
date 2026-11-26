@@ -389,6 +389,28 @@ public class RDSWriterTest {
     assertEquals(sexp, bcode(bc));
   }
 
+  /// Calls that differ only in `NA` vs `NaN` must not be written as one shared cell.
+  @Test
+  public void testBCKeepsNaAndNaNCallsApart() throws Exception {
+    var R = GNUR.instance();
+    var clo = (CloSXP) R.eval("function(y) c(`%%`(NA_real_, y), `%%`(NaN, y))");
+    var bc = new BCCompiler(clo, R.getSession()).compile().orElseThrow();
+
+    var output = new ByteArrayOutputStream();
+    RDSWriter.writeStream(output, bcode(bc));
+    var sexp =
+        (BCodeSXP)
+            RDSReader.readStream(R.getSession(), new ByteArrayInputStream(output.toByteArray()));
+
+    assertEquals(bcode(bc), sexp);
+    var naKinds =
+        sexp.bc().consts().stream()
+            .filter(c -> c instanceof LangSXP l && l.funName().orElse("").equals("%%"))
+            .map(c -> Constants.isNaReal(((RealSXP) ((LangSXP) c).arg(0)).get(0)))
+            .toList();
+    assertEquals(List.of(true, false), naKinds);
+  }
+
   @Test
   public void testClosureWithBCEval() {
     var R = GNUR.instance();
@@ -410,5 +432,94 @@ public class RDSWriterTest {
     var output = R.eval("input(x=c(1, 2))", compiled_clo);
 
     assertEquals(output, real(6, 7));
+  }
+
+  /// Strings that R keeps apart (undecodable native bytes, "bytes" strings) stay apart in Java and
+  /// round-trip; UTF-8 and Latin-1 spellings of the same text are equal, as in R.
+  @Test
+  public void testStringEncodings_withR() {
+    var R = GNUR.instance();
+
+    var strs =
+        """
+        c("\\xab", "\\xbb", "a\\xab\\xc3\\xa9", "\\u00e9", iconv("\\u00e9", "UTF-8", "latin1"),
+          `Encoding<-`("\\xc3\\xa9", "bytes"), `Encoding<-`("\\xab", "bytes"))""";
+    var read = (StrSXP) R.eval(strs);
+
+    assertEquals(read.get(3), read.get(4));
+    assertEquals(6, read.stream().distinct().count());
+
+    var output =
+        R.eval(
+            "identical(input, x <- "
+                + strs
+                + ") && identical(lapply(input[-5], charToRaw), lapply(x[-5], charToRaw))"
+                + " && identical(Encoding(input[-5]), Encoding(x[-5]))",
+            read);
+    assertEquals(SEXPs.TRUE, output);
+  }
+
+  @Test
+  public void testExtptrAttributes_withR() {
+    var R = GNUR.instance();
+
+    var extptr =
+        new ExtptrSxp(NULL, NULL, new Attributes.Builder().put("class", string("foo")).build());
+    var output = R.eval("typeof(input) == 'externalptr' && identical(class(input), 'foo')", extptr);
+    assertEquals(SEXPs.TRUE, output);
+  }
+
+  @Test
+  public void testCallOfClosure_withR() {
+    var R = GNUR.instance();
+
+    var call = R.eval("as.call(list(function(x) x + 1, 1))");
+    var output = R.eval("is.function(input[[1]]) && identical(eval(input), 2)", call);
+    assertEquals(SEXPs.TRUE, output);
+  }
+
+  @Test
+  public void testS4_withR() {
+    var R = GNUR.instance();
+
+    var s4 =
+        new S4SXP(
+            new Attributes.Builder().put("x", integer(1)).put("class", string("foo")).build());
+    var output = R.eval("typeof(input) == 'S4' && isS4(input) && identical(input@x, 1L)", s4);
+    assertEquals(SEXPs.TRUE, output);
+  }
+
+  /// `NA` and `-NaN` keep their bits, unlike with [java.io.DataOutputStream#writeDouble].
+  @Test
+  public void testNaNBits_withR() {
+    var R = GNUR.instance();
+
+    var na = ((RealSXP) R.eval("NA_real_")).get(0);
+    var negNaN = Double.longBitsToDouble(Double.doubleToRawLongBits(NaN) | Long.MIN_VALUE);
+    var reals = real(Constants.NA_REAL, na, NaN, negNaN);
+    var output =
+        R.eval("identical(input, c(NA_real_, NA_real_, NaN, -NaN), single.NA = FALSE)", reals);
+    assertEquals(SEXPs.TRUE, output);
+  }
+
+  /// A FIŘ promise's data holds `R_UnboundValue` when its expression is unknown.
+  @Test
+  public void testVecWithUnboundValue() throws Exception {
+    var R = GNUR.instance();
+
+    var list = vec(UNBOUND_VALUE, integer(1));
+    var output = new ByteArrayOutputStream();
+    RDSWriter.writeStream(output, list);
+    var sexp = RDSReader.readStream(R.getSession(), new ByteArrayInputStream(output.toByteArray()));
+
+    if (sexp instanceof VecSXP readList) {
+      assertEquals(2, readList.size());
+      assertEquals(UNBOUND_VALUE, readList.get(0));
+      assertEquals(integer(1), readList.get(1));
+    } else {
+      fail("Expected VecSXP");
+    }
+
+    assertEquals(SEXPs.TRUE, R.eval("is.list(input) && length(input) == 2", list));
   }
 }

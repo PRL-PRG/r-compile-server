@@ -11,8 +11,9 @@ import org.prlprg.parseprint.Printer;
 /** AST function call ("language object") SEXP. */
 @Immutable
 public sealed interface LangSXP extends SymOrLangSXP, SEXP, LangOrListSXP {
-  /** The function being called. */
-  SymOrLangSXP fun();
+  /// The function being called: usually a symbol or call, but GNU-R allows any SEXP, e.g. the
+  /// closure in the call `as.call(list(f, x))` builds.
+  SEXP fun();
 
   /** The function arguments (all ASTs). */
   ListSXP args();
@@ -58,8 +59,7 @@ public sealed interface LangSXP extends SymOrLangSXP, SEXP, LangOrListSXP {
   }
 }
 
-record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
-    implements LangSXP {
+record LangSXPImpl(SEXP fun, ListSXP args, @Override Attributes attributes) implements LangSXP {
   @Override
   public LangSXP withAttributes(Attributes attributes) {
     return SEXPs.lang(fun, args, attributes);

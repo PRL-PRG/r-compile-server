@@ -6,6 +6,7 @@ import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
 import com.google.common.collect.Streams;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -57,7 +58,14 @@ public final class CfgReachability implements CfgAnalysis {
 
   /// Check if a trace that reaches `source` may reach `target` after.
   public boolean isReachable(BB sourceBb, int sourceIndex, BB targetBb, int targetIndex) {
-    return sourceBb == targetBb ? sourceIndex <= targetIndex : isReachable(sourceBb, targetBb);
+    return sourceBb == targetBb
+        ? sourceIndex <= targetIndex || isInCycle(sourceBb)
+        : isReachable(sourceBb, targetBb);
+  }
+
+  /// Whether a trace that leaves the block may enter it again.
+  private boolean isInCycle(BB bb) {
+    return bb.successors().stream().anyMatch(successor -> maySucceed(successor).contains(bb));
   }
 
   /// Check if a trace that reaches `source` may reach `target` after.
@@ -68,8 +76,12 @@ public final class CfgReachability implements CfgAnalysis {
 
   private void run() {
     for (var bb : cfg.bbs()) {
-      mayPrecede.put(bb, Streams.stream(bbReverseDfs(bb)).collect(Collectors.toSet()));
-      maySucceed.put(bb, Streams.stream(bbDfs(bb)).collect(Collectors.toSet()));
+      // Linked, because optimizations iterate these (e.g. to copy a statement into each block).
+      mayPrecede.put(
+          bb,
+          Streams.stream(bbReverseDfs(bb)).collect(Collectors.toCollection(LinkedHashSet::new)));
+      maySucceed.put(
+          bb, Streams.stream(bbDfs(bb)).collect(Collectors.toCollection(LinkedHashSet::new)));
     }
   }
 }

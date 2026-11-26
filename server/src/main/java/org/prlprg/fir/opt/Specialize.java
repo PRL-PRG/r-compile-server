@@ -18,13 +18,17 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization;
@@ -34,7 +38,7 @@ import org.prlprg.fir.opt.specialize.SpecializeOptimization.Result;
 import org.prlprg.util.Streams;
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
-public class Specialize implements AbstractionOptimization {
+public class Specialize extends AbstractionOptimization {
   private final String name;
   private final List<SpecializeOptimization> subOptimizations;
   private final AnalysisTypes analysisTypes;
@@ -64,7 +68,10 @@ public class Specialize implements AbstractionOptimization {
 
   @Override
   public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+      Optimization topLevel,
+      @Nullable Function function,
+      AbstractionFeedback feedback,
+      Abstraction abstraction) {
     var analyses = new Analyses(abstraction, analysisTypes);
     var subOptimizations =
         this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction, analyses)).toList();
@@ -233,22 +240,30 @@ public class Specialize implements AbstractionOptimization {
             }
           }
           case Result.Replace(var newExpression, var newArgs) -> {
-            var oldAssignee = statement.assignee();
-            var newStmt = new Statement(statement.comments(), newExpression, newArgs);
-            if (oldAssignee != null) {
-              var newAssignee = newStmt.setAssignee(oldAssignee.name(), oldAssignee.type());
-              oldAssignee.substUsesWith(new Read(newAssignee));
-            }
-            statement.replaceWith(newStmt);
-            statement = newStmt;
+            statement = replace(statement, newExpression, newArgs);
             changed = true;
           }
           case Result.ForwardResult(var argument) -> {
             var assignee = statement.assignee();
-            if (assignee != null) {
-              assignee.substUsesWith(argument);
+            if (assignee != null
+                && argument instanceof Consume(var consumed)
+                && !(assignee.type().ownership() == Ownership.OWNED
+                    && scope.typeOf(consumed).ownership() == Ownership.OWNED)) {
+              // A `consume` can only be used once, and substituting the consumed register would
+              // change the assignee's ownership, so move it into the assignee instead.
+              statement = replace(statement, new Dup(), List.of(argument));
+            } else {
+              if (assignee != null) {
+                // Keep each use's `consume` (a consumed argument now applies to the register).
+                var register = argument.variable();
+                if (register != null) {
+                  assignee.substUsesWith(register);
+                } else {
+                  assignee.substUsesWith(argument);
+                }
+              }
+              statement.replaceWith(new Statement(new Noop()));
             }
-            statement.replaceWith(new Statement(new Noop()));
             changed = true;
           }
           case Result.Remove() -> {
@@ -263,6 +278,21 @@ public class Specialize implements AbstractionOptimization {
       if (!statement.isStandalone()) {
         trySpecializeType(statement, changes);
       }
+    }
+
+    /// Replaces `statement` with one of `newExpression` and `newArgs`, which gets its assignee's
+    /// uses (each keeping its `consume`), and returns it.
+    private Statement replace(
+        Statement statement, Expression newExpression, List<Argument> newArgs) {
+      var oldAssignee = statement.assignee();
+      var newStmt = new Statement(statement.comments(), newExpression, newArgs);
+      newStmt.setSource(statement.source());
+      if (oldAssignee != null) {
+        oldAssignee.substUsesWith(newStmt.setAssignee(oldAssignee.name(), oldAssignee.type()));
+      }
+      statement.replaceWith(newStmt);
+      feedback.replaceStatement(statement, newStmt);
+      return newStmt;
     }
 
     private void trySpecializeType(Statement statement, TreeSet<Position> changes) {

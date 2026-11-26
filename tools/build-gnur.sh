@@ -62,11 +62,11 @@ if [[ $USING_OSX -eq 1 ]]; then
 
   # From https://groups.google.com/g/r-sig-mac/c/4smMULZWKPc?pli=1
   export CC="clang -arch arm64"
-  export CXX="clang -arch arm64"
+  export CXX="clang++ -arch arm64"
   export OBJC="clang -arch arm64"
   export FC="gfortran -arch arm64"
   export CFLAGS="-falign-functions=64 -Wall $OPT"
-  export CXXFLAGS="falign-functions=64 -Wall $OPT"
+  export CXXFLAGS="-falign-functions=64 -Wall $OPT"
   export OBJCFLAGS="-falign-functions=64 -Wall $OPT"
   export FCFLAGS="-Wall $OPT"
   export F77FLAGS="-Wall $OPT"
@@ -112,7 +112,7 @@ echo "Building in $R_DIR"
 
 if [[ ! -f ${R_DIR}/.git ]]; then
   echo "-> update submodules"
-  git submodule update --init
+  git submodule update --init --depth 1
 fi
 
 cd "$R_DIR"

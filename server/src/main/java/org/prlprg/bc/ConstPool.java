@@ -128,24 +128,24 @@ public final class ConstPool extends ForwardingList<SEXP> {
       this.values = new ArrayList<>();
     }
 
+    /// Start from an existing pool and keep it verbatim, so its indices stay valid.
     public Builder(Collection<? extends SEXP> consts) {
       this.index = new HashMap<>(consts.size());
-      this.values = new ArrayList<>(consts.size());
-      for (var e : consts) {
-        add(e);
+      this.values = new ArrayList<>(consts);
+      for (var i = 0; i < values.size(); i++) {
+        index.putIfAbsent(values.get(i), i);
       }
     }
 
+    /// Add a constant, or reuse an equal one, like GNU-R's `putconst`.
     public <S extends SEXP> Idx<S> add(S c) {
       var i =
           index.computeIfAbsent(
               c,
-              (ignored) -> {
-                var x = values.size();
+              _ -> {
                 values.add(c);
-                return x;
+                return values.size() - 1;
               });
-
       return Idx.create(i, c);
     }
 
