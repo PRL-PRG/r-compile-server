@@ -4,7 +4,7 @@ SOURCES = stencil_diff.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 
 $(STENCIL_DIFF_BIN): $(OBJECTS)
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJECTS)
+	$(CXX) $(CXXFLAGS) $(BUILD_TOOL_LDFLAGS) -o $@ $(OBJECTS)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
