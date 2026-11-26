@@ -348,8 +348,15 @@ of calls.
   was recorded. Then `ElideEnv`, `ElideDeadStore` and `PromoteStaticallyKnownVariables` would
   remove stores that a reflective read (such as `get`) needs.
 - `OptimizeCallee#isOneElement` and `OptimizeCallee#widenedIndexTypes` also trust absent recording
-  evidence. A `[` without a recorded result counts as one element. A subassign without a recorded
-  growth counts as no growth. This is not verified in the JIT.
+  evidence. The recording has no `[` results (an inline `x[i]` is `VECSUBSET`, not `CALL`) and no
+  subassign growth. So a version for a scalar integer index calls the scalar `[` and the in-place
+  `[<-` or `[[<-`, also when the baseline saw an index below 1 or a growth. Then R signals an
+  error: "x[0] isn't one element" (a deopt), or "Subscript index out of bounds" (a runtime
+  assertion). This was verified on linode with `x[k]` and `x[k] <- 0`.
+- The from-R dispatch selects a specialized version only for an evaluated argument. A caller that
+  passes a variable passes a promise, so it calls the general copy. Also, the recording types a
+  parameter only through a plain `GETVAR`. A parameter that the closure reads only as an index
+  (`x[k]`) gets no specialized version.
 - The server never removes a module from `FirModules`.
 - `rsh_compile` and the `Compile` RPC (the bytecode-to-C path) still exist, but the JIT doesn't
   use them.
