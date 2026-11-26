@@ -1,0 +1,21 @@
+## prom: blocker, examples where it has the largest share (>=30%, >=1000 per call), fir2c.opt as % of bc.opt
+opaque callee (base or dynamically loaded closure)	38	shootout_mandelbrot_orbit 629.5, real_convolution_slow 203.7, real_volcano 174.3, shootout_mandelbrot_naive 155.6, misc_k_nn_lapply 134.8, shootout_fasta_naive_2 127.3, shootout_fannkuchredux 124.4, shootout_reversecomplement_naive 123.6, shootout_nbody_vectorized 122.1, shootout_fasta_c 121.7, shootout_nbody_naive_2 118.7, shootout_knucleotide_brute_2 116.7, misc_k_means_lapply 115.1, shootout_knucleotide_brute 111.1, shootout_knucleotide_brute_3 109.9, shootout_nbody_2 108.1, shootout_nbody_3 106.8, shootout_mandelbrot 106.3, awf_bounce 105.3, shootout_knucleotide 104.3, ati_att3_5 104.3, riposte_black_scholes 103.8, shootout_mandelbrot_noout 103.6, shootout_pidigits 102.9, shootout_reversecomplement 100.4, shootout_reversecomplement_2 100.0, real_flexclust_no_s4 99.3, riposte_lr 98.5, shootout_mandelbrot_ascii 98.5, shootout_nbody 96.0, shootout_fasta_3 93.3, shootout_fasta_naive 90.9, misc_k_means_1d_lapply 90.4, shootout_fasta_2 89.4, shootout_fastaredux_naive 88.1, shootout_fasta 82.5, shootout_fastaredux 78.9, shootout_nbody_naive 71.9
+static call: speculation (deopt) in promise body, param not @!	5	shootout_spectral_norm_vectorized 109.7, scalar_gcd_rec 92.3, shootout_spectralnorm_alt_4 72.8, shootout_spectralnorm_alt_3 65.4, shootout_spectralnorm 51.2
+static call: body effects + (dispatching builtin), param not @!	3	shootout_binarytrees_2 117.0, shootout_binarytrees_naive 116.7, shootout_binarytrees 71.4
+static call: speculation (deopt) in promise body	3	scalar_crt 136.4, awf_bounce_nonames 64.7, awf_bounce_nonames_simple 64.6
+builtins.fir closure / builtin	1	awf_storage 74.8
+## box: blocker, examples where it has the largest share (>=30%, >=1000 per call), fir2c.opt as % of bc.opt
+builtin without unboxed version: %%	10	scalar_gcd 174.1, shootout_fasta_naive_2 127.3, shootout_fasta_c 121.7, shootout_fasta_3 93.3, shootout_fasta_naive 90.9, shootout_fasta_2 89.4, shootout_fastaredux_naive 88.1, scalar_prime 83.7, shootout_fasta 82.5, shootout_fastaredux 78.9
+env variable: env regular (symbol promise to opaque callee)	9	shootout_fannkuchredux_naive 211.2, real_convolution_slow 203.7, shootout_fannkuchredux 124.4, shootout_mandelbrot_naive_ascii 116.1, misc_rw2d1 105.8, riposte_pca_blocked 98.1, riposte_pca 96.5, shootout_nbody_naive 71.9, shootout_spectralnorm 51.2
+no type speculation in the version (partial feedback)	9	shootout_mandelbrot_orbit 629.5, shootout_mandelbrot_naive 155.6, misc_pi_lapply 141.0, shootout_knucleotide_brute_2 116.7, shootout_knucleotide_brute 111.1, shootout_knucleotide_brute_3 109.9, shootout_mandelbrot 106.3, shootout_knucleotide 104.3, shootout_reversecomplement_2 100.0
+env variable: env non-reflective, store not promoted	5	scalar_fib 325.8, shootout_fannkuch_redux 91.0, awf_storage 74.8, real_convolution 67.6, shootout_spectral_norm 21.3
+builtin without unboxed version: [[	4	riposte_black_scholes 103.8, scalar_gcd_rec 92.3, shootout_spectralnorm_alt_4 72.8, shootout_spectralnorm_alt_3 65.4
+builtin without unboxed version: [<-	3	ati_att3_4 139.5, mathkernel_int_vec_add_t1 116.5, mathkernel_int_na_vec_add_t1 108.8
+builtin without unboxed version: *	3	shootout_mandelbrot_noout 103.6, shootout_mandelbrot_ascii 98.5, shootout_nbody 96.0
+builtin without unboxed version: [	2	mathkernel_mmm_t1 491.0, real_volcano 174.3
+builtin without unboxed version: ==	2	shootout_binarytrees_2 117.0, shootout_binarytrees_naive 116.7
+builtin without unboxed version: :	2	shootout_nbody_orbit 159.2, shootout_nbody_vectorized 122.1
+promise value (force)	1	shootout_spectral_norm_vectorized 109.7
+env variable: other (elided)	1	shootout_spectralnorm_naive 19.3
+builtin without unboxed version: bitwAnd	1	awf_bounce_nonames_simple 64.6
+builtin without unboxed version: min	1	ati_att3_5 104.3
