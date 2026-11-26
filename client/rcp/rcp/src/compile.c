@@ -3615,8 +3615,10 @@ static void save_original_cmpfun(void)
 	// Get the compiler namespace
 	SEXP compiler_namespace = PROTECT(R_FindNamespace(Rf_mkString("compiler")));
 
-	// Save the original cmpfun to a global variable
+	// Save the original cmpfun to a global variable. Preserve it: once
+	// rcp_jit_enable() rebinds `compiler::cmpfun`, this global is its only reference.
 	original_cmpfun = Rf_findVarInFrame(compiler_namespace, Rf_install("cmpfun"));
+	R_PreserveObject(original_cmpfun);
 
 	UNPROTECT_SAFE(compiler_namespace);
 }
@@ -4618,6 +4620,7 @@ void rcp_destr(void)
 	{
 		C_rcp_override_cmpfun(original_cmpfun);
 		DEBUG_PRINT("Restored original cmpfun\n");
+		R_ReleaseObject(original_cmpfun);
 		original_cmpfun = NULL;
 	}
 }
